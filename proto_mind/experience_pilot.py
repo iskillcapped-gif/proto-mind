@@ -18,6 +18,7 @@ from proto_mind.experience_ledger import (
     ExperienceTraceBuilder,
     compact_preview,
 )
+from proto_mind.experience_learning_bridge import format_learning_bridge_command
 from proto_mind.experience_turn import (
     format_cognitive_turn_episode,
     format_cognitive_turn_list,
@@ -359,6 +360,13 @@ def format_experience_pilot_command(
     if normalized.startswith("/experience episode "):
         parts = raw.split(maxsplit=2)
         return format_cognitive_turn_episode(pilot.snapshot(), parts[2].strip())
+    learning_output = format_learning_bridge_command(
+        raw,
+        pilot.snapshot(),
+        pilot_state=pilot.state,
+    )
+    if learning_output is not None:
+        return learning_output
     if normalized.startswith("/experience events"):
         return _format_events_command(raw, pilot)
     if normalized.startswith("/experience inspect"):
@@ -387,7 +395,7 @@ def _format_status(pilot: SupervisedExperiencePilot) -> str:
             f"bytes: {pilot.byte_count}/{pilot.max_bytes}",
             "persistence: disabled",
             "live_writer: absent",
-            "Commands: /experience preview | consent | episodes | episode | events | inspect | doctor | stop",
+            "Commands: /experience preview | consent | episodes | episode | learning | events | inspect | doctor | stop",
         ]
     )
 
@@ -477,6 +485,7 @@ def _usage() -> str:
             "/experience consent <exact phrase>",
             "/experience episodes",
             "/experience episode [latest|<turn_id>]",
+            "/experience learning status|preview [latest|<turn_id>]|doctor",
             "/experience events [--last N]",
             "/experience inspect <event_id>",
             "/experience doctor",

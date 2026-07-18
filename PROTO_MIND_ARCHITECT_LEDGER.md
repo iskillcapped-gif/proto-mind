@@ -2,7 +2,7 @@
 
 Purpose: compact architectural memory for future Codex prompts. Keep this file short, current, and operator-readable so future tasks do not need to restate the whole project history.
 
-Last updated: 2026-07-18
+Last updated: 2026-07-19
 
 ## Current Stable State
 
@@ -19,7 +19,7 @@ Last updated: 2026-07-18
   - Ollama via `PROTO_MIND_REASONER=ollama`, `PROTO_MIND_OLLAMA_MODEL`, `PROTO_MIND_OLLAMA_URL`.
 - Normal prompts go through observer, retrieval, reasoner, memory evaluation, self-reflection, grounding audit, and session logging.
 - Slash/operator commands bypass normal cognitive turns and should not become cognitive session log turns.
-- Supervised Experience Pilot v3.3a can observe successful normal turns only after an exact process-session consent; v3.3b projects those events into a compact Observe-to-Verify episode. Evidence is redacted, bounded, visible, and discarded on restart.
+- Supervised Experience Pilot v3.3a can observe successful normal turns only after an exact process-session consent; v3.3b projects those events into a compact Observe-to-Verify episode; v3.3c previews evidence-backed learning candidates for operator review. Evidence and candidates are redacted, bounded, visible, non-persistent, and discarded on restart.
 - Build Week submission provenance uses the July 11 pre-contest archive SHA-256 plus generated baseline/current/delta manifests; prior work and contest work are explicitly separated.
 - Primary Build Week Codex `/feedback` Session ID is `019d73be-1d7e-7401-8efe-f5e165736db4`.
 - Repository privacy review excludes local cognitive/runtime stores, removes user-specific checkout paths from public artifacts, and documents synthetic credential fixtures and publication boundaries.
@@ -29,7 +29,7 @@ Last updated: 2026-07-18
 ## Current Verification Baseline
 
 - Current test command: `scripts/run_tests.sh`.
-- Current test count: 835 unit tests OK.
+- Current test count: 843 unit tests OK.
 - Compile check: `python -m compileall proto_mind` via `scripts/run_tests.sh` OK.
 - Pytest: optional; currently not installed and skipped cleanly.
 
@@ -41,7 +41,7 @@ Last updated: 2026-07-18
 - PySide6 Desktop UI v1.5.2: dark UI, worker thread, Stop skeleton, markdown rendering, local macOS `.app` launcher, Desktop shortcut helper.
 - Session Control Room: `/session self-check`, `/session health`, `/session doctor`, `/session review`, `/session log ...`, plus Session Rituals v1 read-only start/end/checkpoint/handoff briefs.
 - Natural Command Router v2.3: exact routes plus policy-aware registry metadata in `/natural explain|list|doctor`, with suggestions still non-executing.
-- Command Registry v1.0: metadata for 358 slash-command prefixes across 41 categories with mutation/risk labels and Natural Router consistency checks.
+- Command Registry v1.0: metadata for 359 slash-command prefixes across 41 categories with mutation/risk labels and Natural Router consistency checks.
 - Action Safety Policy v1.0: read-only advisory classification into auto-allowed, confirmation-required, operator-only, or blocked without execution/enforcement.
 - Action Preview v1.0: read-only slash/natural resolution into registry- and policy-aware execution plans without command execution.
 - Action Proposal Queue v1.5.2: run-once read-only execution plus receipt history, verification, and global audit.
@@ -110,6 +110,7 @@ Last updated: 2026-07-18
 - v3.2m / Experience Capture Activation Readiness Review: ten-source evidence matrix that clears a separate supervised in-memory pilot design while runtime capture remains disabled and unauthorized.
 - v3.3a / Supervised In-Memory Experience Pilot: explicit preview/exact-consent process-session observation of normal turns into a redacted 256-event/512-KiB buffer, with visible evidence, provenance inspection, stop, and fail-closed behavior but no persistence or automatic learning.
 - v3.3b / Cognitive Turn Episode View: read-only `/experience episodes` and `/experience episode [latest|<turn_id>]` connect observation, intent, recall, response, memory decision, reflection, grounding, and exact provenance without persistence or summarization.
+- v3.3c / Operator-Reviewed Learning Bridge Preview: read-only `/experience learning status|preview [latest|<turn_id>]|doctor` turns only explicit redacted correction/reflection/grounding findings into bounded, evidence-linked review candidates; clean turns create none, and confirmation/apply/promotion/persistence remain unavailable.
 - Build Week Provenance Pack v1: July 11 baseline archive, SHA-256 manifests, objective contest delta, honest prior/new disclosure, and Codex collaboration record without private runtime data.
 - Contest Showcase v1: read-only live continuity/experience/governance/action presentation, deterministic three-minute script, dependency doctor, and submission guide without command execution or pilot activation.
 
@@ -129,19 +130,18 @@ Last updated: 2026-07-18
 
 ## Last Completed Milestone
 
-Build Week Provenance Pack v1:
+v3.3c / Operator-Reviewed Learning Bridge Preview:
 
-- Accepted `backups/proto_mind_backup_2026-07-11_05-02-19.tar.gz` as the unambiguous pre-submission baseline; SHA-256 is `50a39b36aca72e1ae74ad8afe80004bfac1fe1eb3c66a2f168519246a680d4df`.
-- Added `contest_provenance.py` to hash source/docs/tests/scripts directly from the archive and current tree without extracting or reading private stores.
-- Added atomic baseline/current/delta JSON evidence under `contest/provenance/` and JSON validation coverage.
-- Added `BUILD_WEEK_PROVENANCE.md`, `CODEX_COLLABORATION.md`, and `contest/README.md` with clear prior/new work classification; the real operator-supplied `/feedback` Session ID is recorded and no Git history is fabricated.
-- Added a privacy-first `.gitignore` before repository initialization; live data, exports, logs, backups, caches, app builds, and local preferences remain untracked.
-- Two focused regressions were added; the full suite passes 835 tests. Registry remains 358 commands across 41 categories.
+- Added a deterministic projection from current-process cognitive episodes to compact candidate findings with exact source-event provenance.
+- Candidates come only from existing redacted correction guidance and reflection/grounding diagnostics; no new lesson text is inferred and clean turns create no candidate.
+- Per-turn output is capped at eight and exact duplicates merge without losing evidence IDs.
+- Operator confirmation remains mandatory while promotion, automatic apply, queueing, persistence, and memory/skill writes remain unavailable.
+- Eight focused regressions were added; the full suite passes 843 tests. Registry is 359 commands across 41 categories.
 
 ## Next Candidate Tasks
 
-- Submission Readiness v1: choose repository visibility/licensing, perform privacy review, create the first honest dated commit, verify a clean clone, finalize English Devpost copy, and prepare the sub-three-minute video.
-- v3.3c / Operator-Reviewed Learning Bridge Preview: turn completed cognitive episodes into non-persistent lesson candidates with explicit evidence and confirmation requirements; no apply or automatic memory promotion.
+- Submission Readiness: keep the public repository and provenance manifests current, finalize English Devpost copy, and record the sub-three-minute video.
+- v3.3d / Learning Candidate Confirmation Design: define explicit accept/reject semantics and promotion dry-run receipts over detached candidates; no persistence or apply without a separate checkpointed authorization.
 - Memory Migration Plan: design deterministic compaction/archive rules for the 8 previewed legacy candidates; no apply step without separate approval.
 - Command Dispatch Architecture v2: replace the linear formatter chain with typed incremental family registration while preserving exact command behavior and runner isolation.
 - Test Suite Structure v1: split the 15k-line flow suite by domain without changing test semantics or commands.

@@ -54,6 +54,7 @@ The current source tree is compared directly with the July 11 archive by SHA-256
 
 - Supervised In-Memory Experience Pilot v3.3a with exact process-session consent.
 - Cognitive Turn Episode View v3.3b connecting Observe, Interpret, Recall, Respond, Memory decision, Reflect, Verify, and exact event IDs.
+- Operator-Reviewed Learning Bridge Preview v3.3c deriving bounded candidates only from exact redacted cognitive evidence, with no apply or persistence.
 - Contest Showcase v1 with a deterministic three-minute narrative and safety doctor.
 - Build Week Provenance Pack v1.
 
@@ -63,13 +64,13 @@ The generated evidence under `contest/provenance/` is the source of truth for th
 
 | Metric | July 11 baseline | Current Build Week state | Delta |
 |---|---:|---:|---:|
-| Submission-relevant files | 69 | 112 | +43 |
-| Python files | 66 | 85 | +19 |
-| Unit-test methods | 664 | 835 | +171 |
-| Registry commands | 343 | 358 | +15 |
+| Submission-relevant files | 69 | 113 | +44 |
+| Python files | 66 | 86 | +20 |
+| Unit-test methods | 664 | 843 | +179 |
+| Registry commands | 343 | 359 | +16 |
 | Registry categories | 39 | 41 | +2 |
 
-The file delta is not inferred from modification time. Every baseline and current submission-relevant file is hashed, then classified as added, changed, removed, or unchanged. The current manifest reports 43 added, 14 changed, 0 removed, and 55 unchanged files.
+The file delta is not inferred from modification time. Every baseline and current submission-relevant file is hashed, then classified as added, changed, removed, or unchanged. The current manifest reports 44 added, 14 changed, 0 removed, and 55 unchanged files.
 
 ## Reproduce The Evidence
 
