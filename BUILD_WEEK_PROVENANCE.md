@@ -1,0 +1,109 @@
+# OpenAI Build Week Provenance
+
+This document distinguishes the pre-existing Proto-Mind foundation from work added during the OpenAI Build Week submission period. It is intentionally conservative: the project is not presented as having been created entirely during the event.
+
+Official period:
+
+- Submission period starts: July 13, 2026 at 9:00 AM Pacific Time.
+- Submission deadline: July 21, 2026 at 5:00 PM Pacific Time.
+- Rules: <https://openai.devpost.com/rules>
+
+The rules permit an existing project when it is meaningfully extended with Codex and/or GPT-5.6 after the submission period starts. Only the new work is eligible for evaluation, and prior/new work must be clearly distinguished with timestamped Codex logs, dated commits, or equivalent evidence.
+
+## Pre-Contest Baseline
+
+The accepted baseline is the latest available checkpoint that is unambiguously earlier than the submission period:
+
+```text
+Archive: backups/proto_mind_backup_2026-07-11_05-02-19.tar.gz
+Local timestamp: 2026-07-11T05:02:19+03:00
+SHA-256: 50a39b36aca72e1ae74ad8afe80004bfac1fe1eb3c66a2f168519246a680d4df
+```
+
+The baseline already contained a substantial local-first architecture. Notable prior work included:
+
+- CLI, tkinter, PySide, local macOS launcher, Python 3.11 environment selection, and operator logs.
+- Explicit memory, reflection, goals, tasks, experiments, skills, world model, identity, context, and operating-loop stores and commands.
+- Natural Router, Command Registry, Action Policy, diagnostics, snapshots, exports, warning inspection, and operator rituals.
+- A four-command read-only runner with exact confirmation and bounded in-memory evidence through v3.0i.
+- Bilingual Cognitive Baseline v3.1a.
+- 343 registered command prefixes across 39 categories.
+- 664 unit-test methods in `proto_mind/tests/test_flow.py`.
+
+These capabilities are disclosed as pre-existing foundation, not claimed as Build Week work.
+
+## Build Week Extensions
+
+The current source tree is compared directly with the July 11 archive by SHA-256. The principal additions after that baseline are:
+
+### Cognitive Continuity Hardening
+
+- Memory Write Governance v3.1b: pure retrieval by default, explicit telemetry, compact user-input-only automatic memory, and quality preview.
+- Bilingual Grounding and Reflection v3.1c: shared Russian/English response signals and source-aware grounding.
+- Cognitive Continuity Soak v3.1d: a deterministic 25-turn temporary-store scenario with byte-stable read-only turns.
+
+### Experience And Learning Evidence
+
+- Experience Ledger Foundation and temporary hash-chain persistence policy.
+- Typed cognitive and action events with explicit provenance.
+- Explainability, episode projection, learning candidate review, and explicit-ID duplicate review.
+- Consent-state, privacy-redaction, bounded-growth, and activation-readiness benchmarks.
+- No automatic lesson apply or persistent live capture was enabled.
+
+### Supervised Product Surface
+
+- Supervised In-Memory Experience Pilot v3.3a with exact process-session consent.
+- Cognitive Turn Episode View v3.3b connecting Observe, Interpret, Recall, Respond, Memory decision, Reflect, Verify, and exact event IDs.
+- Contest Showcase v1 with a deterministic three-minute narrative and safety doctor.
+- Build Week Provenance Pack v1.
+
+## Objective Delta
+
+The generated evidence under `contest/provenance/` is the source of truth for these values.
+
+| Metric | July 11 baseline | Current Build Week state | Delta |
+|---|---:|---:|---:|
+| Submission-relevant files | 69 | 112 | +43 |
+| Python files | 66 | 85 | +19 |
+| Unit-test methods | 664 | 835 | +171 |
+| Registry commands | 343 | 358 | +15 |
+| Registry categories | 39 | 41 | +2 |
+
+The file delta is not inferred from modification time. Every baseline and current submission-relevant file is hashed, then classified as added, changed, removed, or unchanged. The current manifest reports 43 added, 14 changed, 0 removed, and 55 unchanged files.
+
+## Reproduce The Evidence
+
+From the project root:
+
+```bash
+scripts/which_python.sh
+/opt/homebrew/opt/python@3.11/bin/python3.11 -m proto_mind.contest_provenance
+python3 -m json.tool contest/provenance/baseline_manifest.json >/dev/null
+python3 -m json.tool contest/provenance/current_manifest.json >/dev/null
+python3 -m json.tool contest/provenance/contest_delta.json >/dev/null
+```
+
+Generated files:
+
+- `contest/provenance/baseline_manifest.json`
+- `contest/provenance/current_manifest.json`
+- `contest/provenance/contest_delta.json`
+
+The scope includes source, tests, scripts, documentation, setup metadata, and safe assets. It excludes cognitive data, exports, backups, logs, caches, virtual environments, app build output, Git metadata, and the generated provenance files themselves.
+
+## Codex / GPT-5.6 Evidence
+
+Submission evidence should include:
+
+- Primary `/feedback` Codex Session ID: `019d73be-1d7e-7401-8efe-f5e165736db4`.
+- Any additional Codex Session IDs used for major Build Week milestones.
+- This timestamped checkpoint chain and its SHA-256 manifests.
+- Git commits created from this point onward. Git history must not be backdated or presented as proof for earlier work.
+- The demo narration and README explanation of where Codex accelerated implementation and where the operator made product/safety decisions.
+
+## Evidence Limitations
+
+- The July 11 archive and SHA-256 manifests are local equivalent evidence, not a third-party timestamp authority.
+- The directory was not a Git repository during the first part of Build Week, so no historical Git commits will be fabricated.
+- The primary Codex Session ID above was supplied by the operator from the actual `/feedback` result for the main Build Week project task; additional milestone IDs remain optional.
+- Runtime stores are intentionally excluded to protect local user data; this does not weaken source-code comparison.

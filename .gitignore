@@ -1,0 +1,19 @@
+.DS_Store
+**/.DS_Store
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+.env
+
+# Local operator state and private cognitive stores.
+desktop_prefs.json
+logs/
+backups/
+exports/
+proto_mind/data/
+proto_mind/exports/
+
+# Local packaging and launcher output.
+dist/
+*.log

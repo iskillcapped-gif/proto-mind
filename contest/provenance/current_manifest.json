@@ -1,0 +1,709 @@
+{
+  "contest": {
+    "official_rules": "https://openai.devpost.com/rules",
+    "submission_deadline": "2026-07-21T17:00:00-07:00",
+    "submission_period_start": "2026-07-13T09:00:00-07:00"
+  },
+  "files": [
+    {
+      "category": "setup",
+      "path": ".env.example",
+      "sha256": "62135d9027ec97f14496bc83d9fa1a3ff1d45fd9720781f15e004ec2474cc374",
+      "size": 103
+    },
+    {
+      "category": "setup",
+      "path": ".gitignore",
+      "sha256": "d5efe5cda82edb8214906b0da9ab7bec58ace601f28507c3a2d62fe345de3163",
+      "size": 259
+    },
+    {
+      "category": "documentation",
+      "path": "ARCHITECTURE_MAP_V2.md",
+      "sha256": "161e294af20335ed48d9dfd9e06f77c8c607fa47ce0bd1ca67fef4b12efd1866",
+      "size": 83967
+    },
+    {
+      "category": "documentation",
+      "path": "BUILD_WEEK_PROVENANCE.md",
+      "sha256": "6ea87d0bf721c3f010d8c3b679c93a1db25c62a8ee9b5efb4e604ecac19a29aa",
+      "size": 5847
+    },
+    {
+      "category": "documentation",
+      "path": "CODEX_COLLABORATION.md",
+      "sha256": "ad7e313f4cc13414d02a92105347ce418b7291136997c0c4e7b16f26d8500b98",
+      "size": 3991
+    },
+    {
+      "category": "documentation",
+      "path": "CONTEST_SHOWCASE.md",
+      "sha256": "1fe1f0b202ce017514a177fb6a1a389ce731e93476c2bce8e505a90d8b9126f1",
+      "size": 5460
+    },
+    {
+      "category": "documentation",
+      "path": "KNOWN_WARNINGS_LEDGER.md",
+      "sha256": "37e6c5907a9ad712370934a60b75e245566a97a9f4f533d8fa9e3e4f9ad2911e",
+      "size": 1857
+    },
+    {
+      "category": "setup",
+      "path": "LICENSE",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "size": 11358
+    },
+    {
+      "category": "documentation",
+      "path": "MILESTONE_2026-05-23_OPERATOR_LOOP.md",
+      "sha256": "87a0e39adc365ef1c3e39e4dc702e6616cace3f1bf8961a9b3849effee9a7dd0",
+      "size": 48926
+    },
+    {
+      "category": "documentation",
+      "path": "PROTO_MIND_ARCHITECT_LEDGER.md",
+      "sha256": "dda5f20887695ef68cb0ce2f49aa8d1e82b86efab7af10917f82ecdb0a9f4e80",
+      "size": 24392
+    },
+    {
+      "category": "documentation",
+      "path": "README.md",
+      "sha256": "a78f4079f41de1de507855c426812350ae12453dce6b840b208671084131806c",
+      "size": 49068
+    },
+    {
+      "category": "documentation",
+      "path": "REPOSITORY_PRIVACY_REVIEW.md",
+      "sha256": "c15861f9e8565e14b736236fa9ef2a8ba87a7126dcad4ea8aba0f4451e0a6754",
+      "size": 2893
+    },
+    {
+      "category": "assets",
+      "path": "assets/proto_mind_icon.svg",
+      "sha256": "f16be95675ebd48636670b058385fbacee967fba2775472bd76375ab2ac76542",
+      "size": 514
+    },
+    {
+      "category": "documentation",
+      "path": "contest/README.md",
+      "sha256": "57d024c5477af9f196255bdcd7d120a50cdbb8403f867485c823a0a4df29a0d0",
+      "size": 1176
+    },
+    {
+      "category": "documentation",
+      "path": "proto_mind/README.md",
+      "sha256": "bc09e9620762e4ad75faf5a673f99adbd01021853f15ed9fb515e39c5da02272",
+      "size": 15152
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/__init__.py",
+      "sha256": "977f5c281e2f2baf328889f29173a0c962b5fe17d3d9a9dafea8445dbc3c6cd3",
+      "size": 29
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/acceptance_layer.py",
+      "sha256": "c3fa0462b56459c489b6e7023e1873f960f03fcbf13dfda031d2b7d172a8f487",
+      "size": 15487
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/action_policy.py",
+      "sha256": "e59e93c717d7ffd9c3f03d5362a4ab02b0890e3320f742f2202d688f92fceb31",
+      "size": 9381
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/action_preview.py",
+      "sha256": "df3d111119555552da95f1e13d0eacbe7d7683ac361820f8a0d1eb3cd8af3880",
+      "size": 9317
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/action_queue.py",
+      "sha256": "f70ae9c87113d46ede30550fe0a9d974548a465049e4e8821841185acd390e33",
+      "size": 83438
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/activation_layer.py",
+      "sha256": "e35c37d2b6a99e5dc51e667995b2866478982db60538b38bfd127fe324c6c6c0",
+      "size": 18129
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/agenda_layer.py",
+      "sha256": "9142df6b4a3653c6cf9ce22041ea154a5fda9246f8f509ea2c0ed65c60b01fc5",
+      "size": 14927
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/backup_utils.py",
+      "sha256": "7066614a8d519150d1b24760a06ccf73f3806688ded655360f3abd68461d556c",
+      "size": 1838
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/baseline_layer.py",
+      "sha256": "e7f17259a36803fce7cb4d8764e0c1a96c3f0482bf558eb14dd25ad0b2f8a6bb",
+      "size": 16833
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/capability_map.py",
+      "sha256": "e620ed1d81e21e31f9e3e6bf666b8cfb01dc64c31bbe41845f0c25d255a688a8",
+      "size": 18485
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/closure_layer.py",
+      "sha256": "3ca6f139c44bfd9eb37b9501fdad3fda68c3bcfe0459cc9ef9a6ceb7b40ca6c0",
+      "size": 14868
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/cognitive_benchmark.py",
+      "sha256": "528a392fa7a2af98471c0107078344b0c8d7a2a05b741c9438618154c52b1eeb",
+      "size": 15139
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/cognitive_signals.py",
+      "sha256": "1ab4fa58db11598e54850f01565c78ea895d8f847a772f34fee231bdd948e008",
+      "size": 6118
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/cognitive_soak.py",
+      "sha256": "cbf7253ca4fbe89467f671a1bf2aaa23d1451743fbe90d5472650e59fec03da3",
+      "size": 15708
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/command_registry.py",
+      "sha256": "47af52598d430f830c551bb85ed27256c7e9bc22950ac6ce329eb746f6b96415",
+      "size": 42923
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/config.py",
+      "sha256": "a894d2603e0f58ad4c3b25e821529ee2658d8f0c5d77ae07f513f13445a35d33",
+      "size": 908
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/confirmation_layer.py",
+      "sha256": "6d3726d43b24feaebe9db5ccf9fdb495d0f27d8816637d6c6d2366e27bacdbe2",
+      "size": 17066
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/consolidation.py",
+      "sha256": "d0458689ee5fa81419f469c85718944d1fbcdd38df2a5c5a2a01e6ea81d0e276",
+      "size": 65366
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/contest_provenance.py",
+      "sha256": "69115ca3acd5fc4efe2a5c6ca02b872a9ded3a0d2e9eab0e5a67dcca6705d0e2",
+      "size": 12579
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/context_pack.py",
+      "sha256": "0e5eb53230ba0707e619533244b4791e9216765db554381da624f6ce3e40598e",
+      "size": 65809
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/coordinator.py",
+      "sha256": "1a1ed5928f8fa0f5cb4b7d6f9b8a01845e28ff9625eb2df70ed2bb0861dc4121",
+      "size": 4285
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/daily_layer.py",
+      "sha256": "5b23aa4796b505578fee34aca7efeaf4a0ba7430ff62ba490f8e7912097fbf16",
+      "size": 13386
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/data_integrity.py",
+      "sha256": "40f36aa466ed8cbafad1202b74fb73daa65a6142c628d48aa5ea7ab369a7edb9",
+      "size": 28659
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/desktop_app.py",
+      "sha256": "c9777f6d746900df0d4befe27ee37c8464d5572d5ad2ea0f9493599a44391043",
+      "size": 30032
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/experience_activation_review.py",
+      "sha256": "77c7dc570311d3d21dc6b97fabcd90888423dcaa6c8b3cdb1009f1e07c7b882f",
+      "size": 16350
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/experience_capture.py",
+      "sha256": "af00047c8b5bb781a2888d03bdc7df5255ff05cde813ec9a0885a5e7b5a1b3c0",
+      "size": 10322
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/experience_capture_design.py",
+      "sha256": "104f6127bf109ca73202683a05bc1c75af7f99879bef9ccbcf3061bb93f38e61",
+      "size": 17432
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/experience_capture_soak.py",
+      "sha256": "aed8dbfcd565b4de43179391ce5308d175f4bface35f04bc55a2706e9ea90f0c",
+      "size": 19563
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/experience_consent.py",
+      "sha256": "d187a7d2287a5cdefea44e9ab7e3a1894c72b41c8d592378a6ed209a992a90d7",
+      "size": 20392
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/experience_episode.py",
+      "sha256": "3449ee045b99948acaedd4ff2f7dd302cd5370838cd2acca79818e28b504b1da",
+      "size": 19187
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/experience_explainability.py",
+      "sha256": "fea955dc2df4a7daf512be31eb09e182f3cb0deb99731c6d6e88234a48c1fbce",
+      "size": 18419
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/experience_learning.py",
+      "sha256": "adf06c02eeb77cdc073808a236967a428b31477f84d3b5f941e206c46eaefb18",
+      "size": 19482
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/experience_learning_input.py",
+      "sha256": "d3bfdf4391eb90a7b97df2399fe0a2f7bf7a9601a0e7e53b39c310614ef7a5fa",
+      "size": 18700
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/experience_ledger.py",
+      "sha256": "3587a8739c99878213c7cef5dbe13ca74e981d49e09698b1aa077018eb53f805",
+      "size": 35406
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/experience_pilot.py",
+      "sha256": "987e91811ac1e123d54a98fe1690027815191a6736669dbbb392e6cf7eaa8288",
+      "size": 18655
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/experience_privacy.py",
+      "sha256": "bd8fbcd7160830dbf04f4c3f3353e218f2b0e84039faa33c7c58a150c116e714",
+      "size": 17056
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/experience_turn.py",
+      "sha256": "d4ac4a21ea1a3255515665220e413cf7f046fd1972687b9e63ad3aaf6ef2a945",
+      "size": 12387
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/experience_vocabulary.py",
+      "sha256": "4ccc4751eba83bf65186b29fd1cc0814d583caf5e8eeebfd469f04ba834d15e6",
+      "size": 16830
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/experiment_journal.py",
+      "sha256": "bd349b1806e07f6e2a92a6bedf3fc6076154b6f86e6090dc3655a946dd07bc57",
+      "size": 19878
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/export_retention.py",
+      "sha256": "055ccafe892cd7ac164bbb4d3b65cb24eaec0ec45d24f076d58532b460e107e1",
+      "size": 14331
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/focus_layer.py",
+      "sha256": "1fe4538c889922afde76fceca65d7224d66e1075e1e2b6873b31bb24ba1356b2",
+      "size": 14919
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/goal_stack.py",
+      "sha256": "de7310a8f23a19509e877d4f1351474eaf31ec6779f56d094da2d5453f111a7b",
+      "size": 13230
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/grounding_auditor.py",
+      "sha256": "cffd226aa2b7164649e045943cb4b02c59108c25a861cd44f329dfd3e2f8a5d6",
+      "size": 13572
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/identity.py",
+      "sha256": "e1363545fded601ec0bb2c17f1ae55e3fd132af5c7b72588eea93f03f8dadc74",
+      "size": 21273
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/main.py",
+      "sha256": "c70770050efb86a592d114c5be92f2995fb63df965d64e3b2eb3857cbe698d08",
+      "size": 33384
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/memory_card_layer.py",
+      "sha256": "500a3b1243d7c2e3b051e02d900f3bc213f33fb8a816cf2734972149e55f638d",
+      "size": 16991
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/memory_commands.py",
+      "sha256": "19fec902d30e34974439161557040874d3a8538aca37393761017bc102240b5d",
+      "size": 28771
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/memory_governance.py",
+      "sha256": "ae8a8e08d5855c1821955914e72e3ea50e9c4dc7e9b13d92fe89ccd533e4df7a",
+      "size": 5665
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/memory_hygiene.py",
+      "sha256": "cbde2931846800755a214aeb5644896f8ed4b626eb8415b944d5501997259ce7",
+      "size": 15238
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/memory_keeper.py",
+      "sha256": "5315740bc7ce283c5dd1387f8d282344d0cf5ecb7a609f9a44e169f867f4ddcb",
+      "size": 32426
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/memory_store.py",
+      "sha256": "389352800f9e81766018f26435a6d26a2e0a56eb4b4b89cd759c003f3dbf8639",
+      "size": 3115
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/milestone_layer.py",
+      "sha256": "bd3c29e4d8e8c4319aeb14e29a68c68b976746aa620959c5285f209d5dada2a8",
+      "size": 14002
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/models.py",
+      "sha256": "72a00257d819e441510d82245fd984470681b36314e0a89e9079a6e016f26011",
+      "size": 10368
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/natural_commands.py",
+      "sha256": "3492b94c4b8ec126fc5e998f218f6957139f5b1b9d7095a46d539c205235818d",
+      "size": 17625
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/observer.py",
+      "sha256": "4dda951dfbe6fa306ed5f3275ad7a0beadf3ec94bb8b8cb12b3f180da21939b1",
+      "size": 10602
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/operating_loop.py",
+      "sha256": "ab406d9608f50314b8fd4f6415044d3a2624344a6ee3534bfef40eb7c7e92948",
+      "size": 32027
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/plan_layer.py",
+      "sha256": "33ad9548928b0e1f09a0ece1e9b642a079326d35165bc048b03ef2efdf73e29a",
+      "size": 17087
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/prechange_layer.py",
+      "sha256": "6f4c1830d3f3d16a4a49d2eef64c9958bf881f1e286ccaf8467d876bc38ff524",
+      "size": 12371
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/proto_status.py",
+      "sha256": "d67fafc210b4668955759b006216468c50118451119ebf629ba63b1e245f56ca",
+      "size": 64977
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/pyside_app.py",
+      "sha256": "49aa3fc8122c4e878d6592c9c289819dfe55c212d2ee337315aed67a34f1b4d4",
+      "size": 33505
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/python_env.py",
+      "sha256": "d8a7749ef384dd530376de2e774e84e56222691be44424f6a2b716fa355ef8f8",
+      "size": 1079
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/reasoner.py",
+      "sha256": "20c8d77075d80392d81b614cbe5779736c03327aa390c8086dc307eb73498917",
+      "size": 471
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/reasoners/__init__.py",
+      "sha256": "c41ced8de4ca9faa10fcd1ede82d57564a2b17a84a4ab7b50eec150bbc220d36",
+      "size": 436
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/reasoners/base.py",
+      "sha256": "4c9ca44e830f51c4e697b17072f6c725212863526dfb94230152d03a2988d2e5",
+      "size": 445
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/reasoners/mock_reasoner.py",
+      "sha256": "2e2bec80baad6a75b36260fac66cea3a859ebc1dcf109e3b797be31b206be458",
+      "size": 6141
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/reasoners/ollama_reasoner.py",
+      "sha256": "84b0ffee16ef90fb1d5e76a1617c1d5b6714fd169c8bbb5230efc7d561ebe970",
+      "size": 4645
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/reflection_journal.py",
+      "sha256": "20d071a7945bf1e3087adf580cf3f61221b11c764fd9498e3e1e16962f4b7a19",
+      "size": 20981
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/runner_candidates.py",
+      "sha256": "fb9237d276a848627013d69dcd3d4d865407681a5f1bc90e1ab9c8ee063c70e8",
+      "size": 19203
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/runner_exec.py",
+      "sha256": "7a93444831cbac6887b5ed8f43d57b8110d16e08d486a26d530a7460fec6cf97",
+      "size": 76895
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/runner_exec_config.py",
+      "sha256": "89170e42e59e5b822042b35fc3b198921fd8097634e7c515f947b3023b07d427",
+      "size": 1092
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/runner_layer.py",
+      "sha256": "d537253a77ce6be2443d16f6bc1970ed7241fccbdac97e03005a91b32151be7c",
+      "size": 17655
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/runner_mvp.py",
+      "sha256": "7c5fb2fc383f542aa0690aab17854ec1fd7c18a1f1e7d2fbc3c84dbaf5020661",
+      "size": 21228
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/sandbox_layer.py",
+      "sha256": "a44cb6bbd7cede2962520a63a6b412e07f06942062acad875983e6f5ad68fc63",
+      "size": 19226
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/self_reflection.py",
+      "sha256": "6739915a7cbd96e1218bdf669226bd4bb6d81c9242f50bfa32cc8d78297cebe1",
+      "size": 13969
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/session_log.py",
+      "sha256": "47acfdbc7c68df1fdc8449a8bc80294b35ce33bcef5a4e345e0440519edfd57c",
+      "size": 59088
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/session_rituals.py",
+      "sha256": "b9918c59d702c6a91de54d3d1628456dd652020864931b212c196f8979a71094",
+      "size": 14250
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/showcase_layer.py",
+      "sha256": "2020d6b6806a0dbae227d43fc5031180139c02eb629a1d4ce350d7acabcbc127",
+      "size": 18611
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/skill_library.py",
+      "sha256": "7ba1536f2934c4ccfc4deea2950acee2aff49ebaddbc85ade3202076170e852b",
+      "size": 22702
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/task_queue.py",
+      "sha256": "f5900ebde27addb61ae10a00da43c39f894ec4f95cac6f5adcbbcbbb0aaef69b",
+      "size": 19444
+    },
+    {
+      "category": "tests",
+      "path": "proto_mind/tests/test_flow.py",
+      "sha256": "34441298bbc25747cdaf0ace21c1f244210e073dfb17f60c7d27c793dc177e93",
+      "size": 951438
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/topic_utils.py",
+      "sha256": "986f6ab3053bbc48c7a188bd07a280a614c800fd1705dd3ca2cf202d268135d1",
+      "size": 10876
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/ui/__init__.py",
+      "sha256": "081a34212364f7bc8b8fef6cfaefc1d947efa4de4795d3da36c0f182ff1afb8b",
+      "size": 53
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/ui/app.py",
+      "sha256": "a61a4618f99a38480a5a493f5126fc81c4d8d54f237d4699cb27ce06779807ce",
+      "size": 9554
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/warning_inspector.py",
+      "sha256": "c4feaf1293c3a08b8340fa555bfc60e3cd1365154eea872a748584195827d871",
+      "size": 20406
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/world_model.py",
+      "sha256": "e8d4bb852ef051cc83f98a1166cb5cc2a2777c42a1e9b81a6d93a43d6971db13",
+      "size": 27057
+    },
+    {
+      "category": "setup",
+      "path": "requirements-ui.txt",
+      "sha256": "4ce992cb306db698126ad3817fd977c1617384033500927da7fc3096d937dd9f",
+      "size": 39
+    },
+    {
+      "category": "scripts",
+      "path": "scripts/build_macos_app_launcher.sh",
+      "sha256": "76d66857584ce29aa2e945ca85f5dcaedda8b9357e563b658f348158c3a49ae2",
+      "size": 8805
+    },
+    {
+      "category": "scripts",
+      "path": "scripts/install_macos_app_shortcut.sh",
+      "sha256": "28a4eeb440c5da16a5aed009acea7dc37fdc7e25a40be0160b41e3823c43d342",
+      "size": 1192
+    },
+    {
+      "category": "scripts",
+      "path": "scripts/open_pyside_app.sh",
+      "sha256": "e1079baadccd1a64e92eb1f1951ebbb766b585fdaaa2bbd972ec79600ba985ac",
+      "size": 265
+    },
+    {
+      "category": "scripts",
+      "path": "scripts/python_common.sh",
+      "sha256": "b92c376aab5dad4102355f7d9f3010ce6479a7090ab31c99e351dff9af3e61b7",
+      "size": 1057
+    },
+    {
+      "category": "scripts",
+      "path": "scripts/run_cli.sh",
+      "sha256": "b911ecc36613b409399928795314ab85d0152ef4905f52d1999c0d8230215411",
+      "size": 401
+    },
+    {
+      "category": "scripts",
+      "path": "scripts/run_desktop_mock.sh",
+      "sha256": "7293e0fa92778ee1d1c2731febcd9a3c5de34e85e2ed5d82ada5cc04dcdf3930",
+      "size": 354
+    },
+    {
+      "category": "scripts",
+      "path": "scripts/run_desktop_ollama.sh",
+      "sha256": "3c0aa5ca3c284bada9459e7aae223dbdb2aa8916147fd89a6b65db26bc73b2c8",
+      "size": 506
+    },
+    {
+      "category": "scripts",
+      "path": "scripts/run_pyside_mock.sh",
+      "sha256": "0abefe942a4f44c7994a21e18e431e86c41a041cf98acd0b2a12bfc1d1b6241c",
+      "size": 349
+    },
+    {
+      "category": "scripts",
+      "path": "scripts/run_pyside_ollama.sh",
+      "sha256": "4efca3d4afb74de4eb4e8fdad6c91d2dc31c7774ac962067640fb9b2cbe0cd1b",
+      "size": 501
+    },
+    {
+      "category": "scripts",
+      "path": "scripts/run_tests.sh",
+      "sha256": "21702128eef23e8ce31401e2a4d2dc6c85d4e0e3d82929f8eed003e266804fb9",
+      "size": 671
+    },
+    {
+      "category": "scripts",
+      "path": "scripts/which_python.sh",
+      "sha256": "e155a454f54f963aba7478ed4ad5a61a1abf4cb521ff8ed96769f339b2500e46",
+      "size": 637
+    }
+  ],
+  "generated_at": "2026-07-18T21:28:48.379094+00:00",
+  "label": "current_contest_state",
+  "metrics": {
+    "category_counts": {
+      "assets": 1,
+      "documentation": 11,
+      "scripts": 11,
+      "setup": 4,
+      "source": 84,
+      "tests": 1
+    },
+    "file_count": 112,
+    "python_file_count": 85,
+    "registry_category_count": 41,
+    "registry_command_count": 358,
+    "test_method_count": 835,
+    "total_bytes": 2852933
+  },
+  "schema_version": 1,
+  "scope": {
+    "excluded": "data, exports, backups, logs, dist, caches, virtualenv, Git metadata, and generated provenance JSON",
+    "included": "source, tests, scripts, architecture/docs, safe setup metadata, and assets"
+  },
+  "source": {
+    "baseline_archive_sha256": "50a39b36aca72e1ae74ad8afe80004bfac1fe1eb3c66a2f168519246a680d4df",
+    "kind": "working_tree",
+    "path": "."
+  }
+}

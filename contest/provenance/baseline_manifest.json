@@ -1,0 +1,451 @@
+{
+  "contest": {
+    "official_rules": "https://openai.devpost.com/rules",
+    "submission_deadline": "2026-07-21T17:00:00-07:00",
+    "submission_period_start": "2026-07-13T09:00:00-07:00"
+  },
+  "files": [
+    {
+      "category": "documentation",
+      "path": "ARCHITECTURE_MAP_V2.md",
+      "sha256": "e1fb7c2a701df5a2d7828e8c6d3d1b2926354084f26bd54e229a21aaafd6f974",
+      "size": 66270
+    },
+    {
+      "category": "documentation",
+      "path": "proto_mind/README.md",
+      "sha256": "8c3cf2f86e93dfc7fd36b4e8f2f28d9ec155fad7fb97585ca60476a91b74d6a9",
+      "size": 15128
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/__init__.py",
+      "sha256": "977f5c281e2f2baf328889f29173a0c962b5fe17d3d9a9dafea8445dbc3c6cd3",
+      "size": 29
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/acceptance_layer.py",
+      "sha256": "c3fa0462b56459c489b6e7023e1873f960f03fcbf13dfda031d2b7d172a8f487",
+      "size": 15487
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/action_policy.py",
+      "sha256": "e59e93c717d7ffd9c3f03d5362a4ab02b0890e3320f742f2202d688f92fceb31",
+      "size": 9381
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/action_preview.py",
+      "sha256": "df3d111119555552da95f1e13d0eacbe7d7683ac361820f8a0d1eb3cd8af3880",
+      "size": 9317
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/action_queue.py",
+      "sha256": "f70ae9c87113d46ede30550fe0a9d974548a465049e4e8821841185acd390e33",
+      "size": 83438
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/activation_layer.py",
+      "sha256": "e35c37d2b6a99e5dc51e667995b2866478982db60538b38bfd127fe324c6c6c0",
+      "size": 18129
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/agenda_layer.py",
+      "sha256": "9142df6b4a3653c6cf9ce22041ea154a5fda9246f8f509ea2c0ed65c60b01fc5",
+      "size": 14927
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/backup_utils.py",
+      "sha256": "7066614a8d519150d1b24760a06ccf73f3806688ded655360f3abd68461d556c",
+      "size": 1838
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/baseline_layer.py",
+      "sha256": "e7f17259a36803fce7cb4d8764e0c1a96c3f0482bf558eb14dd25ad0b2f8a6bb",
+      "size": 16833
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/capability_map.py",
+      "sha256": "e620ed1d81e21e31f9e3e6bf666b8cfb01dc64c31bbe41845f0c25d255a688a8",
+      "size": 18485
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/closure_layer.py",
+      "sha256": "3ca6f139c44bfd9eb37b9501fdad3fda68c3bcfe0459cc9ef9a6ceb7b40ca6c0",
+      "size": 14868
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/cognitive_benchmark.py",
+      "sha256": "549be6ea745262e73098279a7ebec490915736f20de932023bb56362428f5e8e",
+      "size": 5423
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/command_registry.py",
+      "sha256": "1df74c1190aed245d2ce437d4cf2e57ba65b00cceb94fcf3e60f6e7a9f1075f4",
+      "size": 40374
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/config.py",
+      "sha256": "a894d2603e0f58ad4c3b25e821529ee2658d8f0c5d77ae07f513f13445a35d33",
+      "size": 908
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/confirmation_layer.py",
+      "sha256": "6d3726d43b24feaebe9db5ccf9fdb495d0f27d8816637d6c6d2366e27bacdbe2",
+      "size": 17066
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/consolidation.py",
+      "sha256": "d0458689ee5fa81419f469c85718944d1fbcdd38df2a5c5a2a01e6ea81d0e276",
+      "size": 65366
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/context_pack.py",
+      "sha256": "0e5eb53230ba0707e619533244b4791e9216765db554381da624f6ce3e40598e",
+      "size": 65809
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/coordinator.py",
+      "sha256": "1a1ed5928f8fa0f5cb4b7d6f9b8a01845e28ff9625eb2df70ed2bb0861dc4121",
+      "size": 4285
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/daily_layer.py",
+      "sha256": "5b23aa4796b505578fee34aca7efeaf4a0ba7430ff62ba490f8e7912097fbf16",
+      "size": 13386
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/data_integrity.py",
+      "sha256": "40f36aa466ed8cbafad1202b74fb73daa65a6142c628d48aa5ea7ab369a7edb9",
+      "size": 28659
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/desktop_app.py",
+      "sha256": "c9777f6d746900df0d4befe27ee37c8464d5572d5ad2ea0f9493599a44391043",
+      "size": 30032
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/experiment_journal.py",
+      "sha256": "bd349b1806e07f6e2a92a6bedf3fc6076154b6f86e6090dc3655a946dd07bc57",
+      "size": 19878
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/export_retention.py",
+      "sha256": "055ccafe892cd7ac164bbb4d3b65cb24eaec0ec45d24f076d58532b460e107e1",
+      "size": 14331
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/focus_layer.py",
+      "sha256": "1fe4538c889922afde76fceca65d7224d66e1075e1e2b6873b31bb24ba1356b2",
+      "size": 14919
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/goal_stack.py",
+      "sha256": "de7310a8f23a19509e877d4f1351474eaf31ec6779f56d094da2d5453f111a7b",
+      "size": 13230
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/grounding_auditor.py",
+      "sha256": "356e591ddb38915ab52bb9831b03e46412a908e39fbb759b7250e4853f428e9b",
+      "size": 15127
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/identity.py",
+      "sha256": "e1363545fded601ec0bb2c17f1ae55e3fd132af5c7b72588eea93f03f8dadc74",
+      "size": 21273
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/main.py",
+      "sha256": "9b6503416bea0cd0f959429927aad5e252229a282919f542988e55358577e02e",
+      "size": 32171
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/memory_card_layer.py",
+      "sha256": "500a3b1243d7c2e3b051e02d900f3bc213f33fb8a816cf2734972149e55f638d",
+      "size": 16991
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/memory_commands.py",
+      "sha256": "36bb536f0518356a58087a7e713688b19f0a4137a236f49b6488a51435f94e9e",
+      "size": 28490
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/memory_hygiene.py",
+      "sha256": "cbde2931846800755a214aeb5644896f8ed4b626eb8415b944d5501997259ce7",
+      "size": 15238
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/memory_keeper.py",
+      "sha256": "fa4dd4540027dd0532f80e688cde32f375a529f68395cf4171552ac63171b5b6",
+      "size": 32193
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/memory_store.py",
+      "sha256": "389352800f9e81766018f26435a6d26a2e0a56eb4b4b89cd759c003f3dbf8639",
+      "size": 3115
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/milestone_layer.py",
+      "sha256": "bd3c29e4d8e8c4319aeb14e29a68c68b976746aa620959c5285f209d5dada2a8",
+      "size": 14002
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/models.py",
+      "sha256": "72a00257d819e441510d82245fd984470681b36314e0a89e9079a6e016f26011",
+      "size": 10368
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/natural_commands.py",
+      "sha256": "3492b94c4b8ec126fc5e998f218f6957139f5b1b9d7095a46d539c205235818d",
+      "size": 17625
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/observer.py",
+      "sha256": "120e68cfa1863257520be14de46a1fa2811c6fcb64bff0764e2f2256521e428f",
+      "size": 10129
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/operating_loop.py",
+      "sha256": "ab406d9608f50314b8fd4f6415044d3a2624344a6ee3534bfef40eb7c7e92948",
+      "size": 32027
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/plan_layer.py",
+      "sha256": "33ad9548928b0e1f09a0ece1e9b642a079326d35165bc048b03ef2efdf73e29a",
+      "size": 17087
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/prechange_layer.py",
+      "sha256": "6f4c1830d3f3d16a4a49d2eef64c9958bf881f1e286ccaf8467d876bc38ff524",
+      "size": 12371
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/proto_status.py",
+      "sha256": "d67fafc210b4668955759b006216468c50118451119ebf629ba63b1e245f56ca",
+      "size": 64977
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/pyside_app.py",
+      "sha256": "49aa3fc8122c4e878d6592c9c289819dfe55c212d2ee337315aed67a34f1b4d4",
+      "size": 33505
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/python_env.py",
+      "sha256": "d8a7749ef384dd530376de2e774e84e56222691be44424f6a2b716fa355ef8f8",
+      "size": 1079
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/reasoner.py",
+      "sha256": "20c8d77075d80392d81b614cbe5779736c03327aa390c8086dc307eb73498917",
+      "size": 471
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/reasoners/__init__.py",
+      "sha256": "c41ced8de4ca9faa10fcd1ede82d57564a2b17a84a4ab7b50eec150bbc220d36",
+      "size": 436
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/reasoners/base.py",
+      "sha256": "4c9ca44e830f51c4e697b17072f6c725212863526dfb94230152d03a2988d2e5",
+      "size": 445
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/reasoners/mock_reasoner.py",
+      "sha256": "171ccb5e7f56d2e9878d4162b038e1782bf0ff0f1ffdaa95e8fb5414af32aac3",
+      "size": 5839
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/reasoners/ollama_reasoner.py",
+      "sha256": "84b0ffee16ef90fb1d5e76a1617c1d5b6714fd169c8bbb5230efc7d561ebe970",
+      "size": 4645
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/reflection_journal.py",
+      "sha256": "20d071a7945bf1e3087adf580cf3f61221b11c764fd9498e3e1e16962f4b7a19",
+      "size": 20981
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/runner_candidates.py",
+      "sha256": "fb9237d276a848627013d69dcd3d4d865407681a5f1bc90e1ab9c8ee063c70e8",
+      "size": 19203
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/runner_exec.py",
+      "sha256": "7a93444831cbac6887b5ed8f43d57b8110d16e08d486a26d530a7460fec6cf97",
+      "size": 76895
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/runner_exec_config.py",
+      "sha256": "89170e42e59e5b822042b35fc3b198921fd8097634e7c515f947b3023b07d427",
+      "size": 1092
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/runner_layer.py",
+      "sha256": "d537253a77ce6be2443d16f6bc1970ed7241fccbdac97e03005a91b32151be7c",
+      "size": 17655
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/runner_mvp.py",
+      "sha256": "7c5fb2fc383f542aa0690aab17854ec1fd7c18a1f1e7d2fbc3c84dbaf5020661",
+      "size": 21228
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/sandbox_layer.py",
+      "sha256": "a44cb6bbd7cede2962520a63a6b412e07f06942062acad875983e6f5ad68fc63",
+      "size": 19226
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/self_reflection.py",
+      "sha256": "2f2bc077eabcfe4275a42aa757269dba1a25d6b449a61dcc3d5e52872791bb89",
+      "size": 15295
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/session_log.py",
+      "sha256": "47acfdbc7c68df1fdc8449a8bc80294b35ce33bcef5a4e345e0440519edfd57c",
+      "size": 59088
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/session_rituals.py",
+      "sha256": "b9918c59d702c6a91de54d3d1628456dd652020864931b212c196f8979a71094",
+      "size": 14250
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/skill_library.py",
+      "sha256": "97b4a22e710012ea954ed9f128ffc098ea139d72b110c9270be7ab2601269282",
+      "size": 22305
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/task_queue.py",
+      "sha256": "f5900ebde27addb61ae10a00da43c39f894ec4f95cac6f5adcbbcbbb0aaef69b",
+      "size": 19444
+    },
+    {
+      "category": "tests",
+      "path": "proto_mind/tests/test_flow.py",
+      "sha256": "4ae62be09c12a191957e58697f8d70fcce0e13f293e168123ce59f0e1a9f145a",
+      "size": 806735
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/topic_utils.py",
+      "sha256": "5757e501caa91df72033407f1b69cdce0488a79cac03fd163807707fdc3016f4",
+      "size": 10746
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/ui/__init__.py",
+      "sha256": "081a34212364f7bc8b8fef6cfaefc1d947efa4de4795d3da36c0f182ff1afb8b",
+      "size": 53
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/ui/app.py",
+      "sha256": "a61a4618f99a38480a5a493f5126fc81c4d8d54f237d4699cb27ce06779807ce",
+      "size": 9554
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/warning_inspector.py",
+      "sha256": "c4feaf1293c3a08b8340fa555bfc60e3cd1365154eea872a748584195827d871",
+      "size": 20406
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/world_model.py",
+      "sha256": "e8d4bb852ef051cc83f98a1166cb5cc2a2777c42a1e9b81a6d93a43d6971db13",
+      "size": 27057
+    },
+    {
+      "category": "setup",
+      "path": "requirements-ui.txt",
+      "sha256": "4ce992cb306db698126ad3817fd977c1617384033500927da7fc3096d937dd9f",
+      "size": 39
+    }
+  ],
+  "generated_at": "2026-07-18T21:28:48.379094+00:00",
+  "label": "pre_contest_baseline",
+  "metrics": {
+    "category_counts": {
+      "documentation": 2,
+      "setup": 1,
+      "source": 65,
+      "tests": 1
+    },
+    "file_count": 69,
+    "python_file_count": 66,
+    "registry_category_count": 39,
+    "registry_command_count": 343,
+    "test_method_count": 664,
+    "total_bytes": 2188652
+  },
+  "schema_version": 1,
+  "scope": {
+    "excluded": "data, exports, backups, logs, dist, caches, virtualenv, Git metadata, and generated provenance JSON",
+    "included": "source, tests, scripts, architecture/docs, safe setup metadata, and assets"
+  },
+  "source": {
+    "before_submission_period": true,
+    "filename_timestamp": "2026-07-11T05:02:19+03:00",
+    "kind": "timestamped_backup_archive",
+    "path": "backups/proto_mind_backup_2026-07-11_05-02-19.tar.gz",
+    "sha256": "50a39b36aca72e1ae74ad8afe80004bfac1fe1eb3c66a2f168519246a680d4df"
+  }
+}
