@@ -51,7 +51,12 @@ from proto_mind.experience_learning_lifecycle_audit import (
     format_learning_lifecycle_audit_command,
 )
 from proto_mind.experience_learning_skill_contract import (
+    ProceduralSkillContractBuilder,
     format_procedural_skill_contract_command,
+)
+from proto_mind.experience_learning_skill_authoring import (
+    OperatorReviewedProceduralSkillAuthoringSession,
+    format_procedural_skill_authoring_command,
 )
 from proto_mind.experience_learning_readiness import format_learning_apply_readiness_command
 from proto_mind.experience_turn import (
@@ -129,6 +134,7 @@ class SupervisedExperiencePilot:
         self._learning_applies = OperatorReviewedLearningMemoryApplySession()
         self._learning_lifecycle = OperatorReviewedLearningLifecycleSession()
         self._learning_lifecycle_applies = OperatorReviewedLearningLifecycleApplySession()
+        self._skill_authoring = OperatorReviewedProceduralSkillAuthoringSession()
         self._lock = RLock()
 
     @property
@@ -178,6 +184,10 @@ class SupervisedExperiencePilot:
     @property
     def learning_lifecycle_applies(self) -> OperatorReviewedLearningLifecycleApplySession:
         return self._learning_lifecycle_applies
+
+    @property
+    def skill_authoring(self) -> OperatorReviewedProceduralSkillAuthoringSession:
+        return self._skill_authoring
 
     def preview(self) -> str:
         with self._lock:
@@ -455,6 +465,18 @@ def format_experience_pilot_command(
         )
         if skill_contract_output is not None:
             return skill_contract_output
+        memory_store = _owner_memory_store(owner)
+        if memory_store is not None:
+            skill_authoring_output = format_procedural_skill_authoring_command(
+                raw,
+                builder=ProceduralSkillContractBuilder(
+                    memory_store=memory_store,
+                    skill_library=SkillLibrary.from_project_root(project_root),
+                ),
+                session=pilot.skill_authoring,
+            )
+            if skill_authoring_output is not None:
+                return skill_authoring_output
         lifecycle_apply_output = format_learning_lifecycle_apply_command(
             raw,
             events=events,
@@ -669,6 +691,9 @@ def _usage() -> str:
             "/experience learning lifecycle-inspect <memory_id>|lifecycle-audit-doctor",
             "/experience learning skill-contract-status|skill-contract-doctor",
             "/experience learning skill-contract-preview|template|checklist <memory_id>",
+            "/experience learning skill-authoring-status|skill-authoring-receipts|skill-authoring-doctor",
+            "/experience learning skill-authoring-confirm-preview <memory_id> <authored flags>",
+            "/experience learning propose skill-contract <memory_id> <exact token> <identical authored flags>",
             "/experience events [--last N]",
             "/experience inspect <event_id>",
             "/experience doctor",

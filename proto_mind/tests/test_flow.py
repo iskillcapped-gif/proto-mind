@@ -3,6 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 import json
 import os
+import shlex
 import tarfile
 import unittest
 from dataclasses import replace
@@ -234,6 +235,18 @@ from proto_mind.experience_learning_skill_contract import (
     PROCEDURAL_SKILL_CONTRACT_SCHEMA,
     ProceduralSkillContractBuilder,
     format_procedural_skill_contract_command,
+)
+from proto_mind.experience_learning_skill_authoring import (
+    PROCEDURAL_SKILL_AUTHORING_MAX_RECEIPTS,
+    PROCEDURAL_SKILL_AUTHORING_MODE,
+    PROCEDURAL_SKILL_EXECUTION_INSTALLED,
+    PROCEDURAL_SKILL_WRITER_INSTALLED,
+    OperatorReviewedProceduralSkillAuthoringSession,
+    ProceduralSkillAuthoringError,
+    build_procedural_skill_authoring_blueprint,
+    format_procedural_skill_authoring_command,
+    parse_procedural_skill_authoring_request,
+    procedural_skill_authoring_confirmation_token,
 )
 from proto_mind.experience_learning_eligibility import (
     LEARNING_ELIGIBILITY_MAX_IDS_PER_KIND,
@@ -507,6 +520,22 @@ def _id_from_output(output: str, label: str) -> str:
         if stripped.startswith(prefix):
             return stripped[len(prefix) :].strip()
     raise AssertionError(f"Missing {label!r} in output: {output}")
+
+
+def _test_skill_authoring_flags() -> str:
+    return " ".join(
+        [
+            '--name "Diagnose repeated verified failure"',
+            '--summary "Inspect exact evidence before choosing a bounded response."',
+            '--trigger "When the same verified failure recurs"',
+            '--precondition "The source lesson remains active and provenance-verified"',
+            '--step "Inspect the exact source evidence"',
+            '--step "Choose one bounded reversible response"',
+            '--permission "Read-only project inspection"',
+            '--verify "Observed evidence matches the source lesson"',
+            '--failure "Stop when provenance or current state drifts"',
+        ]
+    )
 
 
 def apply_test_learning_proposal(
@@ -22173,6 +22202,348 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertEqual(
             classify_command(
                 "/experience learning skill-contract-preview mem_lesson"
+            ).policy_class,
+            "auto_allowed",
+        )
+        self.assertEqual(len(COMMAND_REGISTRY), 363)
+        self.assertEqual(len({entry.category for entry in COMMAND_REGISTRY}), 41)
+        self.assertEqual(command_registry_doctor()["status"], "OK")
+        self.assertEqual(action_policy_doctor()["status"], "OK")
+
+    def test_procedural_skill_authoring_status_and_doctor_are_empty_read_only(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, store, _ = build_test_system(root)
+            builder = ProceduralSkillContractBuilder(
+                memory_store=store,
+                skill_library=SkillLibrary(root / "skills.jsonl"),
+            )
+            session = OperatorReviewedProceduralSkillAuthoringSession()
+            before = (store.working_path.read_bytes(), store.persistent_path.read_bytes())
+            status = format_procedural_skill_authoring_command(
+                "/experience learning skill-authoring-status",
+                builder=builder,
+                session=session,
+            )
+            doctor = format_procedural_skill_authoring_command(
+                "/experience learning skill-authoring-doctor",
+                builder=builder,
+                session=session,
+            )
+            after = (store.working_path.read_bytes(), store.persistent_path.read_bytes())
+
+        self.assertIn("Status: OK", status)
+        self.assertIn(f"receipts: 0/{PROCEDURAL_SKILL_AUTHORING_MAX_RECEIPTS}", status)
+        self.assertIn("skill_writer_installed: false", status)
+        self.assertIn("propose skill-contract", status)
+        self.assertIn("Status: OK", doctor)
+        self.assertEqual(before, after)
+
+    def test_procedural_skill_authoring_preview_binds_exact_visible_fields(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, store, _, review = build_test_learning_outcome_review(root)
+            builder = ProceduralSkillContractBuilder(
+                memory_store=store,
+                skill_library=SkillLibrary(root / "skills.jsonl"),
+            )
+            session = OperatorReviewedProceduralSkillAuthoringSession()
+            command = (
+                f"/experience learning skill-authoring-confirm-preview "
+                f"{review.lesson_memory_id} {_test_skill_authoring_flags()}"
+            )
+            before = store.persistent_path.read_bytes()
+            first = format_procedural_skill_authoring_command(
+                command, builder=builder, session=session
+            )
+            second = format_procedural_skill_authoring_command(
+                command, builder=builder, session=session
+            )
+            after = store.persistent_path.read_bytes()
+
+        self.assertIn("Status: CONFIRMABLE", first)
+        self.assertIn("step[1]: Inspect the exact source evidence", first)
+        self.assertIn("permission[1]: Read-only project inspection", first)
+        self.assertIn("future_apply_ready: false", first)
+        self.assertIn("executable: false", first)
+        self.assertEqual(
+            _id_from_output(first, "Confirmation token:"),
+            _id_from_output(second, "Confirmation token:"),
+        )
+        self.assertEqual(before, after)
+        self.assertEqual(session.snapshot(), ())
+
+    def test_procedural_skill_authoring_wrong_token_creates_no_receipt(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, store, _, review = build_test_learning_outcome_review(root)
+            builder = ProceduralSkillContractBuilder(
+                memory_store=store,
+                skill_library=SkillLibrary(root / "skills.jsonl"),
+            )
+            session = OperatorReviewedProceduralSkillAuthoringSession()
+            output = format_procedural_skill_authoring_command(
+                f"/experience learning propose skill-contract {review.lesson_memory_id} "
+                f"WRONG-TOKEN {_test_skill_authoring_flags()}",
+                builder=builder,
+                session=session,
+            )
+
+        self.assertIn("Status: ERROR", output)
+        self.assertIn("token mismatch", output)
+        self.assertEqual(session.snapshot(), ())
+
+    def test_procedural_skill_authoring_exact_token_records_process_receipt_only(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, store, _, review = build_test_learning_outcome_review(root)
+            skill_path = root / "skills.jsonl"
+            builder = ProceduralSkillContractBuilder(
+                memory_store=store,
+                skill_library=SkillLibrary(skill_path),
+            )
+            session = OperatorReviewedProceduralSkillAuthoringSession()
+            flags = _test_skill_authoring_flags()
+            preview = format_procedural_skill_authoring_command(
+                f"/experience learning skill-authoring-confirm-preview "
+                f"{review.lesson_memory_id} {flags}",
+                builder=builder,
+                session=session,
+            )
+            token = _id_from_output(preview, "Confirmation token:")
+            before_memory = store.persistent_path.read_bytes()
+            output = format_procedural_skill_authoring_command(
+                f"/experience learning propose skill-contract {review.lesson_memory_id} "
+                f"{token} {flags}",
+                builder=builder,
+                session=session,
+            )
+            receipt = session.get(review.lesson_memory_id)
+            after_memory = store.persistent_path.read_bytes()
+            doctor = session.doctor(builder)
+
+        self.assertIn("Status: OPERATOR AUTHORING RECORDED", output)
+        self.assertIsNotNone(receipt)
+        self.assertEqual(
+            receipt.authored_contract["steps"],
+            [
+                "Inspect the exact source evidence",
+                "Choose one bounded reversible response",
+            ],
+        )
+        self.assertEqual(receipt.confirmation_method, "exact_source_and_authored_contract_token")
+        self.assertTrue(receipt.process_memory_only)
+        self.assertTrue(receipt.restart_expiring)
+        self.assertFalse(receipt.future_apply_ready)
+        self.assertFalse(receipt.executable)
+        self.assertFalse(receipt.skill_mutation_performed)
+        self.assertEqual(doctor.status, "OK")
+        self.assertEqual(doctor.current_count, 1)
+        self.assertEqual(before_memory, after_memory)
+        self.assertFalse(skill_path.exists())
+
+    def test_procedural_skill_authoring_is_run_once_per_lesson(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, store, _, review = build_test_learning_outcome_review(root)
+            builder = ProceduralSkillContractBuilder(
+                memory_store=store,
+                skill_library=SkillLibrary(root / "skills.jsonl"),
+            )
+            request = parse_procedural_skill_authoring_request(
+                shlex.split(f"{review.lesson_memory_id} {_test_skill_authoring_flags()}")
+            )
+            blueprint = build_procedural_skill_authoring_blueprint(builder, request)
+            token = procedural_skill_authoring_confirmation_token(blueprint)
+            session = OperatorReviewedProceduralSkillAuthoringSession()
+            first = session.create(blueprint, token=token)
+            output = format_procedural_skill_authoring_command(
+                f"/experience learning propose skill-contract {review.lesson_memory_id} "
+                f"{token} {_test_skill_authoring_flags()}",
+                builder=builder,
+                session=session,
+            )
+
+        self.assertEqual(session.get(first.id), first)
+        self.assertIn("already has a process-memory", output)
+        self.assertEqual(len(session.snapshot()), 1)
+
+    def test_procedural_skill_authoring_receipt_expires_on_restart(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, store, _, review = build_test_learning_outcome_review(root)
+            builder = ProceduralSkillContractBuilder(
+                memory_store=store,
+                skill_library=SkillLibrary(root / "skills.jsonl"),
+            )
+            request = parse_procedural_skill_authoring_request(
+                shlex.split(f"{review.lesson_memory_id} {_test_skill_authoring_flags()}")
+            )
+            blueprint = build_procedural_skill_authoring_blueprint(builder, request)
+            session = OperatorReviewedProceduralSkillAuthoringSession()
+            session.create(
+                blueprint,
+                token=procedural_skill_authoring_confirmation_token(blueprint),
+            )
+            restarted = OperatorReviewedProceduralSkillAuthoringSession()
+            restarted_output = format_procedural_skill_authoring_command(
+                "/experience learning skill-authoring-receipts",
+                builder=builder,
+                session=restarted,
+            )
+
+        self.assertEqual(len(session.snapshot()), 1)
+        self.assertEqual(restarted.snapshot(), ())
+        self.assertIn("Status: EMPTY", restarted_output)
+
+    def test_procedural_skill_authoring_parser_fails_closed(self) -> None:
+        with self.assertRaisesRegex(ProceduralSkillAuthoringError, "known_failure_modes"):
+            parse_procedural_skill_authoring_request(
+                shlex.split(
+                    "mem_lesson --trigger when --precondition ready --step inspect "
+                    "--permission read --verify done"
+                )
+            )
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, store, _, review = build_test_learning_outcome_review(root)
+            builder = ProceduralSkillContractBuilder(
+                memory_store=store,
+                skill_library=SkillLibrary(root / "skills.jsonl"),
+            )
+            session = OperatorReviewedProceduralSkillAuthoringSession()
+            output = format_procedural_skill_authoring_command(
+                f"/experience learning skill-authoring-confirm-preview "
+                f"{review.lesson_memory_id} {_test_skill_authoring_flags()}; /skills list",
+                builder=builder,
+                session=session,
+            )
+
+        self.assertIn("Command chaining", output)
+        self.assertEqual(session.snapshot(), ())
+
+    def test_procedural_skill_authoring_rejects_terminal_lesson(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, store, events, review, lifecycle, applies = (
+                build_test_learning_lifecycle_transition(root, decision="reject")
+            )
+            apply_test_learning_lifecycle_transition(
+                store, events, review, lifecycle, applies
+            )
+            output = format_procedural_skill_authoring_command(
+                f"/experience learning skill-authoring-confirm-preview "
+                f"{review.lesson_memory_id} {_test_skill_authoring_flags()}",
+                builder=ProceduralSkillContractBuilder(
+                    memory_store=store,
+                    skill_library=SkillLibrary(root / "skills.jsonl"),
+                ),
+                session=OperatorReviewedProceduralSkillAuthoringSession(),
+            )
+
+        self.assertIn("Status: ERROR", output)
+        self.assertIn("not eligible", output)
+        self.assertIn("active", output)
+
+    def test_procedural_skill_authoring_doctor_reports_source_drift(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, store, _, review = build_test_learning_outcome_review(root)
+            builder = ProceduralSkillContractBuilder(
+                memory_store=store,
+                skill_library=SkillLibrary(root / "skills.jsonl"),
+            )
+            request = parse_procedural_skill_authoring_request(
+                shlex.split(f"{review.lesson_memory_id} {_test_skill_authoring_flags()}")
+            )
+            blueprint = build_procedural_skill_authoring_blueprint(builder, request)
+            session = OperatorReviewedProceduralSkillAuthoringSession()
+            session.create(
+                blueprint,
+                token=procedural_skill_authoring_confirmation_token(blueprint),
+            )
+            lesson = store.load_persistent_memory()[0]
+            store.save_persistent_memory([replace(lesson, active=False)])
+            report = session.doctor(builder)
+
+        self.assertEqual(report.status, "WARN")
+        self.assertEqual(report.drifted_count, 1)
+        self.assertIn("historical", " ".join(report.warnings))
+
+    def test_procedural_skill_authoring_doctor_detects_receipt_tamper(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, store, _, review = build_test_learning_outcome_review(root)
+            builder = ProceduralSkillContractBuilder(
+                memory_store=store,
+                skill_library=SkillLibrary(root / "skills.jsonl"),
+            )
+            request = parse_procedural_skill_authoring_request(
+                shlex.split(f"{review.lesson_memory_id} {_test_skill_authoring_flags()}")
+            )
+            blueprint = build_procedural_skill_authoring_blueprint(builder, request)
+            session = OperatorReviewedProceduralSkillAuthoringSession()
+            receipt = session.create(
+                blueprint,
+                token=procedural_skill_authoring_confirmation_token(blueprint),
+            )
+            session._receipts[receipt.source_lesson_id] = replace(receipt, executable=True)
+            report = session.doctor(builder)
+
+        self.assertEqual(report.status, "ERROR")
+        self.assertIn("no-writer boundary", " ".join(report.issues))
+
+    def test_procedural_skill_authoring_shared_handler_uses_existing_proposal_gate(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            coordinator, store, _, review = build_test_learning_outcome_review(root)
+            logger = SessionOperatorLogger(root / "session.jsonl", enabled=False)
+            flags = _test_skill_authoring_flags()
+            before = (store.working_path.read_bytes(), store.persistent_path.read_bytes())
+            preview = process_interactive_input(
+                f"/experience learning skill-authoring-confirm-preview "
+                f"{review.lesson_memory_id} {flags}",
+                coordinator=coordinator,
+                session_logger=logger,
+                project_root=root,
+            )
+            token = _id_from_output(preview, "Confirmation token:")
+            output = process_interactive_input(
+                f"/experience learning propose skill-contract {review.lesson_memory_id} "
+                f"{token} {flags}",
+                coordinator=coordinator,
+                session_logger=logger,
+                project_root=root,
+            )
+            receipt_output = process_interactive_input(
+                f"/experience learning skill-authoring-receipt {review.lesson_memory_id}",
+                coordinator=coordinator,
+                session_logger=logger,
+                project_root=root,
+            )
+            after = (store.working_path.read_bytes(), store.persistent_path.read_bytes())
+            skill_path = root / "proto_mind" / "data" / "skills.jsonl"
+
+        self.assertIn("OPERATOR AUTHORING RECORDED", output)
+        self.assertIn("process_memory_only", receipt_output)
+        self.assertEqual(before, after)
+        self.assertFalse(skill_path.exists())
+        self.assertEqual(logger.status().entry_count, 0)
+        self.assertEqual(
+            PROCEDURAL_SKILL_AUTHORING_MODE,
+            "exact_operator_authored_process_memory_receipt",
+        )
+        self.assertFalse(PROCEDURAL_SKILL_WRITER_INSTALLED)
+        self.assertFalse(PROCEDURAL_SKILL_EXECUTION_INSTALLED)
+        self.assertEqual(
+            classify_command(
+                f"/experience learning propose skill-contract {review.lesson_memory_id} token"
+            ).policy_class,
+            "confirmation_required",
+        )
+        self.assertEqual(
+            classify_command(
+                f"/experience learning skill-authoring-confirm-preview {review.lesson_memory_id}"
             ).policy_class,
             "auto_allowed",
         )
