@@ -19632,6 +19632,12 @@ class ProtoMindFlowTests(unittest.TestCase):
                 output,
                 generated_at="2026-07-18T20:00:00+00:00",
             )
+            regenerated = build_contest_provenance(
+                project,
+                archive,
+                output,
+                generated_at="2026-07-19T20:00:00+00:00",
+            )
             delta = result["contest_delta"]
             current_manifest = result["current_manifest"]
 
@@ -19645,6 +19651,8 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertTrue(all(Path(path).suffix == ".json" for path in result["outputs"].values()))
         self.assertEqual(current_manifest["source"]["path"], ".")
         self.assertNotIn(str(project), json.dumps(current_manifest))
+        self.assertEqual(regenerated["baseline_manifest"]["generated_at"], "2026-07-18T20:00:00+00:00")
+        self.assertEqual(regenerated["current_manifest"]["generated_at"], "2026-07-19T20:00:00+00:00")
 
     def test_showcase_status_reports_safe_local_demo_readiness(self) -> None:
         with TemporaryDirectory() as temp_dir:

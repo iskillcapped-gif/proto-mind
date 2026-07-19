@@ -206,8 +206,8 @@
     {
       "category": "source",
       "path": "proto_mind/contest_provenance.py",
-      "sha256": "69115ca3acd5fc4efe2a5c6ca02b872a9ded3a0d2e9eab0e5a67dcca6705d0e2",
-      "size": 12579
+      "sha256": "5a89be5978dd6e367d51c284c42c6427dad566f616439101d6c67429104c25a5",
+      "size": 13415
     },
     {
       "category": "source",
@@ -602,8 +602,8 @@
     {
       "category": "tests",
       "path": "proto_mind/tests/test_flow.py",
-      "sha256": "b68067c5cae684c3a9b9e8289bf4a14eeb215ef5caa16e9cf1ac9a4eb41430b3",
-      "size": 1028060
+      "sha256": "aafeaec218746abced9ead7b39ba792ee25f0f3beb02584e5ae5c647f8c40922",
+      "size": 1028465
     },
     {
       "category": "source",
@@ -708,7 +708,7 @@
       "size": 637
     }
   ],
-  "generated_at": "2026-07-19T13:17:42.568427+00:00",
+  "generated_at": "2026-07-19T13:22:31.692686+00:00",
   "label": "current_contest_state",
   "metrics": {
     "category_counts": {
@@ -724,7 +724,7 @@
     "registry_category_count": 41,
     "registry_command_count": 361,
     "test_method_count": 887,
-    "total_bytes": 3053428
+    "total_bytes": 3054669
   },
   "schema_version": 1,
   "scope": {

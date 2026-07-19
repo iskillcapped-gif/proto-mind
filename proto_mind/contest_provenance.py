@@ -78,6 +78,7 @@ def build_contest_provenance(
             "before_submission_period": True,
         },
     )
+    _preserve_equivalent_baseline_timestamp(destination / "baseline_manifest.json", baseline_manifest)
     current_manifest = _build_manifest(
         label="current_contest_state",
         content=current_content,
@@ -105,6 +106,20 @@ def build_contest_provenance(
         "contest_delta": delta,
         "outputs": {key: str(path) for key, path in outputs.items()},
     }
+
+
+def _preserve_equivalent_baseline_timestamp(path: Path, manifest: dict[str, Any]) -> None:
+    """Keep the original evidence timestamp when the immutable baseline is unchanged."""
+    try:
+        existing = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return
+    if not isinstance(existing, dict):
+        return
+    existing_without_time = {key: value for key, value in existing.items() if key != "generated_at"}
+    current_without_time = {key: value for key, value in manifest.items() if key != "generated_at"}
+    if existing_without_time == current_without_time and isinstance(existing.get("generated_at"), str):
+        manifest["generated_at"] = existing["generated_at"]
 
 
 def read_relevant_archive_files(archive_path: Path) -> dict[str, bytes]:

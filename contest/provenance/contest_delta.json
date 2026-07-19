@@ -134,7 +134,7 @@
       "requirements-ui.txt"
     ]
   },
-  "generated_at": "2026-07-19T13:17:42.568427+00:00",
+  "generated_at": "2026-07-19T13:22:31.692686+00:00",
   "limitations": [
     "This is local equivalent evidence, not a third-party timestamp authority.",
     "Codex /feedback Session IDs and future dated Git commits should accompany this manifest.",
@@ -168,8 +168,8 @@
     },
     "total_bytes": {
       "baseline": 2188652,
-      "current": 3053428,
-      "delta": 864776
+      "current": 3054669,
+      "delta": 866017
     }
   },
   "schema_version": 1,
