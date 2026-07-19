@@ -151,7 +151,7 @@ _BASE_REGISTRY = [
         {
             "/experience episodes": "List compact cognitive-turn episodes from bounded process-memory evidence.",
             "/experience episode": "Show one Observe-to-Verify cognitive-turn episode and its provenance.",
-            "/experience learning": "Inspect evidence-backed candidates, decisions, proposals, supervised memory-lesson receipts, and later outcome review.",
+            "/experience learning": "Inspect evidence-backed candidates, decisions, proposals, supervised memory-lesson receipts, later outcomes, and lifecycle receipts.",
             "/experience events": "List bounded process-memory Experience pilot events.",
             "/experience inspect": "Explain one process-memory Experience event and its provenance.",
             "/experience doctor": "Diagnose the supervised process-memory Experience pilot.",
@@ -160,11 +160,11 @@ _BASE_REGISTRY = [
     _spec(
         "/experience learning decide",
         "experience",
-        "Capture an explicit accept/reject decision for a current learning candidate.",
+        "Capture an explicit candidate accept/reject or lesson lifecycle outcome decision.",
         read_only=False,
         mutates="session",
         risk="medium",
-        notes="Process-memory review receipt only; performs no promotion, apply, or persistence.",
+        notes="Process-memory review receipt only; performs no promotion, lifecycle apply, or persistence.",
     ),
     _spec(
         "/experience learning propose",

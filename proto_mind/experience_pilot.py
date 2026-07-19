@@ -36,6 +36,10 @@ from proto_mind.experience_learning_apply import (
     format_learning_memory_apply_command,
 )
 from proto_mind.experience_learning_outcome import format_learning_outcome_command
+from proto_mind.experience_learning_lifecycle import (
+    OperatorReviewedLearningLifecycleSession,
+    format_learning_lifecycle_command,
+)
 from proto_mind.experience_learning_readiness import format_learning_apply_readiness_command
 from proto_mind.experience_turn import (
     format_cognitive_turn_episode,
@@ -110,6 +114,7 @@ class SupervisedExperiencePilot:
         self._learning_decisions = OperatorReviewedLearningDecisionSession()
         self._learning_proposals = OperatorReviewedLearningProposalSession()
         self._learning_applies = OperatorReviewedLearningMemoryApplySession()
+        self._learning_lifecycle = OperatorReviewedLearningLifecycleSession()
         self._lock = RLock()
 
     @property
@@ -151,6 +156,10 @@ class SupervisedExperiencePilot:
     @property
     def learning_applies(self) -> OperatorReviewedLearningMemoryApplySession:
         return self._learning_applies
+
+    @property
+    def learning_lifecycle(self) -> OperatorReviewedLearningLifecycleSession:
+        return self._learning_lifecycle
 
     def preview(self) -> str:
         with self._lock:
@@ -399,6 +408,14 @@ def format_experience_pilot_command(
         "/experience learning "
     ):
         events = pilot.snapshot()
+        lifecycle_output = format_learning_lifecycle_command(
+            raw,
+            events=events,
+            memory_store=_owner_memory_store(owner),
+            session=pilot.learning_lifecycle,
+        )
+        if lifecycle_output is not None:
+            return lifecycle_output
         outcome_output = format_learning_outcome_command(
             raw,
             events=events,
@@ -592,6 +609,9 @@ def _usage() -> str:
             "/experience learning apply <proposal_id|candidate_id> <exact token>",
             "/experience learning apply-status|apply-receipt <id>|apply-doctor",
             "/experience learning outcome-review <memory_id>|outcome-doctor",
+            "/experience learning outcome-confirm-preview <memory_id>",
+            "/experience learning decide outcome <keep|reject|supersede> <memory_id> <exact token>",
+            "/experience learning outcome-decisions|outcome-decision <id>|outcome-decision-doctor",
             "/experience events [--last N]",
             "/experience inspect <event_id>",
             "/experience doctor",

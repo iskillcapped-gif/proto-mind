@@ -63,6 +63,7 @@ The current source tree is compared directly with the July 11 archive by SHA-256
 - Durable Learning Provenance v3.4b with an embedded hashed candidate-to-proposal envelope, restart-safe `/memory why <id>`, Memory Doctor tamper detection, and no new writer or apply scope.
 - Verified Lesson Recall v3.4c with provenance-gated bilingual restart recall, inspectable fail-closed filtering, grounding evidence, and byte-stable temporary-store verification.
 - Learning Outcome Review v3.4d with exact post-apply Experience lineage, advisory keep/reject/supersede candidates, verified replacement requirements, and no automatic mutation.
+- Supervised Lesson Lifecycle Decision v3.4e with exact current-outcome tokens, bounded restart-expiring operator receipts, run-once protection, and no lesson lifecycle mutation or apply.
 - Contest Showcase v1 with a deterministic three-minute narrative and safety doctor.
 - Build Week Provenance Pack v1.
 
@@ -72,13 +73,13 @@ The generated evidence under `contest/provenance/` is the source of truth for th
 
 | Metric | July 11 baseline | Current Build Week state | Delta |
 |---|---:|---:|---:|
-| Submission-relevant files | 69 | 121 | +52 |
-| Python files | 66 | 94 | +28 |
-| Unit-test methods | 664 | 928 | +264 |
+| Submission-relevant files | 69 | 122 | +53 |
+| Python files | 66 | 95 | +29 |
+| Unit-test methods | 664 | 937 | +273 |
 | Registry commands | 343 | 363 | +20 |
 | Registry categories | 39 | 41 | +2 |
 
-The file delta is not inferred from modification time. Every baseline and current submission-relevant file is hashed, then classified as added, changed, removed, or unchanged. The current manifest reports 52 added, 15 changed, 0 removed, and 54 unchanged files.
+The file delta is not inferred from modification time. Every baseline and current submission-relevant file is hashed, then classified as added, changed, removed, or unchanged. The current manifest reports 53 added, 15 changed, 0 removed, and 54 unchanged files.
 
 ## Reproduce The Evidence
 

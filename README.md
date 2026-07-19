@@ -627,6 +627,8 @@ v3.4c closes the first supervised learning loop by allowing only an active lesso
 
 v3.4d adds read-only later-outcome review for those provenanced lessons. `/experience learning outcome-review <memory_id>` accepts evidence only when the exact lesson ID appears in a valid Experience retrieval after its `applied_at`. Clean grounded reuse yields `KEEP_CANDIDATE`; an explicit downstream `user_corrected` event yields `REJECT_CANDIDATE`; a correction lineage ending at a different newer active provenance-verified lesson yields `SUPERSEDE_CANDIDATE`. Weak or mixed evidence remains `NEEDS_MORE_EVIDENCE`, and `/experience learning outcome-doctor` checks trace/provenance health. These are review candidates, not truth or authorization: the layer performs no memory/event mutation, apply, promotion, model call, capture, or Context Injection change.
 
+v3.4e adds an explicit operator lifecycle decision after that review. `/experience learning outcome-confirm-preview <memory_id>` prints a token bound to the exact current lesson, provenance, outcome signal, and verified replacement when applicable; `/experience learning decide outcome <keep|reject|supersede> <memory_id> <token>` records one terminal receipt in bounded process memory. `/experience learning outcome-decisions|outcome-decision <id>|outcome-decision-doctor` keeps the decision inspectable. Decisions expire on restart and never keep, archive, supersede, forget, or otherwise mutate a lesson; lifecycle apply remains unavailable.
+
 ## Contest Showcase
 
 Contest Showcase v1 turns the existing architecture into one read-only live presentation:

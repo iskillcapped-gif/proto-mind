@@ -197,6 +197,15 @@ from proto_mind.experience_learning_outcome import (
     format_learning_outcome_command,
     run_learning_outcome_benchmark,
 )
+from proto_mind.experience_learning_lifecycle import (
+    LEARNING_LIFECYCLE_MAX_RECEIPTS,
+    LEARNING_LIFECYCLE_MODE,
+    OperatorReviewedLearningLifecycleSession,
+    format_learning_lifecycle_benchmark,
+    format_learning_lifecycle_command,
+    learning_lifecycle_confirmation_token,
+    run_learning_lifecycle_benchmark,
+)
 from proto_mind.experience_learning_eligibility import (
     LEARNING_ELIGIBILITY_MAX_IDS_PER_KIND,
     LearningEligibilityRequest,
@@ -498,6 +507,38 @@ def apply_test_learning_proposal(
     if receipt is None:
         raise AssertionError(f"Learning apply did not create a receipt: {output}")
     return output, receipt
+
+
+def build_test_learning_outcome_review(
+    tmp_path: Path,
+) -> tuple[Coordinator, MemoryStore, list[ExperienceEvent], object]:
+    _, store, pilot, bridge, _, skills, proposal = build_test_learning_apply(tmp_path)
+    _, receipt = apply_test_learning_proposal(store, pilot, bridge, skills, proposal)
+    lesson = next(
+        record
+        for record in store.load_persistent_memory()
+        if record.id == receipt.created_record_id
+    )
+    store.save_persistent_memory([lesson])
+    store.save_working_memory([])
+    coordinator = Coordinator(
+        observer=Observer(),
+        memory_keeper=MemoryKeeper(MemoryStore(store.working_path, store.persistent_path)),
+        reasoner=MockReasoner(),
+    )
+    query = "As we discussed earlier, what did we learn about the active SQLite decision?"
+    events = ExperienceTraceBuilder(
+        session_id="lifecycle-test",
+        source="test",
+    ).build_turn_events(
+        query,
+        coordinator.handle(query),
+        turn_id="1",
+        trace_id="lifecycle-test",
+        created_at=(datetime.now(UTC) + timedelta(seconds=1)).isoformat(),
+    )
+    review = LearningOutcomeReviewer(events, [lesson]).review(lesson.id)
+    return coordinator, store, events, review
 
 
 def _single_action_record(project_root: Path) -> dict[str, object]:
@@ -20659,6 +20700,233 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertEqual(spec.mutates, "none")
         self.assertEqual(
             classify_command("/experience learning outcome-review mem_learn_x").policy_class,
+            "auto_allowed",
+        )
+        self.assertEqual(len(COMMAND_REGISTRY), 363)
+        self.assertEqual(len({entry.category for entry in COMMAND_REGISTRY}), 41)
+        self.assertEqual(command_registry_doctor()["status"], "OK")
+        self.assertEqual(action_policy_doctor()["status"], "OK")
+
+    def test_learning_lifecycle_benchmark_covers_exact_operator_gate(self) -> None:
+        report = run_learning_lifecycle_benchmark()
+        output = format_learning_lifecycle_benchmark(report)
+
+        self.assertEqual(report.status, "OK")
+        self.assertEqual(report.receipt_count, 3)
+        self.assertTrue(all(report.checks.values()))
+        self.assertIn("wrong_token_refused", output)
+        self.assertIn("no memory/skill/event mutation", output)
+
+    def test_learning_lifecycle_preview_and_decision_bind_current_outcome(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, store, events, review = build_test_learning_outcome_review(Path(temp_dir))
+            session = OperatorReviewedLearningLifecycleSession()
+            before = (store.working_path.read_bytes(), store.persistent_path.read_bytes())
+            preview = format_learning_lifecycle_command(
+                f"/experience learning outcome-confirm-preview {review.lesson_memory_id}",
+                events=events,
+                memory_store=store,
+                session=session,
+            )
+            token = _id_from_output(preview, "confirmation_token:")
+            recorded = format_learning_lifecycle_command(
+                f"/experience learning decide outcome keep {review.lesson_memory_id} {token}",
+                events=events,
+                memory_store=store,
+                session=session,
+            )
+            after = (store.working_path.read_bytes(), store.persistent_path.read_bytes())
+            receipt = session.get(review.lesson_memory_id)
+
+        self.assertIn("Status: CONFIRMABLE", preview)
+        self.assertEqual(token, learning_lifecycle_confirmation_token(review))
+        self.assertIn("Status: RECORDED IN PROCESS MEMORY", recorded)
+        self.assertEqual(receipt.decision, "keep")
+        self.assertFalse(receipt.memory_mutation_performed)
+        self.assertFalse(receipt.persistence_performed)
+        self.assertEqual(before, after)
+
+    def test_learning_lifecycle_refuses_wrong_token_and_weak_evidence(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, store, events, review = build_test_learning_outcome_review(Path(temp_dir))
+            wrong_session = OperatorReviewedLearningLifecycleSession()
+            wrong = format_learning_lifecycle_command(
+                f"/experience learning decide outcome keep {review.lesson_memory_id} WRONG-TOKEN",
+                events=events,
+                memory_store=store,
+                session=wrong_session,
+            )
+            mismatch_session = OperatorReviewedLearningLifecycleSession()
+            mismatch = format_learning_lifecycle_command(
+                f"/experience learning decide outcome reject {review.lesson_memory_id} "
+                f"{learning_lifecycle_confirmation_token(review)}",
+                events=events,
+                memory_store=store,
+                session=mismatch_session,
+            )
+            weak_session = OperatorReviewedLearningLifecycleSession()
+            weak_preview = format_learning_lifecycle_command(
+                f"/experience learning outcome-confirm-preview {review.lesson_memory_id}",
+                events=[],
+                memory_store=store,
+                session=weak_session,
+            )
+            weak = format_learning_lifecycle_command(
+                f"/experience learning decide outcome keep {review.lesson_memory_id} "
+                "CONFIRM-OUTCOME-KEEP-UNAVAILABLE",
+                events=[],
+                memory_store=store,
+                session=weak_session,
+            )
+
+        self.assertIn("confirmation token mismatch", wrong.lower())
+        self.assertEqual(wrong_session.snapshot(), ())
+        self.assertIn("requires decision 'keep'", mismatch)
+        self.assertEqual(mismatch_session.snapshot(), ())
+        self.assertIn("Status: NOT CONFIRMABLE", weak_preview)
+        self.assertIn("not decision-eligible", weak)
+        self.assertEqual(weak_session.snapshot(), ())
+
+    def test_learning_lifecycle_terminal_receipt_refuses_second_decision(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, store, events, review = build_test_learning_outcome_review(Path(temp_dir))
+            session = OperatorReviewedLearningLifecycleSession()
+            token = learning_lifecycle_confirmation_token(review)
+            first = format_learning_lifecycle_command(
+                f"/experience learning decide outcome keep {review.lesson_memory_id} {token}",
+                events=events,
+                memory_store=store,
+                session=session,
+            )
+            snapshot = json.dumps(session.snapshot(), sort_keys=True)
+            second = format_learning_lifecycle_command(
+                f"/experience learning decide outcome keep {review.lesson_memory_id} {token}",
+                events=events,
+                memory_store=store,
+                session=session,
+            )
+
+        self.assertIn("RECORDED IN PROCESS MEMORY", first)
+        self.assertIn("already has terminal", second)
+        self.assertEqual(snapshot, json.dumps(session.snapshot(), sort_keys=True))
+
+    def test_learning_lifecycle_receipt_inspection_and_doctor(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, store, events, review = build_test_learning_outcome_review(Path(temp_dir))
+            session = OperatorReviewedLearningLifecycleSession()
+            token = learning_lifecycle_confirmation_token(review)
+            session.decide(review, "keep", token=token)
+            inspected = format_learning_lifecycle_command(
+                f"/experience learning outcome-decision {review.lesson_memory_id}",
+                events=events,
+                memory_store=store,
+                session=session,
+            )
+            doctor = format_learning_lifecycle_command(
+                "/experience learning outcome-decision-doctor",
+                events=events,
+                memory_store=store,
+                session=session,
+            )
+
+        self.assertIn("Learning Lifecycle Decision Receipt v1", inspected)
+        self.assertIn("memory_mutation_performed: False", inspected)
+        self.assertIn("Status: OK", doctor)
+        self.assertIn("receipts: 1/32", doctor)
+
+    def test_learning_lifecycle_doctor_detects_forbidden_mutation_claim(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, _, events, review = build_test_learning_outcome_review(Path(temp_dir))
+            session = OperatorReviewedLearningLifecycleSession()
+            receipt = session.decide(
+                review,
+                "keep",
+                token=learning_lifecycle_confirmation_token(review),
+            )
+            session._receipts[review.lesson_memory_id] = replace(
+                receipt,
+                memory_mutation_performed=True,
+            )
+            report = session.doctor({review.lesson_memory_id: review})
+
+        self.assertEqual(report.status, "ERROR")
+        self.assertIn("forbidden mutation", " ".join(report.issues))
+
+    def test_learning_lifecycle_receipts_expire_on_process_restart(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, _, _, review = build_test_learning_outcome_review(root)
+            pilot = SupervisedExperiencePilot(root, session_id="lifecycle-original")
+            pilot.learning_lifecycle.decide(
+                review,
+                "keep",
+                token=learning_lifecycle_confirmation_token(review),
+            )
+            restarted = SupervisedExperiencePilot(root, session_id="lifecycle-restarted")
+
+        self.assertEqual(len(pilot.learning_lifecycle.snapshot()), 1)
+        self.assertEqual(restarted.learning_lifecycle.snapshot(), ())
+
+    def test_learning_lifecycle_shared_handler_changes_process_receipt_only(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            coordinator, store, _, review = build_test_learning_outcome_review(root)
+            logger = SessionOperatorLogger(root / "session.jsonl", enabled=False)
+            pilot = get_experience_pilot(coordinator, project_root=root)
+            pilot.preview()
+            pilot.consent(pilot.expected_consent_phrase)
+            query = "As we discussed earlier, what did we learn about the active SQLite decision?"
+            observation = pilot.observe_normal_turn(query, coordinator.handle(query))
+            self.assertTrue(observation.capture_performed)
+            preview = process_interactive_input(
+                f"/experience learning outcome-confirm-preview {review.lesson_memory_id}",
+                coordinator=coordinator,
+                session_logger=logger,
+                project_root=root,
+            )
+            token = _id_from_output(preview, "confirmation_token:")
+            before = (
+                store.working_path.read_bytes(),
+                store.persistent_path.read_bytes(),
+                json.dumps(pilot.snapshot(), sort_keys=True),
+            )
+            recorded = process_interactive_input(
+                f"/experience learning decide outcome keep {review.lesson_memory_id} {token}",
+                coordinator=coordinator,
+                session_logger=logger,
+                project_root=root,
+            )
+            after = (
+                store.working_path.read_bytes(),
+                store.persistent_path.read_bytes(),
+                json.dumps(pilot.snapshot(), sort_keys=True),
+            )
+
+        self.assertIn("RECORDED IN PROCESS MEMORY", recorded)
+        self.assertEqual(before, after)
+        self.assertEqual(logger.status().entry_count, 0)
+
+    def test_learning_lifecycle_reuses_registered_mutating_decision_gate(self) -> None:
+        registry = {entry.prefix: entry for entry in COMMAND_REGISTRY}
+        decide = registry["/experience learning decide"]
+
+        self.assertEqual(
+            LEARNING_LIFECYCLE_MODE,
+            "operator_confirmed_process_memory_outcome_decision",
+        )
+        self.assertEqual(LEARNING_LIFECYCLE_MAX_RECEIPTS, 32)
+        self.assertFalse(decide.read_only)
+        self.assertEqual(decide.mutates, "session")
+        self.assertEqual(
+            classify_command(
+                "/experience learning decide outcome keep mem_lesson CONFIRM-OUTCOME-KEEP-ABC"
+            ).policy_class,
+            "confirmation_required",
+        )
+        self.assertEqual(
+            classify_command(
+                "/experience learning outcome-confirm-preview mem_lesson"
+            ).policy_class,
             "auto_allowed",
         )
         self.assertEqual(len(COMMAND_REGISTRY), 363)
