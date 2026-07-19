@@ -66,6 +66,9 @@ from proto_mind.experience_learning_skill_apply import (
     OperatorReviewedProceduralSkillApplySession,
     format_procedural_skill_apply_command,
 )
+from proto_mind.experience_learning_skill_outcome import (
+    format_procedural_skill_outcome_command,
+)
 from proto_mind.experience_learning_readiness import format_learning_apply_readiness_command
 from proto_mind.experience_turn import (
     format_cognitive_turn_episode,
@@ -511,6 +514,14 @@ def format_experience_pilot_command(
             )
             if skill_readiness_output is not None:
                 return skill_readiness_output
+            skill_outcome_output = format_procedural_skill_outcome_command(
+                raw,
+                events=events,
+                memory_store=memory_store,
+                skill_library=skill_library,
+            )
+            if skill_outcome_output is not None:
+                return skill_outcome_output
         lifecycle_apply_output = format_learning_lifecycle_apply_command(
             raw,
             events=events,
