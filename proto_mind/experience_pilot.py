@@ -43,6 +43,10 @@ from proto_mind.experience_learning_lifecycle import (
 from proto_mind.experience_learning_lifecycle_readiness import (
     format_learning_lifecycle_readiness_command,
 )
+from proto_mind.experience_learning_lifecycle_apply import (
+    OperatorReviewedLearningLifecycleApplySession,
+    format_learning_lifecycle_apply_command,
+)
 from proto_mind.experience_learning_readiness import format_learning_apply_readiness_command
 from proto_mind.experience_turn import (
     format_cognitive_turn_episode,
@@ -118,6 +122,7 @@ class SupervisedExperiencePilot:
         self._learning_proposals = OperatorReviewedLearningProposalSession()
         self._learning_applies = OperatorReviewedLearningMemoryApplySession()
         self._learning_lifecycle = OperatorReviewedLearningLifecycleSession()
+        self._learning_lifecycle_applies = OperatorReviewedLearningLifecycleApplySession()
         self._lock = RLock()
 
     @property
@@ -163,6 +168,10 @@ class SupervisedExperiencePilot:
     @property
     def learning_lifecycle(self) -> OperatorReviewedLearningLifecycleSession:
         return self._learning_lifecycle
+
+    @property
+    def learning_lifecycle_applies(self) -> OperatorReviewedLearningLifecycleApplySession:
+        return self._learning_lifecycle_applies
 
     def preview(self) -> str:
         with self._lock:
@@ -427,6 +436,15 @@ def format_experience_pilot_command(
         )
         if lifecycle_readiness_output is not None:
             return lifecycle_readiness_output
+        lifecycle_apply_output = format_learning_lifecycle_apply_command(
+            raw,
+            events=events,
+            memory_store=_owner_memory_store(owner),
+            lifecycle_session=pilot.learning_lifecycle,
+            apply_session=pilot.learning_lifecycle_applies,
+        )
+        if lifecycle_apply_output is not None:
+            return lifecycle_apply_output
         outcome_output = format_learning_outcome_command(
             raw,
             events=events,
@@ -625,6 +643,9 @@ def _usage() -> str:
             "/experience learning outcome-decisions|outcome-decision <id>|outcome-decision-doctor",
             "/experience learning lifecycle-readiness|lifecycle-plan <memory_id|receipt_id>",
             "/experience learning lifecycle-readiness-doctor",
+            "/experience learning lifecycle-apply-preview <memory_id|receipt_id>",
+            "/experience learning apply lifecycle <memory_id|receipt_id> <exact token>",
+            "/experience learning lifecycle-apply-status|lifecycle-apply-receipt <id>|lifecycle-apply-doctor",
             "/experience events [--last N]",
             "/experience inspect <event_id>",
             "/experience doctor",

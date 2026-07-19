@@ -151,7 +151,7 @@ _BASE_REGISTRY = [
         {
             "/experience episodes": "List compact cognitive-turn episodes from bounded process-memory evidence.",
             "/experience episode": "Show one Observe-to-Verify cognitive-turn episode and its provenance.",
-            "/experience learning": "Inspect evidence-backed candidates, decisions, proposals, supervised memory-lesson receipts, later outcomes, and lifecycle receipts.",
+            "/experience learning": "Inspect evidence-backed candidates, decisions, proposals, supervised memory-lesson receipts, later outcomes, and lifecycle transitions.",
             "/experience events": "List bounded process-memory Experience pilot events.",
             "/experience inspect": "Explain one process-memory Experience event and its provenance.",
             "/experience doctor": "Diagnose the supervised process-memory Experience pilot.",
@@ -178,11 +178,11 @@ _BASE_REGISTRY = [
     _spec(
         "/experience learning apply",
         "experience",
-        "Apply one fresh exact-token memory.lesson.v1 proposal and verify its atomic memory record.",
+        "Apply one fresh exact-token memory lesson or one revalidated lifecycle transition.",
         read_only=False,
         mutates="memory",
         risk="medium",
-        notes="Single-record supervised pilot; skills, batch apply, shell, and arbitrary dispatch remain disabled.",
+        notes="Single-record supervised pilots; lifecycle apply is run-once with atomic verification/rollback; skills, batch, shell, and arbitrary dispatch remain disabled.",
     ),
     _spec(
         "/experience status",

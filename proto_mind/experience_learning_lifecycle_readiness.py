@@ -23,7 +23,7 @@ from proto_mind.models import MemoryRecord
 
 LEARNING_LIFECYCLE_READINESS_VERSION = 1
 LEARNING_LIFECYCLE_READINESS_MODE = "read_only_current_lifecycle_revalidation"
-LEARNING_LIFECYCLE_APPLY_ENGINE_INSTALLED = False
+LEARNING_LIFECYCLE_APPLY_ENGINE_INSTALLED = True
 
 
 @dataclass(frozen=True)
@@ -73,7 +73,7 @@ class LearningLifecycleReadinessError(RuntimeError):
 
 
 class LearningLifecycleApplyReadiness:
-    """Revalidates a lifecycle decision without installing a lifecycle writer."""
+    """Revalidates a lifecycle decision without executing the bounded writer."""
 
     def __init__(
         self,
@@ -126,6 +126,10 @@ class LearningLifecycleApplyReadiness:
             and replacement_provenance.verified
             and receipt.replacement_memory_id == current.replacement_memory_id
         )
+        apply_spec = next(
+            (spec for spec in COMMAND_REGISTRY if spec.prefix == "/experience learning apply"),
+            None,
+        )
         checks = {
             "receipt_safe": _receipt_is_safe(receipt),
             "record_ids_unique": len(record_ids) == len(set(record_ids)),
@@ -146,7 +150,13 @@ class LearningLifecycleApplyReadiness:
             "persistent_store_hash_available": (
                 _hash_file(self.memory_store.persistent_path) != "unavailable"
             ),
-            "lifecycle_apply_engine_absent": not LEARNING_LIFECYCLE_APPLY_ENGINE_INSTALLED,
+            "bounded_lifecycle_apply_gate_registered": bool(
+                LEARNING_LIFECYCLE_APPLY_ENGINE_INSTALLED
+                and apply_spec is not None
+                and not apply_spec.read_only
+                and apply_spec.mutates == "memory"
+                and apply_spec.risk == "medium"
+            ),
         }
         issues: list[str] = []
         messages = {
@@ -163,7 +173,9 @@ class LearningLifecycleApplyReadiness:
             "selected_signal_matches": "Current selected evidence signal differs from the decision receipt.",
             "replacement_contract_valid": "Supersede replacement is missing, inactive, unverified, or no longer current.",
             "persistent_store_hash_available": "Persistent memory SHA-256 is unavailable.",
-            "lifecycle_apply_engine_absent": "A lifecycle apply engine is unexpectedly installed.",
+            "bounded_lifecycle_apply_gate_registered": (
+                "The bounded lifecycle writer lacks the existing confirmation-required memory gate."
+            ),
         }
         for name, passed in checks.items():
             if not passed:
@@ -188,7 +200,7 @@ class LearningLifecycleApplyReadiness:
             issues=issues,
             warnings=[
                 "Readiness is bound to current process evidence and current persistent-store bytes.",
-                "A future mutation would require a separate checkpointed milestone and fresh exact confirmation.",
+                "Any transition requires a separate fresh lifecycle apply preview and exact token.",
             ],
             ready_for_design_review=ready,
         )
@@ -229,10 +241,21 @@ class LearningLifecycleApplyReadiness:
         )
         if family_spec is None or not family_spec.read_only or family_spec.mutates != "none":
             issues.append("The lifecycle readiness family lacks safe read-only Registry metadata.")
+        apply_spec = next(
+            (spec for spec in COMMAND_REGISTRY if spec.prefix == "/experience learning apply"),
+            None,
+        )
         if any(spec.prefix.startswith("/experience learning lifecycle-apply") for spec in COMMAND_REGISTRY):
-            issues.append("A lifecycle apply command is registered before an approved engine exists.")
-        if LEARNING_LIFECYCLE_APPLY_ENGINE_INSTALLED:
-            issues.append("Lifecycle apply engine must remain absent in v3.4f.")
+            issues.append("Lifecycle apply bypasses the existing registered mutation gate.")
+        if (
+            apply_spec is None
+            or apply_spec.read_only
+            or apply_spec.mutates != "memory"
+            or apply_spec.risk != "medium"
+        ):
+            issues.append("The existing /experience learning apply mutation gate is unsafe.")
+        if not LEARNING_LIFECYCLE_APPLY_ENGINE_INSTALLED:
+            issues.append("Bounded lifecycle apply engine is not installed.")
 
         counts = Counter(report.status for report in reports)
         status = "ERROR" if issues else "WARN" if warnings else "OK"
@@ -387,7 +410,7 @@ def format_learning_lifecycle_plan(
         f"- replacement_required: {str(transition.replacement_required).lower()}",
         f"- rollback: {transition.rollback}",
         "Required future safeguards:",
-        "- separate Rule 0 checkpoint and separately approved lifecycle writer milestone",
+        "- separate fresh exact lifecycle apply preview after the milestone Rule 0 checkpoint",
         "- fresh exact token bound to receipt id, current review hash, and before-store SHA-256",
         "- atomic persistent-memory rewrite with previous active states retained in the receipt",
         "- post-write record/provenance/hash verification and fail-closed rollback",
@@ -419,7 +442,7 @@ def format_learning_lifecycle_readiness_doctor(
     lines.extend(f"- ERROR: {issue}" for issue in report.issues)
     lines.extend(f"- WARN: {warning}" for warning in report.warnings)
     if not report.issues and not report.warnings:
-        lines.append("- Current receipts revalidate and no lifecycle apply surface is installed.")
+        lines.append("- Current receipts revalidate and the bounded writer uses the registered memory gate.")
     lines.extend(_readiness_boundary())
     return "\n".join(lines)
 
@@ -481,7 +504,7 @@ def _readiness_error(message: str) -> str:
 def _readiness_boundary() -> list[str]:
     return [
         "Boundary:",
-        "- Read-only design review only; lifecycle apply engine is absent and executable=false.",
+        "- This readiness report is read-only and executable=false; it does not invoke the bounded writer.",
         "- No lesson, memory, skill, Experience event, receipt, queue, export, or Context Injection was changed.",
         "- No command, rollback, model/API call, shell action, or automatic decision was executed.",
     ]

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 import json
 import os
 import tarfile
@@ -214,6 +215,13 @@ from proto_mind.experience_learning_lifecycle_readiness import (
     LearningLifecycleApplyReadiness,
     format_learning_lifecycle_readiness_command,
     learning_lifecycle_transition_contract,
+)
+from proto_mind.experience_learning_lifecycle_apply import (
+    LEARNING_LIFECYCLE_APPLY_MAX_RECEIPTS,
+    LEARNING_LIFECYCLE_APPLY_MODE,
+    OperatorReviewedLearningLifecycleApplySession,
+    format_learning_lifecycle_apply_command,
+    learning_lifecycle_apply_confirmation_token,
 )
 from proto_mind.experience_learning_eligibility import (
     LEARNING_ELIGIBILITY_MAX_IDS_PER_KIND,
@@ -549,6 +557,86 @@ def build_test_learning_outcome_review(
     )
     review = LearningOutcomeReviewer(events, [lesson]).review(lesson.id)
     return coordinator, store, events, review
+
+
+def build_test_learning_lifecycle_transition(
+    tmp_path: Path,
+    *,
+    decision: str = "keep",
+) -> tuple[
+    Coordinator,
+    MemoryStore,
+    list[ExperienceEvent],
+    object,
+    OperatorReviewedLearningLifecycleSession,
+    OperatorReviewedLearningLifecycleApplySession,
+]:
+    coordinator, store, events, keep_review = build_test_learning_outcome_review(tmp_path)
+    review = keep_review
+    if decision in {"reject", "supersede"}:
+        old = store.load_persistent_memory()[0]
+        correction = _correction_event(events)
+        transition_events = [*events, correction]
+        if decision == "supersede":
+            replacement_id = "mem_lifecycle_apply_replacement"
+            applied_at = (datetime.now(UTC) + timedelta(seconds=2)).isoformat()
+            payload = {
+                "schema": "memory.lesson.v1",
+                "content": "Use the narrower verified lifecycle replacement lesson.",
+                "type": "lesson",
+                "importance": 0.9,
+                "source": "experience_learning_proposal",
+                "tags": ["replacement"],
+                "confidence": 0.9,
+            }
+            proposal_hash = "e" * 64
+            provenance = build_learning_lesson_provenance(
+                memory_id=replacement_id,
+                applied_at=applied_at,
+                proposal_id=f"learnprop_{proposal_hash[:16]}",
+                proposal_hash=proposal_hash,
+                candidate_id="learncand_lifecycle_apply_replacement",
+                candidate_hash="f" * 64,
+                decision_id="learndec_lifecycle_apply_replacement",
+                eligibility_receipt_id="learnelig_lifecycle_apply_replacement",
+                selected_scope_hash="1" * 64,
+                proposed_payload=payload,
+                evidence_event_ids=["evt_lifecycle_apply_replacement_source"],
+                source_kinds=["correction"],
+            )
+            replacement = MemoryRecord(
+                id=replacement_id,
+                content=payload["content"],
+                type="lesson",
+                importance=0.9,
+                source="experience_learning_proposal",
+                tags=["replacement"],
+                timestamp=applied_at,
+                updated_at=applied_at,
+                confidence=0.9,
+                provenance=provenance,
+            )
+            store.save_persistent_memory([old, replacement])
+            transition_events.extend(_replacement_events(correction, replacement_id))
+        review = LearningOutcomeReviewer(
+            transition_events,
+            store.load_persistent_memory(),
+        ).review(old.id)
+        events = transition_events
+    lifecycle_session = OperatorReviewedLearningLifecycleSession()
+    lifecycle_session.decide(
+        review,
+        decision,
+        token=learning_lifecycle_confirmation_token(review),
+    )
+    return (
+        coordinator,
+        store,
+        events,
+        review,
+        lifecycle_session,
+        OperatorReviewedLearningLifecycleApplySession(),
+    )
 
 
 def _single_action_record(project_root: Path) -> dict[str, object]:
@@ -20975,7 +21063,7 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertEqual(report.status, "READY FOR LIFECYCLE DESIGN REVIEW")
         self.assertTrue(report.ready_for_design_review)
         self.assertTrue(all(report.checks.values()))
-        self.assertFalse(report.lifecycle_engine_installed)
+        self.assertTrue(report.lifecycle_engine_installed)
         self.assertFalse(report.executable)
         self.assertEqual(report.transition.expected_record_mutations, 0)
         self.assertEqual(before, after)
@@ -21005,10 +21093,10 @@ class ProtoMindFlowTests(unittest.TestCase):
             after = (store.working_path.read_bytes(), store.persistent_path.read_bytes())
 
         self.assertIn("READY FOR LIFECYCLE DESIGN REVIEW", readiness)
-        self.assertIn("lifecycle_engine_installed: false", readiness)
+        self.assertIn("lifecycle_engine_installed: true", readiness)
         self.assertIn("Status: DESIGN REVIEW ONLY", plan)
         self.assertIn("expected_record_mutations: 0", plan)
-        self.assertIn("separately approved lifecycle writer milestone", plan)
+        self.assertIn("fresh exact lifecycle apply preview", plan)
         self.assertEqual(before, after)
 
     def test_learning_lifecycle_readiness_fails_closed_on_evidence_drift(self) -> None:
@@ -21175,7 +21263,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
         self.assertIn("Status: OK", doctor)
         self.assertIn("receipts: 0", doctor)
-        self.assertIn("lifecycle_engine_installed: false", doctor)
+        self.assertIn("lifecycle_engine_installed: true", doctor)
         self.assertIn("Status: NOT FOUND", missing)
         self.assertEqual(before, after)
 
@@ -21201,7 +21289,7 @@ class ProtoMindFlowTests(unittest.TestCase):
             LEARNING_LIFECYCLE_READINESS_MODE,
             "read_only_current_lifecycle_revalidation",
         )
-        self.assertFalse(LEARNING_LIFECYCLE_APPLY_ENGINE_INSTALLED)
+        self.assertTrue(LEARNING_LIFECYCLE_APPLY_ENGINE_INSTALLED)
         self.assertTrue(family.read_only)
         self.assertEqual(family.mutates, "none")
         self.assertFalse(
@@ -21216,10 +21304,385 @@ class ProtoMindFlowTests(unittest.TestCase):
             ).policy_class,
             "auto_allowed",
         )
+        self.assertEqual(
+            classify_command(
+                "/experience learning apply lifecycle mem_lesson CONFIRM-LIFECYCLE-APPLY"
+            ).policy_class,
+            "confirmation_required",
+        )
         self.assertEqual(len(COMMAND_REGISTRY), 363)
         self.assertEqual(len({entry.category for entry in COMMAND_REGISTRY}), 41)
         self.assertEqual(command_registry_doctor()["status"], "OK")
         self.assertEqual(action_policy_doctor()["status"], "OK")
+
+    def test_learning_lifecycle_apply_status_and_doctor_are_safe_when_empty(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, store, _ = build_test_system(Path(temp_dir))
+            lifecycle = OperatorReviewedLearningLifecycleSession()
+            applies = OperatorReviewedLearningLifecycleApplySession()
+            before = (store.working_path.read_bytes(), store.persistent_path.read_bytes())
+            status = format_learning_lifecycle_apply_command(
+                "/experience learning lifecycle-apply-status",
+                events=[],
+                memory_store=store,
+                lifecycle_session=lifecycle,
+                apply_session=applies,
+            )
+            doctor = format_learning_lifecycle_apply_command(
+                "/experience learning lifecycle-apply-doctor",
+                events=[],
+                memory_store=store,
+                lifecycle_session=lifecycle,
+                apply_session=applies,
+            )
+            after = (store.working_path.read_bytes(), store.persistent_path.read_bytes())
+
+        self.assertIn("Status: EMPTY", status)
+        self.assertIn("apply_engine_installed: true", status)
+        self.assertIn("Status: OK", doctor)
+        self.assertEqual(before, after)
+
+    def test_learning_lifecycle_apply_refuses_wrong_token_without_mutation(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, store, events, review, lifecycle, applies = (
+                build_test_learning_lifecycle_transition(Path(temp_dir))
+            )
+            before = store.persistent_path.read_bytes()
+            output = format_learning_lifecycle_apply_command(
+                f"/experience learning apply lifecycle {review.lesson_memory_id} WRONG-TOKEN",
+                events=events,
+                memory_store=store,
+                lifecycle_session=lifecycle,
+                apply_session=applies,
+            )
+            after = store.persistent_path.read_bytes()
+
+        self.assertIn("confirmation token mismatch", output.lower())
+        self.assertEqual(after, before)
+        self.assertEqual(applies.snapshot(), ())
+
+    def test_learning_lifecycle_keep_apply_is_byte_stable_run_once_noop(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, store, events, review, lifecycle, applies = (
+                build_test_learning_lifecycle_transition(Path(temp_dir))
+            )
+            before = store.persistent_path.read_bytes()
+            preview = format_learning_lifecycle_apply_command(
+                f"/experience learning lifecycle-apply-preview {review.lesson_memory_id}",
+                events=events,
+                memory_store=store,
+                lifecycle_session=lifecycle,
+                apply_session=applies,
+            )
+            token = _id_from_output(preview, "confirmation_token:")
+            review_contract = applies.review(
+                lifecycle.get(review.lesson_memory_id),
+                events=events,
+                memory_store=store,
+            )
+            output = format_learning_lifecycle_apply_command(
+                f"/experience learning apply lifecycle {review.lesson_memory_id} {token}",
+                events=events,
+                memory_store=store,
+                lifecycle_session=lifecycle,
+                apply_session=applies,
+            )
+            after_first = store.persistent_path.read_bytes()
+            snapshot = json.dumps(applies.snapshot(), sort_keys=True)
+            second = format_learning_lifecycle_apply_command(
+                f"/experience learning apply lifecycle {review.lesson_memory_id} {token}",
+                events=events,
+                memory_store=store,
+                lifecycle_session=lifecycle,
+                apply_session=applies,
+            )
+            receipt = applies.get(review.lesson_memory_id)
+            after_second = store.persistent_path.read_bytes()
+
+        self.assertIn("Status: CONFIRMABLE", preview)
+        self.assertEqual(token, learning_lifecycle_apply_confirmation_token(review_contract))
+        self.assertIn("keep_verified_noop", output)
+        self.assertEqual(before, after_first)
+        self.assertEqual(receipt.actual_record_mutations, 0)
+        self.assertFalse(receipt.memory_mutation_performed)
+        self.assertIn("single lifecycle apply slot", second)
+        self.assertEqual(snapshot, json.dumps(applies.snapshot(), sort_keys=True))
+        self.assertEqual(after_first, after_second)
+
+    def test_learning_lifecycle_reject_apply_changes_only_old_lifecycle_state(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, store, events, review, lifecycle, applies = (
+                build_test_learning_lifecycle_transition(Path(temp_dir), decision="reject")
+            )
+            before_record = store.load_persistent_memory()[0]
+            before_provenance = deepcopy(before_record.provenance)
+            preview = format_learning_lifecycle_apply_command(
+                f"/experience learning lifecycle-apply-preview {review.lesson_memory_id}",
+                events=events,
+                memory_store=store,
+                lifecycle_session=lifecycle,
+                apply_session=applies,
+            )
+            token = _id_from_output(preview, "confirmation_token:")
+            output = format_learning_lifecycle_apply_command(
+                f"/experience learning apply lifecycle {review.lesson_memory_id} {token}",
+                events=events,
+                memory_store=store,
+                lifecycle_session=lifecycle,
+                apply_session=applies,
+            )
+            after_record = store.load_persistent_memory()[0]
+            receipt = applies.get(review.lesson_memory_id)
+            why = format_memory_command(f"/memory why {review.lesson_memory_id}", store)
+
+        before_payload = before_record.to_dict()
+        after_payload = after_record.to_dict()
+        changed_fields = {
+            key for key in before_payload if before_payload.get(key) != after_payload.get(key)
+        }
+        self.assertEqual(review.status, "REJECT_CANDIDATE")
+        self.assertIn("reject_soft_transition_verified", output)
+        self.assertFalse(after_record.active)
+        self.assertIsNone(after_record.superseded_by)
+        self.assertEqual(after_record.superseded_reason, "verified_learning_outcome_reject")
+        self.assertEqual(
+            changed_fields,
+            {"active", "superseded_at", "superseded_reason"},
+        )
+        self.assertEqual(after_record.provenance, before_provenance)
+        self.assertTrue(verify_memory_provenance(after_record).verified)
+        self.assertEqual(receipt.actual_record_mutations, 1)
+        self.assertTrue(receipt.memory_mutation_performed)
+        self.assertIn("Lifecycle state:", why)
+        self.assertIn("verified_learning_outcome_reject", why)
+
+    def test_learning_lifecycle_supersede_apply_preserves_verified_replacement(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, store, events, review, lifecycle, applies = (
+                build_test_learning_lifecycle_transition(Path(temp_dir), decision="supersede")
+            )
+            before = {record.id: record.to_dict() for record in store.load_persistent_memory()}
+            preview = format_learning_lifecycle_apply_command(
+                f"/experience learning lifecycle-apply-preview {review.lesson_memory_id}",
+                events=events,
+                memory_store=store,
+                lifecycle_session=lifecycle,
+                apply_session=applies,
+            )
+            token = _id_from_output(preview, "confirmation_token:")
+            output = format_learning_lifecycle_apply_command(
+                f"/experience learning apply lifecycle {review.lesson_memory_id} {token}",
+                events=events,
+                memory_store=store,
+                lifecycle_session=lifecycle,
+                apply_session=applies,
+            )
+            after_records = {record.id: record for record in store.load_persistent_memory()}
+            receipt = applies.get(review.lesson_memory_id)
+
+        old = after_records[review.lesson_memory_id]
+        replacement = after_records[review.replacement_memory_id]
+        self.assertIn("supersede_soft_transition_verified", output)
+        self.assertFalse(old.active)
+        self.assertEqual(old.superseded_by, replacement.id)
+        self.assertEqual(old.superseded_reason, "verified_learning_outcome_supersede")
+        self.assertTrue(replacement.active)
+        self.assertEqual(replacement.to_dict(), before[replacement.id])
+        self.assertTrue(verify_memory_provenance(old).verified)
+        self.assertTrue(verify_memory_provenance(replacement).verified)
+        self.assertTrue(receipt.replacement_verified)
+        self.assertEqual(len(receipt.replacement_record_hash), 64)
+
+    def test_learning_lifecycle_apply_fails_closed_on_evidence_drift(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, store, _, review, lifecycle, applies = build_test_learning_lifecycle_transition(
+                Path(temp_dir)
+            )
+            before = store.persistent_path.read_bytes()
+            output = format_learning_lifecycle_apply_command(
+                f"/experience learning lifecycle-apply-preview {review.lesson_memory_id}",
+                events=[],
+                memory_store=store,
+                lifecycle_session=lifecycle,
+                apply_session=applies,
+            )
+            after = store.persistent_path.read_bytes()
+
+        self.assertIn("Status: NOT READY", output)
+        self.assertIn("outcome", output.lower())
+        self.assertEqual(after, before)
+        self.assertEqual(applies.snapshot(), ())
+
+    def test_learning_lifecycle_apply_rolls_back_exact_bytes_on_verification_failure(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, store, events, review, lifecycle, applies = (
+                build_test_learning_lifecycle_transition(Path(temp_dir), decision="reject")
+            )
+            preview = format_learning_lifecycle_apply_command(
+                f"/experience learning lifecycle-apply-preview {review.lesson_memory_id}",
+                events=events,
+                memory_store=store,
+                lifecycle_session=lifecycle,
+                apply_session=applies,
+            )
+            token = _id_from_output(preview, "confirmation_token:")
+            before = store.persistent_path.read_bytes()
+            with patch(
+                "proto_mind.experience_learning_lifecycle_apply._verify_transition",
+                side_effect=ValueError("forced post-write failure"),
+            ):
+                output = format_learning_lifecycle_apply_command(
+                    f"/experience learning apply lifecycle {review.lesson_memory_id} {token}",
+                    events=events,
+                    memory_store=store,
+                    lifecycle_session=lifecycle,
+                    apply_session=applies,
+                )
+            after = store.persistent_path.read_bytes()
+
+        self.assertIn("exact original memory bytes were restored", output)
+        self.assertEqual(after, before)
+        self.assertEqual(applies.snapshot(), ())
+
+    def test_learning_lifecycle_apply_receipt_and_doctor_detect_tampering(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, store, events, review, lifecycle, applies = (
+                build_test_learning_lifecycle_transition(Path(temp_dir))
+            )
+            preview = format_learning_lifecycle_apply_command(
+                f"/experience learning lifecycle-apply-preview {review.lesson_memory_id}",
+                events=events,
+                memory_store=store,
+                lifecycle_session=lifecycle,
+                apply_session=applies,
+            )
+            token = _id_from_output(preview, "confirmation_token:")
+            format_learning_lifecycle_apply_command(
+                f"/experience learning apply lifecycle {review.lesson_memory_id} {token}",
+                events=events,
+                memory_store=store,
+                lifecycle_session=lifecycle,
+                apply_session=applies,
+            )
+            receipt = applies.get(review.lesson_memory_id)
+            inspected = format_learning_lifecycle_apply_command(
+                f"/experience learning lifecycle-apply-receipt {receipt.id}",
+                events=events,
+                memory_store=store,
+                lifecycle_session=lifecycle,
+                apply_session=applies,
+            )
+            healthy = applies.doctor(store)
+            applies._receipts[review.lesson_memory_id] = replace(
+                receipt,
+                actual_record_mutations=9,
+            )
+            tampered = applies.doctor(store)
+
+        self.assertIn("Status: FOUND", inspected)
+        self.assertIn("receipt_hash:", inspected)
+        self.assertEqual(healthy.status, "OK")
+        self.assertEqual(tampered.status, "ERROR")
+        self.assertIn("hash does not match", " ".join(tampered.issues))
+        self.assertIn("invalid mutation count", " ".join(tampered.issues))
+
+    def test_learning_lifecycle_apply_reuses_confirmation_required_memory_gate(self) -> None:
+        registry = {entry.prefix: entry for entry in COMMAND_REGISTRY}
+        apply_spec = registry["/experience learning apply"]
+
+        self.assertEqual(
+            LEARNING_LIFECYCLE_APPLY_MODE,
+            "single_exact_confirmed_lesson_transition",
+        )
+        self.assertEqual(LEARNING_LIFECYCLE_APPLY_MAX_RECEIPTS, 1)
+        self.assertFalse(apply_spec.read_only)
+        self.assertEqual(apply_spec.mutates, "memory")
+        self.assertEqual(
+            classify_command(
+                "/experience learning apply lifecycle mem_lesson CONFIRM-LIFECYCLE-APPLY"
+            ).policy_class,
+            "confirmation_required",
+        )
+        self.assertEqual(len(COMMAND_REGISTRY), 363)
+        self.assertEqual(command_registry_doctor()["status"], "OK")
+        self.assertEqual(action_policy_doctor()["status"], "OK")
+
+    def test_learning_lifecycle_apply_works_through_shared_handler(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            coordinator, store, _, review = build_test_learning_outcome_review(root)
+            logger = SessionOperatorLogger(root / "session.jsonl", enabled=False)
+            pilot = get_experience_pilot(coordinator, project_root=root)
+            pilot.preview()
+            pilot.consent(pilot.expected_consent_phrase)
+            query = "As we discussed earlier, what did we learn about the active SQLite decision?"
+            self.assertTrue(
+                pilot.observe_normal_turn(query, coordinator.handle(query)).capture_performed
+            )
+            decision_preview = process_interactive_input(
+                f"/experience learning outcome-confirm-preview {review.lesson_memory_id}",
+                coordinator=coordinator,
+                session_logger=logger,
+                project_root=root,
+            )
+            decision_token = _id_from_output(decision_preview, "confirmation_token:")
+            process_interactive_input(
+                f"/experience learning decide outcome keep {review.lesson_memory_id} "
+                f"{decision_token}",
+                coordinator=coordinator,
+                session_logger=logger,
+                project_root=root,
+            )
+            apply_preview = process_interactive_input(
+                f"/experience learning lifecycle-apply-preview {review.lesson_memory_id}",
+                coordinator=coordinator,
+                session_logger=logger,
+                project_root=root,
+            )
+            apply_token = _id_from_output(apply_preview, "confirmation_token:")
+            before = store.persistent_path.read_bytes()
+            output = process_interactive_input(
+                f"/experience learning apply lifecycle {review.lesson_memory_id} {apply_token}",
+                coordinator=coordinator,
+                session_logger=logger,
+                project_root=root,
+            )
+            after = store.persistent_path.read_bytes()
+
+        self.assertIn("APPLIED AND VERIFIED", output)
+        self.assertIn("keep_verified_noop", output)
+        self.assertEqual(before, after)
+        self.assertEqual(logger.status().entry_count, 0)
+
+    def test_learning_lifecycle_apply_receipt_expires_but_durable_state_survives_restart(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, store, events, review, lifecycle, applies = (
+                build_test_learning_lifecycle_transition(root, decision="reject")
+            )
+            preview = format_learning_lifecycle_apply_command(
+                f"/experience learning lifecycle-apply-preview {review.lesson_memory_id}",
+                events=events,
+                memory_store=store,
+                lifecycle_session=lifecycle,
+                apply_session=applies,
+            )
+            token = _id_from_output(preview, "confirmation_token:")
+            format_learning_lifecycle_apply_command(
+                f"/experience learning apply lifecycle {review.lesson_memory_id} {token}",
+                events=events,
+                memory_store=store,
+                lifecycle_session=lifecycle,
+                apply_session=applies,
+            )
+            restarted = SupervisedExperiencePilot(root, session_id="lifecycle-apply-restarted")
+            durable = store.load_persistent_memory()[0]
+
+        self.assertEqual(len(applies.snapshot()), 1)
+        self.assertEqual(restarted.learning_lifecycle_applies.snapshot(), ())
+        self.assertFalse(durable.active)
+        self.assertEqual(durable.superseded_reason, "verified_learning_outcome_reject")
+        self.assertTrue(verify_memory_provenance(durable).verified)
 
     def test_contest_provenance_scope_excludes_private_and_generated_paths(self) -> None:
         included = (

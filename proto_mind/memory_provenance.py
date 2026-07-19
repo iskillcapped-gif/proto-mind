@@ -240,6 +240,15 @@ def format_memory_why(store: MemoryStore, memory_id: str) -> str:
         f"active: {str(record.active).lower()}",
         f"content_preview: {_preview(record.content)}",
     ]
+    if record.superseded_at or record.superseded_by or record.superseded_reason:
+        lines.extend(
+            [
+                "Lifecycle state:",
+                f"- superseded_by: {record.superseded_by or 'none'}",
+                f"- superseded_at: {record.superseded_at or 'none'}",
+                f"- superseded_reason: {record.superseded_reason or 'none'}",
+            ]
+        )
     if record.provenance is None:
         lines.extend(
             [
