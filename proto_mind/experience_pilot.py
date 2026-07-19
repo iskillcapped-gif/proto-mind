@@ -58,6 +58,10 @@ from proto_mind.experience_learning_skill_authoring import (
     OperatorReviewedProceduralSkillAuthoringSession,
     format_procedural_skill_authoring_command,
 )
+from proto_mind.experience_learning_skill_readiness import (
+    ProceduralSkillApplyReadiness,
+    format_procedural_skill_readiness_command,
+)
 from proto_mind.experience_learning_readiness import format_learning_apply_readiness_command
 from proto_mind.experience_turn import (
     format_cognitive_turn_episode,
@@ -467,16 +471,28 @@ def format_experience_pilot_command(
             return skill_contract_output
         memory_store = _owner_memory_store(owner)
         if memory_store is not None:
+            skill_library = SkillLibrary.from_project_root(project_root)
+            skill_contract_builder = ProceduralSkillContractBuilder(
+                memory_store=memory_store,
+                skill_library=skill_library,
+            )
             skill_authoring_output = format_procedural_skill_authoring_command(
                 raw,
-                builder=ProceduralSkillContractBuilder(
-                    memory_store=memory_store,
-                    skill_library=SkillLibrary.from_project_root(project_root),
-                ),
+                builder=skill_contract_builder,
                 session=pilot.skill_authoring,
             )
             if skill_authoring_output is not None:
                 return skill_authoring_output
+            skill_readiness_output = format_procedural_skill_readiness_command(
+                raw,
+                reviewer=ProceduralSkillApplyReadiness(
+                    builder=skill_contract_builder,
+                    skill_library=skill_library,
+                ),
+                session=pilot.skill_authoring,
+            )
+            if skill_readiness_output is not None:
+                return skill_readiness_output
         lifecycle_apply_output = format_learning_lifecycle_apply_command(
             raw,
             events=events,
@@ -694,6 +710,8 @@ def _usage() -> str:
             "/experience learning skill-authoring-status|skill-authoring-receipts|skill-authoring-doctor",
             "/experience learning skill-authoring-confirm-preview <memory_id> <authored flags>",
             "/experience learning propose skill-contract <memory_id> <exact token> <identical authored flags>",
+            "/experience learning skill-apply-readiness|skill-apply-plan <receipt_id|memory_id>",
+            "/experience learning skill-apply-doctor",
             "/experience events [--last N]",
             "/experience inspect <event_id>",
             "/experience doctor",

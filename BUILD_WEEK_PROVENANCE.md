@@ -69,6 +69,7 @@ The current source tree is compared directly with the July 11 archive by SHA-256
 - Lifecycle Transition Audit v3.4h with restart-safe read-only state reconstruction, provenance/timestamp/replacement/cycle diagnostics, and no repair or invented historical receipt.
 - Procedural Skill Contract v3.5a with source-bound read-only operator templates, explicit procedure/permission/verification fields, exact active duplicate checks, and no synthesis, writer, promotion, or execution.
 - Procedural Skill Authoring Receipt v3.5b with exact visible operator fields, source-and-payload token binding, 16 bounded restart-expiring process receipts, current-state drift diagnostics, and no Skill Library writer or execution.
+- Procedural Skill Apply Readiness v3.5c with current receipt/source/global duplicate/store-hash revalidation, deterministic target identity, fixed future atomic receipt and rollback requirements, and no writer, apply token, or execution.
 - Contest Showcase v1 with a deterministic three-minute narrative and safety doctor.
 - Build Week Provenance Pack v1.
 
@@ -78,13 +79,13 @@ The generated evidence under `contest/provenance/` is the source of truth for th
 
 | Metric | July 11 baseline | Current Build Week state | Delta |
 |---|---:|---:|---:|
-| Submission-relevant files | 69 | 127 | +58 |
-| Python files | 66 | 100 | +34 |
-| Unit-test methods | 664 | 989 | +325 |
+| Submission-relevant files | 69 | 128 | +59 |
+| Python files | 66 | 101 | +35 |
+| Unit-test methods | 664 | 999 | +335 |
 | Registry commands | 343 | 363 | +20 |
 | Registry categories | 39 | 41 | +2 |
 
-The file delta is not inferred from modification time. Every baseline and current submission-relevant file is hashed, then classified as added, changed, removed, or unchanged. The current manifest reports 58 added, 15 changed, 0 removed, and 54 unchanged files.
+The file delta is not inferred from modification time. Every baseline and current submission-relevant file is hashed, then classified as added, changed, removed, or unchanged. The current manifest reports 59 added, 15 changed, 0 removed, and 54 unchanged files.
 
 ## Reproduce The Evidence
 

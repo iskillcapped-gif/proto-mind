@@ -48,6 +48,7 @@
       "proto_mind/experience_learning_readiness.py",
       "proto_mind/experience_learning_skill_authoring.py",
       "proto_mind/experience_learning_skill_contract.py",
+      "proto_mind/experience_learning_skill_readiness.py",
       "proto_mind/experience_ledger.py",
       "proto_mind/experience_pilot.py",
       "proto_mind/experience_privacy.py",
@@ -144,7 +145,7 @@
       "requirements-ui.txt"
     ]
   },
-  "generated_at": "2026-07-19T18:35:27.742906+00:00",
+  "generated_at": "2026-07-19T18:54:23.245380+00:00",
   "limitations": [
     "This is local equivalent evidence, not a third-party timestamp authority.",
     "Codex /feedback Session IDs and future dated Git commits should accompany this manifest.",
@@ -153,13 +154,13 @@
   "metrics": {
     "file_count": {
       "baseline": 69,
-      "current": 127,
-      "delta": 58
+      "current": 128,
+      "delta": 59
     },
     "python_file_count": {
       "baseline": 66,
-      "current": 100,
-      "delta": 34
+      "current": 101,
+      "delta": 35
     },
     "registry_category_count": {
       "baseline": 39,
@@ -173,18 +174,18 @@
     },
     "test_method_count": {
       "baseline": 664,
-      "current": 989,
-      "delta": 325
+      "current": 999,
+      "delta": 335
     },
     "total_bytes": {
       "baseline": 2188652,
-      "current": 3474510,
-      "delta": 1285858
+      "current": 3515041,
+      "delta": 1326389
     }
   },
   "schema_version": 1,
   "summary": {
-    "added_count": 58,
+    "added_count": 59,
     "changed_count": 15,
     "meaningful_extension_evidence": true,
     "removed_count": 0,

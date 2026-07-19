@@ -19,7 +19,7 @@ Last updated: 2026-07-19
   - Ollama via `PROTO_MIND_REASONER=ollama`, `PROTO_MIND_OLLAMA_MODEL`, `PROTO_MIND_OLLAMA_URL`.
 - Normal prompts go through observer, retrieval, reasoner, memory evaluation, self-reflection, grounding audit, and session logging.
 - Slash/operator commands bypass normal cognitive turns and should not become cognitive session log turns.
-- Supervised Experience Pilot v3.3a observes consented turns; v3.3b projects episodes; v3.3c previews candidates; v3.3d captures decisions; v3.3e reviews selected-scope eligibility; v3.3f records proposals; v3.3g revalidates apply readiness; v3.4a permits one separately confirmed, atomic, verified memory lesson; v3.4b embeds restart-safe compact provenance; v3.4c permits only verified learned lessons into recall; v3.4d reviews later outcomes; v3.4e records an exact operator lifecycle decision; v3.4f revalidates that decision; v3.4g permits one separately confirmed keep/reject/supersede transition; v3.4h reconstructs and audits durable lifecycle state after restart; v3.5a projects an active verified lesson into a read-only procedural skill contract; v3.5b records exact operator-authored fields in a bounded restart-expiring receipt. Review/proposal/decision/detailed-receipt state remains bounded and process-memory-only; no automatic or batch apply exists.
+- Supervised Experience Pilot v3.3a observes consented turns; v3.3b projects episodes; v3.3c previews candidates; v3.3d captures decisions; v3.3e reviews selected-scope eligibility; v3.3f records proposals; v3.3g revalidates apply readiness; v3.4a permits one separately confirmed, atomic, verified memory lesson; v3.4b embeds restart-safe compact provenance; v3.4c permits only verified learned lessons into recall; v3.4d reviews later outcomes; v3.4e records an exact operator lifecycle decision; v3.4f revalidates that decision; v3.4g permits one separately confirmed keep/reject/supersede transition; v3.4h reconstructs and audits durable lifecycle state after restart; v3.5a projects an active verified lesson into a read-only procedural skill contract; v3.5b records exact operator-authored fields in a bounded restart-expiring receipt; v3.5c revalidates that receipt and current Skill Library for future apply design. Review/proposal/decision/detailed-receipt state remains bounded and process-memory-only; no automatic or batch apply exists.
 - Build Week submission provenance uses the July 11 pre-contest archive SHA-256 plus generated baseline/current/delta manifests; prior work and contest work are explicitly separated.
 - Primary Build Week Codex `/feedback` Session ID is `019d73be-1d7e-7401-8efe-f5e165736db4`.
 - Repository privacy review excludes local cognitive/runtime stores, removes user-specific checkout paths from public artifacts, and documents synthetic credential fixtures and publication boundaries.
@@ -29,7 +29,7 @@ Last updated: 2026-07-19
 ## Current Verification Baseline
 
 - Current test command: `scripts/run_tests.sh`.
-- Current test count: 989 unit tests OK.
+- Current test count: 999 unit tests OK.
 - Compile check: `python -m compileall proto_mind` via `scripts/run_tests.sh` OK.
 - Pytest: optional; currently not installed and skipped cleanly.
 
@@ -125,6 +125,7 @@ Last updated: 2026-07-19
 - v3.4h / Lifecycle Transition Audit: read-only durable-state reconstruction classifies learned lessons and checks provenance, lifecycle shape/timestamps, replacement integrity, unique IDs, and acyclic links after restart.
 - v3.5a / Procedural Skill Contract: read-only source-bound authoring templates require explicit trigger, preconditions, steps, permissions, verification, and failure modes, while synthesis, storage, promotion, and execution remain unavailable.
 - v3.5b / Procedural Skill Authoring Receipt: exact visible author fields and current source hashes are bound to a maximum of 16 immutable process-memory receipts through the existing proposal gate, without skill persistence or execution.
+- v3.5c / Procedural Skill Apply Readiness: read-only current receipt/source/global duplicate/store-hash revalidation plus a fixed future atomic receipt and rollback contract, with no writer or token generation.
 - Build Week Provenance Pack v1: July 11 baseline archive, SHA-256 manifests, objective contest delta, honest prior/new disclosure, and Codex collaboration record without private runtime data.
 - Contest Showcase v1: read-only live continuity/experience/governance/action presentation, deterministic three-minute script, dependency doctor, and submission guide without command execution or pilot activation.
 
@@ -144,18 +145,18 @@ Last updated: 2026-07-19
 
 ## Last Completed Milestone
 
-v3.5b / Procedural Skill Authoring Receipt:
+v3.5c / Procedural Skill Apply Readiness:
 
-- Added read-only status/confirmation-preview/list/inspect/Doctor views plus `/experience learning propose skill-contract <memory_id> <exact token> <identical authored flags>` through the existing confirmation-required proposal Registry prefix; Registry remains 363 commands across 41 categories.
-- A bounded parser requires visible trigger, preconditions, steps, permissions, verification, and known failure modes; optional name/summary overrides and all resolved fields are bound to the active lesson, durable provenance, source-record hash, base contract, storage projection, and exact token.
-- One immutable receipt per lesson and at most 16 per process is retained; restart expiry, run-once behavior, hash/tamper checks, current source/duplicate drift, and explicit `future_apply_ready=false`/`executable=false` flags remain visible.
-- The receipt records operator authorship only. It writes no Skill Library, memory, Experience event, queue, export, or session log and installs no writer, promotion, execution, shell, arbitrary dispatch, model/API, or Context Injection path.
-- Eleven focused regressions cover empty state, exact visible preview, wrong token, successful no-write receipt, run-once, restart expiry, parser/chaining failures, terminal lesson refusal, source drift, receipt tamper, shared-handler routing, Registry/Policy, and byte stability; the full suite passes 989 tests.
+- Added read-only `/experience learning skill-apply-readiness <receipt_id|memory_id>`, `skill-apply-plan <receipt_id|memory_id>`, and `skill-apply-doctor` under the existing Registry family; Registry remains 363 commands across 41 categories.
+- Readiness recomputes the current v3.5b blueprint and verifies receipt integrity, active lesson/provenance/source/base/authoring/projection hashes, all Skill Library records and IDs, deterministic target ID, global active duplicate absence, archived duplicate warnings, and current store SHA-256.
+- The future plan fixes one expected record mutation, target payload hash, separate confirmation, atomic write, post-write verification, 15 receipt fields, receipt hash, and `/skills archive <created_id>` rollback guidance.
+- `READY FOR SKILL APPLY DESIGN REVIEW` remains non-executable: no writer, apply engine, apply token, Skill Library mutation, receipt mutation, shell, arbitrary dispatch, model/API, export, session log, or Context Injection path exists.
+- Ten focused regressions cover empty state, current receipt readiness, future plan/rollback, missing receipt, source drift, active and archived duplicates, malformed Skill Library, receipt tamper, shared-handler routing, Registry/Policy, and byte stability; the full suite passes 999 tests.
 
 ## Next Candidate Tasks
 
 - Submission Readiness: keep the public repository and provenance manifests current, finalize English Devpost copy, and record the sub-three-minute video.
-- v3.5c / Procedural Skill Apply Readiness: revalidate one authoring receipt against the current lesson, provenance, global Skill Library duplicates, target-store hash, fixed payload, future atomic receipt, verification, and rollback requirements; no writer yet.
+- v3.5d / Supervised Procedural Skill Apply Pilot: one fresh exact-token, atomic, verified Skill Library append with run-once process receipt and archive rollback suggestion; no procedure execution, batch apply, or autonomous selection.
 - Memory Migration Plan: design deterministic compaction/archive rules for the 8 previewed legacy candidates; no apply step without separate approval.
 - Command Dispatch Architecture v2: replace the linear formatter chain with typed incremental family registration while preserving exact command behavior and runner isolation.
 - Test Suite Structure v1: split the 15k-line flow suite by domain without changing test semantics or commands.

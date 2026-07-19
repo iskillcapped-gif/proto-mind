@@ -349,6 +349,13 @@ def procedural_skill_authoring_confirmation_token(
     return f"CONFIRM-SKILL-AUTHOR-{blueprint.authoring_hash[:12].upper()}"
 
 
+def procedural_skill_authoring_receipt_hash(
+    receipt: ProceduralSkillAuthoringReceipt | dict[str, Any],
+) -> str:
+    payload = receipt.to_dict() if isinstance(receipt, ProceduralSkillAuthoringReceipt) else receipt
+    return _receipt_authoring_hash(payload)
+
+
 def format_procedural_skill_authoring_command(
     command: str,
     *,

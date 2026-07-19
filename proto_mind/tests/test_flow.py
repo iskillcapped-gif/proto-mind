@@ -248,6 +248,13 @@ from proto_mind.experience_learning_skill_authoring import (
     parse_procedural_skill_authoring_request,
     procedural_skill_authoring_confirmation_token,
 )
+from proto_mind.experience_learning_skill_readiness import (
+    PROCEDURAL_SKILL_APPLY_ENGINE_INSTALLED,
+    PROCEDURAL_SKILL_FUTURE_RECEIPT_FIELDS,
+    PROCEDURAL_SKILL_READINESS_MODE,
+    ProceduralSkillApplyReadiness,
+    format_procedural_skill_readiness_command,
+)
 from proto_mind.experience_learning_eligibility import (
     LEARNING_ELIGIBILITY_MAX_IDS_PER_KIND,
     LearningEligibilityRequest,
@@ -598,6 +605,32 @@ def build_test_learning_outcome_review(
     )
     review = LearningOutcomeReviewer(events, [lesson]).review(lesson.id)
     return coordinator, store, events, review
+
+
+def build_test_procedural_skill_authoring(
+    tmp_path: Path,
+) -> tuple[
+    Coordinator,
+    MemoryStore,
+    object,
+    SkillLibrary,
+    ProceduralSkillContractBuilder,
+    OperatorReviewedProceduralSkillAuthoringSession,
+    object,
+]:
+    coordinator, store, _, review = build_test_learning_outcome_review(tmp_path)
+    library = SkillLibrary(tmp_path / "skills.jsonl")
+    builder = ProceduralSkillContractBuilder(memory_store=store, skill_library=library)
+    request = parse_procedural_skill_authoring_request(
+        shlex.split(f"{review.lesson_memory_id} {_test_skill_authoring_flags()}")
+    )
+    blueprint = build_procedural_skill_authoring_blueprint(builder, request)
+    session = OperatorReviewedProceduralSkillAuthoringSession()
+    receipt = session.create(
+        blueprint,
+        token=procedural_skill_authoring_confirmation_token(blueprint),
+    )
+    return coordinator, store, review, library, builder, session, receipt
 
 
 def build_test_learning_lifecycle_transition(
@@ -22544,6 +22577,262 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertEqual(
             classify_command(
                 f"/experience learning skill-authoring-confirm-preview {review.lesson_memory_id}"
+            ).policy_class,
+            "auto_allowed",
+        )
+        self.assertEqual(len(COMMAND_REGISTRY), 363)
+        self.assertEqual(len({entry.category for entry in COMMAND_REGISTRY}), 41)
+        self.assertEqual(command_registry_doctor()["status"], "OK")
+        self.assertEqual(action_policy_doctor()["status"], "OK")
+
+    def test_procedural_skill_readiness_doctor_is_empty_read_only(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, store, _ = build_test_system(root)
+            library = SkillLibrary(root / "skills.jsonl")
+            reviewer = ProceduralSkillApplyReadiness(
+                builder=ProceduralSkillContractBuilder(
+                    memory_store=store,
+                    skill_library=library,
+                ),
+                skill_library=library,
+            )
+            session = OperatorReviewedProceduralSkillAuthoringSession()
+            before = (store.working_path.read_bytes(), store.persistent_path.read_bytes())
+            output = format_procedural_skill_readiness_command(
+                "/experience learning skill-apply-doctor",
+                reviewer=reviewer,
+                session=session,
+            )
+            after = (store.working_path.read_bytes(), store.persistent_path.read_bytes())
+            skill_file_after_clean = library.skills_path.exists()
+            library.skills_path.write_text("{malformed\n", encoding="utf-8")
+            broken_output = format_procedural_skill_readiness_command(
+                "/experience learning skill-apply-doctor",
+                reviewer=reviewer,
+                session=session,
+            )
+
+        self.assertIn("Status: OK", output)
+        self.assertIn("receipts: 0", output)
+        self.assertIn("skill_apply_engine_installed: false", output)
+        self.assertEqual(before, after)
+        self.assertFalse(skill_file_after_clean)
+        self.assertIn("Status: ERROR", broken_output)
+        self.assertIn("malformed JSONL", broken_output)
+
+    def test_procedural_skill_readiness_revalidates_current_receipt_without_write(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, store, _, library, builder, session, receipt = (
+                build_test_procedural_skill_authoring(root)
+            )
+            reviewer = ProceduralSkillApplyReadiness(
+                builder=builder,
+                skill_library=library,
+            )
+            before = store.persistent_path.read_bytes()
+            report = reviewer.review(receipt)
+            after = store.persistent_path.read_bytes()
+
+        self.assertEqual(report.status, "READY FOR SKILL APPLY DESIGN REVIEW")
+        self.assertTrue(report.ready_for_design_review)
+        self.assertTrue(all(report.checks.values()))
+        self.assertEqual(report.current_authoring_hash, receipt.authoring_hash)
+        self.assertEqual(len(report.skill_store_sha256), 64)
+        self.assertEqual(
+            report.contract.target_record_id,
+            f"skilllearn_{receipt.authoring_hash[:16]}",
+        )
+        self.assertEqual(report.contract.expected_record_mutations, 1)
+        self.assertFalse(report.apply_engine_installed)
+        self.assertFalse(report.executable)
+        self.assertEqual(before, after)
+        self.assertFalse(library.skills_path.exists())
+        self.assertEqual(len(session.snapshot()), 1)
+
+    def test_procedural_skill_apply_plan_exposes_future_receipt_and_rollback_contract(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, _, _, library, builder, session, receipt = (
+                build_test_procedural_skill_authoring(root)
+            )
+            output = format_procedural_skill_readiness_command(
+                f"/experience learning skill-apply-plan {receipt.id}",
+                reviewer=ProceduralSkillApplyReadiness(
+                    builder=builder,
+                    skill_library=library,
+                ),
+                session=session,
+            )
+
+        self.assertIn("Status: READY FOR SKILL APPLY DESIGN REVIEW", output)
+        self.assertIn("expected_record_mutations: 1", output)
+        self.assertIn("atomic_write_required: true", output)
+        self.assertIn("post_write_verification_required: true", output)
+        self.assertIn("separate_confirmation_required: true", output)
+        self.assertIn("rollback_suggestion: /skills archive skilllearn_", output)
+        for field in PROCEDURAL_SKILL_FUTURE_RECEIPT_FIELDS:
+            self.assertIn(f"- {field}", output)
+        self.assertIn("no apply token was generated", output)
+
+    def test_procedural_skill_readiness_handles_missing_receipt_cleanly(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, store, _ = build_test_system(root)
+            library = SkillLibrary(root / "skills.jsonl")
+            output = format_procedural_skill_readiness_command(
+                "/experience learning skill-apply-readiness missing",
+                reviewer=ProceduralSkillApplyReadiness(
+                    builder=ProceduralSkillContractBuilder(
+                        memory_store=store,
+                        skill_library=library,
+                    ),
+                    skill_library=library,
+                ),
+                session=OperatorReviewedProceduralSkillAuthoringSession(),
+            )
+
+        self.assertIn("Status: ERROR", output)
+        self.assertIn("No process-memory skill authoring receipt", output)
+        self.assertFalse(library.skills_path.exists())
+
+    def test_procedural_skill_readiness_detects_source_drift(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, store, _, library, builder, _, receipt = (
+                build_test_procedural_skill_authoring(root)
+            )
+            lesson = store.load_persistent_memory()[0]
+            store.save_persistent_memory([replace(lesson, active=False)])
+            report = ProceduralSkillApplyReadiness(
+                builder=builder,
+                skill_library=library,
+            ).review(receipt)
+
+        self.assertEqual(report.status, "NOT READY")
+        self.assertFalse(report.ready_for_design_review)
+        self.assertFalse(report.checks["current_source_revalidated"])
+        self.assertIn("revalidation failed", " ".join(report.issues))
+
+    def test_procedural_skill_readiness_blocks_active_global_duplicate(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, _, _, library, builder, _, receipt = build_test_procedural_skill_authoring(root)
+            library.add_skill(
+                receipt.authored_contract["name"],
+                category="workflow",
+                summary="Different summary, exact active name.",
+            )
+            report = ProceduralSkillApplyReadiness(
+                builder=builder,
+                skill_library=library,
+            ).review(receipt)
+
+        self.assertEqual(report.status, "NOT READY")
+        self.assertFalse(report.checks["active_global_duplicate_absent"])
+        self.assertEqual(len(report.active_duplicate_skill_ids), 1)
+        self.assertIn("active global exact skill duplicate", " ".join(report.issues))
+
+    def test_procedural_skill_readiness_warns_but_allows_archived_duplicate(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, _, _, library, builder, _, receipt = build_test_procedural_skill_authoring(root)
+            library.add_skill(
+                receipt.authored_contract["name"],
+                category="workflow",
+                summary="Archived duplicate name.",
+            )
+            skill_id = str(library.read_snapshot()["records"][0]["id"])
+            library.set_status(skill_id, "archived")
+            report = ProceduralSkillApplyReadiness(
+                builder=builder,
+                skill_library=library,
+            ).review(receipt)
+
+        self.assertEqual(report.status, "READY FOR SKILL APPLY DESIGN REVIEW")
+        self.assertTrue(report.checks["active_global_duplicate_absent"])
+        self.assertEqual(report.archived_duplicate_skill_ids, [skill_id])
+        self.assertIn("Archived exact skill duplicates", " ".join(report.warnings))
+
+    def test_procedural_skill_readiness_fails_closed_on_malformed_skill_store(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, _, _, library, builder, _, receipt = build_test_procedural_skill_authoring(root)
+            library.skills_path.write_text("{malformed\n", encoding="utf-8")
+            report = ProceduralSkillApplyReadiness(
+                builder=builder,
+                skill_library=library,
+            ).review(receipt)
+
+        self.assertEqual(report.status, "ERROR")
+        self.assertFalse(report.checks["skill_store_well_formed"])
+        self.assertFalse(report.ready_for_design_review)
+
+    def test_procedural_skill_readiness_fails_closed_on_receipt_tamper(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, _, _, library, builder, _, receipt = build_test_procedural_skill_authoring(root)
+            tampered = replace(receipt, persistence_performed=True)
+            report = ProceduralSkillApplyReadiness(
+                builder=builder,
+                skill_library=library,
+            ).review(tampered)
+
+        self.assertEqual(report.status, "ERROR")
+        self.assertFalse(report.checks["authoring_receipt_safe"])
+        self.assertFalse(report.ready_for_design_review)
+
+    def test_procedural_skill_readiness_shared_handler_is_read_only_and_registered(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            coordinator, store, _, review = build_test_learning_outcome_review(root)
+            logger = SessionOperatorLogger(root / "session.jsonl", enabled=False)
+            flags = _test_skill_authoring_flags()
+            preview = process_interactive_input(
+                f"/experience learning skill-authoring-confirm-preview "
+                f"{review.lesson_memory_id} {flags}",
+                coordinator=coordinator,
+                session_logger=logger,
+                project_root=root,
+            )
+            token = _id_from_output(preview, "Confirmation token:")
+            process_interactive_input(
+                f"/experience learning propose skill-contract {review.lesson_memory_id} "
+                f"{token} {flags}",
+                coordinator=coordinator,
+                session_logger=logger,
+                project_root=root,
+            )
+            before = (store.working_path.read_bytes(), store.persistent_path.read_bytes())
+            output = process_interactive_input(
+                f"/experience learning skill-apply-readiness {review.lesson_memory_id}",
+                coordinator=coordinator,
+                session_logger=logger,
+                project_root=root,
+            )
+            plan = process_interactive_input(
+                f"/experience learning skill-apply-plan {review.lesson_memory_id}",
+                coordinator=coordinator,
+                session_logger=logger,
+                project_root=root,
+            )
+            after = (store.working_path.read_bytes(), store.persistent_path.read_bytes())
+            skill_path = root / "proto_mind" / "data" / "skills.jsonl"
+
+        self.assertIn("READY FOR SKILL APPLY DESIGN REVIEW", output)
+        self.assertIn("Required future receipt fields:", plan)
+        self.assertEqual(before, after)
+        self.assertFalse(skill_path.exists())
+        self.assertEqual(logger.status().entry_count, 0)
+        self.assertEqual(
+            PROCEDURAL_SKILL_READINESS_MODE,
+            "read_only_current_skill_contract_revalidation",
+        )
+        self.assertFalse(PROCEDURAL_SKILL_APPLY_ENGINE_INSTALLED)
+        self.assertEqual(
+            classify_command(
+                f"/experience learning skill-apply-readiness {review.lesson_memory_id}"
             ).policy_class,
             "auto_allowed",
         )
