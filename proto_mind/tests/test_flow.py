@@ -294,6 +294,17 @@ from proto_mind.experience_learning_skill_lifecycle_readiness import (
     ProceduralSkillLifecycleApplyReadiness,
     format_procedural_skill_lifecycle_readiness_command,
 )
+from proto_mind.experience_learning_skill_lifecycle_metadata_readiness import (
+    PROCEDURAL_SKILL_LIFECYCLE_CURRENT_WRITER_SUPPORTS_METADATA,
+    PROCEDURAL_SKILL_LIFECYCLE_METADATA_EXPECTED_CHANGED_FIELDS,
+    PROCEDURAL_SKILL_LIFECYCLE_METADATA_FUTURE_RECEIPT_FIELDS,
+    PROCEDURAL_SKILL_LIFECYCLE_METADATA_READINESS_MODE,
+    PROCEDURAL_SKILL_LIFECYCLE_METADATA_READINESS_WRITER_INSTALLED,
+    ProceduralSkillLifecycleMetadataReadiness,
+    format_procedural_skill_lifecycle_metadata_plan,
+    format_procedural_skill_lifecycle_metadata_readiness,
+    procedural_skill_lifecycle_metadata_readiness_doctor,
+)
 from proto_mind.experience_learning_skill_lifecycle_apply import (
     PROCEDURAL_SKILL_LIFECYCLE_APPLY_MAX_RECEIPTS,
     PROCEDURAL_SKILL_LIFECYCLE_APPLY_MODE,
@@ -19518,6 +19529,194 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertIn("writer_installed: false", output)
         self.assertEqual(after, before)
         self.assertFalse(memory_path.exists())
+
+    def test_durable_skill_lifecycle_writer_readiness_binds_archive_blueprint(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            store, library, _, _, receipt, reviewer = (
+                build_test_procedural_skill_lifecycle_readiness(
+                    Path(temp_dir), outcomes=("failure",), decision="archive"
+                )
+            )
+            skill_before = library.skills_path.read_bytes()
+            memory_before = store.persistent_path.read_bytes()
+            report = ProceduralSkillLifecycleMetadataReadiness(reviewer).review(
+                receipt
+            )
+            skill_after = library.skills_path.read_bytes()
+            memory_after = store.persistent_path.read_bytes()
+
+        self.assertEqual(report.status, "READY FOR DURABLE WRITER DESIGN REVIEW")
+        self.assertTrue(report.ready_for_writer_design_review)
+        self.assertTrue(report.metadata_required)
+        self.assertEqual(len(report.metadata_blueprint_hash), 64)
+        self.assertEqual(
+            report.metadata_blueprint["decision_hash"], receipt.decision_hash
+        )
+        self.assertEqual(
+            report.metadata_blueprint["capture_receipt_hashes"],
+            receipt.capture_receipt_hashes,
+        )
+        self.assertEqual(
+            report.expected_changed_fields,
+            list(PROCEDURAL_SKILL_LIFECYCLE_METADATA_EXPECTED_CHANGED_FIELDS),
+        )
+        self.assertFalse(report.writer_installed)
+        self.assertFalse(report.current_writer_compatible)
+        self.assertFalse(report.apply_token_generated)
+        self.assertFalse(report.mutation_performed)
+        self.assertEqual(skill_after, skill_before)
+        self.assertEqual(memory_after, memory_before)
+
+    def test_durable_skill_lifecycle_plan_requires_exact_future_mutation_and_receipt(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, _, pilot, _, receipt, reviewer = (
+                build_test_procedural_skill_lifecycle_readiness(
+                    Path(temp_dir), outcomes=("failure",), decision="archive"
+                )
+            )
+            readiness = format_procedural_skill_lifecycle_readiness_command(
+                (
+                    "/experience learning skill-outcome-lifecycle-readiness "
+                    f"{receipt.id} --durable"
+                ),
+                reviewer=reviewer,
+                session=pilot.skill_outcome_decisions,
+            )
+            plan = format_procedural_skill_lifecycle_readiness_command(
+                (
+                    "/experience learning skill-outcome-lifecycle-plan "
+                    f"{receipt.skill_id} --durable"
+                ),
+                reviewer=reviewer,
+                session=pilot.skill_outcome_decisions,
+            )
+
+        self.assertIn("READY FOR DURABLE WRITER DESIGN REVIEW", readiness)
+        self.assertIn(PROCEDURAL_SKILL_LIFECYCLE_METADATA_READINESS_MODE, readiness)
+        self.assertIn("writer_installed: false", readiness)
+        self.assertIn("current_writer_compatible: false", readiness)
+        self.assertIn("future_writer_ready: false", readiness)
+        self.assertIn("expected_record_mutations: 1", plan)
+        self.assertIn("expected_changed_fields: lifecycle, status, updated_at", plan)
+        self.assertIn("exact original Skill Library bytes", plan)
+        for field in PROCEDURAL_SKILL_LIFECYCLE_METADATA_FUTURE_RECEIPT_FIELDS:
+            self.assertIn(f"- {field}", plan)
+        self.assertNotIn("confirmation_token:", readiness)
+        self.assertNotIn("confirmation_token:", plan)
+
+    def test_durable_skill_lifecycle_keep_requires_no_metadata_or_record_mutation(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            store, library, pilot, _, receipt, reviewer = (
+                build_test_procedural_skill_lifecycle_readiness(Path(temp_dir))
+            )
+            before_skill = library.skills_path.read_bytes()
+            before_memory = store.persistent_path.read_bytes()
+            readiness = format_procedural_skill_lifecycle_readiness_command(
+                (
+                    "/experience learning skill-outcome-lifecycle-readiness "
+                    f"{receipt.id} --durable"
+                ),
+                reviewer=reviewer,
+                session=pilot.skill_outcome_decisions,
+            )
+            plan = format_procedural_skill_lifecycle_readiness_command(
+                (
+                    "/experience learning skill-outcome-lifecycle-plan "
+                    f"{receipt.id} --durable"
+                ),
+                reviewer=reviewer,
+                session=pilot.skill_outcome_decisions,
+            )
+            after_skill = library.skills_path.read_bytes()
+            after_memory = store.persistent_path.read_bytes()
+
+        self.assertIn("NO DURABLE METADATA REQUIRED", readiness)
+        self.assertIn("metadata_required: false", readiness)
+        self.assertIn("expected_record_mutations: 0", plan)
+        self.assertIn("skill_library_bytes_must_remain_identical: true", plan)
+        self.assertEqual(after_skill, before_skill)
+        self.assertEqual(after_memory, before_memory)
+
+    def test_durable_skill_lifecycle_revise_remains_not_ready(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, _, pilot, _, receipt, reviewer = (
+                build_test_procedural_skill_lifecycle_readiness(
+                    Path(temp_dir), outcomes=("failure",), decision="revise"
+                )
+            )
+            output = format_procedural_skill_lifecycle_readiness_command(
+                (
+                    "/experience learning skill-outcome-lifecycle-readiness "
+                    f"{receipt.id} --durable"
+                ),
+                reviewer=reviewer,
+                session=pilot.skill_outcome_decisions,
+            )
+
+        self.assertIn("Status: NOT READY", output)
+        self.assertIn("metadata_required: false", output)
+        self.assertIn("revise needs a separate replacement contract", output)
+        self.assertIn("apply_token_generated: false", output)
+
+    def test_durable_skill_lifecycle_writer_readiness_detects_later_skill_drift(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, library, _, record, receipt, reviewer = (
+                build_test_procedural_skill_lifecycle_readiness(
+                    Path(temp_dir), outcomes=("failure",), decision="archive"
+                )
+            )
+            library.update_summary(
+                str(record["id"]), "Changed after durable readiness source decision."
+            )
+            report = ProceduralSkillLifecycleMetadataReadiness(reviewer).review(
+                receipt
+            )
+
+        self.assertEqual(report.status, "NOT READY")
+        self.assertFalse(report.ready_for_writer_design_review)
+        self.assertFalse(report.checks["base_lifecycle_readiness_current"])
+        self.assertTrue(report.metadata_blueprint_hash)
+        self.assertFalse(report.apply_token_generated)
+        self.assertFalse(report.mutation_performed)
+
+    def test_durable_skill_lifecycle_readiness_doctor_parser_and_registry_are_safe(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, _, pilot, _, _, reviewer = (
+                build_test_procedural_skill_lifecycle_readiness(Path(temp_dir))
+            )
+            doctor = format_procedural_skill_lifecycle_readiness_command(
+                "/experience learning skill-outcome-lifecycle-doctor",
+                reviewer=reviewer,
+                session=pilot.skill_outcome_decisions,
+            )
+            invalid = format_procedural_skill_lifecycle_readiness_command(
+                "/experience learning skill-outcome-lifecycle-plan x --write",
+                reviewer=reviewer,
+                session=pilot.skill_outcome_decisions,
+            )
+            chained = format_procedural_skill_lifecycle_readiness_command(
+                (
+                    "/experience learning skill-outcome-lifecycle-readiness x "
+                    "--durable | /skills archive x"
+                ),
+                reviewer=reviewer,
+                session=pilot.skill_outcome_decisions,
+            )
+
+        contract_doctor = procedural_skill_lifecycle_metadata_readiness_doctor()
+        self.assertIn("Durable Procedural Skill Lifecycle Writer Readiness Doctor", doctor)
+        self.assertIn("metadata_contract_status: OK", doctor)
+        self.assertIn("writer_installed: false", doctor)
+        self.assertIn("current_writer_compatible: false", doctor)
+        self.assertIn("Usage:", invalid)
+        self.assertIn("Command chaining", chained)
+        self.assertEqual(contract_doctor.status, "OK")
+        self.assertFalse(PROCEDURAL_SKILL_LIFECYCLE_METADATA_READINESS_WRITER_INSTALLED)
+        self.assertFalse(PROCEDURAL_SKILL_LIFECYCLE_CURRENT_WRITER_SUPPORTS_METADATA)
+        self.assertEqual(len(COMMAND_REGISTRY), 387)
+        self.assertEqual(len({entry.category for entry in COMMAND_REGISTRY}), 41)
+        self.assertEqual(command_registry_doctor()["status"], "OK")
+        self.assertEqual(action_policy_doctor()["status"], "OK")
 
     def test_learning_proposal_preview_requires_accepted_eligible_candidate(self) -> None:
         with TemporaryDirectory() as temp_dir:

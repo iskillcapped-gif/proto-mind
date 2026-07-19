@@ -374,27 +374,59 @@ def format_procedural_skill_lifecycle_readiness_command(
         for prefix in prefixes
     ):
         return None
-    if any(marker in raw for marker in ("\n", ";", "&&", "||")):
+    if any(marker in raw for marker in ("\n", ";", "&&", "||", "|")):
         return _readiness_error("Command chaining and multi-command input are not allowed.")
     try:
         if normalized == "/experience learning skill-outcome-lifecycle-doctor":
-            return format_procedural_skill_lifecycle_readiness_doctor(
-                reviewer.doctor(session)
+            from proto_mind.experience_learning_skill_lifecycle_metadata_readiness import (
+                format_procedural_skill_lifecycle_metadata_readiness_doctor,
+            )
+
+            return "\n\n".join(
+                [
+                    format_procedural_skill_lifecycle_readiness_doctor(
+                        reviewer.doctor(session)
+                    ),
+                    format_procedural_skill_lifecycle_metadata_readiness_doctor(),
+                ]
             )
         for suffix in ("readiness", "plan"):
             prefix = f"/experience learning skill-outcome-lifecycle-{suffix}"
             if normalized == prefix:
-                return f"Usage: {prefix} <skill_id|decision_receipt_id>"
+                return f"Usage: {prefix} <skill_id|decision_receipt_id> [--durable]"
             if normalized.startswith(prefix + " "):
-                identifier = raw[len(prefix) :].strip()
-                if not identifier or " " in identifier:
-                    return f"Usage: {prefix} <skill_id|decision_receipt_id>"
+                arguments = raw[len(prefix) :].strip().split()
+                durable = (
+                    len(arguments) == 2 and arguments[1].lower() == "--durable"
+                )
+                if len(arguments) not in {1, 2} or (len(arguments) == 2 and not durable):
+                    return f"Usage: {prefix} <skill_id|decision_receipt_id> [--durable]"
+                identifier = arguments[0]
                 receipt = session.get(identifier)
                 if receipt is None:
                     return _readiness_error(
                         f"No process-memory skill outcome decision matches {identifier!r}."
                     )
                 report = reviewer.review(receipt)
+                if durable:
+                    from proto_mind.experience_learning_skill_lifecycle_metadata_readiness import (
+                        ProceduralSkillLifecycleMetadataReadiness,
+                        format_procedural_skill_lifecycle_metadata_plan,
+                        format_procedural_skill_lifecycle_metadata_readiness,
+                    )
+
+                    durable_report = ProceduralSkillLifecycleMetadataReadiness(
+                        reviewer
+                    ).review(receipt)
+                    return (
+                        format_procedural_skill_lifecycle_metadata_readiness(
+                            durable_report
+                        )
+                        if suffix == "readiness"
+                        else format_procedural_skill_lifecycle_metadata_plan(
+                            durable_report
+                        )
+                    )
                 return (
                     format_procedural_skill_lifecycle_readiness(report)
                     if suffix == "readiness"
