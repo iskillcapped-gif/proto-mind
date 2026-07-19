@@ -30,7 +30,7 @@ from proto_mind.skill_library import SkillLibrary
 LEARNING_APPLY_READINESS_VERSION = 1
 LEARNING_APPLY_READINESS_MODE = "read_only_current_evidence_revalidation"
 LEARNING_APPLY_COMMAND_PREFIX = "/experience learning apply"
-LEARNING_APPLY_ENGINE_INSTALLED = False
+LEARNING_APPLY_ENGINE_INSTALLED = True
 
 
 @dataclass(frozen=True)
@@ -95,12 +95,12 @@ class LearningPromotionApplyReadiness:
             "payload_matches": False,
             "proposal_hash_matches": False,
             "proposal_id_matches": False,
-            "apply_engine_absent": not LEARNING_APPLY_ENGINE_INSTALLED,
+            "bounded_memory_apply_engine": LEARNING_APPLY_ENGINE_INSTALLED,
         }
         issues: list[str] = []
         warnings = [
             "Global novelty was not checked; readiness is limited to current explicit reference IDs.",
-            "No apply engine is installed; READY means ready for design review only.",
+            "The installed apply pilot is restricted to one fresh exact-token memory.lesson.v1 record.",
         ]
         if not checks["proposal_receipt_safe"]:
             issues.append("Proposal receipt claims a forbidden effect, readiness state, or scope.")
@@ -221,10 +221,14 @@ class LearningPromotionApplyReadiness:
             elif report.status != "READY FOR APPLY DESIGN REVIEW":
                 warnings.append(f"Proposal {receipt.id} is not ready: {'; '.join(report.issues)}")
 
-        if any(spec.prefix == LEARNING_APPLY_COMMAND_PREFIX for spec in COMMAND_REGISTRY):
-            issues.append("An execution-capable learning apply command is unexpectedly registered.")
-        if LEARNING_APPLY_ENGINE_INSTALLED:
-            issues.append("Learning apply engine must remain absent in readiness v1.")
+        apply_spec = next(
+            (spec for spec in COMMAND_REGISTRY if spec.prefix == LEARNING_APPLY_COMMAND_PREFIX),
+            None,
+        )
+        if apply_spec is None:
+            issues.append("The bounded supervised memory apply command is not registered.")
+        elif apply_spec.read_only or apply_spec.mutates != "memory" or apply_spec.risk != "medium":
+            issues.append("The supervised memory apply command has unsafe Registry metadata.")
         counts = Counter(report.status for report in reports)
         status = "ERROR" if issues else "WARN" if warnings else "OK"
         return LearningApplyReadinessDoctorReport(
@@ -328,7 +332,7 @@ def format_learning_apply_plan(
         f"exact_payload: {_compact_payload(receipt.proposed_payload)}",
         "Future operation:",
         f"- Create exactly one {receipt.target} record from this immutable payload.",
-        "- No implementation or executable command exists in v3.3g.",
+        "- This plan is read-only; only the separate exact-token memory apply command can write one record.",
         "Required future receipt fields:",
         "- apply_id, applied_at, proposal_id, proposal_hash, target_schema",
         "- before_store_sha256, after_store_sha256, created_record_id",
@@ -355,11 +359,12 @@ def format_learning_apply_doctor(report: LearningApplyReadinessDoctorReport) -> 
         f"not_ready: {report.not_ready_count}",
         f"errors: {report.error_count}",
         f"apply_engine_installed: {str(LEARNING_APPLY_ENGINE_INSTALLED).lower()}",
+        "apply_scope: single fresh memory.lesson.v1 record",
     ]
     lines.extend(f"- ERROR: {issue}" for issue in report.issues)
     lines.extend(f"- WARN: {warning}" for warning in report.warnings)
     if not report.issues and not report.warnings:
-        lines.append("- Current proposals revalidate and no apply engine or exact apply command exists.")
+        lines.append("- Current proposals revalidate and the apply engine remains bounded to one supervised memory lesson.")
     lines.extend(_readiness_boundary())
     return "\n".join(lines)
 
@@ -426,8 +431,8 @@ def _error_output(message: str) -> str:
 
 def _readiness_boundary() -> list[str]:
     return [
-        "mode: apply_design_review_only",
-        "apply_engine_installed: false",
+        "mode: current_evidence_revalidation_before_supervised_memory_apply",
+        "apply_engine_installed: true",
         "executable: false",
         "apply_performed: false",
         "mutation_performed: false",

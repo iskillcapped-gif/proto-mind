@@ -592,6 +592,10 @@ v3.3a adds an explicit operator-controlled pilot over the shared CLI/tkinter/PyS
 /experience learning proposal-doctor
 /experience learning apply-readiness <proposal_id|candidate_id>
 /experience learning apply-plan <proposal_id|candidate_id>
+/experience learning apply-preview <proposal_id|candidate_id>
+/experience learning apply <proposal_id|candidate_id> <exact token>
+/experience learning apply-status
+/experience learning apply-receipt <apply_id|proposal_id|candidate_id>
 /experience learning apply-doctor
 /experience events [--last N]
 /experience inspect <event_id>
@@ -601,7 +605,7 @@ v3.3a adds an explicit operator-controlled pilot over the shared CLI/tkinter/PyS
 
 The pilot starts disabled and requires preview-before-consent with a generated process-session ID. After exact consent it converts only successful normal cognitive turns into compact typed Experience events. Slash commands, Natural Router matches, empty input, internal reports, and backfill are excluded. Credential-like text is redacted before truncation; a batch is admitted atomically only while the 12-events-per-turn, 256-event, and 512-KiB bounds remain satisfied. Context Injection must remain disabled: an injected normal turn stops pilot capture fail-closed.
 
-Evidence exists only in process memory and is visible through `events`, `inspect`, and the normal-response capture indicator. Stop is terminal until process restart. There is no Experience file, writer, export, apply, promotion, backfill, automatic learning, domain-store mutation, or session-log schema change. The persistent capture gate remains `KEEP_DISABLED`.
+Experience evidence exists only in process memory and is visible through `events`, `inspect`, and the normal-response capture indicator. Stop is terminal until process restart. There is no Experience file, live writer, export, backfill, automatic learning, or session-log schema change. The persistent capture gate remains `KEEP_DISABLED`; the separate v3.4a operator-confirmed lesson pilot may write exactly one verified memory record from a current proposal.
 
 v3.3b adds a read-only cognitive-turn episode view over that same bounded snapshot. `/experience episodes` lists captured turns, while `/experience episode latest` connects Observe, Interpret, Recall, Respond, Memory decision, Reflect, Verify, and exact event provenance in one compact report. The projector validates the existing Experience trace, preserves redacted previews, labels missing stages as incomplete, performs no LLM summarization, and changes neither process evidence nor any file or store.
 
@@ -613,7 +617,9 @@ v3.3e adds a target-specific promotion eligibility review without enabling promo
 
 v3.3f adds a bounded promotion proposal receipt without enabling apply. A clean selected-scope eligibility review produces a deterministic `memory.lesson.v1` or `skill.procedure.v1` blueprint, hashes the exact candidate, accepted decision, eligibility receipt, selected-record snapshot, target schema, and payload, then prints a proposal-specific token. Only `/experience learning propose` with that exact token retains an immutable receipt, capped at 32 for the current process. Selected-record drift invalidates the token. Proposal list, inspection, and Doctor are read-only; every receipt remains `future_apply_ready=false`, `executable=false`, and performs no memory/skill/queue/file write, promotion, apply, global novelty claim, or Context Injection change.
 
-v3.3g adds read-only apply readiness over current process proposals. `/experience learning apply-readiness` rebuilds the candidate, accepted decision, explicit-ID eligibility, selected-record hash, fixed target payload, and proposal digest from current state; any drift or missing evidence returns `NOT READY`, while unsafe receipts and unreadable stores return `ERROR`. `/experience learning apply-plan` prints the exact future receipt fields, atomic-write/run-once requirements, and memory/skill rollback templates. `READY FOR APPLY DESIGN REVIEW` is not authorization: no `/experience learning apply` Registry prefix or apply engine exists, and readiness commands mutate no store, queue, process receipt, session log, or Context Injection state.
+v3.3g adds read-only apply readiness over current process proposals. `/experience learning apply-readiness` rebuilds the candidate, accepted decision, explicit-ID eligibility, selected-record hash, fixed target payload, and proposal digest from current state; any drift or missing evidence returns `NOT READY`, while unsafe receipts and unreadable stores return `ERROR`. `/experience learning apply-plan` prints receipt, atomic-write/run-once, and rollback requirements. These readiness commands remain read-only after the v3.4a pilot is installed.
+
+v3.4a adds the first supervised learning write, deliberately limited to one fresh `memory.lesson.v1` proposal per process. `/experience learning apply-preview` performs current-evidence revalidation, a full persistent-memory exact-duplicate check, proposal-age and deterministic-record-ID checks, then emits a token bound to the proposal and current memory-store SHA-256. Only `/experience learning apply` with that exact token writes one record through `MemoryStore` atomic replace and immediately verifies count, fields, record hash, and resulting store hash. A run-once process receipt exposes `/memory forget <created_id>` as a manual rollback suggestion. Skill apply, batch apply, shell/arbitrary dispatch, automatic promotion, Context Injection changes, and writes to any other store remain disabled.
 
 ## Contest Showcase
 

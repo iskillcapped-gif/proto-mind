@@ -19,7 +19,7 @@ Last updated: 2026-07-19
   - Ollama via `PROTO_MIND_REASONER=ollama`, `PROTO_MIND_OLLAMA_MODEL`, `PROTO_MIND_OLLAMA_URL`.
 - Normal prompts go through observer, retrieval, reasoner, memory evaluation, self-reflection, grounding audit, and session logging.
 - Slash/operator commands bypass normal cognitive turns and should not become cognitive session log turns.
-- Supervised Experience Pilot v3.3a observes consented turns; v3.3b projects episodes; v3.3c previews candidates; v3.3d captures decisions; v3.3e reviews selected-scope eligibility; v3.3f records proposals; v3.3g revalidates future apply readiness and rollback requirements. All learning state remains bounded, visible, process-memory-only, and never auto-applied.
+- Supervised Experience Pilot v3.3a observes consented turns; v3.3b projects episodes; v3.3c previews candidates; v3.3d captures decisions; v3.3e reviews selected-scope eligibility; v3.3f records proposals; v3.3g revalidates apply readiness; v3.4a permits one separately confirmed, atomic, verified memory lesson. Review/receipt state remains bounded and process-memory-only; no automatic apply exists.
 - Build Week submission provenance uses the July 11 pre-contest archive SHA-256 plus generated baseline/current/delta manifests; prior work and contest work are explicitly separated.
 - Primary Build Week Codex `/feedback` Session ID is `019d73be-1d7e-7401-8efe-f5e165736db4`.
 - Repository privacy review excludes local cognitive/runtime stores, removes user-specific checkout paths from public artifacts, and documents synthetic credential fixtures and publication boundaries.
@@ -29,7 +29,7 @@ Last updated: 2026-07-19
 ## Current Verification Baseline
 
 - Current test command: `scripts/run_tests.sh`.
-- Current test count: 887 unit tests OK.
+- Current test count: 901 unit tests OK.
 - Compile check: `python -m compileall proto_mind` via `scripts/run_tests.sh` OK.
 - Pytest: optional; currently not installed and skipped cleanly.
 
@@ -41,7 +41,7 @@ Last updated: 2026-07-19
 - PySide6 Desktop UI v1.5.2: dark UI, worker thread, Stop skeleton, markdown rendering, local macOS `.app` launcher, Desktop shortcut helper.
 - Session Control Room: `/session self-check`, `/session health`, `/session doctor`, `/session review`, `/session log ...`, plus Session Rituals v1 read-only start/end/checkpoint/handoff briefs.
 - Natural Command Router v2.3: exact routes plus policy-aware registry metadata in `/natural explain|list|doctor`, with suggestions still non-executing.
-- Command Registry v1.0: metadata for 361 slash-command prefixes across 41 categories with mutation/risk labels and Natural Router consistency checks.
+- Command Registry v1.0: metadata for 362 slash-command prefixes across 41 categories with mutation/risk labels and Natural Router consistency checks.
 - Action Safety Policy v1.0: read-only advisory classification into auto-allowed, confirmation-required, operator-only, or blocked without execution/enforcement.
 - Action Preview v1.0: read-only slash/natural resolution into registry- and policy-aware execution plans without command execution.
 - Action Proposal Queue v1.5.2: run-once read-only execution plus receipt history, verification, and global audit.
@@ -115,6 +115,7 @@ Last updated: 2026-07-19
 - v3.3e / Learning Promotion Eligibility Review: read-only target-specific exact duplicate checks over accepted candidates and operator-selected detached memory/skill IDs, with explicit selected-scope limits and no retrieval, promotion, apply, or persistence.
 - v3.3f / Learning Promotion Proposal Receipt: fixed target schemas, selected-scope SHA-256 binding, exact tokens, and immutable 32-item process-memory proposal receipts without apply readiness, execution, or domain persistence.
 - v3.3g / Learning Promotion Apply Readiness Review: read-only current-evidence/hash revalidation plus future atomic receipt and rollback requirements, with no apply command, engine, mutation, or persistence.
+- v3.4a / Supervised Memory Lesson Promotion Pilot: one fresh exact-token `memory.lesson.v1` apply per process, bound to current store SHA, with global exact-duplicate defense, atomic write, verified receipt, run-once guard, and rollback suggestion.
 - Build Week Provenance Pack v1: July 11 baseline archive, SHA-256 manifests, objective contest delta, honest prior/new disclosure, and Codex collaboration record without private runtime data.
 - Contest Showcase v1: read-only live continuity/experience/governance/action presentation, deterministic three-minute script, dependency doctor, and submission guide without command execution or pilot activation.
 
@@ -134,18 +135,18 @@ Last updated: 2026-07-19
 
 ## Last Completed Milestone
 
-v3.3g / Learning Promotion Apply Readiness Review:
+v3.4a / Supervised Memory Lesson Promotion Pilot:
 
-- Added read-only `/experience learning apply-readiness|apply-plan|apply-doctor` under the existing learning Registry prefix.
-- Readiness rebuilds and compares current candidate, accepted decision, eligibility receipt/hash, selected-record hash, target schema/payload, proposal digest, and receipt id.
-- Expected reference drift is `NOT READY/WARN`; unsafe effect claims or unreadable stores are `ERROR`.
-- Apply plan prints required SHA-256 receipt fields, atomic/run-once verification, and rollback templates, but no apply command or engine exists and no state changes.
-- Ten focused regressions were added; the full suite passes 887 tests. Registry remains 361 commands across 41 categories.
+- Added `/experience learning apply-preview|apply|apply-status|apply-receipt|apply-doctor`; only exact `apply` mutates memory and is Registry/policy classified `confirmation_required`.
+- Preview revalidates current v3.3g evidence, requires a proposal no older than 15 minutes, scans all active persistent memories for an exact duplicate, and binds confirmation to proposal hash plus current store SHA-256.
+- Apply creates one deterministic-ID lesson through atomic replace, verifies the count and full record, and retains a hashed run-once receipt with before/after store hashes and `/memory forget <id>` rollback suggestion.
+- Skills, batches, shell, arbitrary dispatch, automatic promotion, and other-store writes remain disabled. Detailed apply receipts expire with the process.
+- Fourteen focused regressions were added; the full suite passes 901 tests. Registry is 362 commands across 41 categories.
 
 ## Next Candidate Tasks
 
 - Submission Readiness: keep the public repository and provenance manifests current, finalize English Devpost copy, and record the sub-three-minute video.
-- v3.4a / Supervised Memory Lesson Promotion Pilot: permit exactly one fresh-confirmed `memory.lesson.v1` proposal to create one atomic memory record with run-once receipt, record verification, and rollback suggestion; skills and batch apply remain disabled.
+- v3.4b / Durable Learning Provenance: design and implement restart-safe provenance for applied lessons plus `/memory why <id>`, without enabling a second apply, skill promotion, batch execution, or autonomous consolidation.
 - Memory Migration Plan: design deterministic compaction/archive rules for the 8 previewed legacy candidates; no apply step without separate approval.
 - Command Dispatch Architecture v2: replace the linear formatter chain with typed incremental family registration while preserving exact command behavior and runner isolation.
 - Test Suite Structure v1: split the 15k-line flow suite by domain without changing test semantics or commands.

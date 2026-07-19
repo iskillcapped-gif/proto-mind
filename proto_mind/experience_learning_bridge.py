@@ -514,6 +514,10 @@ def _usage() -> str:
             "/experience learning proposal-doctor",
             "/experience learning apply-readiness <proposal_id|candidate_id>",
             "/experience learning apply-plan <proposal_id|candidate_id>",
+            "/experience learning apply-preview <proposal_id|candidate_id>",
+            "/experience learning apply <proposal_id|candidate_id> <exact token>",
+            "/experience learning apply-status",
+            "/experience learning apply-receipt <apply_id|proposal_id|candidate_id>",
             "/experience learning apply-doctor",
         ]
     )

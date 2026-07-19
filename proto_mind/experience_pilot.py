@@ -31,6 +31,10 @@ from proto_mind.experience_learning_proposal import (
     OperatorReviewedLearningProposalSession,
     format_learning_proposal_command,
 )
+from proto_mind.experience_learning_apply import (
+    OperatorReviewedLearningMemoryApplySession,
+    format_learning_memory_apply_command,
+)
 from proto_mind.experience_learning_readiness import format_learning_apply_readiness_command
 from proto_mind.experience_turn import (
     format_cognitive_turn_episode,
@@ -104,6 +108,7 @@ class SupervisedExperiencePilot:
         )
         self._learning_decisions = OperatorReviewedLearningDecisionSession()
         self._learning_proposals = OperatorReviewedLearningProposalSession()
+        self._learning_applies = OperatorReviewedLearningMemoryApplySession()
         self._lock = RLock()
 
     @property
@@ -141,6 +146,10 @@ class SupervisedExperiencePilot:
     @property
     def learning_proposals(self) -> OperatorReviewedLearningProposalSession:
         return self._learning_proposals
+
+    @property
+    def learning_applies(self) -> OperatorReviewedLearningMemoryApplySession:
+        return self._learning_applies
 
     def preview(self) -> str:
         with self._lock:
@@ -415,6 +424,17 @@ def format_experience_pilot_command(
         )
         if proposal_output is not None:
             return proposal_output
+        apply_output = format_learning_memory_apply_command(
+            raw,
+            bridge=OperatorReviewedLearningBridge(events),
+            decisions=pilot.learning_decisions,
+            proposals=pilot.learning_proposals,
+            applies=pilot.learning_applies,
+            memory_store=_owner_memory_store(owner),
+            skill_library=SkillLibrary.from_project_root(project_root),
+        )
+        if apply_output is not None:
+            return apply_output
         readiness_output = format_learning_apply_readiness_command(
             raw,
             bridge=OperatorReviewedLearningBridge(events),
@@ -560,6 +580,9 @@ def _usage() -> str:
             "/experience learning propose <candidate_id> <exact token> --target memory|skill [--memory <id>]... [--skill <id>]...",
             "/experience learning proposals|proposal <proposal_id|candidate_id>|proposal-doctor",
             "/experience learning apply-readiness|apply-plan <proposal_id|candidate_id>|apply-doctor",
+            "/experience learning apply-preview <proposal_id|candidate_id>",
+            "/experience learning apply <proposal_id|candidate_id> <exact token>",
+            "/experience learning apply-status|apply-receipt <id>|apply-doctor",
             "/experience events [--last N]",
             "/experience inspect <event_id>",
             "/experience doctor",
