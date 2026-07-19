@@ -625,6 +625,8 @@ v3.4b makes the compact origin of that one lesson restart-safe without adding an
 
 v3.4c closes the first supervised learning loop by allowing only an active lesson with verified durable provenance to participate in normal retrieval after restart. `MemoryKeeper` filters tampered or unprovenanced lesson records fail-closed and keeps the refusal visible in the existing retrieval trace; inactive verified lessons remain outside current-state recall unless the query is historical. When a verified lesson supports a response, its grounding evidence carries the compact provenance status and ID. `proto_mind.lesson_recall_benchmark` proves the path in English and Russian with fresh Coordinator instances, temporary stores, byte-stable retrieval, unchanged `usage_count`/`last_used`, and no model/API call, automatic write, learning apply, command expansion, or Context Injection.
 
+v3.4d adds read-only later-outcome review for those provenanced lessons. `/experience learning outcome-review <memory_id>` accepts evidence only when the exact lesson ID appears in a valid Experience retrieval after its `applied_at`. Clean grounded reuse yields `KEEP_CANDIDATE`; an explicit downstream `user_corrected` event yields `REJECT_CANDIDATE`; a correction lineage ending at a different newer active provenance-verified lesson yields `SUPERSEDE_CANDIDATE`. Weak or mixed evidence remains `NEEDS_MORE_EVIDENCE`, and `/experience learning outcome-doctor` checks trace/provenance health. These are review candidates, not truth or authorization: the layer performs no memory/event mutation, apply, promotion, model call, capture, or Context Injection change.
+
 ## Contest Showcase
 
 Contest Showcase v1 turns the existing architecture into one read-only live presentation:

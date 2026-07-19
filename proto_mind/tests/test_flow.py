@@ -189,6 +189,14 @@ from proto_mind.experience_learning_input import (
     format_experience_learning_input_snapshot,
     run_experience_learning_input_benchmark,
 )
+from proto_mind.experience_learning_outcome import (
+    LEARNING_OUTCOME_MODE,
+    LEARNING_OUTCOME_STATUSES,
+    LearningOutcomeReviewer,
+    format_learning_outcome_benchmark,
+    format_learning_outcome_command,
+    run_learning_outcome_benchmark,
+)
 from proto_mind.experience_learning_eligibility import (
     LEARNING_ELIGIBILITY_MAX_IDS_PER_KIND,
     LearningEligibilityRequest,
@@ -20475,6 +20483,184 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertFalse(candidate.selected)
 
     def test_verified_lesson_recall_does_not_expand_command_surface(self) -> None:
+        self.assertEqual(len(COMMAND_REGISTRY), 363)
+        self.assertEqual(len({entry.category for entry in COMMAND_REGISTRY}), 41)
+        self.assertEqual(command_registry_doctor()["status"], "OK")
+        self.assertEqual(action_policy_doctor()["status"], "OK")
+
+    def test_learning_outcome_benchmark_covers_all_safe_candidates(self) -> None:
+        report = run_learning_outcome_benchmark()
+
+        self.assertEqual(report.status, "OK")
+        self.assertEqual(report.keep_status, "KEEP_CANDIDATE")
+        self.assertEqual(report.reject_status, "REJECT_CANDIDATE")
+        self.assertEqual(report.supersede_status, "SUPERSEDE_CANDIDATE")
+        self.assertEqual(report.insufficient_status, "NEEDS_MORE_EVIDENCE")
+        self.assertTrue(all(report.checks.values()))
+        self.assertFalse(report.failed_checks)
+
+    def test_learning_outcome_benchmark_is_non_mutating_and_readable(self) -> None:
+        report = run_learning_outcome_benchmark()
+        output = format_learning_outcome_benchmark(report)
+
+        self.assertTrue(report.persistent_bytes_unchanged)
+        self.assertTrue(report.working_bytes_unchanged)
+        self.assertIn("Status: OK", output)
+        self.assertIn("keep_case: KEEP_CANDIDATE", output)
+        self.assertIn("no lesson mutation", output)
+        self.assertIn("no lesson mutation, apply, promotion", output)
+
+    def test_learning_outcome_review_finds_grounded_later_use_after_restart(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, store, pilot, bridge, _, skills, proposal = build_test_learning_apply(root)
+            _, receipt = apply_test_learning_proposal(store, pilot, bridge, skills, proposal)
+            lesson = next(
+                record
+                for record in store.load_persistent_memory()
+                if record.id == receipt.created_record_id
+            )
+            store.save_persistent_memory([lesson])
+            store.save_working_memory([])
+            coordinator = Coordinator(
+                observer=Observer(),
+                memory_keeper=MemoryKeeper(MemoryStore(store.working_path, store.persistent_path)),
+                reasoner=MockReasoner(),
+            )
+            query = "As we discussed earlier, what did we learn about the active SQLite decision?"
+            result = coordinator.handle(query)
+            events = ExperienceTraceBuilder(
+                session_id="outcome-live-test",
+                source="test",
+            ).build_turn_events(
+                query,
+                result,
+                turn_id="1",
+                trace_id="outcome-live",
+                created_at=(datetime.now(UTC) + timedelta(seconds=1)).isoformat(),
+            )
+            before = store.persistent_path.read_bytes()
+            output = format_learning_outcome_command(
+                f"/experience learning outcome-review {lesson.id}",
+                events=events,
+                memory_store=store,
+            )
+            after = store.persistent_path.read_bytes()
+
+        self.assertIn("Status: KEEP_CANDIDATE", output)
+        self.assertIn(lesson.provenance["id"], output)
+        self.assertIn("grounding_evaluated", output)
+        self.assertIn(f"/memory why {lesson.id}", output)
+        self.assertEqual(before, after)
+
+    def test_learning_outcome_review_refuses_unknown_and_unprovenanced_memory(self) -> None:
+        unprovenanced = MemoryRecord(
+            id="legacy_lesson",
+            content="Legacy lesson without evidence.",
+            type="lesson",
+            importance=0.8,
+            source="legacy",
+        )
+        reviewer = LearningOutcomeReviewer([], [unprovenanced])
+
+        missing = reviewer.review("missing_lesson")
+        legacy = reviewer.review(unprovenanced.id)
+
+        self.assertEqual(missing.status, "NOT_FOUND")
+        self.assertEqual(legacy.status, "ERROR")
+        self.assertFalse(legacy.checks["durable_provenance_verified"])
+        self.assertIn(legacy.status, LEARNING_OUTCOME_STATUSES)
+
+    def test_learning_outcome_review_rejects_malformed_experience_trace(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, store, pilot, bridge, _, skills, proposal = build_test_learning_apply(
+                Path(temp_dir)
+            )
+            _, receipt = apply_test_learning_proposal(store, pilot, bridge, skills, proposal)
+            lesson = next(
+                record
+                for record in store.load_persistent_memory()
+                if record.id == receipt.created_record_id
+            )
+            malformed = ExperienceEvent(
+                id="evt_bad",
+                created_at="not-a-timestamp",
+                event_type="memory_retrieved",
+                session_id="bad",
+                turn_id="1",
+                source="test",
+                source_event_ids=["evt_missing"],
+                payload={"selected_records": [{"id": lesson.id}]},
+            )
+            review = LearningOutcomeReviewer([malformed], [lesson]).review(lesson.id)
+
+        self.assertEqual(review.status, "ERROR")
+        self.assertFalse(review.checks["experience_trace_valid"])
+        self.assertTrue(any("invalid created_at" in issue for issue in review.issues))
+
+    def test_learning_outcome_doctor_handles_empty_state_without_writes(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            store = MemoryStore(root / "working.json", root / "persistent.json")
+            before = (
+                store.working_path.read_bytes(),
+                store.persistent_path.read_bytes(),
+            )
+            output = format_learning_outcome_command(
+                "/experience learning outcome-doctor",
+                events=[],
+                memory_store=store,
+            )
+            usage = format_learning_outcome_command(
+                "/experience learning outcome-review",
+                events=[],
+                memory_store=store,
+            )
+            after = (
+                store.working_path.read_bytes(),
+                store.persistent_path.read_bytes(),
+            )
+
+        self.assertIn("Learning Outcome Review Doctor v1", output)
+        self.assertIn("lessons: 0", output)
+        self.assertIn("Usage: /experience learning outcome-review <memory_id>", usage)
+        self.assertEqual(before, after)
+
+    def test_learning_outcome_commands_work_through_shared_handler_without_logging(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            coordinator, store, _ = build_test_system(root / "cognitive")
+            logger = SessionOperatorLogger(root / "session.jsonl", enabled=False)
+            before = (
+                store.working_path.read_bytes(),
+                store.persistent_path.read_bytes(),
+            )
+            output = process_interactive_input(
+                "/experience learning outcome-doctor",
+                coordinator=coordinator,
+                session_logger=logger,
+                project_root=root,
+            )
+            after = (
+                store.working_path.read_bytes(),
+                store.persistent_path.read_bytes(),
+            )
+
+        self.assertIn("Learning Outcome Review Doctor v1", output)
+        self.assertEqual(before, after)
+        self.assertEqual(logger.status().entry_count, 0)
+
+    def test_learning_outcome_stays_inside_read_only_registry_family(self) -> None:
+        registry = {entry.prefix: entry for entry in COMMAND_REGISTRY}
+        spec = registry["/experience learning"]
+
+        self.assertEqual(LEARNING_OUTCOME_MODE, "read_only_exact_provenance_outcome_review")
+        self.assertTrue(spec.read_only)
+        self.assertEqual(spec.mutates, "none")
+        self.assertEqual(
+            classify_command("/experience learning outcome-review mem_learn_x").policy_class,
+            "auto_allowed",
+        )
         self.assertEqual(len(COMMAND_REGISTRY), 363)
         self.assertEqual(len({entry.category for entry in COMMAND_REGISTRY}), 41)
         self.assertEqual(command_registry_doctor()["status"], "OK")

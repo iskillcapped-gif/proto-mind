@@ -35,6 +35,7 @@ from proto_mind.experience_learning_apply import (
     OperatorReviewedLearningMemoryApplySession,
     format_learning_memory_apply_command,
 )
+from proto_mind.experience_learning_outcome import format_learning_outcome_command
 from proto_mind.experience_learning_readiness import format_learning_apply_readiness_command
 from proto_mind.experience_turn import (
     format_cognitive_turn_episode,
@@ -398,6 +399,13 @@ def format_experience_pilot_command(
         "/experience learning "
     ):
         events = pilot.snapshot()
+        outcome_output = format_learning_outcome_command(
+            raw,
+            events=events,
+            memory_store=_owner_memory_store(owner),
+        )
+        if outcome_output is not None:
+            return outcome_output
         decision_output = format_learning_decision_command(
             raw,
             OperatorReviewedLearningBridge(events),
@@ -583,6 +591,7 @@ def _usage() -> str:
             "/experience learning apply-preview <proposal_id|candidate_id>",
             "/experience learning apply <proposal_id|candidate_id> <exact token>",
             "/experience learning apply-status|apply-receipt <id>|apply-doctor",
+            "/experience learning outcome-review <memory_id>|outcome-doctor",
             "/experience events [--last N]",
             "/experience inspect <event_id>",
             "/experience doctor",
