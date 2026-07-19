@@ -347,7 +347,7 @@ class OperatorReviewedProceduralSkillOutcomeCaptureSession:
                 issues.append(f"Receipt {label} evidence fingerprint is invalid.")
             if label != f"skilloutcap_{expected_blueprint_hash[:16]}":
                 issues.append(f"Receipt {label} id does not match its blueprint hash.")
-            if receipt.get("receipt_hash") != _receipt_hash(receipt):
+            if receipt.get("receipt_hash") != procedural_skill_outcome_capture_receipt_hash(receipt):
                 issues.append(f"Receipt {label} receipt hash does not verify.")
             if (
                 receipt.get("confirmation_method") != "exact_session_skill_outcome_token"
@@ -748,7 +748,7 @@ def _blueprint_material(receipt: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _receipt_hash(receipt: dict[str, Any]) -> str:
+def procedural_skill_outcome_capture_receipt_hash(receipt: dict[str, Any]) -> str:
     material = {
         key: value
         for key, value in receipt.items()

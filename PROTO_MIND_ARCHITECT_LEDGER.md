@@ -19,7 +19,7 @@ Last updated: 2026-07-19
   - Ollama via `PROTO_MIND_REASONER=ollama`, `PROTO_MIND_OLLAMA_MODEL`, `PROTO_MIND_OLLAMA_URL`.
 - Normal prompts go through observer, retrieval, reasoner, memory evaluation, self-reflection, grounding audit, and session logging.
 - Slash/operator commands bypass normal cognitive turns and should not become cognitive session log turns.
-- Supervised Experience Pilot v3.3a observes consented turns; v3.3b projects episodes; v3.3c previews candidates; v3.3d captures decisions; v3.3e reviews selected-scope eligibility; v3.3f records proposals; v3.3g revalidates apply readiness; v3.4a permits one separately confirmed, atomic, verified memory lesson; v3.4b embeds restart-safe compact provenance; v3.4c permits only verified learned lessons into recall; v3.4d reviews later outcomes; v3.4e records an exact operator lifecycle decision; v3.4f revalidates that decision; v3.4g permits one separately confirmed keep/reject/supersede transition; v3.4h reconstructs and audits durable lifecycle state after restart; v3.5a projects an active verified lesson into a read-only procedural skill contract; v3.5b records exact operator-authored fields in a bounded restart-expiring receipt; v3.5c revalidates that receipt and current Skill Library; v3.5d permits one separately confirmed atomic verified non-executable skill record per process; v3.5e embeds restart-safe skill provenance and audits it read-only; v3.5f reviews exact manual-use outcome lineage; v3.5g separately confirms and captures that operator-reported evidence in bounded process memory. Review/proposal/decision/detailed-receipt state remains bounded and process-memory-only; no automatic, batch, or procedure execution exists.
+- Supervised Experience Pilot v3.3a observes consented turns; v3.3b projects episodes; v3.3c previews candidates; v3.3d captures decisions; v3.3e reviews selected-scope eligibility; v3.3f records proposals; v3.3g revalidates apply readiness; v3.4a permits one separately confirmed, atomic, verified memory lesson; v3.4b embeds restart-safe compact provenance; v3.4c permits only verified learned lessons into recall; v3.4d reviews later outcomes; v3.4e records an exact operator lifecycle decision; v3.4f revalidates that decision; v3.4g permits one separately confirmed keep/reject/supersede transition; v3.4h reconstructs and audits durable lifecycle state after restart; v3.5a projects an active verified lesson into a read-only procedural skill contract; v3.5b records exact operator-authored fields in a bounded restart-expiring receipt; v3.5c revalidates that receipt and current Skill Library; v3.5d permits one separately confirmed atomic verified non-executable skill record per process; v3.5e embeds restart-safe skill provenance and audits it read-only; v3.5f reviews exact manual-use outcome lineage; v3.5g separately confirms and captures that operator-reported evidence; v3.5h records an exact operator keep/revise/archive decision over confirmed evidence. Review/proposal/decision/detailed-receipt state remains bounded and process-memory-only; no automatic, batch, or procedure execution exists.
 - Build Week submission provenance uses the July 11 pre-contest archive SHA-256 plus generated baseline/current/delta manifests; prior work and contest work are explicitly separated.
 - Primary Build Week Codex `/feedback` Session ID is `019d73be-1d7e-7401-8efe-f5e165736db4`.
 - Repository privacy review excludes local cognitive/runtime stores, removes user-specific checkout paths from public artifacts, and documents synthetic credential fixtures and publication boundaries.
@@ -29,7 +29,7 @@ Last updated: 2026-07-19
 ## Current Verification Baseline
 
 - Current test command: `scripts/run_tests.sh`.
-- Current test count: 1039 unit tests OK.
+- Current test count: 1049 unit tests OK.
 - Compile check: `python -m compileall proto_mind` via `scripts/run_tests.sh` OK.
 - Pytest: optional; currently not installed and skipped cleanly.
 
@@ -41,7 +41,7 @@ Last updated: 2026-07-19
 - PySide6 Desktop UI v1.5.2: dark UI, worker thread, Stop skeleton, markdown rendering, local macOS `.app` launcher, Desktop shortcut helper.
 - Session Control Room: `/session self-check`, `/session health`, `/session doctor`, `/session review`, `/session log ...`, plus Session Rituals v1 read-only start/end/checkpoint/handoff briefs.
 - Natural Command Router v2.3: exact routes plus policy-aware registry metadata in `/natural explain|list|doctor`, with suggestions still non-executing.
-- Command Registry v1.0: metadata for 372 slash-command prefixes across 41 categories with mutation/risk labels and Natural Router consistency checks.
+- Command Registry v1.0: metadata for 376 slash-command prefixes across 41 categories with mutation/risk labels and Natural Router consistency checks.
 - Action Safety Policy v1.0: read-only advisory classification into auto-allowed, confirmation-required, operator-only, or blocked without execution/enforcement.
 - Action Preview v1.0: read-only slash/natural resolution into registry- and policy-aware execution plans without command execution.
 - Action Proposal Queue v1.5.2: run-once read-only execution plus receipt history, verification, and global audit.
@@ -55,6 +55,7 @@ Last updated: 2026-07-19
 - Durable Skill Provenance Inspection v3.5e: embedded `skill.procedure.provenance.v1` evidence plus read-only `/skills why|provenance-doctor`; no skill execution or second writer.
 - Procedural Skill Outcome Review v3.5f: exact provenance-bound manual-use lineage produces advisory success/failure/mixed/insufficient-evidence states; usage telemetry is ignored and no capture, score update, or execution path exists.
 - Supervised Manual Skill Outcome Capture v3.5g: exact session consent plus a second provenance/evidence token records one bounded process-memory manual-use outcome batch; no procedure or persistent-store mutation occurs.
+- Supervised Procedural Skill Outcome Decision v3.5h: decisive review plus confirmed capture receipts and a second exact token produce one terminal keep/revise/archive process receipt; no apply readiness or skill mutation.
 - World Model Lite v1.0: prediction-vs-reality records in `proto_mind/data/world_model.jsonl`, 0..5 scoring.
 - Operating Loop v1.1: read-only cross-module reports, deterministic next-action suggestions, and daily capture workflow commands.
 - Memory Consolidation Preview v1.3.1: read-only suggestions, Markdown/JSON exports, safe queue, queue doctor/cleanup preview, approved-only allowlisted apply, structured apply receipts, and undo preview.
@@ -133,6 +134,7 @@ Last updated: 2026-07-19
 - v3.5e / Durable Skill Provenance Inspection: new supervised skills retain restart-safe source, contract, payload, and confirmation hashes; read-only why/Doctor views detect tamper, source history, current payload drift, and legacy gaps.
 - v3.5f / Procedural Skill Outcome Review: exact current-process manual-use lineage and verified operator-reported outcomes produce advisory success/failure candidates, while mixed or absent evidence remains inconclusive and all stores stay unchanged.
 - v3.5g / Supervised Manual Skill Outcome Capture: active pilot consent plus an exact skill/provenance/outcome/evidence token appends one fixed process-memory evidence batch, with bounded receipts and no procedure execution.
+- v3.5h / Supervised Procedural Skill Outcome Decision: success maps to keep, failure/mixed maps to revise/archive, and one exact terminal receipt binds current review plus all confirmed capture evidence without applying the choice.
 - Build Week Provenance Pack v1: July 11 baseline archive, SHA-256 manifests, objective contest delta, honest prior/new disclosure, and Codex collaboration record without private runtime data.
 - Contest Showcase v1: read-only live continuity/experience/governance/action presentation, deterministic three-minute script, dependency doctor, and submission guide without command execution or pilot activation.
 
@@ -152,19 +154,19 @@ Last updated: 2026-07-19
 
 ## Last Completed Milestone
 
-v3.5g / Supervised Manual Skill Outcome Capture:
+v3.5h / Supervised Procedural Skill Outcome Decision:
 
-- `/experience learning skill-outcome-capture-preview <skill_id> <success|failure> --evidence <text>` binds the pilot session, current verified skill provenance/payload, deterministically redacted evidence, and exact outcome.
-- `/experience learning capture skill-outcome ... <token> --evidence <identical text>` additionally requires active exact-session Experience consent, then admits one valid `goal_created → plan_created → tool_called → tool_succeeded|tool_failed` batch into the existing bounded RAM buffer.
-- Every use event says `manual_operator_use=true` and `execution_performed_by_proto_mind=false`; the command records an operator action that already happened and never invokes the procedure.
-- `skill-outcome-captures [<id>]` and `skill-outcome-capture-doctor` expose up to 16 restart-expiring, hash-verified, exact-blueprint run-once receipts. v3.5f can immediately review their lineage.
-- Registry is 372 commands across 41 categories. Eleven focused capture regressions plus all prior coverage pass; the full suite is 1039 tests OK.
-- No persistent Experience writer, Skill Library/memory/queue/export/session-log mutation, score/usage update, batch capture, shell, arbitrary dispatch, model/API, external action, or Context Injection path was added.
+- `/experience learning skill-outcome-decision-preview <skill_id> <keep|revise|archive>` requires current verified provenance/payload, a decisive v3.5f review, and every decisive signal to be covered by hash-valid exact-confirmation v3.5g receipts.
+- The fixed allowlist permits `keep` only for `SUCCESS_CANDIDATE`; `FAILURE_CANDIDATE` and `MIXED_EVIDENCE` permit operator-selected `revise` or `archive`. Insufficient or unconfirmed evidence fails closed.
+- `/experience learning decide skill-outcome ... <token>` records one terminal receipt per skill and at most 16 per process. Review hash, capture IDs/hashes, evidence IDs, provenance, choice, and token fingerprint are inspectable.
+- `skill-outcome-decisions [<id>]` and `skill-outcome-decision-doctor` remain read-only and mark later evidence changes historical rather than silently changing the old choice.
+- Registry is 376 commands across 41 categories. Ten focused decision regressions plus all prior coverage pass; the full suite is 1049 tests OK.
+- Every receipt is `future_apply_ready=false`; no keep/archive/revision action, Skill Library/memory/event/queue/export/session-log mutation, scoring, execution, shell, arbitrary dispatch, model/API, external action, or Context Injection path was added.
 
 ## Next Candidate Tasks
 
 - Submission Readiness: keep the public repository and provenance manifests current, finalize English Devpost copy, and record the sub-three-minute video.
-- v3.5h / Supervised Procedural Skill Outcome Decision: bind one exact success/failure/mixed review to an operator keep/revise/archive decision receipt in process memory; no Skill Library mutation or automatic choice.
+- v3.5i / Procedural Skill Lifecycle Apply Readiness: revalidate the exact decision against current evidence, capture receipts, provenance, Skill Library bytes, and future keep/archive/revision safeguards; remain read-only and generate no apply token.
 - Memory Migration Plan: design deterministic compaction/archive rules for the 8 previewed legacy candidates; no apply step without separate approval.
 - Command Dispatch Architecture v2: replace the linear formatter chain with typed incremental family registration while preserving exact command behavior and runner isolation.
 - Test Suite Structure v1: split the 15k-line flow suite by domain without changing test semantics or commands.

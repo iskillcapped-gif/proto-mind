@@ -79,6 +79,11 @@ from proto_mind.experience_learning_skill_outcome_capture import (
     format_procedural_skill_outcome_capture_command,
     is_valid_procedural_skill_outcome_event_batch,
 )
+from proto_mind.experience_learning_skill_outcome_decision import (
+    OperatorReviewedProceduralSkillOutcomeDecisionSession,
+    ProceduralSkillOutcomeDecisionBuilder,
+    format_procedural_skill_outcome_decision_command,
+)
 from proto_mind.experience_learning_readiness import format_learning_apply_readiness_command
 from proto_mind.experience_turn import (
     format_cognitive_turn_episode,
@@ -158,6 +163,7 @@ class SupervisedExperiencePilot:
         self._skill_authoring = OperatorReviewedProceduralSkillAuthoringSession()
         self._skill_applies = OperatorReviewedProceduralSkillApplySession()
         self._skill_outcome_captures = OperatorReviewedProceduralSkillOutcomeCaptureSession()
+        self._skill_outcome_decisions = OperatorReviewedProceduralSkillOutcomeDecisionSession()
         self._lock = RLock()
 
     @property
@@ -219,6 +225,10 @@ class SupervisedExperiencePilot:
     @property
     def skill_outcome_captures(self) -> OperatorReviewedProceduralSkillOutcomeCaptureSession:
         return self._skill_outcome_captures
+
+    @property
+    def skill_outcome_decisions(self) -> OperatorReviewedProceduralSkillOutcomeDecisionSession:
+        return self._skill_outcome_decisions
 
     def preview(self) -> str:
         with self._lock:
@@ -561,6 +571,18 @@ def format_experience_pilot_command(
             )
             if skill_outcome_capture_output is not None:
                 return skill_outcome_capture_output
+            skill_outcome_decision_output = format_procedural_skill_outcome_decision_command(
+                raw,
+                builder=ProceduralSkillOutcomeDecisionBuilder(
+                    events=events,
+                    memory_store=memory_store,
+                    skill_library=skill_library,
+                    capture_session=pilot.skill_outcome_captures,
+                ),
+                session=pilot.skill_outcome_decisions,
+            )
+            if skill_outcome_decision_output is not None:
+                return skill_outcome_decision_output
             skill_outcome_output = format_procedural_skill_outcome_command(
                 raw,
                 events=events,
@@ -795,6 +817,9 @@ def _usage() -> str:
             "/experience learning capture skill-outcome <skill_id> <success|failure> <token> --evidence <identical text>",
             "/experience learning skill-outcome-captures [<capture_id>]|skill-outcome-capture-doctor",
             "/experience learning skill-outcome-review <skill_id>|skill-outcome-doctor",
+            "/experience learning skill-outcome-decision-preview <skill_id> <keep|revise|archive>",
+            "/experience learning decide skill-outcome <keep|revise|archive> <skill_id> <token>",
+            "/experience learning skill-outcome-decisions [<skill_id|receipt_id>]|skill-outcome-decision-doctor",
             "/experience events [--last N]",
             "/experience inspect <event_id>",
             "/experience doctor",
