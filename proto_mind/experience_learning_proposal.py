@@ -147,8 +147,10 @@ class LearningPromotionProposalBuilder:
         if decision is None or decision.decision != "accepted":
             raise LearningProposalError("An accepted process-memory candidate decision is required.")
         if eligibility.status != "ELIGIBLE IN SELECTED SCOPE":
+            details = "; ".join([*eligibility.issues, *eligibility.warnings])
             raise LearningProposalError(
                 f"Eligibility status must be ELIGIBLE IN SELECTED SCOPE, got {eligibility.status}."
+                + (f" {details}" if details else "")
             )
         payload = _target_payload(candidate, request.target)
         eligibility_hash = _hash_json(eligibility.to_dict())

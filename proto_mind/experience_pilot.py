@@ -31,6 +31,7 @@ from proto_mind.experience_learning_proposal import (
     OperatorReviewedLearningProposalSession,
     format_learning_proposal_command,
 )
+from proto_mind.experience_learning_readiness import format_learning_apply_readiness_command
 from proto_mind.experience_turn import (
     format_cognitive_turn_episode,
     format_cognitive_turn_list,
@@ -414,6 +415,16 @@ def format_experience_pilot_command(
         )
         if proposal_output is not None:
             return proposal_output
+        readiness_output = format_learning_apply_readiness_command(
+            raw,
+            bridge=OperatorReviewedLearningBridge(events),
+            decisions=pilot.learning_decisions,
+            proposals=pilot.learning_proposals,
+            memory_store=_owner_memory_store(owner),
+            skill_library=SkillLibrary.from_project_root(project_root),
+        )
+        if readiness_output is not None:
+            return readiness_output
         learning_output = format_learning_bridge_command(
             raw,
             events,
@@ -548,6 +559,7 @@ def _usage() -> str:
             "/experience learning proposal-preview <candidate_id> --target memory|skill [--memory <id>]... [--skill <id>]...",
             "/experience learning propose <candidate_id> <exact token> --target memory|skill [--memory <id>]... [--skill <id>]...",
             "/experience learning proposals|proposal <proposal_id|candidate_id>|proposal-doctor",
+            "/experience learning apply-readiness|apply-plan <proposal_id|candidate_id>|apply-doctor",
             "/experience events [--last N]",
             "/experience inspect <event_id>",
             "/experience doctor",

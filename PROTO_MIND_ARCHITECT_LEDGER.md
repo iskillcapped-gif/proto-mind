@@ -19,7 +19,7 @@ Last updated: 2026-07-19
   - Ollama via `PROTO_MIND_REASONER=ollama`, `PROTO_MIND_OLLAMA_MODEL`, `PROTO_MIND_OLLAMA_URL`.
 - Normal prompts go through observer, retrieval, reasoner, memory evaluation, self-reflection, grounding audit, and session logging.
 - Slash/operator commands bypass normal cognitive turns and should not become cognitive session log turns.
-- Supervised Experience Pilot v3.3a can observe successful normal turns only after exact process-session consent; v3.3b projects Observe-to-Verify episodes; v3.3c previews learning candidates; v3.3d captures decisions; v3.3e reviews selected-scope eligibility; v3.3f records exact-token promotion proposals. All learning state is bounded, visible, process-memory-only, and never auto-applied.
+- Supervised Experience Pilot v3.3a observes consented turns; v3.3b projects episodes; v3.3c previews candidates; v3.3d captures decisions; v3.3e reviews selected-scope eligibility; v3.3f records proposals; v3.3g revalidates future apply readiness and rollback requirements. All learning state remains bounded, visible, process-memory-only, and never auto-applied.
 - Build Week submission provenance uses the July 11 pre-contest archive SHA-256 plus generated baseline/current/delta manifests; prior work and contest work are explicitly separated.
 - Primary Build Week Codex `/feedback` Session ID is `019d73be-1d7e-7401-8efe-f5e165736db4`.
 - Repository privacy review excludes local cognitive/runtime stores, removes user-specific checkout paths from public artifacts, and documents synthetic credential fixtures and publication boundaries.
@@ -29,7 +29,7 @@ Last updated: 2026-07-19
 ## Current Verification Baseline
 
 - Current test command: `scripts/run_tests.sh`.
-- Current test count: 877 unit tests OK.
+- Current test count: 887 unit tests OK.
 - Compile check: `python -m compileall proto_mind` via `scripts/run_tests.sh` OK.
 - Pytest: optional; currently not installed and skipped cleanly.
 
@@ -114,6 +114,7 @@ Last updated: 2026-07-19
 - v3.3d / Learning Candidate Confirmation Design: one process-memory `/experience learning decide` prefix records terminal accept/reject receipts; exact candidate tokens, a 64-receipt cap, restart expiry, tamper checks, and `executable=false` promotion previews keep persistence and apply unavailable.
 - v3.3e / Learning Promotion Eligibility Review: read-only target-specific exact duplicate checks over accepted candidates and operator-selected detached memory/skill IDs, with explicit selected-scope limits and no retrieval, promotion, apply, or persistence.
 - v3.3f / Learning Promotion Proposal Receipt: fixed target schemas, selected-scope SHA-256 binding, exact tokens, and immutable 32-item process-memory proposal receipts without apply readiness, execution, or domain persistence.
+- v3.3g / Learning Promotion Apply Readiness Review: read-only current-evidence/hash revalidation plus future atomic receipt and rollback requirements, with no apply command, engine, mutation, or persistence.
 - Build Week Provenance Pack v1: July 11 baseline archive, SHA-256 manifests, objective contest delta, honest prior/new disclosure, and Codex collaboration record without private runtime data.
 - Contest Showcase v1: read-only live continuity/experience/governance/action presentation, deterministic three-minute script, dependency doctor, and submission guide without command execution or pilot activation.
 
@@ -133,18 +134,18 @@ Last updated: 2026-07-19
 
 ## Last Completed Milestone
 
-v3.3f / Learning Promotion Proposal Receipt:
+v3.3g / Learning Promotion Apply Readiness Review:
 
-- Added proposal preview/list/inspect/doctor plus exact-token `/experience learning propose` through the shared CLI/tkinter/PySide handler.
-- Fixed `memory.lesson.v1` and `skill.procedure.v1` payloads are hashed with candidate, accepted decision, eligibility receipt, selected-record snapshot, and evidence identity.
-- Any selected-record drift changes the proposal token; duplicate/incomplete/unaccepted candidates, wrong tokens, duplicate proposals, and the 32-receipt cap fail closed.
-- Receipts are immutable process memory and explicitly remain not apply-ready, non-executable, non-persistent, and unable to mutate memory, skills, queues, files, or Context Injection.
-- Thirteen focused regressions were added; the full suite passes 877 tests. Registry is 361 commands across 41 categories.
+- Added read-only `/experience learning apply-readiness|apply-plan|apply-doctor` under the existing learning Registry prefix.
+- Readiness rebuilds and compares current candidate, accepted decision, eligibility receipt/hash, selected-record hash, target schema/payload, proposal digest, and receipt id.
+- Expected reference drift is `NOT READY/WARN`; unsafe effect claims or unreadable stores are `ERROR`.
+- Apply plan prints required SHA-256 receipt fields, atomic/run-once verification, and rollback templates, but no apply command or engine exists and no state changes.
+- Ten focused regressions were added; the full suite passes 887 tests. Registry remains 361 commands across 41 categories.
 
 ## Next Candidate Tasks
 
 - Submission Readiness: keep the public repository and provenance manifests current, finalize English Devpost copy, and record the sub-three-minute video.
-- v3.3g / Learning Promotion Apply Readiness Review: revalidate a process-memory proposal against current candidate/decision/selected-scope evidence and print rollback/receipt requirements; no write or apply implementation.
+- v3.4a / Supervised Memory Lesson Promotion Pilot: permit exactly one fresh-confirmed `memory.lesson.v1` proposal to create one atomic memory record with run-once receipt, record verification, and rollback suggestion; skills and batch apply remain disabled.
 - Memory Migration Plan: design deterministic compaction/archive rules for the 8 previewed legacy candidates; no apply step without separate approval.
 - Command Dispatch Architecture v2: replace the linear formatter chain with typed incremental family registration while preserving exact command behavior and runner isolation.
 - Test Suite Structure v1: split the 15k-line flow suite by domain without changing test semantics or commands.

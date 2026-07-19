@@ -512,5 +512,8 @@ def _usage() -> str:
             "/experience learning proposals",
             "/experience learning proposal <proposal_id|candidate_id>",
             "/experience learning proposal-doctor",
+            "/experience learning apply-readiness <proposal_id|candidate_id>",
+            "/experience learning apply-plan <proposal_id|candidate_id>",
+            "/experience learning apply-doctor",
         ]
     )

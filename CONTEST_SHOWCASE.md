@@ -126,7 +126,7 @@ Narration:
 ## Current Verified Baseline
 
 - Python 3.11.15.
-- 877 unit tests passing.
+- 887 unit tests passing.
 - 361 registered commands across 41 categories.
 - Context Injection disabled.
 - Experience persistence disabled.

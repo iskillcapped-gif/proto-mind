@@ -204,6 +204,11 @@ from proto_mind.experience_learning_proposal import (
     format_learning_proposal_command,
     learning_proposal_confirmation_token,
 )
+from proto_mind.experience_learning_readiness import (
+    LEARNING_APPLY_ENGINE_INSTALLED,
+    LearningPromotionApplyReadiness,
+    format_learning_apply_readiness_command,
+)
 from proto_mind.experience_vocabulary import (
     ExperienceLifecycleBuilder,
     build_failure_correction_trace,
@@ -19190,6 +19195,376 @@ class ProtoMindFlowTests(unittest.TestCase):
             ).policy_class,
             "confirmation_required",
         )
+        self.assertEqual(len(COMMAND_REGISTRY), 361)
+        self.assertEqual(len({entry.category for entry in COMMAND_REGISTRY}), 41)
+        self.assertEqual(command_registry_doctor()["status"], "OK")
+        self.assertEqual(action_policy_doctor()["status"], "OK")
+
+    def test_learning_apply_readiness_handles_empty_process_state(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, store, pilot, bridge, _ = build_test_learning_candidate(root)
+            dependencies = {
+                "bridge": bridge,
+                "decisions": pilot.learning_decisions,
+                "proposals": pilot.learning_proposals,
+                "memory_store": store,
+                "skill_library": SkillLibrary(root / "skills.jsonl"),
+            }
+            missing = format_learning_apply_readiness_command(
+                "/experience learning apply-readiness missing",
+                **dependencies,
+            )
+            doctor = format_learning_apply_readiness_command(
+                "/experience learning apply-doctor",
+                **dependencies,
+            )
+
+        self.assertIn("Status: NOT FOUND", missing)
+        self.assertIn("Status: OK", doctor)
+        self.assertIn("proposals: 0", doctor)
+        self.assertEqual(pilot.learning_proposals.snapshot(), ())
+
+    def test_learning_apply_readiness_revalidates_current_proposal(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, store, pilot, bridge, _, skills, blueprint = build_test_learning_proposal(
+                Path(temp_dir)
+            )
+            receipt = pilot.learning_proposals.create(
+                blueprint,
+                token=learning_proposal_confirmation_token(blueprint),
+            )
+            candidates = {
+                item.id: item
+                for review in bridge.review()
+                for item in review.candidates
+            }
+            report = LearningPromotionApplyReadiness(
+                memory_store=store,
+                skill_library=skills,
+            ).review(
+                receipt,
+                candidates=candidates,
+                decisions=pilot.learning_decisions,
+            )
+
+        self.assertEqual(report.status, "READY FOR APPLY DESIGN REVIEW")
+        self.assertTrue(report.ready_for_design_review)
+        self.assertTrue(all(report.checks.values()))
+        self.assertEqual(report.stored_proposal_hash, report.current_proposal_hash)
+        self.assertEqual(report.stored_scope_hash, report.current_scope_hash)
+        self.assertFalse(report.apply_engine_installed)
+        self.assertFalse(report.executable)
+        self.assertFalse(report.apply_performed)
+
+    def test_learning_apply_plan_prints_memory_receipt_and_rollback_requirements(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, store, pilot, bridge, _, skills, blueprint = build_test_learning_proposal(root)
+            receipt = pilot.learning_proposals.create(
+                blueprint,
+                token=learning_proposal_confirmation_token(blueprint),
+            )
+            before = (
+                store.working_path.read_bytes(),
+                store.persistent_path.read_bytes(),
+                json.dumps(pilot.learning_proposals.snapshot(), sort_keys=True),
+            )
+            output = format_learning_apply_readiness_command(
+                f"/experience learning apply-plan {receipt.id}",
+                bridge=bridge,
+                decisions=pilot.learning_decisions,
+                proposals=pilot.learning_proposals,
+                memory_store=store,
+                skill_library=skills,
+            )
+            after = (
+                store.working_path.read_bytes(),
+                store.persistent_path.read_bytes(),
+                json.dumps(pilot.learning_proposals.snapshot(), sort_keys=True),
+            )
+
+        self.assertIn("Status: DESIGN REVIEW ONLY", output)
+        self.assertIn("before_store_sha256", output)
+        self.assertIn("created_record_id", output)
+        self.assertIn("/memory forget <created_memory_id>", output)
+        self.assertIn("No implementation or executable command exists", output)
+        self.assertEqual(before, after)
+
+    def test_learning_apply_plan_prints_skill_rollback_template(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, store, pilot, bridge, _, skills, blueprint = build_test_learning_proposal(
+                root,
+                target="skill",
+            )
+            receipt = pilot.learning_proposals.create(
+                blueprint,
+                token=learning_proposal_confirmation_token(blueprint),
+            )
+            output = format_learning_apply_readiness_command(
+                f"/experience learning apply-plan {receipt.id}",
+                bridge=bridge,
+                decisions=pilot.learning_decisions,
+                proposals=pilot.learning_proposals,
+                memory_store=store,
+                skill_library=skills,
+            )
+
+        self.assertIn("target_schema: skill.procedure.v1", output)
+        self.assertIn("/skills archive <created_skill_id>", output)
+        self.assertIn("apply_engine_installed: false", output)
+
+    def test_learning_apply_readiness_detects_selected_scope_drift(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, store, pilot, bridge, _, skills, blueprint = build_test_learning_proposal(root)
+            receipt = pilot.learning_proposals.create(
+                blueprint,
+                token=learning_proposal_confirmation_token(blueprint),
+            )
+            store.save_persistent_memory(
+                [
+                    MemoryRecord(
+                        id="mem_proposal_ref",
+                        content="Reference changed after proposal creation.",
+                        type="project_fact",
+                        importance=0.7,
+                        source="test",
+                    )
+                ]
+            )
+            candidates = {
+                item.id: item
+                for review in bridge.review()
+                for item in review.candidates
+            }
+            reviewer = LearningPromotionApplyReadiness(
+                memory_store=store,
+                skill_library=skills,
+            )
+            report = reviewer.review(
+                receipt,
+                candidates=candidates,
+                decisions=pilot.learning_decisions,
+            )
+            doctor = reviewer.doctor(
+                pilot.learning_proposals,
+                candidates=candidates,
+                decisions=pilot.learning_decisions,
+            )
+
+        self.assertEqual(report.status, "NOT READY")
+        self.assertFalse(report.checks["selected_scope_matches"])
+        self.assertIn("snapshot has drifted", " ".join(report.issues))
+        self.assertEqual(doctor.status, "WARN")
+        self.assertEqual(doctor.not_ready_count, 1)
+
+    def test_learning_apply_readiness_requires_current_accepted_decision(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, store, pilot, bridge, _, skills, blueprint = build_test_learning_proposal(
+                Path(temp_dir)
+            )
+            receipt = pilot.learning_proposals.create(
+                blueprint,
+                token=learning_proposal_confirmation_token(blueprint),
+            )
+            pilot.learning_decisions._receipts.clear()
+            candidates = {
+                item.id: item
+                for review in bridge.review()
+                for item in review.candidates
+            }
+            report = LearningPromotionApplyReadiness(
+                memory_store=store,
+                skill_library=skills,
+            ).review(
+                receipt,
+                candidates=candidates,
+                decisions=pilot.learning_decisions,
+            )
+
+        self.assertEqual(report.status, "NOT READY")
+        self.assertFalse(report.checks["accepted_decision_present"])
+        self.assertIn("accepted candidate decision is missing", " ".join(report.issues))
+
+    def test_learning_apply_doctor_rejects_forbidden_effect_receipt(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, store, pilot, bridge, candidate, skills, blueprint = build_test_learning_proposal(
+                Path(temp_dir)
+            )
+            receipt = pilot.learning_proposals.create(
+                blueprint,
+                token=learning_proposal_confirmation_token(blueprint),
+            )
+            pilot.learning_proposals._receipts[candidate.id] = replace(
+                receipt,
+                apply_performed=True,
+            )
+            candidates = {
+                item.id: item
+                for review in bridge.review()
+                for item in review.candidates
+            }
+            reviewer = LearningPromotionApplyReadiness(
+                memory_store=store,
+                skill_library=skills,
+            )
+            report = reviewer.review(
+                pilot.learning_proposals.get(candidate.id),
+                candidates=candidates,
+                decisions=pilot.learning_decisions,
+            )
+            doctor = reviewer.doctor(
+                pilot.learning_proposals,
+                candidates=candidates,
+                decisions=pilot.learning_decisions,
+            )
+
+        self.assertEqual(report.status, "ERROR")
+        self.assertFalse(report.checks["proposal_receipt_safe"])
+        self.assertEqual(doctor.status, "ERROR")
+
+    def test_learning_apply_readiness_fails_cleanly_on_corrupted_store(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, store, pilot, bridge, _, skills, blueprint = build_test_learning_proposal(
+                Path(temp_dir)
+            )
+            receipt = pilot.learning_proposals.create(
+                blueprint,
+                token=learning_proposal_confirmation_token(blueprint),
+            )
+            store.working_path.write_text("{broken", encoding="utf-8")
+            candidates = {
+                item.id: item
+                for review in bridge.review()
+                for item in review.candidates
+            }
+            report = LearningPromotionApplyReadiness(
+                memory_store=store,
+                skill_library=skills,
+            ).review(
+                receipt,
+                candidates=candidates,
+                decisions=pilot.learning_decisions,
+            )
+
+        self.assertEqual(report.status, "ERROR")
+        self.assertIn("unreadable", " ".join(report.issues).lower())
+        self.assertFalse(report.ready_for_design_review)
+
+    def test_learning_apply_commands_are_read_only_through_shared_handler(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            coordinator, store, _ = build_test_system(root / "cognitive")
+            logger = SessionOperatorLogger(root / "session.jsonl", enabled=False)
+            process_interactive_input(
+                "/experience preview",
+                coordinator=coordinator,
+                session_logger=logger,
+                project_root=root,
+            )
+            pilot = peek_experience_pilot(coordinator)
+            process_interactive_input(
+                f"/experience consent {pilot.expected_consent_phrase}",
+                coordinator=coordinator,
+                session_logger=logger,
+                project_root=root,
+            )
+            coordinator.pending_correction_hints = ["Verify active decisions before reuse."]
+            process_interactive_input(
+                "Explain the current decision.",
+                coordinator=coordinator,
+                session_logger=logger,
+                project_root=root,
+            )
+            candidate = OperatorReviewedLearningBridge(pilot.snapshot()).review()[0].candidates[0]
+            pilot.learning_decisions.decide(
+                candidate,
+                "accepted",
+                token=learning_confirmation_token(candidate),
+            )
+            store.save_persistent_memory(
+                [
+                    MemoryRecord(
+                        id="mem_readiness_ref",
+                        content="Separate readiness reference.",
+                        type="project_fact",
+                        importance=0.7,
+                        source="test",
+                    )
+                ]
+            )
+            preview = process_interactive_input(
+                f"/experience learning proposal-preview {candidate.id} "
+                "--target memory --memory mem_readiness_ref",
+                coordinator=coordinator,
+                session_logger=logger,
+                project_root=root,
+            )
+            token = _id_from_output(preview, "confirmation_token:")
+            proposed = process_interactive_input(
+                f"/experience learning propose {candidate.id} {token} "
+                "--target memory --memory mem_readiness_ref",
+                coordinator=coordinator,
+                session_logger=logger,
+                project_root=root,
+            )
+            proposal_id = _id_from_output(proposed, "proposal_id:")
+            before = (
+                store.working_path.read_bytes(),
+                store.persistent_path.read_bytes(),
+                json.dumps(pilot.snapshot(), sort_keys=True),
+                json.dumps(pilot.learning_decisions.snapshot(), sort_keys=True),
+                json.dumps(pilot.learning_proposals.snapshot(), sort_keys=True),
+                logger.status().entry_count,
+            )
+            readiness = process_interactive_input(
+                f"/experience learning apply-readiness {proposal_id}",
+                coordinator=coordinator,
+                session_logger=logger,
+                project_root=root,
+            )
+            plan = process_interactive_input(
+                f"/experience learning apply-plan {proposal_id}",
+                coordinator=coordinator,
+                session_logger=logger,
+                project_root=root,
+            )
+            doctor = process_interactive_input(
+                "/experience learning apply-doctor",
+                coordinator=coordinator,
+                session_logger=logger,
+                project_root=root,
+            )
+            after = (
+                store.working_path.read_bytes(),
+                store.persistent_path.read_bytes(),
+                json.dumps(pilot.snapshot(), sort_keys=True),
+                json.dumps(pilot.learning_decisions.snapshot(), sort_keys=True),
+                json.dumps(pilot.learning_proposals.snapshot(), sort_keys=True),
+                logger.status().entry_count,
+            )
+
+        self.assertIn("Status: READY FOR APPLY DESIGN REVIEW", readiness)
+        self.assertIn("Status: DESIGN REVIEW ONLY", plan)
+        self.assertIn("Status: OK", doctor)
+        self.assertEqual(before, after)
+
+    def test_learning_apply_readiness_registry_policy_and_absent_engine(self) -> None:
+        registry = {entry.prefix: entry for entry in COMMAND_REGISTRY}
+        broad = registry["/experience learning"]
+
+        self.assertTrue(broad.read_only)
+        self.assertEqual(broad.mutates, "none")
+        self.assertFalse(LEARNING_APPLY_ENGINE_INSTALLED)
+        self.assertNotIn("/experience learning apply", registry)
+        for command in (
+            "/experience learning apply-readiness proposal",
+            "/experience learning apply-plan proposal",
+            "/experience learning apply-doctor",
+        ):
+            self.assertEqual(classify_command(command).policy_class, "auto_allowed")
         self.assertEqual(len(COMMAND_REGISTRY), 361)
         self.assertEqual(len({entry.category for entry in COMMAND_REGISTRY}), 41)
         self.assertEqual(command_registry_doctor()["status"], "OK")

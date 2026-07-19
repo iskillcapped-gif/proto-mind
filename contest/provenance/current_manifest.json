@@ -20,14 +20,14 @@
     {
       "category": "documentation",
       "path": "ARCHITECTURE_MAP_V2.md",
-      "sha256": "66596ee0e4dce0675ce49a1fe6e8a05bd87fac599471c420fec4092bdeb90756",
-      "size": 86631
+      "sha256": "e2389e35341f17c11237d0e58c6257b668da6fd94994572581932b86f5551ead",
+      "size": 86956
     },
     {
       "category": "documentation",
       "path": "BUILD_WEEK_PROVENANCE.md",
-      "sha256": "a9b590b9dd11c2c8a32d899ebca2aca067de2d04eac3ec85797e21263985cde7",
-      "size": 6488
+      "sha256": "b1d52b0da6690495aa93cf082962cb7c3d413264fa76bd343183901caa2a2b26",
+      "size": 6666
     },
     {
       "category": "documentation",
@@ -38,7 +38,7 @@
     {
       "category": "documentation",
       "path": "CONTEST_SHOWCASE.md",
-      "sha256": "3a326d2f8988701966bac7f9c796e780ec2850cfee80764c647dfd1cc69eb7d5",
+      "sha256": "85bfb362f5b57c90390203c13964d6f90ae07a0aacd725d6e4d2ecbb7885116a",
       "size": 5460
     },
     {
@@ -56,20 +56,20 @@
     {
       "category": "documentation",
       "path": "MILESTONE_2026-05-23_OPERATOR_LOOP.md",
-      "sha256": "4b1dbe080711d6fca74221d8caca774586e52527332dce42a04df65edd7756c0",
-      "size": 50542
+      "sha256": "1fe2bcda9a4273c7b1d83d964492e7d2a855061a5ecc8cf0ea62e6cf4dee89a3",
+      "size": 50945
     },
     {
       "category": "documentation",
       "path": "PROTO_MIND_ARCHITECT_LEDGER.md",
-      "sha256": "aae88817fab88283840ae33fee61846f0f4849f66d0a7d34c625b16b3bef1a2f",
-      "size": 25440
+      "sha256": "7e4fb3eee1e6cb76e6064387aacff4c722e97b5719d6efc5c4eed88527a1000a",
+      "size": 25561
     },
     {
       "category": "documentation",
       "path": "README.md",
-      "sha256": "97db31cb6deb695b67a456e56b8a656a7bd6c3d6918ce66d77db677a666b44ce",
-      "size": 53020
+      "sha256": "e0756abd85bfba4a9f4b078d99dca03cb822a33525d564a647fb08f2c5e73ff9",
+      "size": 53927
     },
     {
       "category": "documentation",
@@ -182,8 +182,8 @@
     {
       "category": "source",
       "path": "proto_mind/command_registry.py",
-      "sha256": "bbee9ab477c2a6f947b0ff454042ec22f982145496f47be3ba64c57ca44882e9",
-      "size": 43785
+      "sha256": "ea8feb95dc9668636dc4141c30055903c9084879e3cad1a33d2674b96d3157ff",
+      "size": 43784
     },
     {
       "category": "source",
@@ -290,8 +290,8 @@
     {
       "category": "source",
       "path": "proto_mind/experience_learning_bridge.py",
-      "sha256": "b49bad14c7a8445b3fb69ac374472c506ecf4c6d59c0c5315418a4a86924a745",
-      "size": 20369
+      "sha256": "d56f39318722f8c161ccca5e676244e1973d08875cf5c17c23f92adae2d8d4f6",
+      "size": 20571
     },
     {
       "category": "source",
@@ -314,8 +314,14 @@
     {
       "category": "source",
       "path": "proto_mind/experience_learning_proposal.py",
-      "sha256": "58ea1f5fce1e6fb806faa29569093e02c1e3d772df4186c2f9a0f098ab062b21",
-      "size": 27966
+      "sha256": "af8ba1b595e01ff8fece16d83c56cd596d281ba832e3ed80e469ce2e86ff9f25",
+      "size": 28097
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/experience_learning_readiness.py",
+      "sha256": "71281d0a2bedddb1f115793f5a7c59e5b64befc16827d47fb48348aeb4216e7d",
+      "size": 18005
     },
     {
       "category": "source",
@@ -326,8 +332,8 @@
     {
       "category": "source",
       "path": "proto_mind/experience_pilot.py",
-      "sha256": "f94c18a0ab0d21f9ea4be9121b48baa550332812e6a5294d56dae7bd04b52c82",
-      "size": 22284
+      "sha256": "20f2864d63612be8ca5c9503d8e8e8d10053cb68ba201f77071ca9bf0a471d52",
+      "size": 22932
     },
     {
       "category": "source",
@@ -596,8 +602,8 @@
     {
       "category": "tests",
       "path": "proto_mind/tests/test_flow.py",
-      "sha256": "6351f7747b1bbafe97a4c6b71b03167a202555729a64ceb476e5fe08dab3ad03",
-      "size": 1012035
+      "sha256": "b68067c5cae684c3a9b9e8289bf4a14eeb215ef5caa16e9cf1ac9a4eb41430b3",
+      "size": 1028060
     },
     {
       "category": "source",
@@ -702,7 +708,7 @@
       "size": 637
     }
   ],
-  "generated_at": "2026-07-19T13:05:04.442788+00:00",
+  "generated_at": "2026-07-19T13:17:42.568427+00:00",
   "label": "current_contest_state",
   "metrics": {
     "category_counts": {
@@ -710,15 +716,15 @@
       "documentation": 11,
       "scripts": 11,
       "setup": 4,
-      "source": 88,
+      "source": 89,
       "tests": 1
     },
-    "file_count": 116,
-    "python_file_count": 89,
+    "file_count": 117,
+    "python_file_count": 90,
     "registry_category_count": 41,
     "registry_command_count": 361,
-    "test_method_count": 877,
-    "total_bytes": 3016484
+    "test_method_count": 887,
+    "total_bytes": 3053428
   },
   "schema_version": 1,
   "scope": {

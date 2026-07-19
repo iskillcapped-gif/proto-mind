@@ -590,6 +590,9 @@ v3.3a adds an explicit operator-controlled pilot over the shared CLI/tkinter/PyS
 /experience learning proposals
 /experience learning proposal <proposal_id|candidate_id>
 /experience learning proposal-doctor
+/experience learning apply-readiness <proposal_id|candidate_id>
+/experience learning apply-plan <proposal_id|candidate_id>
+/experience learning apply-doctor
 /experience events [--last N]
 /experience inspect <event_id>
 /experience doctor
@@ -609,6 +612,8 @@ v3.3d adds an explicit process-memory decision gate without enabling promotion. 
 v3.3e adds a target-specific promotion eligibility review without enabling promotion. After an accepted process-memory decision, the operator supplies exact memory and/or skill IDs; the existing detached input adapter reads only those active records and checks exact normalized content for the declared `memory` or `skill` target. Results distinguish `ELIGIBLE IN SELECTED SCOPE`, `DUPLICATE`, `INCOMPLETE`, `NOT CHECKED`, `NOT ELIGIBLE`, and `ERROR`. The receipt explicitly states that scope is limited and no global duplicate search, retrieval ranking, usage telemetry, mutation, execution, promotion, apply, persistence, or automatic target inference occurred.
 
 v3.3f adds a bounded promotion proposal receipt without enabling apply. A clean selected-scope eligibility review produces a deterministic `memory.lesson.v1` or `skill.procedure.v1` blueprint, hashes the exact candidate, accepted decision, eligibility receipt, selected-record snapshot, target schema, and payload, then prints a proposal-specific token. Only `/experience learning propose` with that exact token retains an immutable receipt, capped at 32 for the current process. Selected-record drift invalidates the token. Proposal list, inspection, and Doctor are read-only; every receipt remains `future_apply_ready=false`, `executable=false`, and performs no memory/skill/queue/file write, promotion, apply, global novelty claim, or Context Injection change.
+
+v3.3g adds read-only apply readiness over current process proposals. `/experience learning apply-readiness` rebuilds the candidate, accepted decision, explicit-ID eligibility, selected-record hash, fixed target payload, and proposal digest from current state; any drift or missing evidence returns `NOT READY`, while unsafe receipts and unreadable stores return `ERROR`. `/experience learning apply-plan` prints the exact future receipt fields, atomic-write/run-once requirements, and memory/skill rollback templates. `READY FOR APPLY DESIGN REVIEW` is not authorization: no `/experience learning apply` Registry prefix or apply engine exists, and readiness commands mutate no store, queue, process receipt, session log, or Context Injection state.
 
 ## Contest Showcase
 
