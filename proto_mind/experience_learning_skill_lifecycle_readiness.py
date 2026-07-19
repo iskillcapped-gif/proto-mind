@@ -152,10 +152,14 @@ class ProceduralSkillLifecycleApplyReadiness:
             and registry[prefix].risk == "low"
             for prefix in expected_registry
         )
-        dangerous_apply_absent = not any(
-            item.prefix.startswith("/experience learning apply skill-outcome")
-            or item.prefix.startswith("/experience learning apply skill-lifecycle")
-            for item in COMMAND_REGISTRY
+        apply_spec = registry.get(
+            "/experience learning apply skill-outcome-lifecycle"
+        )
+        apply_gate_safe = bool(
+            apply_spec is not None
+            and not apply_spec.read_only
+            and apply_spec.mutates == "skills"
+            and apply_spec.risk == "medium"
         )
         checks = {
             "decision_receipt_safe": _receipt_is_safe(receipt),
@@ -198,7 +202,7 @@ class ProceduralSkillLifecycleApplyReadiness:
             "skill_record_hash_available": bool(record_hash),
             "future_contract_safe": _contract_is_safe(contract),
             "read_only_registry_metadata": registry_safe,
-            "lifecycle_apply_command_absent": dangerous_apply_absent,
+            "lifecycle_apply_registry_gate_safe": apply_gate_safe,
             "procedure_execution_absent": not PROCEDURAL_SKILL_EXECUTION_INSTALLED,
             "apply_token_not_generated": True,
         }
@@ -225,14 +229,14 @@ class ProceduralSkillLifecycleApplyReadiness:
             "skill_record_hash_available": "Current exact skill record hash is unavailable.",
             "future_contract_safe": "Future lifecycle safeguard contract is incomplete or unsafe.",
             "read_only_registry_metadata": "Lifecycle readiness Registry metadata is missing or unsafe.",
-            "lifecycle_apply_command_absent": "A procedural skill outcome lifecycle apply command is unexpectedly exposed.",
+            "lifecycle_apply_registry_gate_safe": "The supervised skill outcome lifecycle apply Registry gate is missing or unsafe.",
             "procedure_execution_absent": "Procedural skill execution is unexpectedly installed.",
             "apply_token_not_generated": "Readiness must never generate an apply token.",
         }
         issues = [messages[name] for name, passed in checks.items() if not passed]
         warnings = [
             "Readiness is bound to the current process decision, current evidence, and current Skill Library bytes.",
-            "No lifecycle apply command or confirmation token exists in v3.5i.",
+            "Readiness does not invoke the separately registered lifecycle apply gate or generate its token.",
         ]
         if receipt.decision == "keep":
             warnings.append(
@@ -322,12 +326,16 @@ class ProceduralSkillLifecycleApplyReadiness:
                 issues.append(f"Registry metadata for {prefix} is missing or unsafe.")
         if PROCEDURAL_SKILL_EXECUTION_INSTALLED:
             issues.append("Procedural skill execution must remain disabled.")
-        if any(
-            item.prefix.startswith("/experience learning apply skill-outcome")
-            or item.prefix.startswith("/experience learning apply skill-lifecycle")
-            for item in COMMAND_REGISTRY
+        apply_spec = registry.get(
+            "/experience learning apply skill-outcome-lifecycle"
+        )
+        if (
+            apply_spec is None
+            or apply_spec.read_only
+            or apply_spec.mutates != "skills"
+            or apply_spec.risk != "medium"
         ):
-            issues.append("A skill outcome lifecycle apply command is unexpectedly registered.")
+            issues.append("The supervised skill outcome lifecycle apply Registry gate is missing or unsafe.")
 
         counts = Counter(report.status for report in reports)
         decisions = Counter(report.decision for report in reports)
@@ -614,7 +622,7 @@ def _readiness_error(message: str) -> str:
 def _readiness_boundary() -> list[str]:
     return [
         "Boundary:",
-        "- Read-only design readiness only; no lifecycle apply token or apply command exists.",
+        "- Read-only design readiness only; no lifecycle apply token was generated and the supervised apply gate was not invoked.",
         "- No skill, memory, Experience event, receipt, queue, export, session log, or Context Injection changed.",
         "- No procedure, shell, arbitrary command, model/API, external action, writer, or background task ran.",
     ]

@@ -88,6 +88,10 @@ from proto_mind.experience_learning_skill_lifecycle_readiness import (
     ProceduralSkillLifecycleApplyReadiness,
     format_procedural_skill_lifecycle_readiness_command,
 )
+from proto_mind.experience_learning_skill_lifecycle_apply import (
+    OperatorReviewedProceduralSkillLifecycleApplySession,
+    format_procedural_skill_lifecycle_apply_command,
+)
 from proto_mind.experience_learning_readiness import format_learning_apply_readiness_command
 from proto_mind.experience_turn import (
     format_cognitive_turn_episode,
@@ -168,6 +172,7 @@ class SupervisedExperiencePilot:
         self._skill_applies = OperatorReviewedProceduralSkillApplySession()
         self._skill_outcome_captures = OperatorReviewedProceduralSkillOutcomeCaptureSession()
         self._skill_outcome_decisions = OperatorReviewedProceduralSkillOutcomeDecisionSession()
+        self._skill_lifecycle_applies = OperatorReviewedProceduralSkillLifecycleApplySession()
         self._lock = RLock()
 
     @property
@@ -233,6 +238,10 @@ class SupervisedExperiencePilot:
     @property
     def skill_outcome_decisions(self) -> OperatorReviewedProceduralSkillOutcomeDecisionSession:
         return self._skill_outcome_decisions
+
+    @property
+    def skill_lifecycle_applies(self) -> OperatorReviewedProceduralSkillLifecycleApplySession:
+        return self._skill_lifecycle_applies
 
     def preview(self) -> str:
         with self._lock:
@@ -575,30 +584,35 @@ def format_experience_pilot_command(
             )
             if skill_outcome_capture_output is not None:
                 return skill_outcome_capture_output
+            skill_outcome_decision_builder = ProceduralSkillOutcomeDecisionBuilder(
+                events=events,
+                memory_store=memory_store,
+                skill_library=skill_library,
+                capture_session=pilot.skill_outcome_captures,
+            )
             skill_outcome_decision_output = format_procedural_skill_outcome_decision_command(
                 raw,
-                builder=ProceduralSkillOutcomeDecisionBuilder(
-                    events=events,
-                    memory_store=memory_store,
-                    skill_library=skill_library,
-                    capture_session=pilot.skill_outcome_captures,
-                ),
+                builder=skill_outcome_decision_builder,
                 session=pilot.skill_outcome_decisions,
             )
             if skill_outcome_decision_output is not None:
                 return skill_outcome_decision_output
+            skill_lifecycle_reviewer = ProceduralSkillLifecycleApplyReadiness(
+                builder=skill_outcome_decision_builder,
+                skill_library=skill_library,
+            )
+            skill_lifecycle_apply_output = format_procedural_skill_lifecycle_apply_command(
+                raw,
+                decision_session=pilot.skill_outcome_decisions,
+                apply_session=pilot.skill_lifecycle_applies,
+                reviewer=skill_lifecycle_reviewer,
+            )
+            if skill_lifecycle_apply_output is not None:
+                return skill_lifecycle_apply_output
             skill_lifecycle_readiness_output = (
                 format_procedural_skill_lifecycle_readiness_command(
                     raw,
-                    reviewer=ProceduralSkillLifecycleApplyReadiness(
-                        builder=ProceduralSkillOutcomeDecisionBuilder(
-                            events=events,
-                            memory_store=memory_store,
-                            skill_library=skill_library,
-                            capture_session=pilot.skill_outcome_captures,
-                        ),
-                        skill_library=skill_library,
-                    ),
+                    reviewer=skill_lifecycle_reviewer,
                     session=pilot.skill_outcome_decisions,
                 )
             )
@@ -843,6 +857,9 @@ def _usage() -> str:
             "/experience learning skill-outcome-decisions [<skill_id|receipt_id>]|skill-outcome-decision-doctor",
             "/experience learning skill-outcome-lifecycle-readiness|skill-outcome-lifecycle-plan <skill_id|decision_receipt_id>",
             "/experience learning skill-outcome-lifecycle-doctor",
+            "/experience learning skill-outcome-lifecycle-apply-preview <skill_id|decision_receipt_id>",
+            "/experience learning apply skill-outcome-lifecycle <skill_id|decision_receipt_id> <token>",
+            "/experience learning skill-outcome-lifecycle-applies [<id>]|skill-outcome-lifecycle-apply-doctor",
             "/experience events [--last N]",
             "/experience inspect <event_id>",
             "/experience doctor",
