@@ -107,6 +107,13 @@ For short future Codex handoffs, use `PROTO_MIND_ARCHITECT_LEDGER.md` as the com
   - `proto_mind/data/persistent_memory.json`
 - Supports add, upsert, delete, and list operations.
 
+`proto_mind/memory_provenance.py`
+
+- Builds the compact hashed `memory.lesson.provenance.v1` envelope used only by supervised lesson apply.
+- Verifies record payload, candidate/proposal/scope hashes, exact-confirmation markers, evidence IDs, deterministic provenance ID, and provenance hash.
+- Formats read-only `/memory why <id>` explanations after process restart and refuses to invent provenance for legacy records.
+- Stores no full prompt, response, hidden context, or model-generated provenance narrative.
+
 `proto_mind/memory_keeper.py`
 
 - Retrieves memories, scores candidates, deduplicates by normalized content, and records retrieval traces.
@@ -617,7 +624,7 @@ Session operator log:
 
 Natural Command Router v2.3 maps a conservative allowlist of exact normalized Russian and English phrases to existing safe operator commands. It covers system-health bundles, `/loop next`, morning/evening reports, explicit context injection enable/disable, consolidation preview, and data inventory. `/natural explain <phrase>` now joins every matched target with Command Registry metadata and Action Safety Policy classification; bundles expose their strictest policy, `/natural list` adds compact policy labels, and `/natural doctor` validates registry/policy coverage and independent doctor health. `/natural suggest <phrase>` remains non-executing. Policy-aware introspection does not enforce confirmation or alter exact route execution; there is no fuzzy auto-routing, LLM intent classification, arbitrary command dispatch, or autonomous planning.
 
-Command Registry v1.0 adds `proto_mind/command_registry.py` and read-only `/commands status`, `/commands list`, `/commands explain <slash command>`, and `/commands doctor`. The static registry currently describes 362 command prefixes across 41 categories. Metadata includes description, read-only state, mutation target, risk, Natural Router availability, and notes. Doctor checks duplicates, invalid metadata, complete Natural Router target coverage, explicit context mutations, and high-risk route exclusion. Registry introspection never executes commands and is descriptive metadata rather than runtime authorization.
+Command Registry v1.0 adds `proto_mind/command_registry.py` and read-only `/commands status`, `/commands list`, `/commands explain <slash command>`, and `/commands doctor`. The static registry currently describes 363 command prefixes across 41 categories. Metadata includes description, read-only state, mutation target, risk, Natural Router availability, and notes. Doctor checks duplicates, invalid metadata, complete Natural Router target coverage, explicit context mutations, and high-risk route exclusion. Registry introspection never executes commands and is descriptive metadata rather than runtime authorization.
 
 Action Safety Policy v1.0 adds `proto_mind/action_policy.py` and read-only `/policy status`, `/policy explain <slash command>`, and `/policy doctor`. It derives advisory classifications from Command Registry metadata: read-only low-risk commands are `auto_allowed`, mutating low/medium-risk commands are `confirmation_required`, high-risk commands are `operator_only`, and unknown/shell-like/chained inputs are `blocked`. Command bundles and Natural Router bundles inherit the strictest member classification. Policy v1.0 never executes commands, changes routing, or enforces authorization.
 
@@ -798,6 +805,7 @@ It covers:
 - v3.3f / Learning Promotion Proposal Receipt adds fixed memory/skill target schemas, selected-scope SHA-256 binding, exact proposal tokens, and a 32-receipt process-memory session. Proposals remain immutable, restart-expiring, non-executable, not apply-ready, and unable to mutate domain stores or queues.
 - v3.3g / Learning Promotion Apply Readiness Review revalidates current candidate, accepted decision, selected explicit-ID scope, eligibility, fixed payload, and proposal digest. It prints future receipt/rollback safeguards only; no exact apply command, engine, target mutation, receipt mutation, or persistence path exists.
 - v3.4a / Supervised Memory Lesson Promotion Pilot adds a separate exact-token gate for one fresh `memory.lesson.v1` proposal per process. The token binds current memory-store SHA-256; apply performs full exact-duplicate defense, one atomic persistent-memory write, post-write record/hash verification, a process-memory run-once receipt, and a manual `/memory forget` rollback suggestion. Skill/batch apply and arbitrary execution remain unavailable.
+- v3.4b / Durable Learning Provenance embeds one compact hashed source envelope in the atomically created lesson and adds read-only `/memory why <id>` plus Memory Doctor integrity checks. Candidate, decision, eligibility, proposal, selected-scope, and redacted evidence IDs survive restart without a sidecar file; the receipt's manual `/memory forget` rollback now accepts only explicit or verified provenanced lessons and retains their audit chain. Legacy records remain explicitly unexplained, detailed receipts still expire, and no second writer, skill/batch apply, or autonomous consolidation is introduced.
 - Build Week Provenance Pack v1 adds an honest pre-existing/contest disclosure, reproducible July 11 baseline hashes, current manifests, and collaboration evidence without runtime behavior changes or private-store inclusion.
 - Contest Showcase v1 adds a read-only four-part live demo, deterministic operator script, dependency doctor, and submission narrative without activating consent or executing capabilities.
 - Preference priority cleanup for response-style and future-behavior retrieval.

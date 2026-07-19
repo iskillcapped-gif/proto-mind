@@ -111,6 +111,7 @@ _BASE_REGISTRY = [
             "/memory status": "Show explicit-memory status.",
             "/memory list": "List explicit memories.",
             "/memory inspect": "Inspect an explicit memory.",
+            "/memory why": "Explain and verify durable provenance for a persistent memory.",
             "/memory search": "Search explicit memories by substring.",
             "/memory doctor": "Run deterministic memory diagnostics.",
             "/memory write-policy": "Show deterministic memory write and retrieval-side-effect policy.",

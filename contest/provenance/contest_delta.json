@@ -47,6 +47,7 @@
       "proto_mind/experience_turn.py",
       "proto_mind/experience_vocabulary.py",
       "proto_mind/memory_governance.py",
+      "proto_mind/memory_provenance.py",
       "proto_mind/showcase_layer.py",
       "scripts/build_macos_app_launcher.sh",
       "scripts/install_macos_app_shortcut.sh",
@@ -69,6 +70,7 @@
       "proto_mind/main.py",
       "proto_mind/memory_commands.py",
       "proto_mind/memory_keeper.py",
+      "proto_mind/models.py",
       "proto_mind/observer.py",
       "proto_mind/reasoners/mock_reasoner.py",
       "proto_mind/self_reflection.py",
@@ -106,7 +108,6 @@
       "proto_mind/memory_hygiene.py",
       "proto_mind/memory_store.py",
       "proto_mind/milestone_layer.py",
-      "proto_mind/models.py",
       "proto_mind/natural_commands.py",
       "proto_mind/operating_loop.py",
       "proto_mind/plan_layer.py",
@@ -135,7 +136,7 @@
       "requirements-ui.txt"
     ]
   },
-  "generated_at": "2026-07-19T14:18:57.349211+00:00",
+  "generated_at": "2026-07-19T14:48:33.766582+00:00",
   "limitations": [
     "This is local equivalent evidence, not a third-party timestamp authority.",
     "Codex /feedback Session IDs and future dated Git commits should accompany this manifest.",
@@ -144,13 +145,13 @@
   "metrics": {
     "file_count": {
       "baseline": 69,
-      "current": 118,
-      "delta": 49
+      "current": 119,
+      "delta": 50
     },
     "python_file_count": {
       "baseline": 66,
-      "current": 91,
-      "delta": 25
+      "current": 92,
+      "delta": 26
     },
     "registry_category_count": {
       "baseline": 39,
@@ -159,26 +160,26 @@
     },
     "registry_command_count": {
       "baseline": 343,
-      "current": 362,
-      "delta": 19
+      "current": 363,
+      "delta": 20
     },
     "test_method_count": {
       "baseline": 664,
-      "current": 901,
-      "delta": 237
+      "current": 912,
+      "delta": 248
     },
     "total_bytes": {
       "baseline": 2188652,
-      "current": 3111535,
-      "delta": 922883
+      "current": 3142514,
+      "delta": 953862
     }
   },
   "schema_version": 1,
   "summary": {
-    "added_count": 49,
-    "changed_count": 14,
+    "added_count": 50,
+    "changed_count": 15,
     "meaningful_extension_evidence": true,
     "removed_count": 0,
-    "unchanged_count": 55
+    "unchanged_count": 54
   }
 }

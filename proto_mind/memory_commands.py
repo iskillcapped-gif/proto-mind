@@ -8,6 +8,12 @@ from uuid import uuid4
 
 from proto_mind.memory_store import MemoryStore
 from proto_mind.memory_governance import format_memory_quality_preview, format_memory_write_policy
+from proto_mind.memory_provenance import (
+    count_durable_provenance,
+    durable_provenance_findings,
+    format_memory_why,
+    verify_memory_provenance,
+)
 from proto_mind.models import MemoryRecord, utc_now_iso
 
 
@@ -21,6 +27,10 @@ def format_memory_command(command: str, store: MemoryStore) -> str | None:
         return format_memory_write_policy()
     if normalized == "/memory quality-preview":
         return format_memory_quality_preview(store)
+    if normalized == "/memory why":
+        return "Usage: /memory why <id>"
+    if normalized.startswith("/memory why "):
+        return format_memory_why(store, stripped[len("/memory why") :].strip())
     dynamic_output = format_explicit_memory_command(stripped, store)
     if dynamic_output is not None:
         return dynamic_output
@@ -199,7 +209,7 @@ def forget_explicit_memory(store: MemoryStore, memory_id: str) -> str:
     loaded = _safe_load_persistent(store)
     if isinstance(loaded, str):
         return loaded
-    record = _find_explicit_record(loaded, memory_id)
+    record = _find_forgettable_record(loaded, memory_id)
     if not record:
         return f"Explicit memory not found: {memory_id}"
     if _explicit_status(record) == "forgotten":
@@ -263,6 +273,7 @@ def format_memory_doctor(store: MemoryStore) -> str:
 
     if records:
         _append_explicit_memory_findings(records, findings, recommendations)
+        findings.extend(durable_provenance_findings(records))
 
     if not findings:
         findings.append(("OK", "Persistent memory is readable and no notable explicit-memory issues were detected.", []))
@@ -451,6 +462,7 @@ def _format_memory_doctor_report(
     active_explicit = [record for record in explicit if record.active]
     forgotten_explicit = [record for record in explicit if not record.active]
     legacy_count = len([record for record in records if record.type != "explicit"])
+    durable_provenance_count = count_durable_provenance(records)
     lines = [
         "Memory Doctor",
         f"Status: {status}",
@@ -463,6 +475,7 @@ def _format_memory_doctor_report(
         f"  explicit forgotten: {len(forgotten_explicit)}",
         f"  explicit total: {len(explicit)}",
         f"  legacy/other records: {legacy_count}",
+        f"  durable provenance records: {durable_provenance_count}",
         f"  malformed raw records: {malformed_count}",
         "",
         "Findings:",
@@ -483,7 +496,15 @@ def _append_record_shape_findings(raw_items: list[object], findings: list[tuple[
     empty_content: list[str] = []
     invalid_confidence: list[str] = []
     missing_explicit_updated_at: list[str] = []
-    known_types = {"decision", "preference", "project", "insight", "explicit"}
+    known_types = {
+        "decision",
+        "preference",
+        "project",
+        "project_fact",
+        "insight",
+        "lesson",
+        "explicit",
+    }
     for index, item in enumerate(raw_items):
         label = f"record[{index}]"
         if not isinstance(item, dict):
@@ -655,6 +676,21 @@ def _find_explicit_record(records: Iterable[MemoryRecord], memory_id: str) -> Me
     for record in records:
         if record.type == "explicit" and record.id == memory_id:
             return record
+    return None
+
+
+def _find_forgettable_record(
+    records: Iterable[MemoryRecord],
+    memory_id: str,
+) -> MemoryRecord | None:
+    for record in records:
+        if record.id != memory_id:
+            continue
+        if record.type == "explicit":
+            return record
+        if record.type == "lesson" and verify_memory_provenance(record).verified:
+            return record
+        return None
     return None
 
 

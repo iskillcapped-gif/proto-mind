@@ -28,13 +28,17 @@ class MemoryRecord:
     superseded_reason: str | None = None
     confidence: float | None = None
     updated_at: str | None = None
+    provenance: dict[str, Any] | None = None
 
     def touch(self) -> None:
         self.last_used = utc_now_iso()
         self.usage_count += 1
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        payload = asdict(self)
+        if self.provenance is None:
+            payload.pop("provenance")
+        return payload
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "MemoryRecord":

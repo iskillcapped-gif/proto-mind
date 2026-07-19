@@ -23,6 +23,10 @@ from proto_mind.experience_learning_readiness import (
     format_learning_apply_doctor,
 )
 from proto_mind.memory_store import MemoryStore
+from proto_mind.memory_provenance import (
+    build_learning_lesson_provenance,
+    verify_memory_provenance,
+)
 from proto_mind.models import MemoryRecord
 from proto_mind.skill_library import SkillLibrary
 
@@ -69,6 +73,7 @@ class LearningMemoryApplyReceipt:
     after_store_sha256: str
     created_record_id: str
     created_record_hash: str
+    durable_provenance_id: str
     record_verified: bool
     confirmation_method: str
     confirmation_token_hash: str
@@ -81,6 +86,7 @@ class LearningMemoryApplyReceipt:
     skill_mutation_performed: bool = False
     batch_apply_performed: bool = False
     receipt_persistence: str = "process_memory_only"
+    durable_provenance_persistence: str = "embedded_memory_record"
     receipt_hash: str = ""
 
     def to_dict(self) -> dict[str, Any]:
@@ -219,6 +225,7 @@ class OperatorReviewedLearningMemoryApplySession:
                 "after_store_sha256": after_store_sha256,
                 "created_record_id": verified_record.id,
                 "created_record_hash": _hash_json(verified_record.to_dict()),
+                "durable_provenance_id": str(verified_record.provenance["id"]),
                 "record_verified": True,
                 "confirmation_method": "exact_apply_token",
                 "confirmation_token_hash": hashlib.sha256(token.encode("utf-8")).hexdigest(),
@@ -231,10 +238,11 @@ class OperatorReviewedLearningMemoryApplySession:
                 "skill_mutation_performed": False,
                 "batch_apply_performed": False,
                 "receipt_persistence": "process_memory_only",
+                "durable_provenance_persistence": "embedded_memory_record",
             }
             receipt_hash = _hash_json(material)
             receipt = LearningMemoryApplyReceipt(
-                id=f"learnapply_{receipt_hash[:16]}",
+                id=str(verified_record.provenance["apply_id"]),
                 **material,
                 receipt_hash=receipt_hash,
             )
@@ -269,6 +277,8 @@ class OperatorReviewedLearningMemoryApplySession:
                 issues.append(f"Apply receipt {label} is outside the memory.lesson.v1 pilot.")
             if item.get("record_verified") is not True:
                 issues.append(f"Apply receipt {label} lacks record verification.")
+            if item.get("durable_provenance_persistence") != "embedded_memory_record":
+                issues.append(f"Apply receipt {label} lacks restart-safe embedded provenance.")
             if item.get("run_once_guard") is not True or item.get("batch_apply_performed") is not False:
                 issues.append(f"Apply receipt {label} violates single-run/single-record boundaries.")
             if item.get("memory_mutation_performed") is not True or item.get("skill_mutation_performed") is not False:
@@ -286,6 +296,10 @@ class OperatorReviewedLearningMemoryApplySession:
                     )
                 else:
                     issues.append(f"Applied memory {record_id} no longer matches its verified receipt.")
+            elif verify_memory_provenance(record).verified is not True:
+                issues.append(f"Applied memory {record_id} has invalid durable provenance.")
+            elif record.provenance.get("id") != item.get("durable_provenance_id"):
+                issues.append(f"Apply receipt {label} points to different durable provenance.")
         status = "ERROR" if issues else "WARN" if warnings else "OK"
         return LearningMemoryApplyDoctorReport(
             status=status,
@@ -528,12 +542,15 @@ def format_learning_memory_applied(receipt: LearningMemoryApplyReceipt) -> str:
             f"before_store_sha256: {receipt.before_store_sha256}",
             f"after_store_sha256: {receipt.after_store_sha256}",
             f"created_record_hash: {receipt.created_record_hash}",
+            f"durable_provenance_id: {receipt.durable_provenance_id}",
+            "durable_provenance_persistence: embedded_memory_record",
             f"receipt_hash: {receipt.receipt_hash}",
             "record_verified: true",
             "run_once_guard: true",
             f"rollback_suggestion: {receipt.rollback_suggestion}",
+            f"why_command: /memory why {receipt.created_record_id}",
             "- Exactly one persistent memory lesson was created; no skill or other store changed.",
-            "- Apply receipt is process-memory-only; inspect it before process exit.",
+            "- The detailed apply receipt is process-memory-only; compact verified provenance is embedded in the memory record.",
         ]
     )
 
@@ -548,6 +565,7 @@ def format_learning_memory_apply_status(
         f"mode: {LEARNING_MEMORY_APPLY_MODE}",
         f"receipts: {len(receipts)}/{LEARNING_MEMORY_APPLY_MAX_RECEIPTS}",
         f"apply_engine_installed: {str(LEARNING_MEMORY_APPLY_ENGINE_INSTALLED).lower()}",
+        "durable_provenance: embedded_memory_record",
         "Receipts:",
     ]
     if not receipts:
@@ -571,6 +589,7 @@ def format_learning_memory_apply_receipt(
                 "Proto-Mind Supervised Memory Lesson Apply Receipt v1",
                 "Status: NOT FOUND",
                 f"- Apply/proposal/candidate {identifier!r} is absent from process memory.",
+                "- If the lesson was applied before restart, inspect it with /memory why <memory_id>.",
                 *_apply_boundary(),
             ]
         )
@@ -598,6 +617,7 @@ def format_learning_memory_apply_doctor(
         f"receipts: {report.receipt_count}/{LEARNING_MEMORY_APPLY_MAX_RECEIPTS}",
         f"applied: {report.applied_count}",
         "memory_target_only: true",
+        "durable_provenance: embedded_memory_record",
         "skill_apply_enabled: false",
         "batch_apply_enabled: false",
     ]
@@ -617,6 +637,20 @@ def _record_from_proposal(
     payload = proposal.proposed_payload
     if proposal.target != "memory" or proposal.target_schema != "memory.lesson.v1":
         raise LearningMemoryApplyError("Only memory.lesson.v1 proposals are supported.")
+    provenance = build_learning_lesson_provenance(
+        memory_id=record_id,
+        applied_at=applied_at,
+        proposal_id=proposal.id,
+        proposal_hash=proposal.proposal_hash,
+        candidate_id=proposal.candidate_id,
+        candidate_hash=proposal.candidate_hash,
+        decision_id=proposal.decision_id,
+        eligibility_receipt_id=proposal.eligibility_receipt_id,
+        selected_scope_hash=proposal.selected_scope_hash,
+        proposed_payload=proposal.proposed_payload,
+        evidence_event_ids=proposal.evidence_event_ids,
+        source_kinds=proposal.source_kinds,
+    )
     return MemoryRecord(
         id=record_id,
         content=str(payload["content"]),
@@ -631,6 +665,7 @@ def _record_from_proposal(
         active=True,
         confidence=float(payload["confidence"]),
         updated_at=applied_at,
+        provenance=provenance,
     )
 
 
@@ -646,6 +681,9 @@ def _verify_created_record(
     matches = [record for record in records if record.id == expected.id]
     if len(matches) != 1 or matches[0].to_dict() != expected.to_dict():
         raise ValueError("Created memory record does not match the fixed proposal payload.")
+    provenance_check = verify_memory_provenance(matches[0])
+    if not provenance_check.verified:
+        raise ValueError("Created memory record has invalid durable provenance.")
     return matches[0], _hash_file(memory_store.persistent_path)
 
 
@@ -766,4 +804,5 @@ def _apply_boundary() -> list[str]:
         "- exactly one fresh exact-token memory.lesson.v1 apply per process",
         "- no skill apply, batch apply, shell, arbitrary dispatch, or autonomous promotion",
         "- preview/status/receipt/doctor are read-only; only the exact apply command writes memory",
+        "- applied lessons retain compact verified provenance for /memory why after restart",
     ]
