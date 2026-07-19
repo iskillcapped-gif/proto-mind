@@ -196,6 +196,8 @@ from proto_mind.experience_learning_outcome import (
     format_learning_outcome_benchmark,
     format_learning_outcome_command,
     run_learning_outcome_benchmark,
+    _correction_event,
+    _replacement_events,
 )
 from proto_mind.experience_learning_lifecycle import (
     LEARNING_LIFECYCLE_MAX_RECEIPTS,
@@ -205,6 +207,13 @@ from proto_mind.experience_learning_lifecycle import (
     format_learning_lifecycle_command,
     learning_lifecycle_confirmation_token,
     run_learning_lifecycle_benchmark,
+)
+from proto_mind.experience_learning_lifecycle_readiness import (
+    LEARNING_LIFECYCLE_APPLY_ENGINE_INSTALLED,
+    LEARNING_LIFECYCLE_READINESS_MODE,
+    LearningLifecycleApplyReadiness,
+    format_learning_lifecycle_readiness_command,
+    learning_lifecycle_transition_contract,
 )
 from proto_mind.experience_learning_eligibility import (
     LEARNING_ELIGIBILITY_MAX_IDS_PER_KIND,
@@ -254,6 +263,7 @@ from proto_mind.memory_commands import format_memory_command
 from proto_mind.memory_governance import inspect_memory_quality, memory_write_policy
 from proto_mind.memory_provenance import (
     MEMORY_LESSON_PROVENANCE_SCHEMA,
+    build_learning_lesson_provenance,
     verify_memory_provenance,
 )
 from proto_mind.memory_card_layer import OperatorMemoryCard, format_memory_card_command
@@ -20845,12 +20855,16 @@ class ProtoMindFlowTests(unittest.TestCase):
             )
             session._receipts[review.lesson_memory_id] = replace(
                 receipt,
+                id="learnlife_tampered",
+                evidence_event_ids=["evt_unrelated"],
                 memory_mutation_performed=True,
             )
             report = session.doctor({review.lesson_memory_id: review})
 
         self.assertEqual(report.status, "ERROR")
         self.assertIn("forbidden mutation", " ".join(report.issues))
+        self.assertIn("does not match its review hash", " ".join(report.issues))
+        self.assertIn("outside its evidence ids", " ".join(report.issues))
 
     def test_learning_lifecycle_receipts_expire_on_process_restart(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -20926,6 +20940,279 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertEqual(
             classify_command(
                 "/experience learning outcome-confirm-preview mem_lesson"
+            ).policy_class,
+            "auto_allowed",
+        )
+        self.assertEqual(len(COMMAND_REGISTRY), 363)
+        self.assertEqual(len({entry.category for entry in COMMAND_REGISTRY}), 41)
+        self.assertEqual(command_registry_doctor()["status"], "OK")
+        self.assertEqual(action_policy_doctor()["status"], "OK")
+
+    def test_learning_lifecycle_readiness_revalidates_current_exact_evidence(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, store, events, review = build_test_learning_outcome_review(Path(temp_dir))
+            session = OperatorReviewedLearningLifecycleSession()
+            receipt = session.decide(
+                review,
+                "keep",
+                token=learning_lifecycle_confirmation_token(review),
+            )
+            before = (
+                store.working_path.read_bytes(),
+                store.persistent_path.read_bytes(),
+                json.dumps(session.snapshot(), sort_keys=True),
+            )
+            report = LearningLifecycleApplyReadiness(
+                memory_store=store,
+                events=events,
+            ).review(receipt)
+            after = (
+                store.working_path.read_bytes(),
+                store.persistent_path.read_bytes(),
+                json.dumps(session.snapshot(), sort_keys=True),
+            )
+
+        self.assertEqual(report.status, "READY FOR LIFECYCLE DESIGN REVIEW")
+        self.assertTrue(report.ready_for_design_review)
+        self.assertTrue(all(report.checks.values()))
+        self.assertFalse(report.lifecycle_engine_installed)
+        self.assertFalse(report.executable)
+        self.assertEqual(report.transition.expected_record_mutations, 0)
+        self.assertEqual(before, after)
+
+    def test_learning_lifecycle_readiness_and_plan_are_readable_and_non_mutating(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, store, events, review = build_test_learning_outcome_review(Path(temp_dir))
+            session = OperatorReviewedLearningLifecycleSession()
+            receipt = session.decide(
+                review,
+                "keep",
+                token=learning_lifecycle_confirmation_token(review),
+            )
+            before = (store.working_path.read_bytes(), store.persistent_path.read_bytes())
+            readiness = format_learning_lifecycle_readiness_command(
+                f"/experience learning lifecycle-readiness {receipt.id}",
+                events=events,
+                memory_store=store,
+                session=session,
+            )
+            plan = format_learning_lifecycle_readiness_command(
+                f"/experience learning lifecycle-plan {review.lesson_memory_id}",
+                events=events,
+                memory_store=store,
+                session=session,
+            )
+            after = (store.working_path.read_bytes(), store.persistent_path.read_bytes())
+
+        self.assertIn("READY FOR LIFECYCLE DESIGN REVIEW", readiness)
+        self.assertIn("lifecycle_engine_installed: false", readiness)
+        self.assertIn("Status: DESIGN REVIEW ONLY", plan)
+        self.assertIn("expected_record_mutations: 0", plan)
+        self.assertIn("separately approved lifecycle writer milestone", plan)
+        self.assertEqual(before, after)
+
+    def test_learning_lifecycle_readiness_fails_closed_on_evidence_drift(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, store, events, review = build_test_learning_outcome_review(Path(temp_dir))
+            session = OperatorReviewedLearningLifecycleSession()
+            receipt = session.decide(
+                review,
+                "keep",
+                token=learning_lifecycle_confirmation_token(review),
+            )
+            report = LearningLifecycleApplyReadiness(
+                memory_store=store,
+                events=[],
+            ).review(receipt)
+
+        self.assertEqual(report.status, "NOT READY")
+        self.assertFalse(report.checks["current_outcome_matches"])
+        self.assertFalse(report.checks["current_review_hash_matches"])
+        self.assertFalse(report.ready_for_design_review)
+        self.assertFalse(report.mutation_performed)
+
+    def test_learning_lifecycle_readiness_fails_closed_on_inactive_lesson(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, store, events, review = build_test_learning_outcome_review(Path(temp_dir))
+            session = OperatorReviewedLearningLifecycleSession()
+            receipt = session.decide(
+                review,
+                "keep",
+                token=learning_lifecycle_confirmation_token(review),
+            )
+            records = store.load_persistent_memory()
+            records[0].active = False
+            store.save_persistent_memory(records)
+            report = LearningLifecycleApplyReadiness(
+                memory_store=store,
+                events=events,
+            ).review(receipt)
+
+        self.assertEqual(report.status, "NOT READY")
+        self.assertFalse(report.checks["lesson_active"])
+        self.assertFalse(report.ready_for_design_review)
+
+    def test_learning_lifecycle_supersede_requires_active_verified_replacement(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, store, events, keep_review = build_test_learning_outcome_review(root)
+            old = store.load_persistent_memory()[0]
+            base_time = datetime.now(UTC) + timedelta(seconds=2)
+            payload = {
+                "schema": "memory.lesson.v1",
+                "content": "Use a narrower verified replacement lesson.",
+                "type": "lesson",
+                "importance": 0.9,
+                "source": "experience_learning_proposal",
+                "tags": ["replacement"],
+                "confidence": 0.9,
+            }
+            proposal_hash = "b" * 64
+            replacement_id = "mem_lifecycle_replacement"
+            provenance = build_learning_lesson_provenance(
+                memory_id=replacement_id,
+                applied_at=base_time.isoformat(),
+                proposal_id=f"learnprop_{proposal_hash[:16]}",
+                proposal_hash=proposal_hash,
+                candidate_id="learncand_lifecycle_replacement",
+                candidate_hash="c" * 64,
+                decision_id="learndec_lifecycle_replacement",
+                eligibility_receipt_id="learnelig_lifecycle_replacement",
+                selected_scope_hash="d" * 64,
+                proposed_payload=payload,
+                evidence_event_ids=["evt_lifecycle_replacement_source"],
+                source_kinds=["correction"],
+            )
+            replacement = MemoryRecord(
+                id=replacement_id,
+                content=payload["content"],
+                type="lesson",
+                importance=0.9,
+                source="experience_learning_proposal",
+                tags=["replacement"],
+                timestamp=base_time.isoformat(),
+                updated_at=base_time.isoformat(),
+                confidence=0.9,
+                provenance=provenance,
+            )
+            correction = _correction_event(events)
+            supersede_events = [
+                *events,
+                correction,
+                *_replacement_events(correction, replacement_id),
+            ]
+            store.save_persistent_memory([old, replacement])
+            supersede_review = LearningOutcomeReviewer(
+                supersede_events,
+                store.load_persistent_memory(),
+            ).review(old.id)
+            session = OperatorReviewedLearningLifecycleSession()
+            receipt = session.decide(
+                supersede_review,
+                "supersede",
+                token=learning_lifecycle_confirmation_token(supersede_review),
+            )
+            ready = LearningLifecycleApplyReadiness(
+                memory_store=store,
+                events=supersede_events,
+            ).review(receipt)
+            replacement.active = False
+            store.save_persistent_memory([old, replacement])
+            inactive = LearningLifecycleApplyReadiness(
+                memory_store=store,
+                events=supersede_events,
+            ).review(receipt)
+
+        self.assertEqual(keep_review.status, "KEEP_CANDIDATE")
+        self.assertEqual(supersede_review.status, "SUPERSEDE_CANDIDATE")
+        self.assertEqual(ready.status, "READY FOR LIFECYCLE DESIGN REVIEW")
+        self.assertTrue(ready.checks["replacement_contract_valid"])
+        self.assertEqual(ready.transition.expected_record_mutations, 1)
+        self.assertEqual(inactive.status, "NOT READY")
+        self.assertFalse(inactive.checks["replacement_contract_valid"])
+        self.assertFalse(inactive.ready_for_design_review)
+
+    def test_learning_lifecycle_readiness_doctor_rejects_unsafe_receipt(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, store, events, review = build_test_learning_outcome_review(Path(temp_dir))
+            session = OperatorReviewedLearningLifecycleSession()
+            receipt = session.decide(
+                review,
+                "keep",
+                token=learning_lifecycle_confirmation_token(review),
+            )
+            session._receipts[review.lesson_memory_id] = replace(
+                receipt,
+                persistence_performed=True,
+            )
+            report = LearningLifecycleApplyReadiness(
+                memory_store=store,
+                events=events,
+            ).doctor(session)
+
+        self.assertEqual(report.status, "ERROR")
+        self.assertIn("forbidden mutation", " ".join(report.issues))
+
+    def test_learning_lifecycle_readiness_doctor_handles_empty_state(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, store, _ = build_test_system(root)
+            session = OperatorReviewedLearningLifecycleSession()
+            before = (store.working_path.read_bytes(), store.persistent_path.read_bytes())
+            doctor = format_learning_lifecycle_readiness_command(
+                "/experience learning lifecycle-readiness-doctor",
+                events=[],
+                memory_store=store,
+                session=session,
+            )
+            missing = format_learning_lifecycle_readiness_command(
+                "/experience learning lifecycle-readiness missing",
+                events=[],
+                memory_store=store,
+                session=session,
+            )
+            after = (store.working_path.read_bytes(), store.persistent_path.read_bytes())
+
+        self.assertIn("Status: OK", doctor)
+        self.assertIn("receipts: 0", doctor)
+        self.assertIn("lifecycle_engine_installed: false", doctor)
+        self.assertIn("Status: NOT FOUND", missing)
+        self.assertEqual(before, after)
+
+    def test_learning_lifecycle_transition_contracts_are_bounded(self) -> None:
+        keep = learning_lifecycle_transition_contract("keep")
+        reject = learning_lifecycle_transition_contract("reject")
+        supersede = learning_lifecycle_transition_contract("supersede")
+        unknown = learning_lifecycle_transition_contract("unknown")
+
+        self.assertEqual(keep.expected_record_mutations, 0)
+        self.assertEqual(reject.expected_record_mutations, 1)
+        self.assertEqual(supersede.expected_record_mutations, 1)
+        self.assertTrue(supersede.replacement_required)
+        self.assertIn("never delete", supersede.rollback)
+        self.assertEqual(unknown.expected_record_mutations, 0)
+        self.assertIn("refuse", unknown.operation)
+
+    def test_learning_lifecycle_readiness_uses_existing_read_only_family(self) -> None:
+        registry = {entry.prefix: entry for entry in COMMAND_REGISTRY}
+        family = registry["/experience learning"]
+
+        self.assertEqual(
+            LEARNING_LIFECYCLE_READINESS_MODE,
+            "read_only_current_lifecycle_revalidation",
+        )
+        self.assertFalse(LEARNING_LIFECYCLE_APPLY_ENGINE_INSTALLED)
+        self.assertTrue(family.read_only)
+        self.assertEqual(family.mutates, "none")
+        self.assertFalse(
+            any(
+                prefix.startswith("/experience learning lifecycle-apply")
+                for prefix in registry
+            )
+        )
+        self.assertEqual(
+            classify_command(
+                "/experience learning lifecycle-readiness mem_lesson"
             ).policy_class,
             "auto_allowed",
         )

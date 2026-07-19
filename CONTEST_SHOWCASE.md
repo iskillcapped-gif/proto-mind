@@ -13,7 +13,7 @@ Proto-Mind is a local-first cognitive operating system that preserves continuity
 | Cognitive continuity | Identity, focus, memory, tasks, experiments, predictions, and skills appear in one live view | Local stores remain operator-inspectable |
 | Experience | One normal turn becomes typed, provenance-linked events | Exact per-session consent, redaction, hard memory bounds, restart expiry |
 | Explainability | `/experience episode latest` connects Observe, Interpret, Recall, Respond, Memory, Reflect, Verify, and exact source events | No hidden full prompt, LLM summary, or automatic lesson promotion |
-| Learning | Provenance-verified lessons can be recalled, reviewed against later outcomes, and explicitly accepted/rejected/superseded by the operator | Exact evidence-bound token; lifecycle receipt is process-only and does not mutate the lesson |
+| Learning | Provenance-verified lessons can be recalled, reviewed against later outcomes, explicitly decided by the operator, and revalidated for a future transition | Exact evidence-bound token and store-hash readiness; lifecycle engine remains absent and the lesson is not mutated |
 | Action | A fixed read-only command can be dry-run and executed with an exact phrase | Four-command allowlist, fixed callbacks, no shell or free-form dispatch |
 | Governance | Context, warnings, Registry, Policy, and doctors remain visible | Context Injection disabled; unknown warnings and blockers gate the demo |
 

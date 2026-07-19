@@ -19,7 +19,7 @@ Last updated: 2026-07-19
   - Ollama via `PROTO_MIND_REASONER=ollama`, `PROTO_MIND_OLLAMA_MODEL`, `PROTO_MIND_OLLAMA_URL`.
 - Normal prompts go through observer, retrieval, reasoner, memory evaluation, self-reflection, grounding audit, and session logging.
 - Slash/operator commands bypass normal cognitive turns and should not become cognitive session log turns.
-- Supervised Experience Pilot v3.3a observes consented turns; v3.3b projects episodes; v3.3c previews candidates; v3.3d captures decisions; v3.3e reviews selected-scope eligibility; v3.3f records proposals; v3.3g revalidates apply readiness; v3.4a permits one separately confirmed, atomic, verified memory lesson; v3.4b embeds restart-safe compact provenance; v3.4c permits only verified learned lessons into recall; v3.4d reviews later outcomes; v3.4e records an exact operator lifecycle decision without mutating the lesson. Review/proposal/lifecycle/detailed-receipt state remains bounded and process-memory-only; no automatic apply exists.
+- Supervised Experience Pilot v3.3a observes consented turns; v3.3b projects episodes; v3.3c previews candidates; v3.3d captures decisions; v3.3e reviews selected-scope eligibility; v3.3f records proposals; v3.3g revalidates apply readiness; v3.4a permits one separately confirmed, atomic, verified memory lesson; v3.4b embeds restart-safe compact provenance; v3.4c permits only verified learned lessons into recall; v3.4d reviews later outcomes; v3.4e records an exact operator lifecycle decision; v3.4f revalidates that decision and prints a future transition contract without mutation. Review/proposal/lifecycle/detailed-receipt state remains bounded and process-memory-only; no automatic apply exists.
 - Build Week submission provenance uses the July 11 pre-contest archive SHA-256 plus generated baseline/current/delta manifests; prior work and contest work are explicitly separated.
 - Primary Build Week Codex `/feedback` Session ID is `019d73be-1d7e-7401-8efe-f5e165736db4`.
 - Repository privacy review excludes local cognitive/runtime stores, removes user-specific checkout paths from public artifacts, and documents synthetic credential fixtures and publication boundaries.
@@ -29,7 +29,7 @@ Last updated: 2026-07-19
 ## Current Verification Baseline
 
 - Current test command: `scripts/run_tests.sh`.
-- Current test count: 937 unit tests OK.
+- Current test count: 946 unit tests OK.
 - Compile check: `python -m compileall proto_mind` via `scripts/run_tests.sh` OK.
 - Pytest: optional; currently not installed and skipped cleanly.
 
@@ -120,6 +120,7 @@ Last updated: 2026-07-19
 - v3.4c / Verified Lesson Recall: provenance-gated active lesson retrieval, compact grounding evidence, fail-closed legacy/tamper filtering, and a byte-stable English/Russian restart benchmark without command or writer expansion.
 - v3.4d / Learning Outcome Review: exact post-apply Experience lineage produces advisory keep/reject/supersede candidates or insufficient evidence without Registry expansion, apply, or mutation.
 - v3.4e / Supervised Lesson Lifecycle Decision: exact current-outcome tokens capture one terminal keep/reject/supersede receipt per lesson in bounded process memory, with no lesson/store/event mutation or lifecycle apply.
+- v3.4f / Learning Lifecycle Apply Readiness: read-only revalidation binds the lifecycle receipt to current lesson provenance, exact outcome evidence, persistent-store SHA-256, and a valid replacement contract while the lifecycle engine remains absent.
 - Build Week Provenance Pack v1: July 11 baseline archive, SHA-256 manifests, objective contest delta, honest prior/new disclosure, and Codex collaboration record without private runtime data.
 - Contest Showcase v1: read-only live continuity/experience/governance/action presentation, deterministic three-minute script, dependency doctor, and submission guide without command execution or pilot activation.
 
@@ -139,20 +140,20 @@ Last updated: 2026-07-19
 
 ## Last Completed Milestone
 
-v3.4e / Supervised Lesson Lifecycle Decision:
+v3.4f / Learning Lifecycle Apply Readiness:
 
-- Added read-only outcome confirmation/list/inspect/doctor reports and exact-token `/experience learning decide outcome <keep|reject|supersede> <memory_id> <token>` through the existing registered process-decision gate; Registry remains 363 commands across 41 categories.
-- The token binds the current lesson ID, verified provenance, applied timestamp, outcome status, selected evidence signal, all compact signal IDs, and replacement memory ID when superseding.
-- Only `KEEP_CANDIDATE`, `REJECT_CANDIDATE`, or `SUPERSEDE_CANDIDATE` can be confirmed, and the supplied decision must exactly match the deterministic outcome; weak, missing, stale-token, mismatched, chained, and repeated decisions fail closed.
-- At most 32 immutable terminal receipts live in current process memory and expire on restart. Doctor detects malformed evidence identity, forbidden mutation claims, and historical evidence drift.
-- The eight-check benchmark proves exact keep/reject/supersede decisions, wrong-token and inconclusive refusal, run-once behavior, restart expiry, and no-mutation claims.
-- No lesson, memory, skill, Experience event, queue, export, session log, model prompt, or Context Injection setting is changed; there is no lifecycle apply path.
-- Nine focused regressions were added; the full suite passes 937 tests.
+- Added read-only `/experience learning lifecycle-readiness|lifecycle-plan <memory_id|receipt_id>` and `lifecycle-readiness-doctor` inside the existing `/experience learning` Registry family; Registry remains 363 commands across 41 categories.
+- Revalidation requires a safe terminal process receipt, one active persistent lesson, verified matching provenance, unique memory IDs, exact current outcome/review hash/selected signal, and an available persistent-store SHA-256.
+- `supersede` additionally requires a distinct active provenance-verified replacement that remains the current exact outcome target; missing, inactive, tampered, drifted, or mismatched evidence fails closed.
+- Future transition contracts are explicit: keep mutates zero lessons, reject may soft-deactivate one, and supersede may soft-deactivate the old lesson only after replacement verification. Required atomic receipt, rollback, previous-state, hash, and post-write checks are printed.
+- `LEARNING_LIFECYCLE_APPLY_ENGINE_INSTALLED` remains false, `executable=false`, no apply command is registered, and Doctor treats any premature engine/Registry surface as an error.
+- Nine focused regressions cover ready, drift, inactive lesson, verified replacement, unsafe receipt, empty state, transition bounds, Registry/Policy safety, and byte stability; the full suite passes 946 tests.
+- No lesson, memory, skill, Experience event, lifecycle receipt, queue, export, session log, model prompt, or Context Injection setting is changed.
 
 ## Next Candidate Tasks
 
 - Submission Readiness: keep the public repository and provenance manifests current, finalize English Devpost copy, and record the sub-three-minute video.
-- v3.4f / Learning Lifecycle Apply Readiness: revalidate lifecycle receipts against current lesson/evidence state and specify explicit keep/reject/supersede transition safeguards without adding a mutation path.
+- v3.4g / Supervised Lesson Lifecycle Apply Pilot: consider one separately confirmed, store-hash-bound keep/reject/supersede transition with atomic verification and rollback; no batch or automatic lifecycle action.
 - Memory Migration Plan: design deterministic compaction/archive rules for the 8 previewed legacy candidates; no apply step without separate approval.
 - Command Dispatch Architecture v2: replace the linear formatter chain with typed incremental family registration while preserving exact command behavior and runner isolation.
 - Test Suite Structure v1: split the 15k-line flow suite by domain without changing test semantics or commands.

@@ -629,6 +629,8 @@ v3.4d adds read-only later-outcome review for those provenanced lessons. `/exper
 
 v3.4e adds an explicit operator lifecycle decision after that review. `/experience learning outcome-confirm-preview <memory_id>` prints a token bound to the exact current lesson, provenance, outcome signal, and verified replacement when applicable; `/experience learning decide outcome <keep|reject|supersede> <memory_id> <token>` records one terminal receipt in bounded process memory. `/experience learning outcome-decisions|outcome-decision <id>|outcome-decision-doctor` keeps the decision inspectable. Decisions expire on restart and never keep, archive, supersede, forget, or otherwise mutate a lesson; lifecycle apply remains unavailable.
 
+v3.4f adds read-only `/experience learning lifecycle-readiness|lifecycle-plan <memory_id|receipt_id>` plus `lifecycle-readiness-doctor`. It revalidates the receipt against the active persistent lesson, durable provenance, exact current outcome evidence, selected signal, replacement contract, and current store SHA-256. The plan prints future atomic receipt and rollback requirements for keep/reject/supersede, but `lifecycle_engine_installed=false`, no apply command exists, and no lesson, receipt, event, or store is changed.
+
 ## Contest Showcase
 
 Contest Showcase v1 turns the existing architecture into one read-only live presentation:

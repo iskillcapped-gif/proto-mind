@@ -185,10 +185,14 @@ class OperatorReviewedLearningLifecycleSession:
                 issues.append(f"Lifecycle receipt {receipt_id} does not match its outcome status.")
             if len(str(receipt.get("review_hash") or "")) != 64:
                 issues.append(f"Lifecycle receipt {receipt_id} has invalid review hash.")
+            elif receipt_id != f"learnlife_{str(receipt.get('review_hash'))[:16]}":
+                issues.append(f"Lifecycle receipt {receipt_id} does not match its review hash.")
             if len(str(receipt.get("confirmation_token_hash") or "")) != 64:
                 issues.append(f"Lifecycle receipt {receipt_id} lacks confirmation token evidence.")
             if not receipt.get("selected_signal_id") or not receipt.get("evidence_event_ids"):
                 issues.append(f"Lifecycle receipt {receipt_id} lacks bounded evidence identity.")
+            elif receipt.get("selected_signal_id") not in receipt.get("evidence_event_ids"):
+                issues.append(f"Lifecycle receipt {receipt_id} selected signal is outside its evidence ids.")
             if decision == "supersede" and not receipt.get("replacement_memory_id"):
                 issues.append(f"Lifecycle receipt {receipt_id} lacks replacement memory id.")
             if (

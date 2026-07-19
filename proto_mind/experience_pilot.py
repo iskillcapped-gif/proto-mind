@@ -40,6 +40,9 @@ from proto_mind.experience_learning_lifecycle import (
     OperatorReviewedLearningLifecycleSession,
     format_learning_lifecycle_command,
 )
+from proto_mind.experience_learning_lifecycle_readiness import (
+    format_learning_lifecycle_readiness_command,
+)
 from proto_mind.experience_learning_readiness import format_learning_apply_readiness_command
 from proto_mind.experience_turn import (
     format_cognitive_turn_episode,
@@ -416,6 +419,14 @@ def format_experience_pilot_command(
         )
         if lifecycle_output is not None:
             return lifecycle_output
+        lifecycle_readiness_output = format_learning_lifecycle_readiness_command(
+            raw,
+            events=events,
+            memory_store=_owner_memory_store(owner),
+            session=pilot.learning_lifecycle,
+        )
+        if lifecycle_readiness_output is not None:
+            return lifecycle_readiness_output
         outcome_output = format_learning_outcome_command(
             raw,
             events=events,
@@ -612,6 +623,8 @@ def _usage() -> str:
             "/experience learning outcome-confirm-preview <memory_id>",
             "/experience learning decide outcome <keep|reject|supersede> <memory_id> <exact token>",
             "/experience learning outcome-decisions|outcome-decision <id>|outcome-decision-doctor",
+            "/experience learning lifecycle-readiness|lifecycle-plan <memory_id|receipt_id>",
+            "/experience learning lifecycle-readiness-doctor",
             "/experience events [--last N]",
             "/experience inspect <event_id>",
             "/experience doctor",
