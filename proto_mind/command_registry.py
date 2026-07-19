@@ -185,6 +185,15 @@ _BASE_REGISTRY = [
         notes="Single-record supervised pilots; lifecycle apply is run-once with atomic verification/rollback; skills, batch, shell, and arbitrary dispatch remain disabled.",
     ),
     _spec(
+        "/experience learning apply skill",
+        "experience",
+        "Apply one exact confirmed operator-authored procedural skill record.",
+        read_only=False,
+        mutates="skills",
+        risk="medium",
+        notes="Single atomic verified Skill Library append; no procedure execution, batch, shell, or arbitrary dispatch.",
+    ),
+    _spec(
         "/experience status",
         "experience",
         "Show supervised Experience pilot state and process-memory bounds.",

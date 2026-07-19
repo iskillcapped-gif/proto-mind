@@ -15,15 +15,17 @@ from proto_mind.experience_learning_skill_contract import (
     ProceduralSkillContractBuilder,
     ProceduralSkillContractError,
 )
+from proto_mind.experience_learning_skill_runtime import (
+    PROCEDURAL_SKILL_AUTHORING_WRITES_ENABLED,
+    PROCEDURAL_SKILL_EXECUTION_INSTALLED,
+    PROCEDURAL_SKILL_WRITER_INSTALLED,
+)
 from proto_mind.models import utc_now_iso
 
 
 PROCEDURAL_SKILL_AUTHORING_VERSION = 1
 PROCEDURAL_SKILL_AUTHORING_MODE = "exact_operator_authored_process_memory_receipt"
 PROCEDURAL_SKILL_AUTHORING_MAX_RECEIPTS = 16
-PROCEDURAL_SKILL_WRITER_INSTALLED = False
-PROCEDURAL_SKILL_EXECUTION_INSTALLED = False
-
 _SINGLE_FLAGS = {"--name": "name", "--summary": "summary", "--trigger": "trigger"}
 _REPEATED_FLAGS = {
     "--precondition": "preconditions",
@@ -297,8 +299,8 @@ class OperatorReviewedProceduralSkillAuthoringSession:
                     f"Receipt {label} is historical: source lifecycle, provenance, hash, or duplicate state changed."
                 )
 
-        if PROCEDURAL_SKILL_WRITER_INSTALLED or PROCEDURAL_SKILL_EXECUTION_INSTALLED:
-            issues.append("A forbidden procedural skill writer or execution engine is installed.")
+        if PROCEDURAL_SKILL_AUTHORING_WRITES_ENABLED or PROCEDURAL_SKILL_EXECUTION_INSTALLED:
+            issues.append("Direct authoring writes or procedural skill execution are unexpectedly enabled.")
         status = "ERROR" if issues else "WARN" if warnings else "OK"
         return ProceduralSkillAuthoringDoctorReport(
             status=status,
@@ -475,7 +477,8 @@ def format_procedural_skill_authoring_status(
             f"receipts: {report.receipt_count}/{PROCEDURAL_SKILL_AUTHORING_MAX_RECEIPTS}",
             f"current_receipts: {report.current_count}",
             f"drifted_receipts: {report.drifted_count}",
-            f"skill_writer_installed: {str(PROCEDURAL_SKILL_WRITER_INSTALLED).lower()}",
+            f"supervised_skill_writer_installed: {str(PROCEDURAL_SKILL_WRITER_INSTALLED).lower()}",
+            f"authoring_direct_writes_enabled: {str(PROCEDURAL_SKILL_AUTHORING_WRITES_ENABLED).lower()}",
             f"skill_execution_installed: {str(PROCEDURAL_SKILL_EXECUTION_INSTALLED).lower()}",
             "Commands: skill-authoring-confirm-preview | propose skill-contract | skill-authoring-receipts|receipt|doctor",
             *_authoring_boundary(),
@@ -587,14 +590,15 @@ def format_procedural_skill_authoring_doctor(
         f"receipts: {report.receipt_count}",
         f"current_receipts: {report.current_count}",
         f"drifted_receipts: {report.drifted_count}",
-        f"skill_writer_installed: {str(PROCEDURAL_SKILL_WRITER_INSTALLED).lower()}",
+        f"supervised_skill_writer_installed: {str(PROCEDURAL_SKILL_WRITER_INSTALLED).lower()}",
+        f"authoring_direct_writes_enabled: {str(PROCEDURAL_SKILL_AUTHORING_WRITES_ENABLED).lower()}",
         f"skill_execution_installed: {str(PROCEDURAL_SKILL_EXECUTION_INSTALLED).lower()}",
     ]
     lines.extend(f"- ERROR: {issue}" for issue in report.issues)
     lines.extend(f"- WARN: {warning}" for warning in report.warnings)
     if not report.issues and not report.warnings:
         lines.append(
-            "- Receipt bounds, hashes, current source, exact confirmation, and no-writer boundary are healthy."
+            "- Receipt bounds, hashes, current source, exact confirmation, and non-writing authoring boundary are healthy."
         )
     lines.extend(_authoring_boundary())
     return "\n".join(lines)
@@ -754,7 +758,7 @@ def _authoring_boundary() -> list[str]:
         "Boundary:",
         "- Process-memory operator authoring only; no skill was accepted, stored, promoted, or executed.",
         "- No lesson, memory, Skill Library, Experience event, queue, export, session log, or Context Injection changed.",
-        "- Receipt expires on restart; no writer, shell, arbitrary dispatch, model/API call, auto-apply, or background action exists.",
+        "- Receipt expires on restart; this command never invokes the supervised writer, shell, arbitrary dispatch, model/API call, auto-apply, or background action.",
     ]
 
 

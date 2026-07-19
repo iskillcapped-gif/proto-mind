@@ -9,14 +9,18 @@ from typing import Any
 
 from proto_mind.command_registry import COMMAND_REGISTRY
 from proto_mind.experience_learning_skill_authoring import (
-    PROCEDURAL_SKILL_EXECUTION_INSTALLED,
-    PROCEDURAL_SKILL_WRITER_INSTALLED,
     OperatorReviewedProceduralSkillAuthoringSession,
     ProceduralSkillAuthoringError,
     ProceduralSkillAuthoringReceipt,
     ProceduralSkillAuthoringRequest,
     build_procedural_skill_authoring_blueprint,
     procedural_skill_authoring_receipt_hash,
+)
+from proto_mind.experience_learning_skill_runtime import (
+    PROCEDURAL_SKILL_APPLY_ENGINE_INSTALLED,
+    PROCEDURAL_SKILL_AUTHORING_WRITES_ENABLED,
+    PROCEDURAL_SKILL_EXECUTION_INSTALLED,
+    PROCEDURAL_SKILL_WRITER_INSTALLED,
 )
 from proto_mind.experience_learning_skill_contract import (
     PROCEDURAL_SKILL_STORAGE_SCHEMA,
@@ -28,7 +32,6 @@ from proto_mind.skill_library import SkillLibrary
 
 PROCEDURAL_SKILL_READINESS_VERSION = 1
 PROCEDURAL_SKILL_READINESS_MODE = "read_only_current_skill_contract_revalidation"
-PROCEDURAL_SKILL_APPLY_ENGINE_INSTALLED = False
 PROCEDURAL_SKILL_FUTURE_RECEIPT_FIELDS = (
     "apply_id",
     "applied_at",
@@ -145,9 +148,13 @@ class ProceduralSkillApplyReadiness:
             (spec for spec in COMMAND_REGISTRY if spec.prefix == "/experience learning"),
             None,
         )
-        skill_apply_prefix_present = any(
-            spec.prefix.startswith("/experience learning apply skill")
-            for spec in COMMAND_REGISTRY
+        apply_spec = next(
+            (
+                spec
+                for spec in COMMAND_REGISTRY
+                if spec.prefix == "/experience learning apply skill"
+            ),
+            None,
         )
         checks = {
             "authoring_receipt_safe": _receipt_is_safe(receipt),
@@ -180,9 +187,15 @@ class ProceduralSkillApplyReadiness:
                 and family_spec.read_only
                 and family_spec.mutates == "none"
             ),
-            "skill_apply_registry_prefix_absent": not skill_apply_prefix_present,
-            "skill_writer_absent": not PROCEDURAL_SKILL_WRITER_INSTALLED,
-            "skill_apply_engine_absent": not PROCEDURAL_SKILL_APPLY_ENGINE_INSTALLED,
+            "skill_apply_registry_gate_safe": bool(
+                apply_spec is not None
+                and not apply_spec.read_only
+                and apply_spec.mutates == "skills"
+                and apply_spec.risk == "medium"
+            ),
+            "skill_writer_installed": PROCEDURAL_SKILL_WRITER_INSTALLED,
+            "skill_apply_engine_installed": PROCEDURAL_SKILL_APPLY_ENGINE_INSTALLED,
+            "authoring_direct_write_disabled": not PROCEDURAL_SKILL_AUTHORING_WRITES_ENABLED,
             "skill_execution_absent": not PROCEDURAL_SKILL_EXECUTION_INSTALLED,
             "future_receipt_contract_complete": len(PROCEDURAL_SKILL_FUTURE_RECEIPT_FIELDS) == 15,
         }
@@ -201,9 +214,10 @@ class ProceduralSkillApplyReadiness:
             "active_global_duplicate_absent": "An active global exact skill duplicate already exists.",
             "skill_store_hash_available": "Current Skill Library SHA-256 is unavailable.",
             "read_only_registry_family": "Skill readiness lacks the safe read-only Registry family.",
-            "skill_apply_registry_prefix_absent": "A procedural skill apply command is unexpectedly registered.",
-            "skill_writer_absent": "A procedural skill writer is unexpectedly installed.",
-            "skill_apply_engine_absent": "A procedural skill apply engine is unexpectedly installed.",
+            "skill_apply_registry_gate_safe": "The supervised procedural skill apply Registry gate is missing or unsafe.",
+            "skill_writer_installed": "The supervised procedural skill writer is unavailable.",
+            "skill_apply_engine_installed": "The supervised procedural skill apply engine is unavailable.",
+            "authoring_direct_write_disabled": "The authoring command must not write skills directly.",
             "skill_execution_absent": "A procedural skill execution engine is unexpectedly installed.",
             "future_receipt_contract_complete": "Future atomic apply receipt contract is incomplete.",
         }
@@ -211,7 +225,7 @@ class ProceduralSkillApplyReadiness:
         warnings = [
             "Readiness is bound to the current process receipt and current Skill Library bytes.",
             "Operator-authored permissions are descriptive text, not runtime enforcement.",
-            "No apply token is generated; a future writer requires a separate preview and confirmation.",
+            "Readiness does not invoke the installed writer or generate an apply token; apply requires a separate preview and confirmation.",
         ]
         if archived_duplicates:
             warnings.append(
@@ -289,17 +303,25 @@ class ProceduralSkillApplyReadiness:
         )
         if family_spec is None or not family_spec.read_only or family_spec.mutates != "none":
             issues.append("Procedural skill readiness lacks safe read-only Registry metadata.")
-        if any(
-            spec.prefix.startswith("/experience learning apply skill")
-            for spec in COMMAND_REGISTRY
-        ):
-            issues.append("A procedural skill apply Registry prefix is unexpectedly present.")
+        apply_spec = next(
+            (
+                spec
+                for spec in COMMAND_REGISTRY
+                if spec.prefix == "/experience learning apply skill"
+            ),
+            None,
+        )
         if (
-            PROCEDURAL_SKILL_WRITER_INSTALLED
-            or PROCEDURAL_SKILL_APPLY_ENGINE_INSTALLED
-            or PROCEDURAL_SKILL_EXECUTION_INSTALLED
+            apply_spec is None
+            or apply_spec.read_only
+            or apply_spec.mutates != "skills"
+            or apply_spec.risk != "medium"
         ):
-            issues.append("Procedural skill writer/apply/execution must remain absent in v3.5c.")
+            issues.append("The supervised procedural skill apply Registry gate is missing or unsafe.")
+        if not PROCEDURAL_SKILL_WRITER_INSTALLED or not PROCEDURAL_SKILL_APPLY_ENGINE_INSTALLED:
+            issues.append("The supervised procedural skill apply writer/engine is unavailable.")
+        if PROCEDURAL_SKILL_AUTHORING_WRITES_ENABLED or PROCEDURAL_SKILL_EXECUTION_INSTALLED:
+            issues.append("Direct authoring writes or procedural skill execution are unexpectedly enabled.")
 
         counts = Counter(report.status for report in reports)
         status = "ERROR" if issues else "WARN" if warnings else "OK"
@@ -420,7 +442,7 @@ def format_procedural_skill_readiness_doctor(
     lines.extend(f"- WARN: {warning}" for warning in report.warnings)
     if not report.issues and not report.warnings:
         lines.append(
-            "- Current source, authoring receipt, global duplicate scope, target hash, future receipt, and no-writer gates are healthy."
+            "- Current source, authoring receipt, global duplicate scope, target hash, receipt contract, and supervised apply gates are healthy."
         )
     lines.extend(_readiness_boundary())
     return "\n".join(lines)
@@ -530,7 +552,7 @@ def _readiness_boundary() -> list[str]:
         "Boundary:",
         "- Read-only design readiness only; no apply token was generated and no skill was written, promoted, or executed.",
         "- No lesson, memory, Skill Library, Experience event, receipt, queue, export, session log, or Context Injection changed.",
-        "- Skill writer/apply engine remains absent; no shell, arbitrary dispatch, model/API call, auto-apply, or background action exists.",
+        "- The supervised writer/apply engine was not invoked; no shell, arbitrary dispatch, model/API call, auto-apply, or background action occurred.",
     ]
 
 

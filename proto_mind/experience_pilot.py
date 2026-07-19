@@ -62,6 +62,10 @@ from proto_mind.experience_learning_skill_readiness import (
     ProceduralSkillApplyReadiness,
     format_procedural_skill_readiness_command,
 )
+from proto_mind.experience_learning_skill_apply import (
+    OperatorReviewedProceduralSkillApplySession,
+    format_procedural_skill_apply_command,
+)
 from proto_mind.experience_learning_readiness import format_learning_apply_readiness_command
 from proto_mind.experience_turn import (
     format_cognitive_turn_episode,
@@ -139,6 +143,7 @@ class SupervisedExperiencePilot:
         self._learning_lifecycle = OperatorReviewedLearningLifecycleSession()
         self._learning_lifecycle_applies = OperatorReviewedLearningLifecycleApplySession()
         self._skill_authoring = OperatorReviewedProceduralSkillAuthoringSession()
+        self._skill_applies = OperatorReviewedProceduralSkillApplySession()
         self._lock = RLock()
 
     @property
@@ -192,6 +197,10 @@ class SupervisedExperiencePilot:
     @property
     def skill_authoring(self) -> OperatorReviewedProceduralSkillAuthoringSession:
         return self._skill_authoring
+
+    @property
+    def skill_applies(self) -> OperatorReviewedProceduralSkillApplySession:
+        return self._skill_applies
 
     def preview(self) -> str:
         with self._lock:
@@ -483,12 +492,21 @@ def format_experience_pilot_command(
             )
             if skill_authoring_output is not None:
                 return skill_authoring_output
+            skill_readiness_reviewer = ProceduralSkillApplyReadiness(
+                builder=skill_contract_builder,
+                skill_library=skill_library,
+            )
+            skill_apply_output = format_procedural_skill_apply_command(
+                raw,
+                authoring_session=pilot.skill_authoring,
+                apply_session=pilot.skill_applies,
+                reviewer=skill_readiness_reviewer,
+            )
+            if skill_apply_output is not None:
+                return skill_apply_output
             skill_readiness_output = format_procedural_skill_readiness_command(
                 raw,
-                reviewer=ProceduralSkillApplyReadiness(
-                    builder=skill_contract_builder,
-                    skill_library=skill_library,
-                ),
+                reviewer=skill_readiness_reviewer,
                 session=pilot.skill_authoring,
             )
             if skill_readiness_output is not None:
@@ -712,6 +730,9 @@ def _usage() -> str:
             "/experience learning propose skill-contract <memory_id> <exact token> <identical authored flags>",
             "/experience learning skill-apply-readiness|skill-apply-plan <receipt_id|memory_id>",
             "/experience learning skill-apply-doctor",
+            "/experience learning skill-apply-confirm-preview <receipt_id|memory_id>",
+            "/experience learning apply skill <receipt_id|memory_id> <exact token>",
+            "/experience learning skill-apply-status|skill-apply-receipt <id>|skill-apply-pilot-doctor",
             "/experience events [--last N]",
             "/experience inspect <event_id>",
             "/experience doctor",

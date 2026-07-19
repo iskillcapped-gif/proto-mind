@@ -16,13 +16,15 @@ from proto_mind.memory_provenance import verify_memory_provenance
 from proto_mind.memory_store import MemoryStore
 from proto_mind.models import MemoryRecord
 from proto_mind.skill_library import SkillLibrary
+from proto_mind.experience_learning_skill_runtime import (
+    PROCEDURAL_SKILL_APPLY_ENGINE_INSTALLED,
+)
 
 
 PROCEDURAL_SKILL_CONTRACT_VERSION = 1
 PROCEDURAL_SKILL_CONTRACT_SCHEMA = "skill.procedure.contract.v1"
 PROCEDURAL_SKILL_STORAGE_SCHEMA = "skill.procedure.v1"
 PROCEDURAL_SKILL_CONTRACT_MODE = "read_only_operator_authoring_contract"
-PROCEDURAL_SKILL_APPLY_ENGINE_INSTALLED = False
 PROCEDURAL_SKILL_REQUIRED_FIELDS = (
     "trigger",
     "preconditions",
@@ -127,6 +129,14 @@ class ProceduralSkillContractBuilder:
             if record is not None
             else []
         )
+        apply_spec = next(
+            (
+                spec
+                for spec in COMMAND_REGISTRY
+                if spec.prefix == "/experience learning apply skill"
+            ),
+            None,
+        )
         checks = {
             "exact_memory_id_found": len(matching) == 1,
             "learned_lesson": bool(record and record.type == "lesson" and record.provenance),
@@ -137,7 +147,13 @@ class ProceduralSkillContractBuilder:
             "skill_store_readable": not bool(skill_snapshot["error"]),
             "skill_store_well_formed": skill_snapshot["malformed_count"] == 0,
             "active_exact_duplicate_absent": not duplicate_ids,
-            "skill_apply_engine_absent": not PROCEDURAL_SKILL_APPLY_ENGINE_INSTALLED,
+            "skill_apply_registry_gate_safe": bool(
+                apply_spec is not None
+                and not apply_spec.read_only
+                and apply_spec.mutates == "skills"
+                and apply_spec.risk == "medium"
+            ),
+            "skill_apply_engine_installed": PROCEDURAL_SKILL_APPLY_ENGINE_INSTALLED,
         }
         messages = {
             "exact_memory_id_found": "Persistent memory must contain exactly one matching id.",
@@ -149,7 +165,8 @@ class ProceduralSkillContractBuilder:
             "skill_store_readable": "Skill Library is unreadable.",
             "skill_store_well_formed": "Skill Library contains malformed JSONL entries.",
             "active_exact_duplicate_absent": "An active exact skill duplicate already exists.",
-            "skill_apply_engine_absent": "A procedural skill apply engine is unexpectedly installed.",
+            "skill_apply_registry_gate_safe": "The supervised procedural skill apply Registry gate is missing or unsafe.",
+            "skill_apply_engine_installed": "The supervised procedural skill apply engine is unavailable.",
         }
         issues = [messages[name] for name, passed in checks.items() if not passed]
         warnings = list(lifecycle_report.warnings)
@@ -228,10 +245,23 @@ class ProceduralSkillContractBuilder:
         )
         if family is None or not family.read_only or family.mutates != "none":
             issues.append("Procedural contract commands lack the safe read-only Registry family.")
-        if any("skill-contract-apply" in spec.prefix for spec in COMMAND_REGISTRY):
-            issues.append("A procedural skill contract apply prefix is unexpectedly registered.")
-        if PROCEDURAL_SKILL_APPLY_ENGINE_INSTALLED:
-            issues.append("Procedural skill apply engine must remain absent in v3.5a.")
+        apply_spec = next(
+            (
+                spec
+                for spec in COMMAND_REGISTRY
+                if spec.prefix == "/experience learning apply skill"
+            ),
+            None,
+        )
+        if (
+            apply_spec is None
+            or apply_spec.read_only
+            or apply_spec.mutates != "skills"
+            or apply_spec.risk != "medium"
+        ):
+            issues.append("The supervised procedural skill apply Registry gate is missing or unsafe.")
+        if not PROCEDURAL_SKILL_APPLY_ENGINE_INSTALLED:
+            issues.append("The supervised procedural skill apply engine is unavailable.")
         if set(PROCEDURAL_SKILL_REQUIRED_FIELDS) != {
             "trigger",
             "preconditions",
@@ -450,7 +480,7 @@ def format_procedural_skill_contract_doctor(
     lines.extend(f"- WARN: {warning}" for warning in report.warnings)
     if not report.issues and not report.warnings:
         lines.append(
-            "- Source provenance, lifecycle gate, duplicate review, schema, Registry, and no-writer boundary are healthy."
+            "- Source provenance, lifecycle gate, duplicate review, schema, Registry, and read-only contract boundary are healthy."
         )
     lines.extend(_contract_boundary())
     return "\n".join(lines)
@@ -577,7 +607,7 @@ def _contract_boundary() -> list[str]:
         "Boundary:",
         "- Read-only operator-authoring contract; no procedure was synthesized, accepted, stored, or executed.",
         "- No lesson, skill, memory, Experience event, queue, export, session log, or Context Injection changed.",
-        "- Skill apply engine is absent; no shell, arbitrary dispatch, model/API call, auto-promotion, or background action occurred.",
+        "- The supervised apply engine is installed but was not invoked; no token, shell, arbitrary dispatch, model/API call, auto-promotion, or background action occurred.",
     ]
 
 
