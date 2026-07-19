@@ -11,6 +11,7 @@ from proto_mind.models import (
     RetrievalTrace,
 )
 from proto_mind.memory_store import MemoryStore
+from proto_mind.memory_provenance import verify_memory_provenance
 from proto_mind.topic_utils import extract_topic_tags, topic_weight, weighted_topic_overlap
 
 
@@ -102,6 +103,16 @@ class MemoryKeeper:
                 final_total_score=breakdown["final_total_score"],
                 preference_priority_contribution=breakdown["preference_priority_contribution"],
             )
+            if record.type == "lesson":
+                provenance = verify_memory_provenance(record)
+                if not provenance.verified:
+                    candidate.filtered_reason = "filtered_unverified_lesson_provenance"
+                    candidate_traces.append(candidate)
+                    continue
+                if not record.active and not self._historical_state_oriented(observer_state):
+                    candidate.filtered_reason = "filtered_inactive_lesson"
+                    candidate_traces.append(candidate)
+                    continue
             if specific_query_topics and not self._has_specific_topic_overlap(record, specific_query_topics):
                 candidate.filtered_reason = "filtered_no_specific_topic_overlap"
                 candidate_traces.append(candidate)
@@ -568,6 +579,15 @@ class MemoryKeeper:
                 reasons.append("scored below the retrieval threshold")
             elif candidate.filtered_reason == "deduped_by_content":
                 reasons.append("was deduped by a stronger identical memory")
+            elif candidate.filtered_reason == "filtered_unverified_lesson_provenance":
+                reasons.append("failed durable lesson provenance verification")
+            elif candidate.filtered_reason == "filtered_inactive_lesson":
+                reasons.append("was inactive outside a historical lookup")
+
+            if candidate.memory_type == "lesson" and candidate.filtered_reason not in {
+                "filtered_unverified_lesson_provenance",
+            }:
+                reasons.append("has verified durable learning provenance")
 
             if candidate.importance_contribution >= 0.2:
                 reasons.append("had strong stored importance")
@@ -592,6 +612,8 @@ class MemoryKeeper:
     @staticmethod
     def _selected_summary(candidate: RetrievalCandidateTrace) -> str:
         reasons: list[str] = []
+        if candidate.memory_type == "lesson":
+            reasons.append("its durable learning provenance was verified")
         if candidate.matched_topics:
             if any(topic_weight(tag) >= 0.6 for tag in candidate.matched_topics):
                 reasons.append(f"it matched specific {', '.join(candidate.matched_topics[:3])} topics")
@@ -621,6 +643,10 @@ class MemoryKeeper:
             return "Deprioritized because its overall score stayed below the retrieval threshold."
         if candidate.filtered_reason == "deduped_by_content":
             return "Filtered because identical content was already represented by a higher-ranked memory."
+        if candidate.filtered_reason == "filtered_unverified_lesson_provenance":
+            return "Filtered because a learned lesson must have valid durable provenance before recall."
+        if candidate.filtered_reason == "filtered_inactive_lesson":
+            return "Filtered because this learned lesson is inactive and the query is not historical."
         if candidate.preference_priority_contribution < 0:
             return "Deprioritized because direct active preferences are preferred for response-style queries."
         if (not candidate.active) and candidate.state_bias_contribution < 0:

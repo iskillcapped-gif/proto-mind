@@ -61,6 +61,7 @@ The current source tree is compared directly with the July 11 archive by SHA-256
 - Learning Promotion Apply Readiness Review v3.3g with current-evidence/hash revalidation and explicit future receipt/rollback safeguards, while the apply engine remains absent.
 - Supervised Memory Lesson Promotion Pilot v3.4a with a fresh exact-token gate, current-store hash binding, one atomic verified memory write, run-once process receipt, and no skill/batch/automatic apply.
 - Durable Learning Provenance v3.4b with an embedded hashed candidate-to-proposal envelope, restart-safe `/memory why <id>`, Memory Doctor tamper detection, and no new writer or apply scope.
+- Verified Lesson Recall v3.4c with provenance-gated bilingual restart recall, inspectable fail-closed filtering, grounding evidence, and byte-stable temporary-store verification.
 - Contest Showcase v1 with a deterministic three-minute narrative and safety doctor.
 - Build Week Provenance Pack v1.
 
@@ -70,13 +71,13 @@ The generated evidence under `contest/provenance/` is the source of truth for th
 
 | Metric | July 11 baseline | Current Build Week state | Delta |
 |---|---:|---:|---:|
-| Submission-relevant files | 69 | 119 | +50 |
-| Python files | 66 | 92 | +26 |
-| Unit-test methods | 664 | 912 | +248 |
+| Submission-relevant files | 69 | 120 | +51 |
+| Python files | 66 | 93 | +27 |
+| Unit-test methods | 664 | 920 | +256 |
 | Registry commands | 343 | 363 | +20 |
 | Registry categories | 39 | 41 | +2 |
 
-The file delta is not inferred from modification time. Every baseline and current submission-relevant file is hashed, then classified as added, changed, removed, or unchanged. The current manifest reports 50 added, 15 changed, 0 removed, and 54 unchanged files.
+The file delta is not inferred from modification time. Every baseline and current submission-relevant file is hashed, then classified as added, changed, removed, or unchanged. The current manifest reports 51 added, 15 changed, 0 removed, and 54 unchanged files.
 
 ## Reproduce The Evidence
 

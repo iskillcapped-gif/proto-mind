@@ -19,7 +19,7 @@ Last updated: 2026-07-19
   - Ollama via `PROTO_MIND_REASONER=ollama`, `PROTO_MIND_OLLAMA_MODEL`, `PROTO_MIND_OLLAMA_URL`.
 - Normal prompts go through observer, retrieval, reasoner, memory evaluation, self-reflection, grounding audit, and session logging.
 - Slash/operator commands bypass normal cognitive turns and should not become cognitive session log turns.
-- Supervised Experience Pilot v3.3a observes consented turns; v3.3b projects episodes; v3.3c previews candidates; v3.3d captures decisions; v3.3e reviews selected-scope eligibility; v3.3f records proposals; v3.3g revalidates apply readiness; v3.4a permits one separately confirmed, atomic, verified memory lesson; v3.4b embeds restart-safe compact provenance. Review/proposal/detailed-receipt state remains bounded and process-memory-only; no automatic apply exists.
+- Supervised Experience Pilot v3.3a observes consented turns; v3.3b projects episodes; v3.3c previews candidates; v3.3d captures decisions; v3.3e reviews selected-scope eligibility; v3.3f records proposals; v3.3g revalidates apply readiness; v3.4a permits one separately confirmed, atomic, verified memory lesson; v3.4b embeds restart-safe compact provenance; v3.4c permits only verified learned lessons into recall. Review/proposal/detailed-receipt state remains bounded and process-memory-only; no automatic apply exists.
 - Build Week submission provenance uses the July 11 pre-contest archive SHA-256 plus generated baseline/current/delta manifests; prior work and contest work are explicitly separated.
 - Primary Build Week Codex `/feedback` Session ID is `019d73be-1d7e-7401-8efe-f5e165736db4`.
 - Repository privacy review excludes local cognitive/runtime stores, removes user-specific checkout paths from public artifacts, and documents synthetic credential fixtures and publication boundaries.
@@ -29,7 +29,7 @@ Last updated: 2026-07-19
 ## Current Verification Baseline
 
 - Current test command: `scripts/run_tests.sh`.
-- Current test count: 912 unit tests OK.
+- Current test count: 920 unit tests OK.
 - Compile check: `python -m compileall proto_mind` via `scripts/run_tests.sh` OK.
 - Pytest: optional; currently not installed and skipped cleanly.
 
@@ -117,6 +117,7 @@ Last updated: 2026-07-19
 - v3.3g / Learning Promotion Apply Readiness Review: read-only current-evidence/hash revalidation plus future atomic receipt and rollback requirements, with no apply command, engine, mutation, or persistence.
 - v3.4a / Supervised Memory Lesson Promotion Pilot: one fresh exact-token `memory.lesson.v1` apply per process, bound to current store SHA, with global exact-duplicate defense, atomic write, verified receipt, run-once guard, and rollback suggestion.
 - v3.4b / Durable Learning Provenance: embedded hashed candidate-to-proposal evidence in applied lessons, read-only `/memory why <id>`, restart survival, and Memory Doctor tamper detection without another persistence path.
+- v3.4c / Verified Lesson Recall: provenance-gated active lesson retrieval, compact grounding evidence, fail-closed legacy/tamper filtering, and a byte-stable English/Russian restart benchmark without command or writer expansion.
 - Build Week Provenance Pack v1: July 11 baseline archive, SHA-256 manifests, objective contest delta, honest prior/new disclosure, and Codex collaboration record without private runtime data.
 - Contest Showcase v1: read-only live continuity/experience/governance/action presentation, deterministic three-minute script, dependency doctor, and submission guide without command execution or pilot activation.
 
@@ -136,20 +137,19 @@ Last updated: 2026-07-19
 
 ## Last Completed Milestone
 
-v3.4b / Durable Learning Provenance:
+v3.4c / Verified Lesson Recall:
 
-- Added read-only `/memory why <id>` and `proto_mind.memory_provenance`; Registry/policy classify the command `auto_allowed`, `read_only=true`, and `mutates=none`.
-- The existing single v3.4a apply now embeds a hashed `memory.lesson.provenance.v1` envelope in the same atomic record write, linking candidate, accepted decision, eligibility receipt, proposal, selected scope, payload, and compact evidence event IDs.
-- A new `MemoryStore` instance can verify the chain after restart. Payload/provenance drift returns `ERROR`, and Memory Doctor surfaces invalid embedded provenance without repair.
-- Legacy and operator records return `UNAVAILABLE`; Proto-Mind does not fabricate their source. Full prompts/responses and exact confirmation tokens are not persisted.
-- The receipt's `/memory forget <id>` rollback now works for a verified provenanced lesson, soft-deactivates it, and keeps provenance inspectable; unprovenanced non-explicit records remain protected.
-- Skill/batch apply, second apply per process, sidecar writers, autonomous consolidation, and other-store mutation remain disabled. Detailed apply receipts still expire with the process.
-- Eleven focused regressions were added; the full suite passes 912 tests. Registry is 363 commands across 41 categories.
+- `MemoryKeeper` now requires valid embedded durable provenance before any learned `lesson` can enter scoring/selection; malformed, tampered, and unprovenanced lessons fail closed with an inspectable retrieval-trace reason.
+- Active verified lessons can shape a continuity response after a fresh `MemoryStore`/Coordinator restart. Inactive verified lessons remain excluded from current-state recall and may appear only for historical queries.
+- Selected lesson explanations put provenance verification first, and grounding evidence includes compact `provenance=verified:<id>` metadata when that lesson supports the response.
+- `proto_mind.lesson_recall_benchmark` runs deterministic English/Russian cases against temporary stores and verifies `2/2` grounded recall, fail-closed decoys, persistent/working byte stability, unchanged usage telemetry, and stable memory count.
+- No slash command, Registry entry, writer, model/API call, automatic apply, automatic learning, skill mutation, session-log schema change, or Context Injection path was added.
+- Eight focused regressions were added; the full suite passes 920 tests. Registry remains 363 commands across 41 categories.
 
 ## Next Candidate Tasks
 
 - Submission Readiness: keep the public repository and provenance manifests current, finalize English Devpost copy, and record the sub-three-minute video.
-- v3.4c / Verified Lesson Recall: prove that an active provenanced lesson can participate in pure retrieval and grounded response tracing after restart, with deterministic benchmarks and no automatic apply, usage mutation, or autonomous behavior.
+- v3.4d / Learning Outcome Review: compare a provenanced lesson with later verified outcomes and print deterministic keep/supersede/reject candidates without automatic mutation, semantic inference, or policy relaxation.
 - Memory Migration Plan: design deterministic compaction/archive rules for the 8 previewed legacy candidates; no apply step without separate approval.
 - Command Dispatch Architecture v2: replace the linear formatter chain with typed incremental family registration while preserving exact command behavior and runner isolation.
 - Test Suite Structure v1: split the 15k-line flow suite by domain without changing test semantics or commands.

@@ -228,6 +228,11 @@ from proto_mind.focus_layer import FocusMode, format_focus_command
 from proto_mind.goal_stack import GoalStack, format_goal_command
 from proto_mind.grounding_auditor import GroundingAuditor
 from proto_mind.identity import IdentityStore, format_identity_command
+from proto_mind.lesson_recall_benchmark import (
+    LESSON_RECALL_BENCHMARK_VERSION,
+    format_verified_lesson_recall_benchmark,
+    run_verified_lesson_recall_benchmark,
+)
 from proto_mind.memory_commands import format_memory_command
 from proto_mind.memory_governance import inspect_memory_quality, memory_write_policy
 from proto_mind.memory_provenance import (
@@ -20307,6 +20312,169 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertEqual(spec.mutates, "none")
         self.assertEqual(spec.risk, "low")
         self.assertEqual(classify_command("/memory why mem_learn_123").policy_class, "auto_allowed")
+        self.assertEqual(len(COMMAND_REGISTRY), 363)
+        self.assertEqual(len({entry.category for entry in COMMAND_REGISTRY}), 41)
+        self.assertEqual(command_registry_doctor()["status"], "OK")
+        self.assertEqual(action_policy_doctor()["status"], "OK")
+
+    def test_verified_lesson_recall_benchmark_passes_english_and_russian(self) -> None:
+        report = run_verified_lesson_recall_benchmark()
+
+        self.assertEqual(report.status, "OK")
+        self.assertEqual(report.version, LESSON_RECALL_BENCHMARK_VERSION)
+        self.assertEqual(report.case_count, 2)
+        self.assertEqual(report.passed_count, 2)
+        self.assertTrue(report.invalid_lesson_filtered)
+        self.assertTrue(report.unprovenanced_lesson_filtered)
+        self.assertEqual({case.language for case in report.cases}, {"en", "ru"})
+
+    def test_verified_lesson_recall_benchmark_preserves_store_bytes_and_usage(self) -> None:
+        report = run_verified_lesson_recall_benchmark()
+
+        for case in report.cases:
+            self.assertTrue(case.lesson_selected)
+            self.assertTrue(case.trace_provenance_visible)
+            self.assertEqual(case.grounding_status, "grounded")
+            self.assertTrue(case.grounding_provenance_visible)
+            self.assertTrue(case.persistent_bytes_unchanged)
+            self.assertTrue(case.working_bytes_unchanged)
+            self.assertTrue(case.usage_unchanged)
+            self.assertTrue(case.memory_count_unchanged)
+
+    def test_verified_lesson_recall_benchmark_report_states_safety_boundary(self) -> None:
+        output = format_verified_lesson_recall_benchmark()
+
+        self.assertIn("Status: OK", output)
+        self.assertIn("cases: 2/2", output)
+        self.assertIn("local temporary stores only", output)
+        self.assertIn("retrieval usage tracking disabled", output)
+        self.assertIn("no automatic memory write", output)
+        self.assertIn("no automatic memory write, learning apply", output)
+
+    def test_applied_lesson_is_recalled_with_provenance_after_store_restart(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, store, pilot, bridge, _, skills, proposal = build_test_learning_apply(root)
+            _, receipt = apply_test_learning_proposal(store, pilot, bridge, skills, proposal)
+            lesson = next(
+                item
+                for item in store.load_persistent_memory()
+                if item.id == receipt.created_record_id
+            )
+            store.save_persistent_memory([lesson])
+            store.save_working_memory([])
+            restarted = MemoryStore(store.working_path, store.persistent_path)
+            before = restarted.persistent_path.read_bytes()
+            coordinator = Coordinator(
+                observer=Observer(),
+                memory_keeper=MemoryKeeper(restarted),
+                reasoner=MockReasoner(),
+            )
+            result = coordinator.handle(
+                "As we discussed earlier, what did we learn about the active SQLite decision?"
+            )
+            after = restarted.persistent_path.read_bytes()
+
+        selected = next(
+            item for item in result.retrieved_memory if item.id == receipt.created_record_id
+        )
+        candidate = next(
+            item
+            for item in result.retrieval_trace.candidates
+            if item.record_id == receipt.created_record_id
+        )
+        self.assertTrue(verify_memory_provenance(selected).verified)
+        self.assertTrue(candidate.selected)
+        self.assertIn("provenance was verified", candidate.why_selected_summary)
+        self.assertTrue(
+            any(
+                "provenance=verified" in evidence
+                for evidence in result.grounding_audit.evidence
+            )
+        )
+        self.assertEqual(before, after)
+
+    def test_tampered_learning_lesson_is_filtered_fail_closed(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, store, pilot, bridge, _, skills, proposal = build_test_learning_apply(root)
+            _, receipt = apply_test_learning_proposal(store, pilot, bridge, skills, proposal)
+            records = store.load_persistent_memory()
+            lesson = next(item for item in records if item.id == receipt.created_record_id)
+            lesson.content = "Tampered SQLite lesson."
+            store.save_persistent_memory(records)
+            state = Observer().analyze("What did we learn about SQLite?")
+            keeper = MemoryKeeper(store)
+            keeper.retrieve(state)
+
+        candidate = next(
+            item
+            for item in keeper.last_retrieval_trace.candidates
+            if item.record_id == receipt.created_record_id
+        )
+        self.assertFalse(candidate.selected)
+        self.assertEqual(
+            candidate.filtered_reason,
+            "filtered_unverified_lesson_provenance",
+        )
+        self.assertIn("valid durable provenance", candidate.why_not_selected_summary)
+
+    def test_unprovenanced_lesson_is_filtered_but_project_fact_is_unchanged(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            store = MemoryStore(root / "working.json", root / "persistent.json")
+            store.save_persistent_memory(
+                [
+                    MemoryRecord(
+                        id="legacy_lesson",
+                        content="SQLite verification lesson.",
+                        type="lesson",
+                        importance=1.0,
+                        source="legacy",
+                        tags=["sqlite", "verification"],
+                    ),
+                    MemoryRecord(
+                        id="project_fact",
+                        content="SQLite is used for verified project storage.",
+                        type="project_fact",
+                        importance=1.0,
+                        source="operator",
+                        tags=["sqlite", "storage"],
+                    ),
+                ]
+            )
+            keeper = MemoryKeeper(store)
+            selected = keeper.retrieve(Observer().analyze("What is the SQLite storage decision?"))
+
+        traces = {item.record_id: item for item in keeper.last_retrieval_trace.candidates}
+        self.assertEqual(
+            traces["legacy_lesson"].filtered_reason,
+            "filtered_unverified_lesson_provenance",
+        )
+        self.assertTrue(traces["project_fact"].selected)
+        self.assertIn("project_fact", [item.id for item in selected])
+
+    def test_inactive_verified_lesson_is_filtered_outside_historical_lookup(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, store, pilot, bridge, _, skills, proposal = build_test_learning_apply(root)
+            _, receipt = apply_test_learning_proposal(store, pilot, bridge, skills, proposal)
+            records = store.load_persistent_memory()
+            lesson = next(item for item in records if item.id == receipt.created_record_id)
+            lesson.active = False
+            store.save_persistent_memory(records)
+            keeper = MemoryKeeper(store)
+            keeper.retrieve(Observer().analyze("What did we learn about the active SQLite decision?"))
+
+        candidate = next(
+            item
+            for item in keeper.last_retrieval_trace.candidates
+            if item.record_id == receipt.created_record_id
+        )
+        self.assertEqual(candidate.filtered_reason, "filtered_inactive_lesson")
+        self.assertFalse(candidate.selected)
+
+    def test_verified_lesson_recall_does_not_expand_command_surface(self) -> None:
         self.assertEqual(len(COMMAND_REGISTRY), 363)
         self.assertEqual(len({entry.category for entry in COMMAND_REGISTRY}), 41)
         self.assertEqual(command_registry_doctor()["status"], "OK")

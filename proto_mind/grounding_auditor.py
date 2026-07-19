@@ -14,6 +14,7 @@ from proto_mind.cognitive_signals import (
     term_shares_marker_clause,
 )
 from proto_mind.models import GroundingAuditResult, MemoryRecord, ObserverState, RetrievalTrace
+from proto_mind.memory_provenance import verify_memory_provenance
 
 
 class GroundingAuditor:
@@ -293,8 +294,15 @@ class GroundingAuditor:
 
     @staticmethod
     def _memory_evidence(label: str, record: MemoryRecord) -> str:
+        provenance = ""
+        if record.type == "lesson":
+            check = verify_memory_provenance(record)
+            provenance = (
+                f", provenance={check.status.lower()}"
+                f":{check.provenance_id or 'missing'}"
+            )
         return (
-            f"{label} [id={record.id}, type={record.type}, source={record.source}]: "
+            f"{label} [id={record.id}, type={record.type}, source={record.source}{provenance}]: "
             f"{GroundingAuditor._preview(record.content)}"
         )
 
