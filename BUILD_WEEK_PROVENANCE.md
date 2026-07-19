@@ -77,6 +77,7 @@ The current source tree is compared directly with the July 11 archive by SHA-256
 - Supervised Procedural Skill Outcome Decision v3.5h with exact review/capture-bound keep-revise-archive tokens, one terminal process receipt per skill, later-evidence drift diagnostics, and no apply readiness or Skill Library mutation.
 - Procedural Skill Lifecycle Apply Readiness v3.5i with current decision/evidence/capture/provenance/skill-byte revalidation and decision-specific keep/archive/revise safeguards, but no apply token or lifecycle writer.
 - Supervised Procedural Skill Lifecycle Apply Pilot v3.5j with one separately confirmed keep no-op or atomic archive, exact-byte rollback, immutable provenance, unchanged-memory proof, process receipts, and no revision or procedure execution.
+- Durable Procedural Skill Lifecycle Audit v3.5k with restart-safe read-only state reconstruction, explicit archived ambiguity, provenance/drift checks, and no invented transition history or writer expansion.
 - Contest Showcase v1 with a deterministic three-minute narrative and safety doctor.
 - Build Week Provenance Pack v1.
 
@@ -86,13 +87,13 @@ The generated evidence under `contest/provenance/` is the source of truth for th
 
 | Metric | July 11 baseline | Current Build Week state | Delta |
 |---|---:|---:|---:|
-| Submission-relevant files | 69 | 134 | +65 |
-| Python files | 66 | 107 | +41 |
-| Unit-test methods | 664 | 1067 | +403 |
-| Registry commands | 343 | 383 | +40 |
+| Submission-relevant files | 69 | 137 | +68 |
+| Python files | 66 | 110 | +44 |
+| Unit-test methods | 664 | 1075 | +411 |
+| Registry commands | 343 | 387 | +44 |
 | Registry categories | 39 | 41 | +2 |
 
-The file delta is not inferred from modification time. Every baseline and current submission-relevant file is hashed, then classified as added, changed, removed, or unchanged. The current manifest reports 65 added, 15 changed, 0 removed, and 54 unchanged files.
+The file delta is not inferred from modification time. Every baseline and current submission-relevant file is hashed, then classified as added, changed, removed, or unchanged. The current manifest reports 68 added, 15 changed, 0 removed, and 54 unchanged files.
 
 ## Reproduce The Evidence
 

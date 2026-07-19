@@ -29,6 +29,18 @@ def format_skill_command(
     memory_path = persistent_memory_path or (
         project_root / "proto_mind" / "data" / "persistent_memory.json"
     )
+    if normalized.startswith("/skills lifecycle"):
+        from proto_mind.skill_lifecycle_audit import (
+            format_skill_lifecycle_audit_command,
+        )
+
+        lifecycle_output = format_skill_lifecycle_audit_command(
+            stripped,
+            skills_path=library.skills_path,
+            persistent_memory_path=memory_path,
+        )
+        if lifecycle_output is not None:
+            return lifecycle_output
     if normalized == "/skills status":
         return library.format_status()
     if normalized.startswith("/skills list"):
@@ -105,6 +117,10 @@ def format_skill_command(
         "  /skills inspect <id>\n"
         "  /skills why <id>\n"
         "  /skills provenance-doctor\n"
+        "  /skills lifecycle-status\n"
+        "  /skills lifecycle-history [--all]\n"
+        "  /skills lifecycle-inspect <id>\n"
+        "  /skills lifecycle-doctor\n"
         "  /skills update <id> --summary <text>\n"
         "  /skills body <id> <text>\n"
         "  /skills append <id> <text>\n"

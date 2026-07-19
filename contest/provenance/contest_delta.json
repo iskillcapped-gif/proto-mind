@@ -65,6 +65,7 @@
       "proto_mind/memory_governance.py",
       "proto_mind/memory_provenance.py",
       "proto_mind/showcase_layer.py",
+      "proto_mind/skill_lifecycle_audit.py",
       "proto_mind/skill_provenance.py",
       "scripts/build_macos_app_launcher.sh",
       "scripts/install_macos_app_shortcut.sh",
@@ -153,7 +154,7 @@
       "requirements-ui.txt"
     ]
   },
-  "generated_at": "2026-07-19T21:32:10.034538+00:00",
+  "generated_at": "2026-07-19T21:50:10.298868+00:00",
   "limitations": [
     "This is local equivalent evidence, not a third-party timestamp authority.",
     "Codex /feedback Session IDs and future dated Git commits should accompany this manifest.",
@@ -162,13 +163,13 @@
   "metrics": {
     "file_count": {
       "baseline": 69,
-      "current": 136,
-      "delta": 67
+      "current": 137,
+      "delta": 68
     },
     "python_file_count": {
       "baseline": 66,
-      "current": 109,
-      "delta": 43
+      "current": 110,
+      "delta": 44
     },
     "registry_category_count": {
       "baseline": 39,
@@ -177,23 +178,23 @@
     },
     "registry_command_count": {
       "baseline": 343,
-      "current": 383,
-      "delta": 40
+      "current": 387,
+      "delta": 44
     },
     "test_method_count": {
       "baseline": 664,
-      "current": 1067,
-      "delta": 403
+      "current": 1075,
+      "delta": 411
     },
     "total_bytes": {
       "baseline": 2188652,
-      "current": 3862371,
-      "delta": 1673719
+      "current": 3893063,
+      "delta": 1704411
     }
   },
   "schema_version": 1,
   "summary": {
-    "added_count": 67,
+    "added_count": 68,
     "changed_count": 15,
     "meaningful_extension_evidence": true,
     "removed_count": 0,
