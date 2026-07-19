@@ -66,6 +66,7 @@ The current source tree is compared directly with the July 11 archive by SHA-256
 - Supervised Lesson Lifecycle Decision v3.4e with exact current-outcome tokens, bounded restart-expiring operator receipts, run-once protection, and no lesson lifecycle mutation or apply.
 - Learning Lifecycle Apply Readiness v3.4f with current provenance/evidence/store-hash revalidation and explicit transition/rollback contracts.
 - Supervised Lesson Lifecycle Apply Pilot v3.4g with one second exact-token transition per process, byte-stable keep, one-record reject/supersede, immutable provenance checks, and exact-byte rollback on verification failure.
+- Lifecycle Transition Audit v3.4h with restart-safe read-only state reconstruction, provenance/timestamp/replacement/cycle diagnostics, and no repair or invented historical receipt.
 - Contest Showcase v1 with a deterministic three-minute narrative and safety doctor.
 - Build Week Provenance Pack v1.
 
@@ -75,13 +76,13 @@ The generated evidence under `contest/provenance/` is the source of truth for th
 
 | Metric | July 11 baseline | Current Build Week state | Delta |
 |---|---:|---:|---:|
-| Submission-relevant files | 69 | 124 | +55 |
-| Python files | 66 | 97 | +31 |
-| Unit-test methods | 664 | 957 | +293 |
+| Submission-relevant files | 69 | 125 | +56 |
+| Python files | 66 | 98 | +32 |
+| Unit-test methods | 664 | 968 | +304 |
 | Registry commands | 343 | 363 | +20 |
 | Registry categories | 39 | 41 | +2 |
 
-The file delta is not inferred from modification time. Every baseline and current submission-relevant file is hashed, then classified as added, changed, removed, or unchanged. The current manifest reports 55 added, 15 changed, 0 removed, and 54 unchanged files.
+The file delta is not inferred from modification time. Every baseline and current submission-relevant file is hashed, then classified as added, changed, removed, or unchanged. The current manifest reports 56 added, 15 changed, 0 removed, and 54 unchanged files.
 
 ## Reproduce The Evidence
 

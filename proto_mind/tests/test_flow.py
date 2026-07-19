@@ -223,6 +223,11 @@ from proto_mind.experience_learning_lifecycle_apply import (
     format_learning_lifecycle_apply_command,
     learning_lifecycle_apply_confirmation_token,
 )
+from proto_mind.experience_learning_lifecycle_audit import (
+    LEARNING_LIFECYCLE_AUDIT_MODE,
+    LearningLifecycleTransitionAudit,
+    format_learning_lifecycle_audit_command,
+)
 from proto_mind.experience_learning_eligibility import (
     LEARNING_ELIGIBILITY_MAX_IDS_PER_KIND,
     LearningEligibilityRequest,
@@ -637,6 +642,34 @@ def build_test_learning_lifecycle_transition(
         lifecycle_session,
         OperatorReviewedLearningLifecycleApplySession(),
     )
+
+
+def apply_test_learning_lifecycle_transition(
+    store: MemoryStore,
+    events: list[ExperienceEvent],
+    review: object,
+    lifecycle: OperatorReviewedLearningLifecycleSession,
+    applies: OperatorReviewedLearningLifecycleApplySession,
+) -> object:
+    preview = format_learning_lifecycle_apply_command(
+        f"/experience learning lifecycle-apply-preview {review.lesson_memory_id}",
+        events=events,
+        memory_store=store,
+        lifecycle_session=lifecycle,
+        apply_session=applies,
+    )
+    token = _id_from_output(preview, "confirmation_token:")
+    output = format_learning_lifecycle_apply_command(
+        f"/experience learning apply lifecycle {review.lesson_memory_id} {token}",
+        events=events,
+        memory_store=store,
+        lifecycle_session=lifecycle,
+        apply_session=applies,
+    )
+    receipt = applies.get(review.lesson_memory_id)
+    if receipt is None:
+        raise AssertionError(f"Lifecycle apply did not create a receipt: {output}")
+    return receipt
 
 
 def _single_action_record(project_root: Path) -> dict[str, object]:
@@ -21683,6 +21716,239 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertFalse(durable.active)
         self.assertEqual(durable.superseded_reason, "verified_learning_outcome_reject")
         self.assertTrue(verify_memory_provenance(durable).verified)
+
+    def test_learning_lifecycle_audit_empty_state_is_read_only(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, store, _ = build_test_system(Path(temp_dir))
+            before = (store.working_path.read_bytes(), store.persistent_path.read_bytes())
+            status = format_learning_lifecycle_audit_command(
+                "/experience learning lifecycle-audit-status",
+                memory_store=store,
+            )
+            history = format_learning_lifecycle_audit_command(
+                "/experience learning lifecycle-history",
+                memory_store=store,
+            )
+            doctor = format_learning_lifecycle_audit_command(
+                "/experience learning lifecycle-audit-doctor",
+                memory_store=store,
+            )
+            after = (store.working_path.read_bytes(), store.persistent_path.read_bytes())
+
+        self.assertIn("Status: OK", status)
+        self.assertIn("learned_lessons: 0", status)
+        self.assertIn("showing: 0/0", history)
+        self.assertIn("Status: OK", doctor)
+        self.assertEqual(before, after)
+
+    def test_learning_lifecycle_history_distinguishes_active_from_terminal(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, store, _, review = build_test_learning_outcome_review(Path(temp_dir))
+            before = store.persistent_path.read_bytes()
+            terminal_only = format_learning_lifecycle_audit_command(
+                "/experience learning lifecycle-history",
+                memory_store=store,
+            )
+            all_records = format_learning_lifecycle_audit_command(
+                "/experience learning lifecycle-history --all",
+                memory_store=store,
+            )
+            after = store.persistent_path.read_bytes()
+
+        self.assertIn("showing: 0/1", terminal_only)
+        self.assertNotIn(review.lesson_memory_id, terminal_only)
+        self.assertIn("showing: 1/1", all_records)
+        self.assertIn(f"{review.lesson_memory_id} | active", all_records)
+        self.assertIn("not an append-only event history", all_records)
+        self.assertEqual(before, after)
+
+    def test_learning_lifecycle_audit_reconstructs_reject_after_restart(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, store, events, review, lifecycle, applies = (
+                build_test_learning_lifecycle_transition(root, decision="reject")
+            )
+            apply_test_learning_lifecycle_transition(
+                store, events, review, lifecycle, applies
+            )
+            restarted = LearningLifecycleTransitionAudit(
+                MemoryStore(store.working_path, store.persistent_path)
+            )
+            report = restarted.inspect()
+            entry = restarted.get(review.lesson_memory_id)
+            inspected = format_learning_lifecycle_audit_command(
+                f"/experience learning lifecycle-inspect {review.lesson_memory_id}",
+                memory_store=store,
+            )
+
+        self.assertEqual(report.status, "OK")
+        self.assertEqual(report.rejected_count, 1)
+        self.assertEqual(entry.state, "rejected")
+        self.assertTrue(entry.restart_safe)
+        self.assertEqual(entry.provenance_status, "VERIFIED")
+        self.assertIn("lifecycle_reason: verified_learning_outcome_reject", inspected)
+
+    def test_learning_lifecycle_audit_reconstructs_supersede_link(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, store, events, review, lifecycle, applies = (
+                build_test_learning_lifecycle_transition(Path(temp_dir), decision="supersede")
+            )
+            apply_test_learning_lifecycle_transition(
+                store, events, review, lifecycle, applies
+            )
+            report = LearningLifecycleTransitionAudit(store).inspect()
+            entry = next(
+                item for item in report.entries if item.memory_id == review.lesson_memory_id
+            )
+            history = format_learning_lifecycle_audit_command(
+                "/experience learning lifecycle-history",
+                memory_store=store,
+            )
+
+        self.assertEqual(report.status, "OK")
+        self.assertEqual(report.superseded_count, 1)
+        self.assertEqual(entry.state, "superseded")
+        self.assertEqual(entry.replacement_memory_id, review.replacement_memory_id)
+        self.assertEqual(entry.replacement_status, "active_verified")
+        self.assertTrue(entry.restart_safe)
+        self.assertIn(review.replacement_memory_id, history)
+
+    def test_learning_lifecycle_audit_classifies_operator_forget_separately(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, store, _, review = build_test_learning_outcome_review(Path(temp_dir))
+            forgotten = format_memory_command(
+                f"/memory forget {review.lesson_memory_id}",
+                store,
+            )
+            report = LearningLifecycleTransitionAudit(store).inspect()
+            entry = report.entries[0]
+
+        self.assertIn("Forgotten:", forgotten)
+        self.assertEqual(report.status, "OK")
+        self.assertEqual(report.forgotten_count, 1)
+        self.assertEqual(entry.state, "forgotten")
+        self.assertNotEqual(entry.lifecycle_reason, "verified_learning_outcome_reject")
+
+    def test_learning_lifecycle_audit_detects_dangling_replacement(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, store, events, review, lifecycle, applies = (
+                build_test_learning_lifecycle_transition(Path(temp_dir), decision="supersede")
+            )
+            apply_test_learning_lifecycle_transition(
+                store, events, review, lifecycle, applies
+            )
+            old = next(
+                record
+                for record in store.load_persistent_memory()
+                if record.id == review.lesson_memory_id
+            )
+            store.save_persistent_memory([old])
+            report = LearningLifecycleTransitionAudit(store).inspect()
+
+        self.assertEqual(report.status, "ERROR")
+        self.assertEqual(report.invalid_count, 1)
+        self.assertIn("replacement is missing", " ".join(report.issues))
+
+    def test_learning_lifecycle_audit_detects_tampered_provenance(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, store, _, _ = build_test_learning_outcome_review(Path(temp_dir))
+            record = store.load_persistent_memory()[0]
+            record.provenance["candidate_id"] = "tampered_candidate"
+            store.save_persistent_memory([record])
+            report = LearningLifecycleTransitionAudit(store).inspect()
+
+        self.assertEqual(report.status, "ERROR")
+        self.assertEqual(report.invalid_count, 1)
+        self.assertIn("provenance does not verify", " ".join(report.issues))
+
+    def test_learning_lifecycle_audit_detects_reference_cycle(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, store, events, review, lifecycle, applies = (
+                build_test_learning_lifecycle_transition(Path(temp_dir), decision="supersede")
+            )
+            apply_test_learning_lifecycle_transition(
+                store, events, review, lifecycle, applies
+            )
+            records = store.load_persistent_memory()
+            old = next(record for record in records if record.id == review.lesson_memory_id)
+            replacement = next(
+                record for record in records if record.id == review.replacement_memory_id
+            )
+            replacement.active = False
+            replacement.superseded_by = old.id
+            replacement.superseded_at = (datetime.now(UTC) + timedelta(seconds=5)).isoformat()
+            replacement.superseded_reason = "verified_learning_outcome_supersede"
+            store.save_persistent_memory([old, replacement])
+            report = LearningLifecycleTransitionAudit(store).inspect()
+
+        self.assertEqual(report.status, "ERROR")
+        self.assertIn("cycle detected", " ".join(report.issues))
+
+    def test_learning_lifecycle_audit_marks_unclassified_inactive_lesson_warn(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, store, _, _ = build_test_learning_outcome_review(Path(temp_dir))
+            record = store.load_persistent_memory()[0]
+            record.active = False
+            store.save_persistent_memory([record])
+            report = LearningLifecycleTransitionAudit(store).inspect()
+
+        self.assertEqual(report.status, "WARN")
+        self.assertEqual(report.unclassified_count, 1)
+        self.assertIn("no classified lifecycle reason", " ".join(report.warnings))
+
+    def test_learning_lifecycle_audit_detects_invalid_transition_timestamp(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, store, events, review, lifecycle, applies = (
+                build_test_learning_lifecycle_transition(Path(temp_dir), decision="reject")
+            )
+            apply_test_learning_lifecycle_transition(
+                store, events, review, lifecycle, applies
+            )
+            record = store.load_persistent_memory()[0]
+            record.superseded_at = "not-a-timestamp"
+            store.save_persistent_memory([record])
+            report = LearningLifecycleTransitionAudit(store).inspect()
+
+        self.assertEqual(report.status, "ERROR")
+        self.assertEqual(report.invalid_count, 1)
+        self.assertIn("timestamp is invalid", " ".join(report.issues))
+
+    def test_learning_lifecycle_audit_shared_handler_is_read_only_and_registered(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            coordinator, store, _, _ = build_test_learning_outcome_review(root)
+            logger = SessionOperatorLogger(root / "session.jsonl", enabled=False)
+            before = (store.working_path.read_bytes(), store.persistent_path.read_bytes())
+            output = process_interactive_input(
+                "/experience learning lifecycle-audit-doctor",
+                coordinator=coordinator,
+                session_logger=logger,
+                project_root=root,
+            )
+            after = (store.working_path.read_bytes(), store.persistent_path.read_bytes())
+            family = next(
+                spec for spec in COMMAND_REGISTRY if spec.prefix == "/experience learning"
+            )
+
+        self.assertIn("Learning Lifecycle Audit Doctor v1", output)
+        self.assertIn("Status: OK", output)
+        self.assertEqual(before, after)
+        self.assertEqual(logger.status().entry_count, 0)
+        self.assertEqual(
+            LEARNING_LIFECYCLE_AUDIT_MODE,
+            "read_only_durable_lesson_state_reconstruction",
+        )
+        self.assertTrue(family.read_only)
+        self.assertEqual(family.mutates, "none")
+        self.assertEqual(
+            classify_command(
+                "/experience learning lifecycle-audit-doctor"
+            ).policy_class,
+            "auto_allowed",
+        )
+        self.assertEqual(len(COMMAND_REGISTRY), 363)
+        self.assertEqual(command_registry_doctor()["status"], "OK")
+        self.assertEqual(action_policy_doctor()["status"], "OK")
 
     def test_contest_provenance_scope_excludes_private_and_generated_paths(self) -> None:
         included = (
