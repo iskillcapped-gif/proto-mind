@@ -505,5 +505,7 @@ def _usage() -> str:
             "/experience learning decide reject <candidate_id> [reason]",
             "/experience learning promotion-preview <candidate_id>",
             "/experience learning decision-doctor",
+            "/experience learning eligibility <candidate_id> --target memory|skill [--memory <id>]... [--skill <id>]...",
+            "/experience learning eligibility-doctor <candidate_id> --target memory|skill [--memory <id>]... [--skill <id>]...",
         ]
     )

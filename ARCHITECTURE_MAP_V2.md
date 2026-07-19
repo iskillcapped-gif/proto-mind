@@ -794,6 +794,7 @@ It covers:
 - v3.3b / Cognitive Turn Episode View adds read-only Observe-to-Verify projections and exact event provenance over current process memory without summarization, persistence, or learning apply.
 - v3.3c / Operator-Reviewed Learning Bridge Preview adds bounded evidence-to-candidate review with exact event IDs and explicit confirmation requirements, while promotion, apply, persistence, and clean-turn lesson invention remain disabled.
 - v3.3d / Learning Candidate Confirmation Design adds bounded process-memory accept/reject receipts, exact candidate tokens, tamper diagnostics, and non-executable promotion dry-runs without domain persistence or apply.
+- v3.3e / Learning Promotion Eligibility Review adds accepted-decision-gated, target-specific exact duplicate review over operator-selected detached memory/skill IDs. Missing, inactive, malformed, and over-limit inputs fail visibly; every receipt remains scope-limited, non-executable, non-persistent, and free of retrieval telemetry or store mutation.
 - Build Week Provenance Pack v1 adds an honest pre-existing/contest disclosure, reproducible July 11 baseline hashes, current manifests, and collaboration evidence without runtime behavior changes or private-store inclusion.
 - Contest Showcase v1 adds a read-only four-part live demo, deterministic operator script, dependency doctor, and submission narrative without activating consent or executing capabilities.
 - Preference priority cleanup for response-style and future-behavior retrieval.

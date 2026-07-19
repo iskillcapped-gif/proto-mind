@@ -26,11 +26,14 @@ from proto_mind.experience_learning_decision import (
     OperatorReviewedLearningDecisionSession,
     format_learning_decision_command,
 )
+from proto_mind.experience_learning_eligibility import format_learning_eligibility_command
 from proto_mind.experience_turn import (
     format_cognitive_turn_episode,
     format_cognitive_turn_list,
 )
 from proto_mind.models import InteractionResult, utc_now_iso
+from proto_mind.memory_store import MemoryStore
+from proto_mind.skill_library import SkillLibrary
 
 
 EXPERIENCE_PILOT_VERSION = 1
@@ -383,6 +386,15 @@ def format_experience_pilot_command(
         )
         if decision_output is not None:
             return decision_output
+        eligibility_output = format_learning_eligibility_command(
+            raw,
+            bridge=OperatorReviewedLearningBridge(events),
+            decisions=pilot.learning_decisions,
+            memory_store=_owner_memory_store(owner),
+            skill_library=SkillLibrary.from_project_root(project_root),
+        )
+        if eligibility_output is not None:
+            return eligibility_output
         learning_output = format_learning_bridge_command(
             raw,
             events,
@@ -513,9 +525,16 @@ def _usage() -> str:
             "/experience learning confirm-preview|promotion-preview <candidate_id>",
             "/experience learning decide accept <candidate_id> <token>",
             "/experience learning decide reject <candidate_id> [reason]",
+            "/experience learning eligibility|eligibility-doctor <candidate_id> --target memory|skill [--memory <id>]... [--skill <id>]...",
             "/experience events [--last N]",
             "/experience inspect <event_id>",
             "/experience doctor",
             "/experience stop",
         ]
     )
+
+
+def _owner_memory_store(owner: object) -> MemoryStore | None:
+    memory_keeper = getattr(owner, "memory_keeper", None)
+    memory_store = getattr(memory_keeper, "store", None)
+    return memory_store if isinstance(memory_store, MemoryStore) else None

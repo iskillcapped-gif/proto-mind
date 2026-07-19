@@ -150,7 +150,7 @@ _BASE_REGISTRY = [
         {
             "/experience episodes": "List compact cognitive-turn episodes from bounded process-memory evidence.",
             "/experience episode": "Show one Observe-to-Verify cognitive-turn episode and its provenance.",
-            "/experience learning": "Preview evidence-backed cognitive learning candidates without persistence or apply.",
+            "/experience learning": "Inspect evidence-backed candidates, decisions, and explicit-ID eligibility without promotion or apply.",
             "/experience events": "List bounded process-memory Experience pilot events.",
             "/experience inspect": "Explain one process-memory Experience event and its provenance.",
             "/experience doctor": "Diagnose the supervised process-memory Experience pilot.",

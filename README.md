@@ -583,6 +583,8 @@ v3.3a adds an explicit operator-controlled pilot over the shared CLI/tkinter/PyS
 /experience learning decide reject <candidate_id> [reason]
 /experience learning promotion-preview <candidate_id>
 /experience learning decision-doctor
+/experience learning eligibility <candidate_id> --target memory|skill [--memory <id>]... [--skill <id>]...
+/experience learning eligibility-doctor <candidate_id> --target memory|skill [--memory <id>]... [--skill <id>]...
 /experience events [--last N]
 /experience inspect <event_id>
 /experience doctor
@@ -598,6 +600,8 @@ v3.3b adds a read-only cognitive-turn episode view over that same bounded snapsh
 v3.3c adds an operator-reviewed learning bridge over those current-process episodes. `/experience learning preview` derives at most eight compact candidates from exact redacted correction, reflection, and grounding evidence; identical findings are merged while preserving every source event ID. A clean successful turn creates no candidate. Correction guidance requires operator review, warning-only findings require more evidence, and incomplete episodes remain blocked. Every preview keeps `operator_confirmation_required=true`, `promotion_ready=false`, `auto_apply_allowed=false`, and `persistence_performed=false`. There is no LLM summarization, queue, apply, promotion, memory/skill write, file write, or Context Injection change.
 
 v3.3d adds an explicit process-memory decision gate without enabling promotion. `/experience learning confirm-preview <candidate_id>` prints a candidate-specific SHA-256 token; `/experience learning decide accept <candidate_id> <token>` accepts only complete `operator_review_required` evidence, while `decide reject` records a redacted terminal rejection. Up to 64 compact receipts retain the candidate digest and exact evidence IDs until process restart. `/experience learning promotion-preview <candidate_id>` requires acceptance but remains `executable=false` with promotion, apply, and persistence all false. Decision inspection and Doctor commands are read-only, and no memory, skill, queue, file, session log, model, or Context Injection state is changed.
+
+v3.3e adds a target-specific promotion eligibility review without enabling promotion. After an accepted process-memory decision, the operator supplies exact memory and/or skill IDs; the existing detached input adapter reads only those active records and checks exact normalized content for the declared `memory` or `skill` target. Results distinguish `ELIGIBLE IN SELECTED SCOPE`, `DUPLICATE`, `INCOMPLETE`, `NOT CHECKED`, `NOT ELIGIBLE`, and `ERROR`. The receipt explicitly states that scope is limited and no global duplicate search, retrieval ranking, usage telemetry, mutation, execution, promotion, apply, persistence, or automatic target inference occurred.
 
 ## Contest Showcase
 

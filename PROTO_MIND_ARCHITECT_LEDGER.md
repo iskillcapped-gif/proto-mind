@@ -19,7 +19,7 @@ Last updated: 2026-07-19
   - Ollama via `PROTO_MIND_REASONER=ollama`, `PROTO_MIND_OLLAMA_MODEL`, `PROTO_MIND_OLLAMA_URL`.
 - Normal prompts go through observer, retrieval, reasoner, memory evaluation, self-reflection, grounding audit, and session logging.
 - Slash/operator commands bypass normal cognitive turns and should not become cognitive session log turns.
-- Supervised Experience Pilot v3.3a can observe successful normal turns only after exact process-session consent; v3.3b projects compact Observe-to-Verify episodes; v3.3c previews evidence-backed learning candidates; v3.3d captures explicit candidate accept/reject receipts and non-executable promotion dry-runs. Evidence, candidates, and decisions are redacted, bounded, visible, non-persistent, and discarded on restart.
+- Supervised Experience Pilot v3.3a can observe successful normal turns only after exact process-session consent; v3.3b projects compact Observe-to-Verify episodes; v3.3c previews evidence-backed learning candidates; v3.3d captures explicit candidate decisions; v3.3e reviews target eligibility against operator-selected detached IDs. Evidence, candidates, decisions, and eligibility receipts are bounded, visible, non-persistent, and never auto-applied.
 - Build Week submission provenance uses the July 11 pre-contest archive SHA-256 plus generated baseline/current/delta manifests; prior work and contest work are explicitly separated.
 - Primary Build Week Codex `/feedback` Session ID is `019d73be-1d7e-7401-8efe-f5e165736db4`.
 - Repository privacy review excludes local cognitive/runtime stores, removes user-specific checkout paths from public artifacts, and documents synthetic credential fixtures and publication boundaries.
@@ -29,7 +29,7 @@ Last updated: 2026-07-19
 ## Current Verification Baseline
 
 - Current test command: `scripts/run_tests.sh`.
-- Current test count: 854 unit tests OK.
+- Current test count: 864 unit tests OK.
 - Compile check: `python -m compileall proto_mind` via `scripts/run_tests.sh` OK.
 - Pytest: optional; currently not installed and skipped cleanly.
 
@@ -112,6 +112,7 @@ Last updated: 2026-07-19
 - v3.3b / Cognitive Turn Episode View: read-only `/experience episodes` and `/experience episode [latest|<turn_id>]` connect observation, intent, recall, response, memory decision, reflection, grounding, and exact provenance without persistence or summarization.
 - v3.3c / Operator-Reviewed Learning Bridge Preview: read-only `/experience learning status|preview [latest|<turn_id>]|doctor` turns only explicit redacted correction/reflection/grounding findings into bounded, evidence-linked review candidates; clean turns create none, and confirmation/apply/promotion/persistence remain unavailable.
 - v3.3d / Learning Candidate Confirmation Design: one process-memory `/experience learning decide` prefix records terminal accept/reject receipts; exact candidate tokens, a 64-receipt cap, restart expiry, tamper checks, and `executable=false` promotion previews keep persistence and apply unavailable.
+- v3.3e / Learning Promotion Eligibility Review: read-only target-specific exact duplicate checks over accepted candidates and operator-selected detached memory/skill IDs, with explicit selected-scope limits and no retrieval, promotion, apply, or persistence.
 - Build Week Provenance Pack v1: July 11 baseline archive, SHA-256 manifests, objective contest delta, honest prior/new disclosure, and Codex collaboration record without private runtime data.
 - Contest Showcase v1: read-only live continuity/experience/governance/action presentation, deterministic three-minute script, dependency doctor, and submission guide without command execution or pilot activation.
 
@@ -131,18 +132,18 @@ Last updated: 2026-07-19
 
 ## Last Completed Milestone
 
-v3.3d / Learning Candidate Confirmation Design:
+v3.3e / Learning Promotion Eligibility Review:
 
-- Added exact SHA-256 candidate confirmation previews and terminal process-memory accept/reject receipts over v3.3c evidence.
-- Acceptance is limited to complete `operator_review_required` candidates; wrong tokens, warning-only findings, duplicate decisions, and receipt overflow fail closed.
-- Receipts retain candidate hashes and exact evidence IDs, reject reasons are redacted, and Decision Doctor detects provenance or forbidden-effect claims.
-- Promotion preview requires acceptance but remains non-executable; promotion, apply, persistence, memory/skill writes, and session-log mutation stay false.
-- Eleven focused regressions were added; the full suite passes 854 tests. Registry is 360 commands across 41 categories.
+- Added `/experience learning eligibility|eligibility-doctor` under the existing read-only learning Registry prefix.
+- Review requires an accepted current-process candidate decision plus an explicit operator-selected `memory` or `skill` target and exact reference IDs.
+- Exact normalized duplicate checks are target-specific; unselected records are never searched, and missing/inactive/malformed/over-limit inputs fail visibly.
+- Receipts declare `scope_limited=true` and deny global duplicate search, retrieval, telemetry, mutation, execution, promotion, apply, and persistence.
+- Ten focused regressions were added; the full suite passes 864 tests. Registry remains 360 commands across 41 categories.
 
 ## Next Candidate Tasks
 
 - Submission Readiness: keep the public repository and provenance manifests current, finalize English Devpost copy, and record the sub-three-minute video.
-- v3.3e / Learning Promotion Eligibility Review: combine an accepted candidate with explicit operator-selected detached memory/skill records for exact duplicate and target eligibility evidence; no search, persistence, or apply.
+- v3.3f / Learning Promotion Proposal Receipt: combine accepted evidence and a clean selected-scope eligibility receipt into a bounded, signed, process-memory proposal for one explicit target schema; still no store write, apply, queue, or global novelty claim.
 - Memory Migration Plan: design deterministic compaction/archive rules for the 8 previewed legacy candidates; no apply step without separate approval.
 - Command Dispatch Architecture v2: replace the linear formatter chain with typed incremental family registration while preserving exact command behavior and runner isolation.
 - Test Suite Structure v1: split the 15k-line flow suite by domain without changing test semantics or commands.

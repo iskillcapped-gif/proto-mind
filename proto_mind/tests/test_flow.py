@@ -189,6 +189,11 @@ from proto_mind.experience_learning_input import (
     format_experience_learning_input_snapshot,
     run_experience_learning_input_benchmark,
 )
+from proto_mind.experience_learning_eligibility import (
+    LEARNING_ELIGIBILITY_MAX_IDS_PER_KIND,
+    LearningPromotionEligibilityReviewer,
+    format_learning_eligibility_command,
+)
 from proto_mind.experience_vocabulary import (
     ExperienceLifecycleBuilder,
     build_failure_correction_trace,
@@ -18379,6 +18384,355 @@ class ProtoMindFlowTests(unittest.TestCase):
         )
         self.assertEqual(len(COMMAND_REGISTRY), 360)
         self.assertEqual(len({spec.category for spec in COMMAND_REGISTRY}), 41)
+        self.assertEqual(command_registry_doctor()["status"], "OK")
+        self.assertEqual(action_policy_doctor()["status"], "OK")
+
+    def test_learning_eligibility_requires_accepted_decision_without_store_mutation(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, store, pilot, _, candidate = build_test_learning_candidate(root)
+            reviewer = LearningPromotionEligibilityReviewer(
+                memory_store=store,
+                skill_library=SkillLibrary(root / "skills.jsonl"),
+            )
+            working_before = store.working_path.read_bytes()
+            persistent_before = store.persistent_path.read_bytes()
+
+            receipt = reviewer.review(
+                candidate,
+                pilot.learning_decisions.get(candidate.id),
+                target="memory",
+            )
+            working_after = store.working_path.read_bytes()
+            persistent_after = store.persistent_path.read_bytes()
+
+        self.assertEqual(receipt.status, "NOT ELIGIBLE")
+        self.assertEqual(receipt.decision_id, "none")
+        self.assertFalse(receipt.retrieval_performed)
+        self.assertFalse(receipt.mutation_performed)
+        self.assertFalse(receipt.promotion_performed)
+        self.assertEqual(working_before, working_after)
+        self.assertEqual(persistent_before, persistent_after)
+
+    def test_learning_eligibility_accepted_candidate_without_ids_is_not_checked(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, store, pilot, _, candidate = build_test_learning_candidate(root)
+            decision = pilot.learning_decisions.decide(
+                candidate,
+                "accepted",
+                token=learning_confirmation_token(candidate),
+            )
+            receipt = LearningPromotionEligibilityReviewer(
+                memory_store=store,
+                skill_library=SkillLibrary(root / "skills.jsonl"),
+            ).review(candidate, decision, target="memory")
+
+        self.assertEqual(receipt.status, "NOT CHECKED")
+        self.assertTrue(receipt.scope_limited)
+        self.assertFalse(receipt.global_duplicate_check_performed)
+        self.assertEqual(receipt.selected_memory_ids, [])
+
+    def test_learning_eligibility_memory_scope_detects_exact_normalized_duplicate(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, store, pilot, _, candidate = build_test_learning_candidate(root)
+            store.save_persistent_memory(
+                [
+                    MemoryRecord(
+                        id="mem_exact",
+                        content=f"  {candidate.text.upper()}  ",
+                        type="lesson",
+                        importance=0.8,
+                        source="test",
+                    )
+                ]
+            )
+            decision = pilot.learning_decisions.decide(
+                candidate,
+                "accepted",
+                token=learning_confirmation_token(candidate),
+            )
+            receipt = LearningPromotionEligibilityReviewer(
+                memory_store=store,
+                skill_library=SkillLibrary(root / "skills.jsonl"),
+            ).review(candidate, decision, target="memory", memory_ids=["mem_exact"])
+
+        self.assertEqual(receipt.status, "DUPLICATE")
+        self.assertEqual(receipt.duplicate_matches, ["memory:mem_exact:content"])
+        self.assertFalse(receipt.global_duplicate_check_performed)
+
+    def test_learning_eligibility_skill_scope_detects_exact_duplicate(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, store, pilot, _, candidate = build_test_learning_candidate(root)
+            skills_path = root / "skills.jsonl"
+            skills_path.write_text(
+                json.dumps(
+                    {
+                        "id": "skill_exact",
+                        "name": "Review corrected decisions",
+                        "summary": candidate.text,
+                        "body": "",
+                        "status": "active",
+                        "category": "workflow",
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            decision = pilot.learning_decisions.decide(
+                candidate,
+                "accepted",
+                token=learning_confirmation_token(candidate),
+            )
+            receipt = LearningPromotionEligibilityReviewer(
+                memory_store=store,
+                skill_library=SkillLibrary(skills_path),
+            ).review(candidate, decision, target="skill", skill_ids=["skill_exact"])
+
+        self.assertEqual(receipt.status, "DUPLICATE")
+        self.assertEqual(receipt.duplicate_matches, ["skill:skill_exact:summary"])
+
+    def test_learning_eligibility_does_not_search_unselected_records(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, store, pilot, _, candidate = build_test_learning_candidate(root)
+            store.save_persistent_memory(
+                [
+                    MemoryRecord(
+                        id="mem_unselected_duplicate",
+                        content=candidate.text,
+                        type="lesson",
+                        importance=0.8,
+                        source="test",
+                    ),
+                    MemoryRecord(
+                        id="mem_selected_reference",
+                        content="A separate operator-selected reference.",
+                        type="project_fact",
+                        importance=0.7,
+                        source="test",
+                    ),
+                ]
+            )
+            decision = pilot.learning_decisions.decide(
+                candidate,
+                "accepted",
+                token=learning_confirmation_token(candidate),
+            )
+            receipt = LearningPromotionEligibilityReviewer(
+                memory_store=store,
+                skill_library=SkillLibrary(root / "skills.jsonl"),
+            ).review(
+                candidate,
+                decision,
+                target="memory",
+                memory_ids=["mem_selected_reference"],
+            )
+
+        self.assertEqual(receipt.status, "ELIGIBLE IN SELECTED SCOPE")
+        self.assertEqual(receipt.duplicate_matches, [])
+        self.assertFalse(receipt.global_duplicate_check_performed)
+
+    def test_learning_eligibility_missing_and_inactive_ids_are_incomplete(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, store, pilot, _, candidate = build_test_learning_candidate(root)
+            store.save_persistent_memory(
+                [
+                    MemoryRecord(
+                        id="mem_inactive",
+                        content="Historical inactive reference.",
+                        type="lesson",
+                        importance=0.5,
+                        source="test",
+                        active=False,
+                    )
+                ]
+            )
+            decision = pilot.learning_decisions.decide(
+                candidate,
+                "accepted",
+                token=learning_confirmation_token(candidate),
+            )
+            receipt = LearningPromotionEligibilityReviewer(
+                memory_store=store,
+                skill_library=SkillLibrary(root / "skills.jsonl"),
+            ).review(
+                candidate,
+                decision,
+                target="memory",
+                memory_ids=["mem_missing", "mem_inactive"],
+            )
+
+        self.assertEqual(receipt.status, "INCOMPLETE")
+        self.assertEqual(receipt.missing_memory_ids, ["mem_missing"])
+        self.assertEqual(receipt.excluded_memory_ids, ["mem_inactive"])
+
+    def test_learning_eligibility_limit_and_corrupted_store_fail_closed(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, store, pilot, bridge, candidate = build_test_learning_candidate(root)
+            pilot.learning_decisions.decide(
+                candidate,
+                "accepted",
+                token=learning_confirmation_token(candidate),
+            )
+            too_many_ids = " ".join(
+                f"--memory mem_{index}" for index in range(LEARNING_ELIGIBILITY_MAX_IDS_PER_KIND + 1)
+            )
+            limited = format_learning_eligibility_command(
+                f"/experience learning eligibility {candidate.id} --target memory {too_many_ids}",
+                bridge=bridge,
+                decisions=pilot.learning_decisions,
+                memory_store=store,
+                skill_library=SkillLibrary(root / "skills.jsonl"),
+            )
+            store.working_path.write_text("{broken", encoding="utf-8")
+            corrupted = format_learning_eligibility_command(
+                f"/experience learning eligibility {candidate.id} --target memory",
+                bridge=bridge,
+                decisions=pilot.learning_decisions,
+                memory_store=store,
+                skill_library=SkillLibrary(root / "skills.jsonl"),
+            )
+
+        self.assertIn("Status: ERROR", limited)
+        self.assertIn("Explicit memory ID limit", limited)
+        self.assertIn("Status: ERROR", corrupted)
+        self.assertIn("Memory snapshot is unreadable", corrupted)
+
+    def test_learning_eligibility_doctor_rejects_forbidden_effect_claims(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, store, pilot, _, candidate = build_test_learning_candidate(root)
+            store.save_persistent_memory(
+                [
+                    MemoryRecord(
+                        id="mem_reference",
+                        content="A separate selected reference.",
+                        type="project_fact",
+                        importance=0.7,
+                        source="test",
+                    )
+                ]
+            )
+            decision = pilot.learning_decisions.decide(
+                candidate,
+                "accepted",
+                token=learning_confirmation_token(candidate),
+            )
+            reviewer = LearningPromotionEligibilityReviewer(
+                memory_store=store,
+                skill_library=SkillLibrary(root / "skills.jsonl"),
+            )
+            receipt = reviewer.review(
+                candidate,
+                decision,
+                target="memory",
+                memory_ids=["mem_reference"],
+            )
+            report = reviewer.doctor(replace(receipt, mutation_performed=True))
+
+        self.assertEqual(report.status, "ERROR")
+        self.assertIn("forbidden side effect", " ".join(report.issues))
+
+    def test_learning_eligibility_shared_handler_is_byte_stable(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            coordinator, store, _ = build_test_system(root / "cognitive")
+            logger = SessionOperatorLogger(root / "session.jsonl", enabled=False)
+            process_interactive_input(
+                "/experience preview",
+                coordinator=coordinator,
+                session_logger=logger,
+                project_root=root,
+            )
+            pilot = peek_experience_pilot(coordinator)
+            process_interactive_input(
+                f"/experience consent {pilot.expected_consent_phrase}",
+                coordinator=coordinator,
+                session_logger=logger,
+                project_root=root,
+            )
+            coordinator.pending_correction_hints = ["Verify active decisions before reuse."]
+            process_interactive_input(
+                "Explain the current decision.",
+                coordinator=coordinator,
+                session_logger=logger,
+                project_root=root,
+            )
+            candidate = OperatorReviewedLearningBridge(pilot.snapshot()).review()[0].candidates[0]
+            pilot.learning_decisions.decide(
+                candidate,
+                "accepted",
+                token=learning_confirmation_token(candidate),
+            )
+            store.save_persistent_memory(
+                [
+                    MemoryRecord(
+                        id="mem_shared_reference",
+                        content="An unrelated explicit reference.",
+                        type="project_fact",
+                        importance=0.7,
+                        source="test",
+                    )
+                ]
+            )
+            events_before = json.dumps(pilot.snapshot(), sort_keys=True)
+            decisions_before = json.dumps(pilot.learning_decisions.snapshot(), sort_keys=True)
+            working_before = store.working_path.read_bytes()
+            persistent_before = store.persistent_path.read_bytes()
+            skill_path = root / "proto_mind" / "data" / "skills.jsonl"
+            skill_before = skill_path.read_bytes() if skill_path.exists() else None
+            log_before = logger.status().entry_count
+
+            review = process_interactive_input(
+                f"/experience learning eligibility {candidate.id} "
+                "--target memory --memory mem_shared_reference",
+                coordinator=coordinator,
+                session_logger=logger,
+                project_root=root,
+            )
+            doctor = process_interactive_input(
+                f"/experience learning eligibility-doctor {candidate.id} "
+                "--target memory --memory mem_shared_reference",
+                coordinator=coordinator,
+                session_logger=logger,
+                project_root=root,
+            )
+            events_after = json.dumps(pilot.snapshot(), sort_keys=True)
+            decisions_after = json.dumps(pilot.learning_decisions.snapshot(), sort_keys=True)
+            working_after = store.working_path.read_bytes()
+            persistent_after = store.persistent_path.read_bytes()
+            skill_after = skill_path.read_bytes() if skill_path.exists() else None
+            log_after = logger.status().entry_count
+
+        self.assertIn("Status: ELIGIBLE IN SELECTED SCOPE", review)
+        self.assertIn("Status: WARN", doctor)
+        self.assertIn("global_duplicate_check_performed: false", review)
+        self.assertEqual(events_before, events_after)
+        self.assertEqual(decisions_before, decisions_after)
+        self.assertEqual(working_before, working_after)
+        self.assertEqual(persistent_before, persistent_after)
+        self.assertEqual(skill_before, skill_after)
+        self.assertEqual(log_before, log_after)
+
+    def test_learning_eligibility_reuses_read_only_registry_policy(self) -> None:
+        spec = {entry.prefix: entry for entry in COMMAND_REGISTRY}["/experience learning"]
+
+        self.assertTrue(spec.read_only)
+        self.assertEqual(spec.mutates, "none")
+        self.assertEqual(spec.risk, "low")
+        self.assertEqual(
+            classify_command(
+                "/experience learning eligibility candidate --target memory --memory mem_ref"
+            ).policy_class,
+            "auto_allowed",
+        )
+        self.assertEqual(len(COMMAND_REGISTRY), 360)
+        self.assertEqual(len({entry.category for entry in COMMAND_REGISTRY}), 41)
         self.assertEqual(command_registry_doctor()["status"], "OK")
         self.assertEqual(action_policy_doctor()["status"], "OK")
 
