@@ -46,6 +46,7 @@ class LearningPromotionEligibilityReceipt:
     requested_skill_ids: list[str]
     selected_memory_ids: list[str]
     selected_skill_ids: list[str]
+    selected_scope_hash: str
     missing_memory_ids: list[str]
     missing_skill_ids: list[str]
     excluded_memory_ids: list[str]
@@ -163,6 +164,7 @@ class LearningPromotionEligibilityReviewer:
             normalized_target,
             snapshot.requested_memory_ids,
             snapshot.requested_skill_ids,
+            _selected_scope_hash(snapshot, target=normalized_target),
         )
         return LearningPromotionEligibilityReceipt(
             id=receipt_id,
@@ -176,6 +178,7 @@ class LearningPromotionEligibilityReviewer:
             requested_skill_ids=list(snapshot.requested_skill_ids),
             selected_memory_ids=[str(record.get("id") or "") for record in snapshot.memory_records],
             selected_skill_ids=[str(record.get("id") or "") for record in snapshot.skill_records],
+            selected_scope_hash=_selected_scope_hash(snapshot, target=normalized_target),
             missing_memory_ids=list(snapshot.missing_memory_ids),
             missing_skill_ids=list(snapshot.missing_skill_ids),
             excluded_memory_ids=list(snapshot.excluded_memory_ids),
@@ -197,6 +200,8 @@ class LearningPromotionEligibilityReviewer:
             issues.append("Eligibility target is invalid.")
         if len(receipt.candidate_hash) != 64 or not receipt.candidate_id:
             issues.append("Eligibility candidate evidence identity is incomplete.")
+        if len(receipt.selected_scope_hash) != 64:
+            issues.append("Eligibility selected-scope hash is invalid.")
         if not receipt.scope_limited or receipt.global_duplicate_check_performed:
             issues.append("Eligibility receipt overstates its selected-ID scope.")
         if any(
@@ -247,7 +252,7 @@ def format_learning_eligibility_command(
         if doctor_mode
         else "/experience learning eligibility <candidate_id>"
     )
-    parsed = _parse_request(raw, command_name=usage.split(" <", 1)[0])
+    parsed = parse_learning_eligibility_request(raw, command_name=usage.split(" <", 1)[0])
     if isinstance(parsed, str):
         return parsed
     candidate_map, error = _candidate_map(bridge)
@@ -290,6 +295,7 @@ def format_learning_eligibility(receipt: LearningPromotionEligibilityReceipt) ->
         f"requested_skill_ids: {', '.join(receipt.requested_skill_ids) or 'none'}",
         f"selected_memory_ids: {', '.join(receipt.selected_memory_ids) or 'none'}",
         f"selected_skill_ids: {', '.join(receipt.selected_skill_ids) or 'none'}",
+        f"selected_scope_hash: {receipt.selected_scope_hash}",
         f"duplicate_matches: {', '.join(receipt.duplicate_matches) or 'none'}",
     ]
     lines.extend(f"- ERROR: {issue}" for issue in receipt.issues)
@@ -320,7 +326,11 @@ def format_learning_eligibility_doctor(
     return "\n".join(lines)
 
 
-def _parse_request(command: str, *, command_name: str) -> LearningEligibilityRequest | str:
+def parse_learning_eligibility_request(
+    command: str,
+    *,
+    command_name: str,
+) -> LearningEligibilityRequest | str:
     parts = command.split()
     prefix_parts = command_name.split()
     usage = (
@@ -402,6 +412,7 @@ def _eligibility_receipt_id(
     target: str,
     memory_ids: list[str],
     skill_ids: list[str],
+    selected_scope_hash: str,
 ) -> str:
     payload = json.dumps(
         {
@@ -409,11 +420,22 @@ def _eligibility_receipt_id(
             "target": target,
             "memory_ids": memory_ids,
             "skill_ids": skill_ids,
+            "selected_scope_hash": selected_scope_hash,
         },
         sort_keys=True,
         separators=(",", ":"),
     )
     return f"eligdry_{hashlib.sha256(payload.encode('utf-8')).hexdigest()[:16]}"
+
+
+def _selected_scope_hash(
+    snapshot: ExperienceLearningInputSnapshot,
+    *,
+    target: str,
+) -> str:
+    records = snapshot.memory_records if target == "memory" else snapshot.skill_records
+    payload = json.dumps(records, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def _candidate_map(

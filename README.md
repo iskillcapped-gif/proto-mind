@@ -585,6 +585,11 @@ v3.3a adds an explicit operator-controlled pilot over the shared CLI/tkinter/PyS
 /experience learning decision-doctor
 /experience learning eligibility <candidate_id> --target memory|skill [--memory <id>]... [--skill <id>]...
 /experience learning eligibility-doctor <candidate_id> --target memory|skill [--memory <id>]... [--skill <id>]...
+/experience learning proposal-preview <candidate_id> --target memory|skill [--memory <id>]... [--skill <id>]...
+/experience learning propose <candidate_id> <exact token> --target memory|skill [--memory <id>]... [--skill <id>]...
+/experience learning proposals
+/experience learning proposal <proposal_id|candidate_id>
+/experience learning proposal-doctor
 /experience events [--last N]
 /experience inspect <event_id>
 /experience doctor
@@ -602,6 +607,8 @@ v3.3c adds an operator-reviewed learning bridge over those current-process episo
 v3.3d adds an explicit process-memory decision gate without enabling promotion. `/experience learning confirm-preview <candidate_id>` prints a candidate-specific SHA-256 token; `/experience learning decide accept <candidate_id> <token>` accepts only complete `operator_review_required` evidence, while `decide reject` records a redacted terminal rejection. Up to 64 compact receipts retain the candidate digest and exact evidence IDs until process restart. `/experience learning promotion-preview <candidate_id>` requires acceptance but remains `executable=false` with promotion, apply, and persistence all false. Decision inspection and Doctor commands are read-only, and no memory, skill, queue, file, session log, model, or Context Injection state is changed.
 
 v3.3e adds a target-specific promotion eligibility review without enabling promotion. After an accepted process-memory decision, the operator supplies exact memory and/or skill IDs; the existing detached input adapter reads only those active records and checks exact normalized content for the declared `memory` or `skill` target. Results distinguish `ELIGIBLE IN SELECTED SCOPE`, `DUPLICATE`, `INCOMPLETE`, `NOT CHECKED`, `NOT ELIGIBLE`, and `ERROR`. The receipt explicitly states that scope is limited and no global duplicate search, retrieval ranking, usage telemetry, mutation, execution, promotion, apply, persistence, or automatic target inference occurred.
+
+v3.3f adds a bounded promotion proposal receipt without enabling apply. A clean selected-scope eligibility review produces a deterministic `memory.lesson.v1` or `skill.procedure.v1` blueprint, hashes the exact candidate, accepted decision, eligibility receipt, selected-record snapshot, target schema, and payload, then prints a proposal-specific token. Only `/experience learning propose` with that exact token retains an immutable receipt, capped at 32 for the current process. Selected-record drift invalidates the token. Proposal list, inspection, and Doctor are read-only; every receipt remains `future_apply_ready=false`, `executable=false`, and performs no memory/skill/queue/file write, promotion, apply, global novelty claim, or Context Injection change.
 
 ## Contest Showcase
 
