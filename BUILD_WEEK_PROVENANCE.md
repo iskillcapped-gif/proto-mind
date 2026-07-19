@@ -73,6 +73,7 @@ The current source tree is compared directly with the July 11 archive by SHA-256
 - Supervised Procedural Skill Apply Pilot v3.5d with a second exact token, one atomic verified non-executable Skill Library append per process, exact-byte rollback, compact source provenance, and no procedure execution or automatic apply.
 - Durable Skill Provenance Inspection v3.5e with embedded restart-safe source/contract/payload/confirmation hashes plus read-only `/skills why` and provenance Doctor diagnostics; no second writer or skill execution.
 - Procedural Skill Outcome Review v3.5f with exact provenance-bound manual-use lineage, advisory success/failure/mixed candidates, explicit telemetry exclusion, and no event capture, skill mutation, or execution.
+- Supervised Manual Skill Outcome Capture v3.5g with exact session consent, a second provenance/evidence-bound token, one bounded four-event process-memory batch, restart-expiring receipts, and no procedure execution or persistent-store mutation.
 - Contest Showcase v1 with a deterministic three-minute narrative and safety doctor.
 - Build Week Provenance Pack v1.
 
@@ -82,13 +83,13 @@ The generated evidence under `contest/provenance/` is the source of truth for th
 
 | Metric | July 11 baseline | Current Build Week state | Delta |
 |---|---:|---:|---:|
-| Submission-relevant files | 69 | 132 | +63 |
-| Python files | 66 | 105 | +39 |
-| Unit-test methods | 664 | 1028 | +364 |
-| Registry commands | 343 | 368 | +25 |
+| Submission-relevant files | 69 | 133 | +64 |
+| Python files | 66 | 106 | +40 |
+| Unit-test methods | 664 | 1039 | +375 |
+| Registry commands | 343 | 372 | +29 |
 | Registry categories | 39 | 41 | +2 |
 
-The file delta is not inferred from modification time. Every baseline and current submission-relevant file is hashed, then classified as added, changed, removed, or unchanged. The current manifest reports 63 added, 15 changed, 0 removed, and 54 unchanged files.
+The file delta is not inferred from modification time. Every baseline and current submission-relevant file is hashed, then classified as added, changed, removed, or unchanged. The current manifest reports 64 added, 15 changed, 0 removed, and 54 unchanged files.
 
 ## Reproduce The Evidence
 

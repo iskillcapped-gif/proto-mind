@@ -7,7 +7,10 @@ from typing import Any
 from uuid import uuid4
 
 from proto_mind.experience_capture import LIVE_CAPTURE_HOOK_INSTALLED
-from proto_mind.experience_capture_soak import BoundedExperiencePreviewBuffer
+from proto_mind.experience_capture_soak import (
+    BoundedExperiencePreviewBuffer,
+    PreviewBufferDecision,
+)
 from proto_mind.experience_consent import CONSENT_STATES, SessionConsentStateMachineSpec
 from proto_mind.experience_explainability import (
     ExperienceTraceIndex,
@@ -15,6 +18,7 @@ from proto_mind.experience_explainability import (
 )
 from proto_mind.experience_ledger import (
     LIVE_EXPERIENCE_PERSISTENCE_ENABLED,
+    ExperienceEvent,
     ExperienceTraceBuilder,
     compact_preview,
 )
@@ -68,6 +72,12 @@ from proto_mind.experience_learning_skill_apply import (
 )
 from proto_mind.experience_learning_skill_outcome import (
     format_procedural_skill_outcome_command,
+)
+from proto_mind.experience_learning_skill_outcome_capture import (
+    OperatorReviewedProceduralSkillOutcomeCaptureSession,
+    ProceduralSkillOutcomeCaptureBuilder,
+    format_procedural_skill_outcome_capture_command,
+    is_valid_procedural_skill_outcome_event_batch,
 )
 from proto_mind.experience_learning_readiness import format_learning_apply_readiness_command
 from proto_mind.experience_turn import (
@@ -147,6 +157,7 @@ class SupervisedExperiencePilot:
         self._learning_lifecycle_applies = OperatorReviewedLearningLifecycleApplySession()
         self._skill_authoring = OperatorReviewedProceduralSkillAuthoringSession()
         self._skill_applies = OperatorReviewedProceduralSkillApplySession()
+        self._skill_outcome_captures = OperatorReviewedProceduralSkillOutcomeCaptureSession()
         self._lock = RLock()
 
     @property
@@ -204,6 +215,10 @@ class SupervisedExperiencePilot:
     @property
     def skill_applies(self) -> OperatorReviewedProceduralSkillApplySession:
         return self._skill_applies
+
+    @property
+    def skill_outcome_captures(self) -> OperatorReviewedProceduralSkillOutcomeCaptureSession:
+        return self._skill_outcome_captures
 
     def preview(self) -> str:
         with self._lock:
@@ -333,6 +348,23 @@ class SupervisedExperiencePilot:
         with self._lock:
             return self._buffer.snapshot()
 
+    def append_supervised_manual_skill_outcome_events(
+        self,
+        events: list[ExperienceEvent],
+    ) -> PreviewBufferDecision:
+        """Append one exact confirmed manual outcome batch; never invoke the skill."""
+        with self._lock:
+            if self._state != "consented":
+                raise ValueError("Experience pilot exact session consent is not active.")
+            if not is_valid_procedural_skill_outcome_event_batch(events):
+                raise ValueError("Manual skill outcome event batch violates the fixed contract.")
+            if any(event.session_id != self.session_id for event in events):
+                raise ValueError("Manual outcome event session id does not match this pilot.")
+            decision = self._buffer.consider_batch(events)
+            if not decision.accepted:
+                self._fail_closed(decision.reason)
+            return decision
+
     def doctor(self) -> ExperiencePilotDoctorReport:
         with self._lock:
             issues: list[str] = []
@@ -345,7 +377,8 @@ class SupervisedExperiencePilot:
             if buffer_report.status == "ERROR":
                 issues.extend(buffer_report.issues)
             if self._state == "consented" and not self._captured_turns:
-                warnings.append("Pilot is consented but has not captured a normal turn yet.")
+                if not self.event_count:
+                    warnings.append("Pilot is consented but has not captured evidence yet.")
             if self._state in {"stopped", "expired"}:
                 warnings.append("Pilot is terminal for this process session; restart is required for new consent.")
             status = "ERROR" if issues else "WARN" if warnings else "OK"
@@ -514,6 +547,20 @@ def format_experience_pilot_command(
             )
             if skill_readiness_output is not None:
                 return skill_readiness_output
+            skill_outcome_capture_output = format_procedural_skill_outcome_capture_command(
+                raw,
+                builder=ProceduralSkillOutcomeCaptureBuilder(
+                    memory_store=memory_store,
+                    skill_library=skill_library,
+                ),
+                session=pilot.skill_outcome_captures,
+                pilot_state=pilot.state,
+                pilot_session_id=pilot.session_id,
+                events=events,
+                append_events=pilot.append_supervised_manual_skill_outcome_events,
+            )
+            if skill_outcome_capture_output is not None:
+                return skill_outcome_capture_output
             skill_outcome_output = format_procedural_skill_outcome_command(
                 raw,
                 events=events,
@@ -744,6 +791,10 @@ def _usage() -> str:
             "/experience learning skill-apply-confirm-preview <receipt_id|memory_id>",
             "/experience learning apply skill <receipt_id|memory_id> <exact token>",
             "/experience learning skill-apply-status|skill-apply-receipt <id>|skill-apply-pilot-doctor",
+            "/experience learning skill-outcome-capture-preview <skill_id> <success|failure> --evidence <text>",
+            "/experience learning capture skill-outcome <skill_id> <success|failure> <token> --evidence <identical text>",
+            "/experience learning skill-outcome-captures [<capture_id>]|skill-outcome-capture-doctor",
+            "/experience learning skill-outcome-review <skill_id>|skill-outcome-doctor",
             "/experience events [--last N]",
             "/experience inspect <event_id>",
             "/experience doctor",

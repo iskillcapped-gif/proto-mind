@@ -270,6 +270,14 @@ from proto_mind.experience_learning_skill_outcome import (
     ProceduralSkillOutcomeReviewer,
     format_procedural_skill_outcome_command,
 )
+from proto_mind.experience_learning_skill_outcome_capture import (
+    PROCEDURAL_SKILL_OUTCOME_CAPTURE_MAX_RECEIPTS,
+    PROCEDURAL_SKILL_OUTCOME_CAPTURE_MODE,
+    OperatorReviewedProceduralSkillOutcomeCaptureSession,
+    ProceduralSkillOutcomeCaptureBuilder,
+    format_procedural_skill_outcome_capture_command,
+    procedural_skill_outcome_capture_confirmation_token,
+)
 from proto_mind.skill_provenance import (
     PROCEDURAL_SKILL_PROVENANCE_SCHEMA,
     format_skill_provenance_doctor,
@@ -3111,7 +3119,7 @@ class ProtoMindFlowTests(unittest.TestCase):
         output = format_commands_command("/commands status")
 
         self.assertIn("Command Registry Status", output)
-        self.assertIn("registered_commands: 368", output)
+        self.assertIn("registered_commands: 372", output)
         self.assertIn("read_only:", output)
         self.assertIn("mutating:", output)
         self.assertIn("category_counts:", output)
@@ -3182,7 +3190,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
         self.assertIn("Command Registry Doctor", output)
         self.assertIn("Status: OK", output)
-        self.assertIn("Commands checked: 368", output)
+        self.assertIn("Commands checked: 372", output)
         self.assertIn("natural-router references are consistent", output)
         self.assertIn("no commands were executed", output)
 
@@ -3242,9 +3250,9 @@ class ProtoMindFlowTests(unittest.TestCase):
         output = format_policy_command("/policy status")
 
         self.assertIn("Action Safety Policy Status", output)
-        self.assertIn("registered_commands: 368", output)
-        self.assertIn("auto_allowed: 275", output)
-        self.assertIn("confirmation_required: 89", output)
+        self.assertIn("registered_commands: 372", output)
+        self.assertIn("auto_allowed: 278", output)
+        self.assertIn("confirmation_required: 90", output)
         self.assertIn("operator_only: 4", output)
         self.assertIn("blocked: 0", output)
         self.assertIn("read-only advisory", output)
@@ -3309,7 +3317,7 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertEqual(report["status"], "OK")
         self.assertIn("Action Safety Policy Doctor", output)
         self.assertIn("Status: OK", output)
-        self.assertIn("Commands checked: 368", output)
+        self.assertIn("Commands checked: 372", output)
         self.assertIn("Natural routes checked: 41", output)
         self.assertIn("policy invariants", output)
 
@@ -13048,7 +13056,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
             self.assertIn("Daily Agent Status", output)
             self.assertIn(f"project_root: {project_root}", output)
-            self.assertIn("command_registry: commands=368 categories=41", output)
+            self.assertIn("command_registry: commands=372 categories=41", output)
             self.assertIn("known_export_dirs: present=7/7", output)
             self.assertIn("latest_snapshot: daily_fixture.json", output)
             self.assertIn("latest_snapshot_diff: daily_fixture.json", output)
@@ -13181,7 +13189,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
             self.assertIn("Session Start Brief", output)
             self.assertIn(f"project_root: {project_root}", output)
-            self.assertIn("command_registry: commands=368 categories=41", output)
+            self.assertIn("command_registry: commands=372 categories=41", output)
             self.assertIn("daily_doctor: OK", output)
             self.assertIn("export_doctor: OK", output)
             self.assertIn("latest_snapshot: daily_fixture.json", output)
@@ -13251,7 +13259,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
             self.assertIn("Proto-Mind Session Handoff Brief", output)
             self.assertIn("Current milestone: Daily Agent Layer v1", output)
-            self.assertIn("Registry: 368 commands across 41 categories", output)
+            self.assertIn("Registry: 372 commands across 41 categories", output)
             self.assertIn("/daily status; /daily brief; /daily doctor; /daily next", output)
             self.assertIn("/exports status; /exports inventory", output)
             self.assertIn("/proto snapshot-diff-status", output)
@@ -13319,7 +13327,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
             self.assertIn("Milestone Roadmap Status", output)
             self.assertIn(f"project_root: {project_root}", output)
-            self.assertIn("command_registry: commands=368 categories=41", output)
+            self.assertIn("command_registry: commands=372 categories=41", output)
             self.assertIn("current_milestone: Operating Loop v2.2 / Milestone Tracker v1", output)
             self.assertIn("accepted_milestones_detected: 2", output)
             self.assertIn("milestone_docs: 1", output)
@@ -13730,7 +13738,7 @@ class ProtoMindFlowTests(unittest.TestCase):
             self.assertIn("Operator Agenda Status", output)
             self.assertIn("Status: WARN", output)
             self.assertIn(f"project_root: {project_root}", output)
-            self.assertIn("command_registry: commands=368 categories=41", output)
+            self.assertIn("command_registry: commands=372 categories=41", output)
             self.assertIn("daily=true, session=true, milestone=true, warnings=true", output)
             self.assertIn("accepted_known_warnings: 12", output)
             self.assertIn("unknown_warnings: 0", output)
@@ -13875,7 +13883,7 @@ class ProtoMindFlowTests(unittest.TestCase):
             self.assertIn("Pre-Change Readiness", output)
             self.assertIn("Status: WARN", output)
             self.assertIn(f"project_root: {project_root}", output)
-            self.assertIn("command_registry: commands=368 categories=41", output)
+            self.assertIn("command_registry: commands=372 categories=41", output)
             self.assertIn("context_injection: disabled", output)
             self.assertIn("accepted_known_warnings: 12", output)
             self.assertIn("unknown_warnings: 0", output)
@@ -13938,7 +13946,7 @@ class ProtoMindFlowTests(unittest.TestCase):
             self.assertIn("Proto-Mind Pre-Change Task Header", output)
             self.assertIn(f"Project: {project_root}", output)
             self.assertIn("Current milestone: Operating Loop v2.2 / Milestone Tracker v1", output)
-            self.assertIn("Registry baseline: 368 commands across 41 categories", output)
+            self.assertIn("Registry baseline: 372 commands across 41 categories", output)
             self.assertIn("Warning baseline: accepted=12, unknown=0, blockers=0", output)
             self.assertIn("Rule 0:", output)
             self.assertIn("Safety requirements:", output)
@@ -14050,7 +14058,7 @@ class ProtoMindFlowTests(unittest.TestCase):
             self.assertIn("Focus Mode Status", output)
             self.assertIn("Status: WARN", output)
             self.assertIn(f"project_root: {project_root}", output)
-            self.assertIn("command_registry: commands=368 categories=41", output)
+            self.assertIn("command_registry: commands=372 categories=41", output)
             self.assertIn("context_injection: disabled", output)
             self.assertIn("prechange_readiness: WARN", output)
             self.assertIn("agenda_state: WARN", output)
@@ -14145,7 +14153,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
             self.assertIn("Proto-Mind Focused Session Handoff", output)
             self.assertIn(f"Project: {project_root}", output)
-            self.assertIn("Registry baseline: 368 commands across 41 categories", output)
+            self.assertIn("Registry baseline: 372 commands across 41 categories", output)
             self.assertIn("Focus readiness: WARN", output)
             self.assertIn("Warning baseline: accepted=12, unknown=0, blockers=0", output)
             self.assertIn("Context Injection: disabled", output)
@@ -14258,7 +14266,7 @@ class ProtoMindFlowTests(unittest.TestCase):
             self.assertIn("Acceptance Review Status", output)
             self.assertIn("Status: WARN", output)
             self.assertIn(f"project_root: {project_root}", output)
-            self.assertIn("command_registry: commands=368 categories=41", output)
+            self.assertIn("command_registry: commands=372 categories=41", output)
             self.assertIn("context_injection: disabled", output)
             self.assertIn("focus_readiness: WARN", output)
             self.assertIn("prechange_readiness: WARN", output)
@@ -14359,7 +14367,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
             self.assertIn("Proto-Mind Acceptance Review Handoff", output)
             self.assertIn(f"Project: {project_root}", output)
-            self.assertIn("Registry baseline: 368 commands across 41 categories", output)
+            self.assertIn("Registry baseline: 372 commands across 41 categories", output)
             self.assertIn("Acceptance readiness: WARN", output)
             self.assertIn("Warning baseline: accepted=12, unknown=0, blockers=0", output)
             self.assertIn("Context Injection: disabled", output)
@@ -14473,7 +14481,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
             self.assertIn("Snapshot Baseline Registry Status", output)
             self.assertIn("Status: WARN", output)
-            self.assertIn("command_registry: commands=368 categories=41", output)
+            self.assertIn("command_registry: commands=372 categories=41", output)
             self.assertIn("accepted_baseline: Snapshot Baseline Registry v1", output)
             self.assertIn("latest_snapshot: snapshot.json", output)
             self.assertIn("latest_snapshot_diff: diff.json", output)
@@ -14557,7 +14565,7 @@ class ProtoMindFlowTests(unittest.TestCase):
                 output = format_baseline_command("/baseline handoff", project_root=project_root, memory_store=store)
 
             self.assertIn("Proto-Mind Accepted Baseline Handoff", output)
-            self.assertIn("Registry: 368 commands across 41 categories", output)
+            self.assertIn("Registry: 372 commands across 41 categories", output)
             self.assertIn("Tests: 671 tests OK", output)
             self.assertIn("Warnings: accepted=12, unknown=0, blockers=0", output)
             self.assertIn("Context Injection: disabled", output)
@@ -14669,7 +14677,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
             self.assertIn("Post-Acceptance Closure Status", output)
             self.assertIn("Status: WARN", output)
-            self.assertIn("command_registry: commands=368 categories=41", output)
+            self.assertIn("command_registry: commands=372 categories=41", output)
             self.assertIn("context_injection: disabled", output)
             self.assertIn("baseline_review: WARN", output)
             self.assertIn("acceptance_review: WARN", output)
@@ -14702,7 +14710,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
             self.assertIn("Post-Acceptance Session Closure Summary", output)
             self.assertIn("Snapshot Baseline Registry v1", output)
-            self.assertIn("registry: 368 commands across 41 categories", output)
+            self.assertIn("registry: 372 commands across 41 categories", output)
             self.assertIn("tests: 671 tests OK", output)
             self.assertIn("accepted=12, unknown=0, blockers=0", output)
             self.assertIn("Latest accepted operating layers:", output)
@@ -14754,7 +14762,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
             self.assertIn("Proto-Mind Post-Acceptance Handoff", output)
             self.assertIn(f"Project: {project_root}", output)
-            self.assertIn("Registry: 368 commands across 41 categories", output)
+            self.assertIn("Registry: 372 commands across 41 categories", output)
             self.assertIn("Tests: 671 tests OK", output)
             self.assertIn("Context Injection: disabled", output)
             self.assertIn("Warnings: accepted=12, unknown=0, blockers=0", output)
@@ -14866,7 +14874,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
             self.assertIn("Operator Memory Card Status", output)
             self.assertIn("Status: WARN", output)
-            self.assertIn("command_registry: commands=368 categories=41", output)
+            self.assertIn("command_registry: commands=372 categories=41", output)
             self.assertIn("context_injection: disabled", output)
             self.assertIn("closure_readiness: WARN", output)
             self.assertIn("baseline_readiness: WARN", output)
@@ -14902,7 +14910,7 @@ class ProtoMindFlowTests(unittest.TestCase):
             self.assertLessEqual(len(output.splitlines()), 20)
             self.assertIn("Proto-Mind Operator Memory Card (Short)", output)
             self.assertIn(f"Project: {project_root}", output)
-            self.assertIn("Registry: 368 commands / 41 categories", output)
+            self.assertIn("Registry: 372 commands / 41 categories", output)
             self.assertIn("Tests: 671 tests OK", output)
             self.assertIn("Context Injection: disabled", output)
             self.assertIn("accepted=12, unknown=0, blockers=0", output)
@@ -14953,7 +14961,7 @@ class ProtoMindFlowTests(unittest.TestCase):
             self.assertIn("Proto-Mind Codex Context Header", output)
             self.assertIn("Rule 0: before changes", output)
             self.assertIn("Current baseline:", output)
-            self.assertIn("Registry/tests: 368 commands, 41 categories", output)
+            self.assertIn("Registry/tests: 372 commands, 41 categories", output)
             self.assertIn("accepted=12, unknown=0, blockers=0", output)
             self.assertIn("Context Injection: disabled", output)
             self.assertIn("do not write proto_mind/data/* or proto_mind/exports/*", output)
@@ -15062,7 +15070,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
             self.assertIn("Command Family Index Status", output)
             self.assertIn("Status: WARN", output)
-            self.assertIn("command_registry: commands=368 categories=41", output)
+            self.assertIn("command_registry: commands=372 categories=41", output)
             self.assertIn("context_injection: disabled", output)
             self.assertIn("accepted_known_warnings: 12", output)
             self.assertIn("unknown_warnings: 0", output)
@@ -15158,7 +15166,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
             self.assertIn("Proto-Mind Capability Handoff", output)
             self.assertIn(f"Project: {project_root}", output)
-            self.assertIn("Registry: 368 commands across 41 categories/families", output)
+            self.assertIn("Registry: 372 commands across 41 categories/families", output)
             self.assertIn("Key families:", output)
             self.assertIn("accepted=12, unknown=0, blockers=0", output)
             self.assertIn("Context Injection: disabled", output)
@@ -15275,7 +15283,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
             self.assertIn("Proposed Action Plan Status", ready)
             self.assertIn("Status: WARN", ready)
-            self.assertIn("command_registry: commands=368 categories=41", ready)
+            self.assertIn("command_registry: commands=372 categories=41", ready)
             self.assertIn("context_injection: disabled", ready)
             self.assertIn("capability_map_readiness: WARN", ready)
             self.assertIn("accepted_known_warnings: 12", ready)
@@ -15382,8 +15390,8 @@ class ProtoMindFlowTests(unittest.TestCase):
             self.assertIn("Proto-Mind Dry-Run Planning Handoff", output)
             self.assertIn(f"Project: {project_root}", output)
             self.assertIn("Rule 0:", output)
-            self.assertIn("Registry: 368 commands across 41 categories", output)
-            self.assertIn("auto_allowed=275", output)
+            self.assertIn("Registry: 372 commands across 41 categories", output)
+            self.assertIn("auto_allowed=278", output)
             self.assertIn("accepted=12, unknown=0, blockers=0", output)
             self.assertIn("Context Injection: disabled", output)
             self.assertIn("Execution and authorization are forbidden", output)
@@ -15494,7 +15502,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
             self.assertIn("Confirmation Gate Vocabulary Status", output)
             self.assertIn("Status: WARN", output)
-            self.assertIn("command_registry: commands=368 categories=41", output)
+            self.assertIn("command_registry: commands=372 categories=41", output)
             self.assertIn("context_injection: disabled", output)
             self.assertIn("accepted_known_warnings: 12", output)
             self.assertIn("unknown_warnings: 0", output)
@@ -15550,10 +15558,10 @@ class ProtoMindFlowTests(unittest.TestCase):
             output = format_confirmation_command("/confirm requirements", project_root=project_root, memory_store=store)
 
             self.assertIn("Confirmation Requirements By Capability Class", output)
-            self.assertIn("read-only (276): READ_ONLY_MANUAL", output)
-            self.assertIn("mutating (92): CONFIRM_REQUIRED", output)
+            self.assertIn("read-only (279): READ_ONLY_MANUAL", output)
+            self.assertIn("mutating (93): CONFIRM_REQUIRED", output)
             self.assertIn("high-risk (4): ELEVATED_CONFIRM_REQUIRED", output)
-            self.assertIn("confirmation-required (89)", output)
+            self.assertIn("confirmation-required (90)", output)
             self.assertIn("operator-only (4)", output)
             self.assertIn("Rule 0 backup/checkpoint is complete", output)
             self.assertIn("No user input is parsed as confirmation", output)
@@ -15566,7 +15574,7 @@ class ProtoMindFlowTests(unittest.TestCase):
                 output = format_confirmation_command("/confirm handoff", project_root=project_root, memory_store=store)
 
             self.assertIn("Proto-Mind Confirmation Vocabulary Handoff", output)
-            self.assertIn("Registry: 368 commands across 41 categories", output)
+            self.assertIn("Registry: 372 commands across 41 categories", output)
             self.assertIn("NONE | READ_ONLY_MANUAL | CONFIRM_REQUIRED", output)
             self.assertIn("Execution, approval capture, and authorization remain forbidden", output)
             self.assertIn("/runner-mvp confirmation", output)
@@ -15665,7 +15673,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
             self.assertIn("Execution Sandbox Blueprint Status", output)
             self.assertIn("Status: WARN", output)
-            self.assertIn("command_registry: commands=368 categories=41", output)
+            self.assertIn("command_registry: commands=372 categories=41", output)
             self.assertIn("context_injection: disabled", output)
             self.assertIn("confirmation_gate_readiness: WARN", output)
             self.assertIn("accepted_known_warnings: 12", output)
@@ -15752,8 +15760,8 @@ class ProtoMindFlowTests(unittest.TestCase):
                 output = format_sandbox_command("/sandbox handoff", project_root=project_root, memory_store=store)
 
             self.assertIn("Proto-Mind Execution Sandbox Design Handoff", output)
-            self.assertIn("Registry: 368 commands across 41 categories", output)
-            self.assertIn("read_only=276, mutating=92, high_risk=4", output)
+            self.assertIn("Registry: 372 commands across 41 categories", output)
+            self.assertIn("read_only=279, mutating=93, high_risk=4", output)
             self.assertIn("NONE | READ_ONLY_MANUAL | CONFIRM_REQUIRED", output)
             self.assertIn("FUTURE_CANDIDATE: /daily doctor", output)
             self.assertIn("Execution remains forbidden", output)
@@ -15856,7 +15864,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
             self.assertIn("No-Op Runner Contract Status", output)
             self.assertIn("Status: WARN", output)
-            self.assertIn("command_registry: commands=368 categories=41", output)
+            self.assertIn("command_registry: commands=372 categories=41", output)
             self.assertIn("context_injection: disabled", output)
             self.assertIn("sandbox_blueprint_readiness: WARN", output)
             self.assertIn("confirmation_gate_readiness: WARN", output)
@@ -15952,8 +15960,8 @@ class ProtoMindFlowTests(unittest.TestCase):
                 output = format_runner_command("/runner handoff", project_root=project_root, memory_store=store)
 
             self.assertIn("Proto-Mind No-Op Runner Contract Handoff", output)
-            self.assertIn("Registry: 368 commands across 41 categories", output)
-            self.assertIn("read_only=276, mutating=92, high_risk=4", output)
+            self.assertIn("Registry: 372 commands across 41 categories", output)
+            self.assertIn("read_only=279, mutating=93, high_risk=4", output)
             self.assertIn("execution_enabled=false; executed=false", output)
             self.assertIn("Active allowlist: absent", output)
             self.assertIn("Execution engine: absent", output)
@@ -16062,7 +16070,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
             self.assertIn("Runner Candidate Set Status", output)
             self.assertIn("Status: WARN", output)
-            self.assertIn("command_registry: commands=368 categories=41", output)
+            self.assertIn("command_registry: commands=372 categories=41", output)
             self.assertIn("context_injection: disabled", output)
             self.assertIn("runner_contract_readiness: WARN", output)
             self.assertIn("candidate_count: 13", output)
@@ -16155,7 +16163,7 @@ class ProtoMindFlowTests(unittest.TestCase):
                 output = format_runner_candidates_command("/runner-candidates handoff", project_root=project_root, memory_store=store)
 
             self.assertIn("Proto-Mind Runner Candidate Set Handoff", output)
-            self.assertIn("Registry: 368 commands across 41 categories", output)
+            self.assertIn("Registry: 372 commands across 41 categories", output)
             self.assertIn("Candidate set: total=13, registry_verified=13", output)
             self.assertIn("active_allowlist: none/inactive", output)
             self.assertIn("execution_enabled=false", output)
@@ -16260,7 +16268,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
             self.assertIn("Runner Activation Preconditions Status", output)
             self.assertIn("Status: WARN", output)
-            self.assertIn("command_registry: commands=368 categories=41", output)
+            self.assertIn("command_registry: commands=372 categories=41", output)
             self.assertIn("context_injection: disabled", output)
             self.assertIn("runner_candidate_readiness: WARN", output)
             self.assertIn("accepted_known_warnings: 12", output)
@@ -16353,7 +16361,7 @@ class ProtoMindFlowTests(unittest.TestCase):
                 output = format_activation_command("/activation handoff", project_root=project_root, memory_store=store)
 
             self.assertIn("Proto-Mind Runner Activation Preconditions Handoff", output)
-            self.assertIn("Registry: 368 commands across 41 categories", output)
+            self.assertIn("Registry: 372 commands across 41 categories", output)
             self.assertIn("Candidate set: 13/13 registry-verified", output)
             self.assertIn("active_allowlist: none/inactive", output)
             self.assertIn("execution_enabled=false", output)
@@ -16460,7 +16468,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
             self.assertIn("Read-only Runner MVP Design Lock Status", output)
             self.assertIn("Status: WARN", output)
-            self.assertIn("command_registry: commands=368 categories=41", output)
+            self.assertIn("command_registry: commands=372 categories=41", output)
             self.assertIn("context_injection: disabled", output)
             self.assertIn("activation_readiness: WARN", output)
             self.assertIn("accepted_known_warnings: 12", output)
@@ -16568,7 +16576,7 @@ class ProtoMindFlowTests(unittest.TestCase):
                 output = format_runner_mvp_command("/runner-mvp handoff", project_root=project_root, memory_store=store)
 
             self.assertIn("Proto-Mind Read-only Runner MVP Design Lock Handoff", output)
-            self.assertIn("Registry: 368 commands across 41 categories", output)
+            self.assertIn("Registry: 372 commands across 41 categories", output)
             self.assertIn("MVP scope: 5 read-only candidates; verified=5", output)
             self.assertEqual(output.count("MVP_ALLOWLIST_CANDIDATE | NOT_ACTIVE | NOT_EXECUTABLE_YET"), 5)
             self.assertIn("CONFIRM RUN READONLY: <exact command>", output)
@@ -16669,7 +16677,7 @@ class ProtoMindFlowTests(unittest.TestCase):
                 output = format_runner_exec_command("/runner-exec status", project_root=project_root, memory_store=store)
 
             self.assertIn("Real Read-only Runner MVP Status", output)
-            self.assertIn("command_registry: commands=368 categories=41", output)
+            self.assertIn("command_registry: commands=372 categories=41", output)
             self.assertIn("active_allowlist_count: 4", output)
             self.assertIn("active_allowlisted_commands: /warnings unknown, /daily doctor, /exports doctor, /capabilities safety", output)
             self.assertIn("execution_enabled: true", output)
@@ -18272,7 +18280,7 @@ class ProtoMindFlowTests(unittest.TestCase):
         }
 
         self.assertTrue(expected.issubset(registry))
-        self.assertEqual(len(COMMAND_REGISTRY), 368)
+        self.assertEqual(len(COMMAND_REGISTRY), 372)
         self.assertEqual(len({spec.category for spec in COMMAND_REGISTRY}), 41)
         self.assertEqual(classify_command("/experience events").policy_class, "auto_allowed")
         self.assertEqual(
@@ -18437,7 +18445,7 @@ class ProtoMindFlowTests(unittest.TestCase):
             self.assertEqual(registry[command].mutates, "none")
             self.assertEqual(classify_command(command).policy_class, "auto_allowed")
 
-        self.assertEqual(len(COMMAND_REGISTRY), 368)
+        self.assertEqual(len(COMMAND_REGISTRY), 372)
         self.assertEqual(len({spec.category for spec in COMMAND_REGISTRY}), 41)
         self.assertEqual(command_registry_doctor()["status"], "OK")
 
@@ -18654,7 +18662,7 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertFalse(
             any(spec.prefix.startswith(PERSISTENT_EXPERIENCE_COMMAND_PREFIXES) for spec in COMMAND_REGISTRY)
         )
-        self.assertEqual(len(COMMAND_REGISTRY), 368)
+        self.assertEqual(len(COMMAND_REGISTRY), 372)
         self.assertEqual(len({spec.category for spec in COMMAND_REGISTRY}), 41)
         self.assertEqual(command_registry_doctor()["status"], "OK")
 
@@ -18923,7 +18931,7 @@ class ProtoMindFlowTests(unittest.TestCase):
             classify_command("/experience learning promotion-preview candidate").policy_class,
             "auto_allowed",
         )
-        self.assertEqual(len(COMMAND_REGISTRY), 368)
+        self.assertEqual(len(COMMAND_REGISTRY), 372)
         self.assertEqual(len({spec.category for spec in COMMAND_REGISTRY}), 41)
         self.assertEqual(command_registry_doctor()["status"], "OK")
         self.assertEqual(action_policy_doctor()["status"], "OK")
@@ -19272,7 +19280,7 @@ class ProtoMindFlowTests(unittest.TestCase):
             ).policy_class,
             "auto_allowed",
         )
-        self.assertEqual(len(COMMAND_REGISTRY), 368)
+        self.assertEqual(len(COMMAND_REGISTRY), 372)
         self.assertEqual(len({entry.category for entry in COMMAND_REGISTRY}), 41)
         self.assertEqual(command_registry_doctor()["status"], "OK")
         self.assertEqual(action_policy_doctor()["status"], "OK")
@@ -19655,7 +19663,7 @@ class ProtoMindFlowTests(unittest.TestCase):
             ).policy_class,
             "confirmation_required",
         )
-        self.assertEqual(len(COMMAND_REGISTRY), 368)
+        self.assertEqual(len(COMMAND_REGISTRY), 372)
         self.assertEqual(len({entry.category for entry in COMMAND_REGISTRY}), 41)
         self.assertEqual(command_registry_doctor()["status"], "OK")
         self.assertEqual(action_policy_doctor()["status"], "OK")
@@ -20027,7 +20035,7 @@ class ProtoMindFlowTests(unittest.TestCase):
             "/experience learning apply-doctor",
         ):
             self.assertEqual(classify_command(command).policy_class, "auto_allowed")
-        self.assertEqual(len(COMMAND_REGISTRY), 368)
+        self.assertEqual(len(COMMAND_REGISTRY), 372)
         self.assertEqual(len({entry.category for entry in COMMAND_REGISTRY}), 41)
         self.assertEqual(command_registry_doctor()["status"], "OK")
         self.assertEqual(action_policy_doctor()["status"], "OK")
@@ -20471,7 +20479,7 @@ class ProtoMindFlowTests(unittest.TestCase):
             "auto_allowed",
         )
         self.assertNotIn("/experience learning apply-batch", registry)
-        self.assertEqual(len(COMMAND_REGISTRY), 368)
+        self.assertEqual(len(COMMAND_REGISTRY), 372)
         self.assertEqual(len({entry.category for entry in COMMAND_REGISTRY}), 41)
         self.assertEqual(command_registry_doctor()["status"], "OK")
         self.assertEqual(action_policy_doctor()["status"], "OK")
@@ -20703,7 +20711,7 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertEqual(spec.mutates, "none")
         self.assertEqual(spec.risk, "low")
         self.assertEqual(classify_command("/memory why mem_learn_123").policy_class, "auto_allowed")
-        self.assertEqual(len(COMMAND_REGISTRY), 368)
+        self.assertEqual(len(COMMAND_REGISTRY), 372)
         self.assertEqual(len({entry.category for entry in COMMAND_REGISTRY}), 41)
         self.assertEqual(command_registry_doctor()["status"], "OK")
         self.assertEqual(action_policy_doctor()["status"], "OK")
@@ -20866,7 +20874,7 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertFalse(candidate.selected)
 
     def test_verified_lesson_recall_does_not_expand_command_surface(self) -> None:
-        self.assertEqual(len(COMMAND_REGISTRY), 368)
+        self.assertEqual(len(COMMAND_REGISTRY), 372)
         self.assertEqual(len({entry.category for entry in COMMAND_REGISTRY}), 41)
         self.assertEqual(command_registry_doctor()["status"], "OK")
         self.assertEqual(action_policy_doctor()["status"], "OK")
@@ -21044,7 +21052,7 @@ class ProtoMindFlowTests(unittest.TestCase):
             classify_command("/experience learning outcome-review mem_learn_x").policy_class,
             "auto_allowed",
         )
-        self.assertEqual(len(COMMAND_REGISTRY), 368)
+        self.assertEqual(len(COMMAND_REGISTRY), 372)
         self.assertEqual(len({entry.category for entry in COMMAND_REGISTRY}), 41)
         self.assertEqual(command_registry_doctor()["status"], "OK")
         self.assertEqual(action_policy_doctor()["status"], "OK")
@@ -21275,7 +21283,7 @@ class ProtoMindFlowTests(unittest.TestCase):
             ).policy_class,
             "auto_allowed",
         )
-        self.assertEqual(len(COMMAND_REGISTRY), 368)
+        self.assertEqual(len(COMMAND_REGISTRY), 372)
         self.assertEqual(len({entry.category for entry in COMMAND_REGISTRY}), 41)
         self.assertEqual(command_registry_doctor()["status"], "OK")
         self.assertEqual(action_policy_doctor()["status"], "OK")
@@ -21554,7 +21562,7 @@ class ProtoMindFlowTests(unittest.TestCase):
             ).policy_class,
             "confirmation_required",
         )
-        self.assertEqual(len(COMMAND_REGISTRY), 368)
+        self.assertEqual(len(COMMAND_REGISTRY), 372)
         self.assertEqual(len({entry.category for entry in COMMAND_REGISTRY}), 41)
         self.assertEqual(command_registry_doctor()["status"], "OK")
         self.assertEqual(action_policy_doctor()["status"], "OK")
@@ -21847,7 +21855,7 @@ class ProtoMindFlowTests(unittest.TestCase):
             ).policy_class,
             "confirmation_required",
         )
-        self.assertEqual(len(COMMAND_REGISTRY), 368)
+        self.assertEqual(len(COMMAND_REGISTRY), 372)
         self.assertEqual(command_registry_doctor()["status"], "OK")
         self.assertEqual(action_policy_doctor()["status"], "OK")
 
@@ -22157,7 +22165,7 @@ class ProtoMindFlowTests(unittest.TestCase):
             ).policy_class,
             "auto_allowed",
         )
-        self.assertEqual(len(COMMAND_REGISTRY), 368)
+        self.assertEqual(len(COMMAND_REGISTRY), 372)
         self.assertEqual(command_registry_doctor()["status"], "OK")
         self.assertEqual(action_policy_doctor()["status"], "OK")
 
@@ -22380,7 +22388,7 @@ class ProtoMindFlowTests(unittest.TestCase):
             ).policy_class,
             "auto_allowed",
         )
-        self.assertEqual(len(COMMAND_REGISTRY), 368)
+        self.assertEqual(len(COMMAND_REGISTRY), 372)
         self.assertEqual(len({entry.category for entry in COMMAND_REGISTRY}), 41)
         self.assertEqual(command_registry_doctor()["status"], "OK")
         self.assertEqual(action_policy_doctor()["status"], "OK")
@@ -22723,7 +22731,7 @@ class ProtoMindFlowTests(unittest.TestCase):
             ).policy_class,
             "auto_allowed",
         )
-        self.assertEqual(len(COMMAND_REGISTRY), 368)
+        self.assertEqual(len(COMMAND_REGISTRY), 372)
         self.assertEqual(len({entry.category for entry in COMMAND_REGISTRY}), 41)
         self.assertEqual(command_registry_doctor()["status"], "OK")
         self.assertEqual(action_policy_doctor()["status"], "OK")
@@ -22979,7 +22987,7 @@ class ProtoMindFlowTests(unittest.TestCase):
             ).policy_class,
             "auto_allowed",
         )
-        self.assertEqual(len(COMMAND_REGISTRY), 368)
+        self.assertEqual(len(COMMAND_REGISTRY), 372)
         self.assertEqual(len({entry.category for entry in COMMAND_REGISTRY}), 41)
         self.assertEqual(command_registry_doctor()["status"], "OK")
         self.assertEqual(action_policy_doctor()["status"], "OK")
@@ -23313,7 +23321,7 @@ class ProtoMindFlowTests(unittest.TestCase):
             ).policy_class,
             "auto_allowed",
         )
-        self.assertEqual(len(COMMAND_REGISTRY), 368)
+        self.assertEqual(len(COMMAND_REGISTRY), 372)
         self.assertEqual(len({entry.category for entry in COMMAND_REGISTRY}), 41)
         self.assertEqual(command_registry_doctor()["status"], "OK")
         self.assertEqual(action_policy_doctor()["status"], "OK")
@@ -23694,7 +23702,7 @@ class ProtoMindFlowTests(unittest.TestCase):
             "NOT_FOUND",
             "ERROR",
         })
-        self.assertEqual(len(COMMAND_REGISTRY), 368)
+        self.assertEqual(len(COMMAND_REGISTRY), 372)
         self.assertEqual(len({entry.category for entry in COMMAND_REGISTRY}), 41)
         self.assertEqual(
             classify_command(
@@ -23702,6 +23710,410 @@ class ProtoMindFlowTests(unittest.TestCase):
             ).policy_class,
             "auto_allowed",
         )
+        self.assertEqual(command_registry_doctor()["status"], "OK")
+        self.assertEqual(action_policy_doctor()["status"], "OK")
+
+    def test_skill_outcome_capture_preview_requires_pilot_consent_and_is_read_only(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            store, library, _, _ = build_test_applied_procedural_skill(root)
+            record = library.read_snapshot()["records"][0]
+            pilot = SupervisedExperiencePilot(root, session_id="skill-outcome-preview")
+            builder = ProceduralSkillOutcomeCaptureBuilder(
+                memory_store=store,
+                skill_library=library,
+            )
+            skill_before = library.skills_path.read_bytes()
+            memory_before = store.persistent_path.read_bytes()
+            output = format_procedural_skill_outcome_capture_command(
+                (
+                    "/experience learning skill-outcome-capture-preview "
+                    f"{record['id']} success --evidence operator verified the checklist"
+                ),
+                builder=builder,
+                session=pilot.skill_outcome_captures,
+                pilot_state=pilot.state,
+                pilot_session_id=pilot.session_id,
+                events=pilot.snapshot(),
+                append_events=pilot.append_supervised_manual_skill_outcome_events,
+            )
+            skill_after = library.skills_path.read_bytes()
+            memory_after = store.persistent_path.read_bytes()
+
+        self.assertIn("Status: NOT_READY", output)
+        self.assertIn("capture_allowed_now: false", output)
+        self.assertIn("CONFIRM-SKILL-OUTCOME-", output)
+        self.assertEqual(pilot.event_count, 0)
+        self.assertEqual(skill_after, skill_before)
+        self.assertEqual(memory_after, memory_before)
+
+    def test_skill_outcome_capture_exact_success_feeds_read_only_review(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            store, library, _, _ = build_test_applied_procedural_skill(root)
+            record = library.read_snapshot()["records"][0]
+            pilot = SupervisedExperiencePilot(root, session_id="skill-outcome-success")
+            pilot.preview()
+            pilot.consent(pilot.expected_consent_phrase)
+            builder = ProceduralSkillOutcomeCaptureBuilder(
+                memory_store=store,
+                skill_library=library,
+            )
+            evidence = "Operator verified every expected checklist result."
+            blueprint = builder.build(
+                session_id=pilot.session_id,
+                skill_id=str(record["id"]),
+                outcome="success",
+                evidence=evidence,
+            )
+            token = procedural_skill_outcome_capture_confirmation_token(blueprint)
+            skill_before = library.skills_path.read_bytes()
+            memory_before = store.persistent_path.read_bytes()
+            output = format_procedural_skill_outcome_capture_command(
+                (
+                    "/experience learning capture skill-outcome "
+                    f'{record["id"]} success {token} --evidence "{evidence}"'
+                ),
+                builder=builder,
+                session=pilot.skill_outcome_captures,
+                pilot_state=pilot.state,
+                pilot_session_id=pilot.session_id,
+                events=pilot.snapshot(),
+                append_events=pilot.append_supervised_manual_skill_outcome_events,
+            )
+            review = ProceduralSkillOutcomeReviewer(
+                pilot.snapshot(),
+                [record],
+                store.load_persistent_memory(),
+            ).review(str(record["id"]))
+            skill_after = library.skills_path.read_bytes()
+            memory_after = store.persistent_path.read_bytes()
+
+        self.assertIn("Status: CAPTURED", output)
+        self.assertIn("execution_performed_by_proto_mind: false", output)
+        self.assertEqual(pilot.event_count, 4)
+        self.assertEqual(len(pilot.skill_outcome_captures.snapshot()), 1)
+        self.assertEqual(review.status, "SUCCESS_CANDIDATE")
+        self.assertEqual(skill_after, skill_before)
+        self.assertEqual(memory_after, memory_before)
+
+    def test_skill_outcome_capture_failure_feeds_failure_review(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            store, library, _, _ = build_test_applied_procedural_skill(root)
+            record = library.read_snapshot()["records"][0]
+            pilot = SupervisedExperiencePilot(root, session_id="skill-outcome-failure")
+            pilot.preview()
+            pilot.consent(pilot.expected_consent_phrase)
+            builder = ProceduralSkillOutcomeCaptureBuilder(
+                memory_store=store,
+                skill_library=library,
+            )
+            evidence = "Verification failed after the manual procedure."
+            blueprint = builder.build(
+                session_id=pilot.session_id,
+                skill_id=str(record["id"]),
+                outcome="failure",
+                evidence=evidence,
+            )
+            token = procedural_skill_outcome_capture_confirmation_token(blueprint)
+            format_procedural_skill_outcome_capture_command(
+                (
+                    "/experience learning capture skill-outcome "
+                    f'{record["id"]} failure {token} --evidence "{evidence}"'
+                ),
+                builder=builder,
+                session=pilot.skill_outcome_captures,
+                pilot_state=pilot.state,
+                pilot_session_id=pilot.session_id,
+                events=pilot.snapshot(),
+                append_events=pilot.append_supervised_manual_skill_outcome_events,
+            )
+            review = ProceduralSkillOutcomeReviewer(
+                pilot.snapshot(),
+                [record],
+                store.load_persistent_memory(),
+            ).review(str(record["id"]))
+
+        self.assertEqual(review.status, "FAILURE_CANDIDATE")
+        self.assertEqual(pilot.snapshot()[-1]["event_type"], "tool_failed")
+
+    def test_skill_outcome_capture_refuses_wrong_token_without_events(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            store, library, _, _ = build_test_applied_procedural_skill(root)
+            record = library.read_snapshot()["records"][0]
+            pilot = SupervisedExperiencePilot(root, session_id="skill-outcome-wrong-token")
+            pilot.preview()
+            pilot.consent(pilot.expected_consent_phrase)
+            builder = ProceduralSkillOutcomeCaptureBuilder(
+                memory_store=store,
+                skill_library=library,
+            )
+            output = format_procedural_skill_outcome_capture_command(
+                (
+                    "/experience learning capture skill-outcome "
+                    f'{record["id"]} success WRONG --evidence "verified"'
+                ),
+                builder=builder,
+                session=pilot.skill_outcome_captures,
+                pilot_state=pilot.state,
+                pilot_session_id=pilot.session_id,
+                events=pilot.snapshot(),
+                append_events=pilot.append_supervised_manual_skill_outcome_events,
+            )
+
+        self.assertIn("token mismatch", output)
+        self.assertEqual(pilot.event_count, 0)
+        self.assertEqual(pilot.skill_outcome_captures.snapshot(), ())
+
+    def test_skill_outcome_capture_fails_closed_when_buffer_bound_is_reached(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            store, library, _, _ = build_test_applied_procedural_skill(root)
+            record = library.read_snapshot()["records"][0]
+            pilot = SupervisedExperiencePilot(
+                root,
+                session_id="skill-outcome-bound",
+                max_events=3,
+            )
+            pilot.preview()
+            pilot.consent(pilot.expected_consent_phrase)
+            builder = ProceduralSkillOutcomeCaptureBuilder(
+                memory_store=store,
+                skill_library=library,
+            )
+            evidence = "verified but the four-event batch exceeds this fixture bound"
+            blueprint = builder.build(
+                session_id=pilot.session_id,
+                skill_id=str(record["id"]),
+                outcome="success",
+                evidence=evidence,
+            )
+            token = procedural_skill_outcome_capture_confirmation_token(blueprint)
+            output = format_procedural_skill_outcome_capture_command(
+                (
+                    "/experience learning capture skill-outcome "
+                    f'{record["id"]} success {token} --evidence "{evidence}"'
+                ),
+                builder=builder,
+                session=pilot.skill_outcome_captures,
+                pilot_state=pilot.state,
+                pilot_session_id=pilot.session_id,
+                events=pilot.snapshot(),
+                append_events=pilot.append_supervised_manual_skill_outcome_events,
+            )
+
+        self.assertIn("total_event_limit", output)
+        self.assertEqual(pilot.state, "stopped")
+        self.assertEqual(pilot.event_count, 0)
+        self.assertEqual(pilot.skill_outcome_captures.snapshot(), ())
+
+    def test_skill_outcome_capture_refuses_without_exact_session_consent(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            store, library, _, _ = build_test_applied_procedural_skill(root)
+            record = library.read_snapshot()["records"][0]
+            pilot = SupervisedExperiencePilot(root, session_id="skill-outcome-no-consent")
+            builder = ProceduralSkillOutcomeCaptureBuilder(
+                memory_store=store,
+                skill_library=library,
+            )
+            evidence = "verified"
+            blueprint = builder.build(
+                session_id=pilot.session_id,
+                skill_id=str(record["id"]),
+                outcome="success",
+                evidence=evidence,
+            )
+            token = procedural_skill_outcome_capture_confirmation_token(blueprint)
+            output = format_procedural_skill_outcome_capture_command(
+                (
+                    "/experience learning capture skill-outcome "
+                    f'{record["id"]} success {token} --evidence "{evidence}"'
+                ),
+                builder=builder,
+                session=pilot.skill_outcome_captures,
+                pilot_state=pilot.state,
+                pilot_session_id=pilot.session_id,
+                events=pilot.snapshot(),
+                append_events=pilot.append_supervised_manual_skill_outcome_events,
+            )
+
+        self.assertIn("exact session consent is not active", output)
+        self.assertEqual(pilot.event_count, 0)
+
+    def test_skill_outcome_capture_is_run_once_for_exact_blueprint(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            store, library, _, _ = build_test_applied_procedural_skill(root)
+            record = library.read_snapshot()["records"][0]
+            pilot = SupervisedExperiencePilot(root, session_id="skill-outcome-run-once")
+            pilot.preview()
+            pilot.consent(pilot.expected_consent_phrase)
+            builder = ProceduralSkillOutcomeCaptureBuilder(
+                memory_store=store,
+                skill_library=library,
+            )
+            evidence = "verified once"
+            blueprint = builder.build(
+                session_id=pilot.session_id,
+                skill_id=str(record["id"]),
+                outcome="success",
+                evidence=evidence,
+            )
+            token = procedural_skill_outcome_capture_confirmation_token(blueprint)
+            command = (
+                "/experience learning capture skill-outcome "
+                f'{record["id"]} success {token} --evidence "{evidence}"'
+            )
+            kwargs = {
+                "builder": builder,
+                "session": pilot.skill_outcome_captures,
+                "pilot_state": pilot.state,
+                "pilot_session_id": pilot.session_id,
+                "events": pilot.snapshot(),
+                "append_events": pilot.append_supervised_manual_skill_outcome_events,
+            }
+            first = format_procedural_skill_outcome_capture_command(command, **kwargs)
+            events_after_first = pilot.snapshot()
+            second = format_procedural_skill_outcome_capture_command(command, **kwargs)
+
+        self.assertIn("Status: CAPTURED", first)
+        self.assertIn("already captured", second)
+        self.assertEqual(pilot.snapshot(), events_after_first)
+        self.assertEqual(pilot.event_count, 4)
+
+    def test_skill_outcome_capture_refuses_drift_and_command_chaining(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            store, library, _, applied = build_test_applied_procedural_skill(root)
+            pilot = SupervisedExperiencePilot(root, session_id="skill-outcome-drift")
+            pilot.preview()
+            pilot.consent(pilot.expected_consent_phrase)
+            builder = ProceduralSkillOutcomeCaptureBuilder(
+                memory_store=store,
+                skill_library=library,
+            )
+            chained = format_procedural_skill_outcome_capture_command(
+                "/experience learning skill-outcome-capture-preview x success --evidence ok; /skills list",
+                builder=builder,
+                session=pilot.skill_outcome_captures,
+                pilot_state=pilot.state,
+                pilot_session_id=pilot.session_id,
+                events=pilot.snapshot(),
+                append_events=pilot.append_supervised_manual_skill_outcome_events,
+            )
+            library.set_body(applied.created_skill_id, "Drifted body")
+            drifted = format_procedural_skill_outcome_capture_command(
+                (
+                    "/experience learning skill-outcome-capture-preview "
+                    f"{applied.created_skill_id} success --evidence verified"
+                ),
+                builder=builder,
+                session=pilot.skill_outcome_captures,
+                pilot_state=pilot.state,
+                pilot_session_id=pilot.session_id,
+                events=pilot.snapshot(),
+                append_events=pilot.append_supervised_manual_skill_outcome_events,
+            )
+
+        self.assertIn("Command chaining", chained)
+        self.assertIn("provenance/payload is not safe", drifted)
+        self.assertEqual(pilot.event_count, 0)
+
+    def test_skill_outcome_capture_redacts_evidence_before_process_memory(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            store, library, _, _ = build_test_applied_procedural_skill(root)
+            record = library.read_snapshot()["records"][0]
+            builder = ProceduralSkillOutcomeCaptureBuilder(
+                memory_store=store,
+                skill_library=library,
+            )
+            blueprint = builder.build(
+                session_id="skill-outcome-redaction",
+                skill_id=str(record["id"]),
+                outcome="success",
+                evidence="Verified with token=super-secret-token-value.",
+            )
+
+        self.assertNotIn("super-secret-token-value", blueprint.evidence_preview)
+        self.assertIn("[REDACTED:", blueprint.evidence_preview)
+        self.assertEqual(len(blueprint.evidence_fingerprint), 64)
+
+    def test_skill_outcome_capture_list_inspect_and_doctor_are_read_only(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            store, library, _, _ = build_test_applied_procedural_skill(root)
+            record = library.read_snapshot()["records"][0]
+            pilot = SupervisedExperiencePilot(root, session_id="skill-outcome-doctor")
+            pilot.preview()
+            pilot.consent(pilot.expected_consent_phrase)
+            builder = ProceduralSkillOutcomeCaptureBuilder(
+                memory_store=store,
+                skill_library=library,
+            )
+            blueprint = builder.build(
+                session_id=pilot.session_id,
+                skill_id=str(record["id"]),
+                outcome="success",
+                evidence="verified",
+            )
+            receipt = pilot.skill_outcome_captures.capture(
+                blueprint,
+                token=procedural_skill_outcome_capture_confirmation_token(blueprint),
+                pilot_state=pilot.state,
+                append_events=pilot.append_supervised_manual_skill_outcome_events,
+            )
+            events_before = pilot.snapshot()
+            receipts_before = pilot.skill_outcome_captures.snapshot()
+            common = {
+                "builder": builder,
+                "session": pilot.skill_outcome_captures,
+                "pilot_state": pilot.state,
+                "pilot_session_id": pilot.session_id,
+                "events": pilot.snapshot(),
+                "append_events": pilot.append_supervised_manual_skill_outcome_events,
+            }
+            listed = format_procedural_skill_outcome_capture_command(
+                "/experience learning skill-outcome-captures", **common
+            )
+            inspected = format_procedural_skill_outcome_capture_command(
+                f"/experience learning skill-outcome-captures {receipt.id}", **common
+            )
+            doctor = format_procedural_skill_outcome_capture_command(
+                "/experience learning skill-outcome-capture-doctor", **common
+            )
+
+        self.assertIn(receipt.id, listed)
+        self.assertIn("Status: CAPTURED", inspected)
+        self.assertIn("Status: OK", doctor)
+        self.assertIn(PROCEDURAL_SKILL_OUTCOME_CAPTURE_MODE, doctor)
+        self.assertEqual(pilot.snapshot(), events_before)
+        self.assertEqual(pilot.skill_outcome_captures.snapshot(), receipts_before)
+
+    def test_skill_outcome_capture_registry_policy_and_bounds_are_safe(self) -> None:
+        registry = {entry.prefix: entry for entry in COMMAND_REGISTRY}
+
+        self.assertEqual(PROCEDURAL_SKILL_OUTCOME_CAPTURE_MAX_RECEIPTS, 16)
+        for prefix in (
+            "/experience learning skill-outcome-capture-preview",
+            "/experience learning skill-outcome-captures",
+            "/experience learning skill-outcome-capture-doctor",
+        ):
+            self.assertTrue(registry[prefix].read_only)
+            self.assertEqual(registry[prefix].mutates, "none")
+            self.assertEqual(classify_command(prefix).policy_class, "auto_allowed")
+        capture = registry["/experience learning capture skill-outcome"]
+        self.assertFalse(capture.read_only)
+        self.assertEqual(capture.mutates, "session")
+        self.assertEqual(
+            classify_command("/experience learning capture skill-outcome").policy_class,
+            "confirmation_required",
+        )
+        self.assertEqual(len(COMMAND_REGISTRY), 372)
+        self.assertEqual(len({entry.category for entry in COMMAND_REGISTRY}), 41)
         self.assertEqual(command_registry_doctor()["status"], "OK")
         self.assertEqual(action_policy_doctor()["status"], "OK")
 
@@ -23806,7 +24218,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
         self.assertIn("Proto-Mind Contest Showcase v1", output)
         self.assertIn("Status: READY", output)
-        self.assertIn("command_registry: 368 commands / 41 categories", output)
+        self.assertIn("command_registry: 372 commands / 41 categories", output)
         self.assertIn("context_injection: disabled", output)
         self.assertIn("experience_pilot: state=not_started", output)
         self.assertIn("read_only_runner_allowlist: 4", output)
@@ -23977,7 +24389,7 @@ class ProtoMindFlowTests(unittest.TestCase):
             self.assertEqual(registry[command].mutates, "none")
             self.assertEqual(registry[command].risk, "low")
             self.assertEqual(classify_command(command).policy_class, "auto_allowed")
-        self.assertEqual(len(COMMAND_REGISTRY), 368)
+        self.assertEqual(len(COMMAND_REGISTRY), 372)
         self.assertEqual(len({item.category for item in COMMAND_REGISTRY}), 41)
         self.assertEqual(command_registry_doctor()["status"], "OK")
 
