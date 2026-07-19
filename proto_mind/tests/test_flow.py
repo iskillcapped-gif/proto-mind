@@ -4,6 +4,7 @@ import json
 import os
 import tarfile
 import unittest
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -167,10 +168,17 @@ from proto_mind.experience_learning import (
     run_experience_learning_benchmark,
 )
 from proto_mind.experience_learning_bridge import (
+    CognitiveLearningPreviewCandidate,
     OperatorReviewedLearningBridge,
     format_learning_bridge_doctor,
     format_learning_bridge_preview,
     format_learning_bridge_status,
+)
+from proto_mind.experience_learning_decision import (
+    LEARNING_DECISION_MAX_RECEIPTS,
+    OperatorReviewedLearningDecisionSession,
+    format_learning_decision_command,
+    learning_confirmation_token,
 )
 from proto_mind.experience_learning_input import (
     LEARNING_INPUT_SELECTION_MODE,
@@ -295,6 +303,29 @@ def build_test_experience_events(
         trace_id=trace_id,
         created_at=f"2026-01-01T00:00:{turn_id:02d}Z",
     )
+
+
+def build_test_learning_candidate(
+    tmp_path: Path,
+) -> tuple[
+    Coordinator,
+    MemoryStore,
+    SupervisedExperiencePilot,
+    OperatorReviewedLearningBridge,
+    CognitiveLearningPreviewCandidate,
+]:
+    coordinator, store, _ = build_test_system(tmp_path / "cognitive")
+    coordinator.pending_correction_hints = [
+        "Use the active SQLite decision as current state."
+    ]
+    pilot = SupervisedExperiencePilot(tmp_path, session_id="learning-decision-test")
+    pilot.preview()
+    pilot.consent(pilot.expected_consent_phrase)
+    user_input = "Explain the current storage decision."
+    pilot.observe_normal_turn(user_input, coordinator.handle(user_input))
+    bridge = OperatorReviewedLearningBridge(pilot.snapshot())
+    candidate = bridge.review()[0].candidates[0]
+    return coordinator, store, pilot, bridge, candidate
 
 
 def _id_from_output(output: str, label: str) -> str:
@@ -719,7 +750,7 @@ def _runner_exec_executors(
         "/exports doctor": exports or (lambda: "Export Retention Doctor\nStatus: OK"),
         "/capabilities safety": capabilities
         or (
-            lambda: "Command Capability Safety Classification\n- registered read-only/mutates=none commands: 271\n- auto_allowed: 270\n- confirmation_required: 85\n- operator_only: 4"
+            lambda: "Command Capability Safety Classification\n- registered read-only/mutates=none commands: 271\n- auto_allowed: 270\n- confirmation_required: 86\n- operator_only: 4"
         ),
     }
 
@@ -2534,7 +2565,7 @@ class ProtoMindFlowTests(unittest.TestCase):
         output = format_commands_command("/commands status")
 
         self.assertIn("Command Registry Status", output)
-        self.assertIn("registered_commands: 359", output)
+        self.assertIn("registered_commands: 360", output)
         self.assertIn("read_only:", output)
         self.assertIn("mutating:", output)
         self.assertIn("category_counts:", output)
@@ -2605,7 +2636,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
         self.assertIn("Command Registry Doctor", output)
         self.assertIn("Status: OK", output)
-        self.assertIn("Commands checked: 359", output)
+        self.assertIn("Commands checked: 360", output)
         self.assertIn("natural-router references are consistent", output)
         self.assertIn("no commands were executed", output)
 
@@ -2665,9 +2696,9 @@ class ProtoMindFlowTests(unittest.TestCase):
         output = format_policy_command("/policy status")
 
         self.assertIn("Action Safety Policy Status", output)
-        self.assertIn("registered_commands: 359", output)
+        self.assertIn("registered_commands: 360", output)
         self.assertIn("auto_allowed: 270", output)
-        self.assertIn("confirmation_required: 85", output)
+        self.assertIn("confirmation_required: 86", output)
         self.assertIn("operator_only: 4", output)
         self.assertIn("blocked: 0", output)
         self.assertIn("read-only advisory", output)
@@ -2732,7 +2763,7 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertEqual(report["status"], "OK")
         self.assertIn("Action Safety Policy Doctor", output)
         self.assertIn("Status: OK", output)
-        self.assertIn("Commands checked: 359", output)
+        self.assertIn("Commands checked: 360", output)
         self.assertIn("Natural routes checked: 41", output)
         self.assertIn("policy invariants", output)
 
@@ -12471,7 +12502,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
             self.assertIn("Daily Agent Status", output)
             self.assertIn(f"project_root: {project_root}", output)
-            self.assertIn("command_registry: commands=359 categories=41", output)
+            self.assertIn("command_registry: commands=360 categories=41", output)
             self.assertIn("known_export_dirs: present=7/7", output)
             self.assertIn("latest_snapshot: daily_fixture.json", output)
             self.assertIn("latest_snapshot_diff: daily_fixture.json", output)
@@ -12604,7 +12635,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
             self.assertIn("Session Start Brief", output)
             self.assertIn(f"project_root: {project_root}", output)
-            self.assertIn("command_registry: commands=359 categories=41", output)
+            self.assertIn("command_registry: commands=360 categories=41", output)
             self.assertIn("daily_doctor: OK", output)
             self.assertIn("export_doctor: OK", output)
             self.assertIn("latest_snapshot: daily_fixture.json", output)
@@ -12674,7 +12705,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
             self.assertIn("Proto-Mind Session Handoff Brief", output)
             self.assertIn("Current milestone: Daily Agent Layer v1", output)
-            self.assertIn("Registry: 359 commands across 41 categories", output)
+            self.assertIn("Registry: 360 commands across 41 categories", output)
             self.assertIn("/daily status; /daily brief; /daily doctor; /daily next", output)
             self.assertIn("/exports status; /exports inventory", output)
             self.assertIn("/proto snapshot-diff-status", output)
@@ -12742,7 +12773,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
             self.assertIn("Milestone Roadmap Status", output)
             self.assertIn(f"project_root: {project_root}", output)
-            self.assertIn("command_registry: commands=359 categories=41", output)
+            self.assertIn("command_registry: commands=360 categories=41", output)
             self.assertIn("current_milestone: Operating Loop v2.2 / Milestone Tracker v1", output)
             self.assertIn("accepted_milestones_detected: 2", output)
             self.assertIn("milestone_docs: 1", output)
@@ -13153,7 +13184,7 @@ class ProtoMindFlowTests(unittest.TestCase):
             self.assertIn("Operator Agenda Status", output)
             self.assertIn("Status: WARN", output)
             self.assertIn(f"project_root: {project_root}", output)
-            self.assertIn("command_registry: commands=359 categories=41", output)
+            self.assertIn("command_registry: commands=360 categories=41", output)
             self.assertIn("daily=true, session=true, milestone=true, warnings=true", output)
             self.assertIn("accepted_known_warnings: 12", output)
             self.assertIn("unknown_warnings: 0", output)
@@ -13298,7 +13329,7 @@ class ProtoMindFlowTests(unittest.TestCase):
             self.assertIn("Pre-Change Readiness", output)
             self.assertIn("Status: WARN", output)
             self.assertIn(f"project_root: {project_root}", output)
-            self.assertIn("command_registry: commands=359 categories=41", output)
+            self.assertIn("command_registry: commands=360 categories=41", output)
             self.assertIn("context_injection: disabled", output)
             self.assertIn("accepted_known_warnings: 12", output)
             self.assertIn("unknown_warnings: 0", output)
@@ -13361,7 +13392,7 @@ class ProtoMindFlowTests(unittest.TestCase):
             self.assertIn("Proto-Mind Pre-Change Task Header", output)
             self.assertIn(f"Project: {project_root}", output)
             self.assertIn("Current milestone: Operating Loop v2.2 / Milestone Tracker v1", output)
-            self.assertIn("Registry baseline: 359 commands across 41 categories", output)
+            self.assertIn("Registry baseline: 360 commands across 41 categories", output)
             self.assertIn("Warning baseline: accepted=12, unknown=0, blockers=0", output)
             self.assertIn("Rule 0:", output)
             self.assertIn("Safety requirements:", output)
@@ -13473,7 +13504,7 @@ class ProtoMindFlowTests(unittest.TestCase):
             self.assertIn("Focus Mode Status", output)
             self.assertIn("Status: WARN", output)
             self.assertIn(f"project_root: {project_root}", output)
-            self.assertIn("command_registry: commands=359 categories=41", output)
+            self.assertIn("command_registry: commands=360 categories=41", output)
             self.assertIn("context_injection: disabled", output)
             self.assertIn("prechange_readiness: WARN", output)
             self.assertIn("agenda_state: WARN", output)
@@ -13568,7 +13599,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
             self.assertIn("Proto-Mind Focused Session Handoff", output)
             self.assertIn(f"Project: {project_root}", output)
-            self.assertIn("Registry baseline: 359 commands across 41 categories", output)
+            self.assertIn("Registry baseline: 360 commands across 41 categories", output)
             self.assertIn("Focus readiness: WARN", output)
             self.assertIn("Warning baseline: accepted=12, unknown=0, blockers=0", output)
             self.assertIn("Context Injection: disabled", output)
@@ -13681,7 +13712,7 @@ class ProtoMindFlowTests(unittest.TestCase):
             self.assertIn("Acceptance Review Status", output)
             self.assertIn("Status: WARN", output)
             self.assertIn(f"project_root: {project_root}", output)
-            self.assertIn("command_registry: commands=359 categories=41", output)
+            self.assertIn("command_registry: commands=360 categories=41", output)
             self.assertIn("context_injection: disabled", output)
             self.assertIn("focus_readiness: WARN", output)
             self.assertIn("prechange_readiness: WARN", output)
@@ -13782,7 +13813,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
             self.assertIn("Proto-Mind Acceptance Review Handoff", output)
             self.assertIn(f"Project: {project_root}", output)
-            self.assertIn("Registry baseline: 359 commands across 41 categories", output)
+            self.assertIn("Registry baseline: 360 commands across 41 categories", output)
             self.assertIn("Acceptance readiness: WARN", output)
             self.assertIn("Warning baseline: accepted=12, unknown=0, blockers=0", output)
             self.assertIn("Context Injection: disabled", output)
@@ -13896,7 +13927,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
             self.assertIn("Snapshot Baseline Registry Status", output)
             self.assertIn("Status: WARN", output)
-            self.assertIn("command_registry: commands=359 categories=41", output)
+            self.assertIn("command_registry: commands=360 categories=41", output)
             self.assertIn("accepted_baseline: Snapshot Baseline Registry v1", output)
             self.assertIn("latest_snapshot: snapshot.json", output)
             self.assertIn("latest_snapshot_diff: diff.json", output)
@@ -13980,7 +14011,7 @@ class ProtoMindFlowTests(unittest.TestCase):
                 output = format_baseline_command("/baseline handoff", project_root=project_root, memory_store=store)
 
             self.assertIn("Proto-Mind Accepted Baseline Handoff", output)
-            self.assertIn("Registry: 359 commands across 41 categories", output)
+            self.assertIn("Registry: 360 commands across 41 categories", output)
             self.assertIn("Tests: 671 tests OK", output)
             self.assertIn("Warnings: accepted=12, unknown=0, blockers=0", output)
             self.assertIn("Context Injection: disabled", output)
@@ -14092,7 +14123,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
             self.assertIn("Post-Acceptance Closure Status", output)
             self.assertIn("Status: WARN", output)
-            self.assertIn("command_registry: commands=359 categories=41", output)
+            self.assertIn("command_registry: commands=360 categories=41", output)
             self.assertIn("context_injection: disabled", output)
             self.assertIn("baseline_review: WARN", output)
             self.assertIn("acceptance_review: WARN", output)
@@ -14125,7 +14156,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
             self.assertIn("Post-Acceptance Session Closure Summary", output)
             self.assertIn("Snapshot Baseline Registry v1", output)
-            self.assertIn("registry: 359 commands across 41 categories", output)
+            self.assertIn("registry: 360 commands across 41 categories", output)
             self.assertIn("tests: 671 tests OK", output)
             self.assertIn("accepted=12, unknown=0, blockers=0", output)
             self.assertIn("Latest accepted operating layers:", output)
@@ -14177,7 +14208,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
             self.assertIn("Proto-Mind Post-Acceptance Handoff", output)
             self.assertIn(f"Project: {project_root}", output)
-            self.assertIn("Registry: 359 commands across 41 categories", output)
+            self.assertIn("Registry: 360 commands across 41 categories", output)
             self.assertIn("Tests: 671 tests OK", output)
             self.assertIn("Context Injection: disabled", output)
             self.assertIn("Warnings: accepted=12, unknown=0, blockers=0", output)
@@ -14289,7 +14320,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
             self.assertIn("Operator Memory Card Status", output)
             self.assertIn("Status: WARN", output)
-            self.assertIn("command_registry: commands=359 categories=41", output)
+            self.assertIn("command_registry: commands=360 categories=41", output)
             self.assertIn("context_injection: disabled", output)
             self.assertIn("closure_readiness: WARN", output)
             self.assertIn("baseline_readiness: WARN", output)
@@ -14325,7 +14356,7 @@ class ProtoMindFlowTests(unittest.TestCase):
             self.assertLessEqual(len(output.splitlines()), 20)
             self.assertIn("Proto-Mind Operator Memory Card (Short)", output)
             self.assertIn(f"Project: {project_root}", output)
-            self.assertIn("Registry: 359 commands / 41 categories", output)
+            self.assertIn("Registry: 360 commands / 41 categories", output)
             self.assertIn("Tests: 671 tests OK", output)
             self.assertIn("Context Injection: disabled", output)
             self.assertIn("accepted=12, unknown=0, blockers=0", output)
@@ -14376,7 +14407,7 @@ class ProtoMindFlowTests(unittest.TestCase):
             self.assertIn("Proto-Mind Codex Context Header", output)
             self.assertIn("Rule 0: before changes", output)
             self.assertIn("Current baseline:", output)
-            self.assertIn("Registry/tests: 359 commands, 41 categories", output)
+            self.assertIn("Registry/tests: 360 commands, 41 categories", output)
             self.assertIn("accepted=12, unknown=0, blockers=0", output)
             self.assertIn("Context Injection: disabled", output)
             self.assertIn("do not write proto_mind/data/* or proto_mind/exports/*", output)
@@ -14485,7 +14516,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
             self.assertIn("Command Family Index Status", output)
             self.assertIn("Status: WARN", output)
-            self.assertIn("command_registry: commands=359 categories=41", output)
+            self.assertIn("command_registry: commands=360 categories=41", output)
             self.assertIn("context_injection: disabled", output)
             self.assertIn("accepted_known_warnings: 12", output)
             self.assertIn("unknown_warnings: 0", output)
@@ -14581,7 +14612,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
             self.assertIn("Proto-Mind Capability Handoff", output)
             self.assertIn(f"Project: {project_root}", output)
-            self.assertIn("Registry: 359 commands across 41 categories/families", output)
+            self.assertIn("Registry: 360 commands across 41 categories/families", output)
             self.assertIn("Key families:", output)
             self.assertIn("accepted=12, unknown=0, blockers=0", output)
             self.assertIn("Context Injection: disabled", output)
@@ -14698,7 +14729,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
             self.assertIn("Proposed Action Plan Status", ready)
             self.assertIn("Status: WARN", ready)
-            self.assertIn("command_registry: commands=359 categories=41", ready)
+            self.assertIn("command_registry: commands=360 categories=41", ready)
             self.assertIn("context_injection: disabled", ready)
             self.assertIn("capability_map_readiness: WARN", ready)
             self.assertIn("accepted_known_warnings: 12", ready)
@@ -14805,7 +14836,7 @@ class ProtoMindFlowTests(unittest.TestCase):
             self.assertIn("Proto-Mind Dry-Run Planning Handoff", output)
             self.assertIn(f"Project: {project_root}", output)
             self.assertIn("Rule 0:", output)
-            self.assertIn("Registry: 359 commands across 41 categories", output)
+            self.assertIn("Registry: 360 commands across 41 categories", output)
             self.assertIn("auto_allowed=270", output)
             self.assertIn("accepted=12, unknown=0, blockers=0", output)
             self.assertIn("Context Injection: disabled", output)
@@ -14917,7 +14948,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
             self.assertIn("Confirmation Gate Vocabulary Status", output)
             self.assertIn("Status: WARN", output)
-            self.assertIn("command_registry: commands=359 categories=41", output)
+            self.assertIn("command_registry: commands=360 categories=41", output)
             self.assertIn("context_injection: disabled", output)
             self.assertIn("accepted_known_warnings: 12", output)
             self.assertIn("unknown_warnings: 0", output)
@@ -14974,9 +15005,9 @@ class ProtoMindFlowTests(unittest.TestCase):
 
             self.assertIn("Confirmation Requirements By Capability Class", output)
             self.assertIn("read-only (271): READ_ONLY_MANUAL", output)
-            self.assertIn("mutating (88): CONFIRM_REQUIRED", output)
+            self.assertIn("mutating (89): CONFIRM_REQUIRED", output)
             self.assertIn("high-risk (4): ELEVATED_CONFIRM_REQUIRED", output)
-            self.assertIn("confirmation-required (85)", output)
+            self.assertIn("confirmation-required (86)", output)
             self.assertIn("operator-only (4)", output)
             self.assertIn("Rule 0 backup/checkpoint is complete", output)
             self.assertIn("No user input is parsed as confirmation", output)
@@ -14989,7 +15020,7 @@ class ProtoMindFlowTests(unittest.TestCase):
                 output = format_confirmation_command("/confirm handoff", project_root=project_root, memory_store=store)
 
             self.assertIn("Proto-Mind Confirmation Vocabulary Handoff", output)
-            self.assertIn("Registry: 359 commands across 41 categories", output)
+            self.assertIn("Registry: 360 commands across 41 categories", output)
             self.assertIn("NONE | READ_ONLY_MANUAL | CONFIRM_REQUIRED", output)
             self.assertIn("Execution, approval capture, and authorization remain forbidden", output)
             self.assertIn("/runner-mvp confirmation", output)
@@ -15088,7 +15119,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
             self.assertIn("Execution Sandbox Blueprint Status", output)
             self.assertIn("Status: WARN", output)
-            self.assertIn("command_registry: commands=359 categories=41", output)
+            self.assertIn("command_registry: commands=360 categories=41", output)
             self.assertIn("context_injection: disabled", output)
             self.assertIn("confirmation_gate_readiness: WARN", output)
             self.assertIn("accepted_known_warnings: 12", output)
@@ -15175,8 +15206,8 @@ class ProtoMindFlowTests(unittest.TestCase):
                 output = format_sandbox_command("/sandbox handoff", project_root=project_root, memory_store=store)
 
             self.assertIn("Proto-Mind Execution Sandbox Design Handoff", output)
-            self.assertIn("Registry: 359 commands across 41 categories", output)
-            self.assertIn("read_only=271, mutating=88, high_risk=4", output)
+            self.assertIn("Registry: 360 commands across 41 categories", output)
+            self.assertIn("read_only=271, mutating=89, high_risk=4", output)
             self.assertIn("NONE | READ_ONLY_MANUAL | CONFIRM_REQUIRED", output)
             self.assertIn("FUTURE_CANDIDATE: /daily doctor", output)
             self.assertIn("Execution remains forbidden", output)
@@ -15279,7 +15310,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
             self.assertIn("No-Op Runner Contract Status", output)
             self.assertIn("Status: WARN", output)
-            self.assertIn("command_registry: commands=359 categories=41", output)
+            self.assertIn("command_registry: commands=360 categories=41", output)
             self.assertIn("context_injection: disabled", output)
             self.assertIn("sandbox_blueprint_readiness: WARN", output)
             self.assertIn("confirmation_gate_readiness: WARN", output)
@@ -15375,8 +15406,8 @@ class ProtoMindFlowTests(unittest.TestCase):
                 output = format_runner_command("/runner handoff", project_root=project_root, memory_store=store)
 
             self.assertIn("Proto-Mind No-Op Runner Contract Handoff", output)
-            self.assertIn("Registry: 359 commands across 41 categories", output)
-            self.assertIn("read_only=271, mutating=88, high_risk=4", output)
+            self.assertIn("Registry: 360 commands across 41 categories", output)
+            self.assertIn("read_only=271, mutating=89, high_risk=4", output)
             self.assertIn("execution_enabled=false; executed=false", output)
             self.assertIn("Active allowlist: absent", output)
             self.assertIn("Execution engine: absent", output)
@@ -15485,7 +15516,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
             self.assertIn("Runner Candidate Set Status", output)
             self.assertIn("Status: WARN", output)
-            self.assertIn("command_registry: commands=359 categories=41", output)
+            self.assertIn("command_registry: commands=360 categories=41", output)
             self.assertIn("context_injection: disabled", output)
             self.assertIn("runner_contract_readiness: WARN", output)
             self.assertIn("candidate_count: 13", output)
@@ -15578,7 +15609,7 @@ class ProtoMindFlowTests(unittest.TestCase):
                 output = format_runner_candidates_command("/runner-candidates handoff", project_root=project_root, memory_store=store)
 
             self.assertIn("Proto-Mind Runner Candidate Set Handoff", output)
-            self.assertIn("Registry: 359 commands across 41 categories", output)
+            self.assertIn("Registry: 360 commands across 41 categories", output)
             self.assertIn("Candidate set: total=13, registry_verified=13", output)
             self.assertIn("active_allowlist: none/inactive", output)
             self.assertIn("execution_enabled=false", output)
@@ -15683,7 +15714,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
             self.assertIn("Runner Activation Preconditions Status", output)
             self.assertIn("Status: WARN", output)
-            self.assertIn("command_registry: commands=359 categories=41", output)
+            self.assertIn("command_registry: commands=360 categories=41", output)
             self.assertIn("context_injection: disabled", output)
             self.assertIn("runner_candidate_readiness: WARN", output)
             self.assertIn("accepted_known_warnings: 12", output)
@@ -15776,7 +15807,7 @@ class ProtoMindFlowTests(unittest.TestCase):
                 output = format_activation_command("/activation handoff", project_root=project_root, memory_store=store)
 
             self.assertIn("Proto-Mind Runner Activation Preconditions Handoff", output)
-            self.assertIn("Registry: 359 commands across 41 categories", output)
+            self.assertIn("Registry: 360 commands across 41 categories", output)
             self.assertIn("Candidate set: 13/13 registry-verified", output)
             self.assertIn("active_allowlist: none/inactive", output)
             self.assertIn("execution_enabled=false", output)
@@ -15883,7 +15914,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
             self.assertIn("Read-only Runner MVP Design Lock Status", output)
             self.assertIn("Status: WARN", output)
-            self.assertIn("command_registry: commands=359 categories=41", output)
+            self.assertIn("command_registry: commands=360 categories=41", output)
             self.assertIn("context_injection: disabled", output)
             self.assertIn("activation_readiness: WARN", output)
             self.assertIn("accepted_known_warnings: 12", output)
@@ -15991,7 +16022,7 @@ class ProtoMindFlowTests(unittest.TestCase):
                 output = format_runner_mvp_command("/runner-mvp handoff", project_root=project_root, memory_store=store)
 
             self.assertIn("Proto-Mind Read-only Runner MVP Design Lock Handoff", output)
-            self.assertIn("Registry: 359 commands across 41 categories", output)
+            self.assertIn("Registry: 360 commands across 41 categories", output)
             self.assertIn("MVP scope: 5 read-only candidates; verified=5", output)
             self.assertEqual(output.count("MVP_ALLOWLIST_CANDIDATE | NOT_ACTIVE | NOT_EXECUTABLE_YET"), 5)
             self.assertIn("CONFIRM RUN READONLY: <exact command>", output)
@@ -16092,7 +16123,7 @@ class ProtoMindFlowTests(unittest.TestCase):
                 output = format_runner_exec_command("/runner-exec status", project_root=project_root, memory_store=store)
 
             self.assertIn("Real Read-only Runner MVP Status", output)
-            self.assertIn("command_registry: commands=359 categories=41", output)
+            self.assertIn("command_registry: commands=360 categories=41", output)
             self.assertIn("active_allowlist_count: 4", output)
             self.assertIn("active_allowlisted_commands: /warnings unknown, /daily doctor, /exports doctor, /capabilities safety", output)
             self.assertIn("execution_enabled: true", output)
@@ -16380,7 +16411,7 @@ class ProtoMindFlowTests(unittest.TestCase):
                     "Command Capability Safety Classification",
                     "- registered read-only/mutates=none commands: 271",
                     "- auto_allowed: 270",
-                    "- confirmation_required: 85",
+                    "- confirmation_required: 86",
                     "- operator_only: 4",
                 ]
             )
@@ -17695,7 +17726,7 @@ class ProtoMindFlowTests(unittest.TestCase):
         }
 
         self.assertTrue(expected.issubset(registry))
-        self.assertEqual(len(COMMAND_REGISTRY), 359)
+        self.assertEqual(len(COMMAND_REGISTRY), 360)
         self.assertEqual(len({spec.category for spec in COMMAND_REGISTRY}), 41)
         self.assertEqual(classify_command("/experience events").policy_class, "auto_allowed")
         self.assertEqual(
@@ -17860,7 +17891,7 @@ class ProtoMindFlowTests(unittest.TestCase):
             self.assertEqual(registry[command].mutates, "none")
             self.assertEqual(classify_command(command).policy_class, "auto_allowed")
 
-        self.assertEqual(len(COMMAND_REGISTRY), 359)
+        self.assertEqual(len(COMMAND_REGISTRY), 360)
         self.assertEqual(len({spec.category for spec in COMMAND_REGISTRY}), 41)
         self.assertEqual(command_registry_doctor()["status"], "OK")
 
@@ -18077,9 +18108,279 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertFalse(
             any(spec.prefix.startswith(PERSISTENT_EXPERIENCE_COMMAND_PREFIXES) for spec in COMMAND_REGISTRY)
         )
-        self.assertEqual(len(COMMAND_REGISTRY), 359)
+        self.assertEqual(len(COMMAND_REGISTRY), 360)
         self.assertEqual(len({spec.category for spec in COMMAND_REGISTRY}), 41)
         self.assertEqual(command_registry_doctor()["status"], "OK")
+
+    def test_learning_decision_empty_session_is_read_only_and_healthy(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bridge = OperatorReviewedLearningBridge([])
+            session = OperatorReviewedLearningDecisionSession()
+
+            decisions = format_learning_decision_command(
+                "/experience learning decisions", bridge, session
+            )
+            doctor = format_learning_decision_command(
+                "/experience learning decision-doctor", bridge, session
+            )
+
+        self.assertIn("Status: EMPTY", decisions)
+        self.assertIn("decisions: 0", decisions)
+        self.assertIn("Status: OK", doctor)
+        self.assertEqual(session.snapshot(), ())
+        self.assertEqual(list(root.rglob("*")), [])
+
+    def test_learning_decision_wrong_token_refuses_without_mutation(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, _, pilot, bridge, candidate = build_test_learning_candidate(Path(temp_dir))
+            session = pilot.learning_decisions
+            preview = format_learning_decision_command(
+                f"/experience learning confirm-preview {candidate.id}", bridge, session
+            )
+            refused = format_learning_decision_command(
+                f"/experience learning decide accept {candidate.id} WRONG-TOKEN",
+                bridge,
+                session,
+            )
+
+        self.assertIn("Status: CONFIRMABLE", preview)
+        self.assertIn(learning_confirmation_token(candidate), preview)
+        self.assertIn("Status: REFUSED", refused)
+        self.assertIn("token mismatch", refused.lower())
+        self.assertEqual(session.snapshot(), ())
+
+    def test_learning_decision_exact_acceptance_stores_bounded_receipt_only(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, _, pilot, bridge, candidate = build_test_learning_candidate(Path(temp_dir))
+            session = pilot.learning_decisions
+            token = learning_confirmation_token(candidate)
+            accepted = format_learning_decision_command(
+                f"/experience learning decide accept {candidate.id} {token}",
+                bridge,
+                session,
+            )
+            inspected = format_learning_decision_command(
+                f"/experience learning decision {candidate.id}", bridge, session
+            )
+            receipt = session.snapshot()[0]
+
+        self.assertIn("Status: ACCEPTED FOR FUTURE REVIEW", accepted)
+        self.assertIn("operator_confirmation_recorded: true", accepted)
+        self.assertEqual(receipt["decision"], "accepted")
+        self.assertEqual(receipt["confirmation_method"], "exact_candidate_token")
+        self.assertEqual(receipt["evidence_event_ids"], candidate.evidence_event_ids)
+        self.assertFalse(receipt["promotion_performed"])
+        self.assertFalse(receipt["apply_performed"])
+        self.assertFalse(receipt["persistence_performed"])
+        self.assertIn("decision: accepted", inspected)
+
+    def test_learning_decision_refuses_warning_only_candidate_acceptance(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            events = [
+                event.to_dict()
+                for event in build_test_experience_events(Path(temp_dir))
+            ]
+        for event in events:
+            if event["event_type"] == "reflection_evaluated":
+                event["payload"]["warning_count"] = 1
+                event["payload"]["warning_previews"] = ["Needs independent verification."]
+                event["payload"]["overall_confidence"] = "medium"
+        bridge = OperatorReviewedLearningBridge(events)
+        candidate = bridge.review()[0].candidates[0]
+        session = OperatorReviewedLearningDecisionSession()
+        preview = format_learning_decision_command(
+            f"/experience learning confirm-preview {candidate.id}", bridge, session
+        )
+        refused = format_learning_decision_command(
+            f"/experience learning decide accept {candidate.id} {learning_confirmation_token(candidate)}",
+            bridge,
+            session,
+        )
+
+        self.assertEqual(candidate.review_status, "needs_more_evidence")
+        self.assertIn("Status: NOT CONFIRMABLE", preview)
+        self.assertIn("Status: REFUSED", refused)
+        self.assertIn("not accept-eligible", refused)
+        self.assertEqual(session.snapshot(), ())
+
+    def test_learning_decision_rejection_is_terminal_and_reason_is_redacted(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, _, pilot, bridge, candidate = build_test_learning_candidate(Path(temp_dir))
+            session = pilot.learning_decisions
+            secret = "decision-reject-secret"
+            rejected = format_learning_decision_command(
+                f"/experience learning decide reject {candidate.id} password={secret}",
+                bridge,
+                session,
+            )
+            repeated = format_learning_decision_command(
+                f"/experience learning decide reject {candidate.id} duplicate",
+                bridge,
+                session,
+            )
+            receipt = session.snapshot()[0]
+
+        self.assertIn("Status: REJECTED", rejected)
+        self.assertNotIn(secret, rejected)
+        self.assertNotIn(secret, receipt["reason"])
+        self.assertIn(REDACTION_PREFIX, receipt["reason"])
+        self.assertIn("Status: REFUSED", repeated)
+        self.assertEqual(len(session.snapshot()), 1)
+
+    def test_learning_promotion_preview_requires_acceptance_and_never_executes(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, _, pilot, bridge, candidate = build_test_learning_candidate(Path(temp_dir))
+            session = pilot.learning_decisions
+            before = format_learning_decision_command(
+                f"/experience learning promotion-preview {candidate.id}", bridge, session
+            )
+            token = learning_confirmation_token(candidate)
+            format_learning_decision_command(
+                f"/experience learning decide accept {candidate.id} {token}", bridge, session
+            )
+            after = format_learning_decision_command(
+                f"/experience learning promotion-preview {candidate.id}", bridge, session
+            )
+
+        self.assertIn("Status: NOT ELIGIBLE", before)
+        self.assertIn("Status: DRY RUN ONLY", after)
+        self.assertIn(f"proposed_content: {candidate.text}", after)
+        self.assertIn("executable: false", after)
+        self.assertIn("promotion_performed: false", after)
+        self.assertIn("apply_performed: false", after)
+        self.assertIn("persistence_performed: false", after)
+
+    def test_learning_decisions_expire_on_process_restart(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, _, pilot, bridge, candidate = build_test_learning_candidate(root)
+            token = learning_confirmation_token(candidate)
+            format_learning_decision_command(
+                f"/experience learning decide accept {candidate.id} {token}",
+                bridge,
+                pilot.learning_decisions,
+            )
+            restarted = SupervisedExperiencePilot(root, session_id="learning-restarted")
+
+        self.assertEqual(len(pilot.learning_decisions.snapshot()), 1)
+        self.assertEqual(restarted.learning_decisions.snapshot(), ())
+
+    def test_learning_decision_receipt_limit_fails_closed(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, _, _, bridge, candidate = build_test_learning_candidate(Path(temp_dir))
+            session = OperatorReviewedLearningDecisionSession()
+            template = session.decide(candidate, "rejected", reason="capacity fixture")
+            session._receipts = {
+                f"candidate-{index}": replace(
+                    template,
+                    id=f"learndec_fixture_{index:02d}",
+                    candidate_id=f"candidate-{index}",
+                )
+                for index in range(LEARNING_DECISION_MAX_RECEIPTS)
+            }
+            refused = format_learning_decision_command(
+                f"/experience learning decide accept {candidate.id} {learning_confirmation_token(candidate)}",
+                bridge,
+                session,
+            )
+
+        self.assertIn("Status: REFUSED", refused)
+        self.assertIn("receipt limit reached", refused)
+        self.assertEqual(len(session.snapshot()), LEARNING_DECISION_MAX_RECEIPTS)
+
+    def test_learning_decision_doctor_detects_forbidden_receipt_claim(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, _, pilot, bridge, candidate = build_test_learning_candidate(Path(temp_dir))
+            session = pilot.learning_decisions
+            session.decide(
+                candidate,
+                "accepted",
+                token=learning_confirmation_token(candidate),
+            )
+            receipt = session.get(candidate.id)
+            session._receipts[candidate.id] = replace(receipt, promotion_performed=True)
+            output = format_learning_decision_command(
+                "/experience learning decision-doctor", bridge, session
+            )
+
+        self.assertIn("Status: ERROR", output)
+        self.assertIn("forbidden promotion/apply/persistence", output)
+
+    def test_learning_decision_shared_handler_changes_only_process_memory(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            coordinator, store, _ = build_test_system(root / "cognitive")
+            logger = SessionOperatorLogger(root / "session.jsonl", enabled=False)
+            process_interactive_input(
+                "/experience preview", coordinator=coordinator, session_logger=logger, project_root=root
+            )
+            pilot = peek_experience_pilot(coordinator)
+            process_interactive_input(
+                f"/experience consent {pilot.expected_consent_phrase}",
+                coordinator=coordinator,
+                session_logger=logger,
+                project_root=root,
+            )
+            coordinator.pending_correction_hints = ["Verify active decisions before reuse."]
+            process_interactive_input(
+                "Explain the current decision.",
+                coordinator=coordinator,
+                session_logger=logger,
+                project_root=root,
+            )
+            candidate = OperatorReviewedLearningBridge(pilot.snapshot()).review()[0].candidates[0]
+            token = learning_confirmation_token(candidate)
+            events_before = json.dumps(pilot.snapshot(), sort_keys=True)
+            working_before = store.working_path.read_bytes()
+            persistent_before = store.persistent_path.read_bytes()
+
+            accepted = process_interactive_input(
+                f"/experience learning decide accept {candidate.id} {token}",
+                coordinator=coordinator,
+                session_logger=logger,
+                project_root=root,
+            )
+            dry_run = process_interactive_input(
+                f"/experience learning promotion-preview {candidate.id}",
+                coordinator=coordinator,
+                session_logger=logger,
+                project_root=root,
+            )
+            events_after = json.dumps(pilot.snapshot(), sort_keys=True)
+            working_after = store.working_path.read_bytes()
+            persistent_after = store.persistent_path.read_bytes()
+            log_entries = logger.status().entry_count
+
+        self.assertIn("Status: ACCEPTED FOR FUTURE REVIEW", accepted)
+        self.assertIn("Status: DRY RUN ONLY", dry_run)
+        self.assertEqual(events_before, events_after)
+        self.assertEqual(working_before, working_after)
+        self.assertEqual(persistent_before, persistent_after)
+        self.assertEqual(log_entries, 0)
+
+    def test_learning_decision_registry_and_policy_are_explicit(self) -> None:
+        registry = {spec.prefix: spec for spec in COMMAND_REGISTRY}
+        preview_spec = registry["/experience learning"]
+        decide_spec = registry["/experience learning decide"]
+
+        self.assertTrue(preview_spec.read_only)
+        self.assertEqual(preview_spec.mutates, "none")
+        self.assertFalse(decide_spec.read_only)
+        self.assertEqual(decide_spec.mutates, "session")
+        self.assertEqual(decide_spec.risk, "medium")
+        self.assertEqual(
+            classify_command("/experience learning decide accept candidate token").policy_class,
+            "confirmation_required",
+        )
+        self.assertEqual(
+            classify_command("/experience learning promotion-preview candidate").policy_class,
+            "auto_allowed",
+        )
+        self.assertEqual(len(COMMAND_REGISTRY), 360)
+        self.assertEqual(len({spec.category for spec in COMMAND_REGISTRY}), 41)
+        self.assertEqual(command_registry_doctor()["status"], "OK")
+        self.assertEqual(action_policy_doctor()["status"], "OK")
 
     def test_contest_provenance_scope_excludes_private_and_generated_paths(self) -> None:
         included = (
@@ -18174,7 +18475,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
         self.assertIn("Proto-Mind Contest Showcase v1", output)
         self.assertIn("Status: READY", output)
-        self.assertIn("command_registry: 359 commands / 41 categories", output)
+        self.assertIn("command_registry: 360 commands / 41 categories", output)
         self.assertIn("context_injection: disabled", output)
         self.assertIn("experience_pilot: state=not_started", output)
         self.assertIn("read_only_runner_allowlist: 4", output)
@@ -18345,7 +18646,7 @@ class ProtoMindFlowTests(unittest.TestCase):
             self.assertEqual(registry[command].mutates, "none")
             self.assertEqual(registry[command].risk, "low")
             self.assertEqual(classify_command(command).policy_class, "auto_allowed")
-        self.assertEqual(len(COMMAND_REGISTRY), 359)
+        self.assertEqual(len(COMMAND_REGISTRY), 360)
         self.assertEqual(len({item.category for item in COMMAND_REGISTRY}), 41)
         self.assertEqual(command_registry_doctor()["status"], "OK")
 

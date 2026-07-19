@@ -498,5 +498,12 @@ def _usage() -> str:
             "/experience learning status",
             "/experience learning preview [latest|<turn_id>]",
             "/experience learning doctor",
+            "/experience learning decisions",
+            "/experience learning decision <candidate_id>",
+            "/experience learning confirm-preview <candidate_id>",
+            "/experience learning decide accept <candidate_id> <exact token>",
+            "/experience learning decide reject <candidate_id> [reason]",
+            "/experience learning promotion-preview <candidate_id>",
+            "/experience learning decision-doctor",
         ]
     )

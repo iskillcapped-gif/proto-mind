@@ -18,7 +18,14 @@ from proto_mind.experience_ledger import (
     ExperienceTraceBuilder,
     compact_preview,
 )
-from proto_mind.experience_learning_bridge import format_learning_bridge_command
+from proto_mind.experience_learning_bridge import (
+    OperatorReviewedLearningBridge,
+    format_learning_bridge_command,
+)
+from proto_mind.experience_learning_decision import (
+    OperatorReviewedLearningDecisionSession,
+    format_learning_decision_command,
+)
 from proto_mind.experience_turn import (
     format_cognitive_turn_episode,
     format_cognitive_turn_list,
@@ -87,6 +94,7 @@ class SupervisedExperiencePilot:
             session_id=self.session_id,
             source="supervised_in_memory_pilot",
         )
+        self._learning_decisions = OperatorReviewedLearningDecisionSession()
         self._lock = RLock()
 
     @property
@@ -116,6 +124,10 @@ class SupervisedExperiencePilot:
     @property
     def expected_consent_phrase(self) -> str:
         return self._consent.expected_phrase()
+
+    @property
+    def learning_decisions(self) -> OperatorReviewedLearningDecisionSession:
+        return self._learning_decisions
 
     def preview(self) -> str:
         with self._lock:
@@ -360,13 +372,24 @@ def format_experience_pilot_command(
     if normalized.startswith("/experience episode "):
         parts = raw.split(maxsplit=2)
         return format_cognitive_turn_episode(pilot.snapshot(), parts[2].strip())
-    learning_output = format_learning_bridge_command(
-        raw,
-        pilot.snapshot(),
-        pilot_state=pilot.state,
-    )
-    if learning_output is not None:
-        return learning_output
+    if normalized == "/experience learning" or normalized.startswith(
+        "/experience learning "
+    ):
+        events = pilot.snapshot()
+        decision_output = format_learning_decision_command(
+            raw,
+            OperatorReviewedLearningBridge(events),
+            pilot.learning_decisions,
+        )
+        if decision_output is not None:
+            return decision_output
+        learning_output = format_learning_bridge_command(
+            raw,
+            events,
+            pilot_state=pilot.state,
+        )
+        if learning_output is not None:
+            return learning_output
     if normalized.startswith("/experience events"):
         return _format_events_command(raw, pilot)
     if normalized.startswith("/experience inspect"):
@@ -486,6 +509,10 @@ def _usage() -> str:
             "/experience episodes",
             "/experience episode [latest|<turn_id>]",
             "/experience learning status|preview [latest|<turn_id>]|doctor",
+            "/experience learning decisions|decision <candidate_id>|decision-doctor",
+            "/experience learning confirm-preview|promotion-preview <candidate_id>",
+            "/experience learning decide accept <candidate_id> <token>",
+            "/experience learning decide reject <candidate_id> [reason]",
             "/experience events [--last N]",
             "/experience inspect <event_id>",
             "/experience doctor",

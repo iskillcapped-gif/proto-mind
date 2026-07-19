@@ -157,6 +157,15 @@ _BASE_REGISTRY = [
         },
     ),
     _spec(
+        "/experience learning decide",
+        "experience",
+        "Capture an explicit accept/reject decision for a current learning candidate.",
+        read_only=False,
+        mutates="session",
+        risk="medium",
+        notes="Process-memory review receipt only; performs no promotion, apply, or persistence.",
+    ),
+    _spec(
         "/experience status",
         "experience",
         "Show supervised Experience pilot state and process-memory bounds.",

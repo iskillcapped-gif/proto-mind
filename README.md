@@ -576,6 +576,13 @@ v3.3a adds an explicit operator-controlled pilot over the shared CLI/tkinter/PyS
 /experience learning status
 /experience learning preview [latest|<turn_id>]
 /experience learning doctor
+/experience learning decisions
+/experience learning decision <candidate_id>
+/experience learning confirm-preview <candidate_id>
+/experience learning decide accept <candidate_id> <exact token>
+/experience learning decide reject <candidate_id> [reason]
+/experience learning promotion-preview <candidate_id>
+/experience learning decision-doctor
 /experience events [--last N]
 /experience inspect <event_id>
 /experience doctor
@@ -589,6 +596,8 @@ Evidence exists only in process memory and is visible through `events`, `inspect
 v3.3b adds a read-only cognitive-turn episode view over that same bounded snapshot. `/experience episodes` lists captured turns, while `/experience episode latest` connects Observe, Interpret, Recall, Respond, Memory decision, Reflect, Verify, and exact event provenance in one compact report. The projector validates the existing Experience trace, preserves redacted previews, labels missing stages as incomplete, performs no LLM summarization, and changes neither process evidence nor any file or store.
 
 v3.3c adds an operator-reviewed learning bridge over those current-process episodes. `/experience learning preview` derives at most eight compact candidates from exact redacted correction, reflection, and grounding evidence; identical findings are merged while preserving every source event ID. A clean successful turn creates no candidate. Correction guidance requires operator review, warning-only findings require more evidence, and incomplete episodes remain blocked. Every preview keeps `operator_confirmation_required=true`, `promotion_ready=false`, `auto_apply_allowed=false`, and `persistence_performed=false`. There is no LLM summarization, queue, apply, promotion, memory/skill write, file write, or Context Injection change.
+
+v3.3d adds an explicit process-memory decision gate without enabling promotion. `/experience learning confirm-preview <candidate_id>` prints a candidate-specific SHA-256 token; `/experience learning decide accept <candidate_id> <token>` accepts only complete `operator_review_required` evidence, while `decide reject` records a redacted terminal rejection. Up to 64 compact receipts retain the candidate digest and exact evidence IDs until process restart. `/experience learning promotion-preview <candidate_id>` requires acceptance but remains `executable=false` with promotion, apply, and persistence all false. Decision inspection and Doctor commands are read-only, and no memory, skill, queue, file, session log, model, or Context Injection state is changed.
 
 ## Contest Showcase
 
