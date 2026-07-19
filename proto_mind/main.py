@@ -377,7 +377,11 @@ def process_interactive_input(
     if experiment_output is not None:
         _record_context_skip(project_root, user_input, "slash_command")
         return experiment_output
-    skill_output = format_skill_command(user_input, project_root=project_root)
+    skill_output = format_skill_command(
+        user_input,
+        project_root=project_root,
+        persistent_memory_path=coordinator.memory_keeper.store.persistent_path,
+    )
     if skill_output is not None:
         _record_context_skip(project_root, user_input, "slash_command")
         return skill_output
@@ -512,7 +516,11 @@ def _execute_read_only_action_target(
         lambda: format_goal_command(command, project_root=project_root),
         lambda: format_task_command(command, project_root=project_root),
         lambda: format_experiment_command(command, project_root=project_root),
-        lambda: format_skill_command(command, project_root=project_root),
+        lambda: format_skill_command(
+            command,
+            project_root=project_root,
+            persistent_memory_path=coordinator.memory_keeper.store.persistent_path,
+        ),
         lambda: format_world_command(command, project_root=project_root),
         lambda: format_identity_command(command, project_root=project_root),
         lambda: format_consolidation_command(command, project_root=project_root),

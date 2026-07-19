@@ -14,13 +14,21 @@ VALID_SKILL_STATUSES = {"active", "archived"}
 DEFAULT_SKILL_CATEGORY = "other"
 
 
-def format_skill_command(command: str, *, project_root: Path) -> str | None:
+def format_skill_command(
+    command: str,
+    *,
+    project_root: Path,
+    persistent_memory_path: Path | None = None,
+) -> str | None:
     stripped = command.strip()
     normalized = " ".join(stripped.lower().split())
     if not normalized.startswith("/skills"):
         return None
 
     library = SkillLibrary.from_project_root(project_root)
+    memory_path = persistent_memory_path or (
+        project_root / "proto_mind" / "data" / "persistent_memory.json"
+    )
     if normalized == "/skills status":
         return library.format_status()
     if normalized.startswith("/skills list"):
@@ -36,6 +44,20 @@ def format_skill_command(command: str, *, project_root: Path) -> str | None:
     if normalized.startswith("/skills inspect"):
         skill_id = stripped[len("/skills inspect") :].strip()
         return library.format_inspect(skill_id)
+    if normalized.startswith("/skills why"):
+        from proto_mind.skill_provenance import format_skill_why
+
+        skill_id = stripped[len("/skills why") :].strip()
+        return format_skill_why(library.skills_path, memory_path, skill_id)
+    if normalized == "/skills provenance-doctor":
+        from proto_mind.skill_provenance import (
+            format_skill_provenance_doctor,
+            skill_provenance_doctor,
+        )
+
+        return format_skill_provenance_doctor(
+            skill_provenance_doctor(library.skills_path, memory_path)
+        )
     if normalized.startswith("/skills update"):
         parsed_update = _parse_update_command(stripped)
         if isinstance(parsed_update, str):
@@ -81,6 +103,8 @@ def format_skill_command(command: str, *, project_root: Path) -> str | None:
         "  /skills add <name> [--category <category>] [--summary <summary>]\n"
         "  /skills list [--all] [--category <category>]\n"
         "  /skills inspect <id>\n"
+        "  /skills why <id>\n"
+        "  /skills provenance-doctor\n"
         "  /skills update <id> --summary <text>\n"
         "  /skills body <id> <text>\n"
         "  /skills append <id> <text>\n"

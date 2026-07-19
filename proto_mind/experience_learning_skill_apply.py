@@ -23,6 +23,7 @@ from proto_mind.experience_learning_skill_runtime import (
 from proto_mind.memory_provenance import verify_memory_provenance
 from proto_mind.models import utc_now_iso
 from proto_mind.skill_library import SkillLibrary
+from proto_mind.skill_provenance import build_procedural_skill_provenance
 
 
 PROCEDURAL_SKILL_APPLY_VERSION = 1
@@ -191,7 +192,12 @@ class OperatorReviewedProceduralSkillApplySession:
             original_records = _parse_jsonl_records(before_bytes)
             memory_path = reviewer.builder.memory_store.persistent_path
             memory_before = _hash_file(memory_path)
-            record = _build_skill_record(receipt, review)
+            apply_token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+            record = _build_skill_record(
+                receipt,
+                review,
+                apply_confirmation_token_hash=apply_token_hash,
+            )
             payload = _append_record_bytes(before_bytes, record)
 
             try:
@@ -261,7 +267,7 @@ class OperatorReviewedProceduralSkillApplySession:
                 "created_record_hash": created_record_hash,
                 "target_payload_hash": review.target_payload_hash,
                 "confirmation_method": "exact_current_skill_readiness_token",
-                "confirmation_token_hash": hashlib.sha256(token.encode("utf-8")).hexdigest(),
+                "confirmation_token_hash": apply_token_hash,
                 "record_verified": True,
                 "source_provenance_verified": source_verified,
                 "exact_record_mutations": exact_mutations,
@@ -536,9 +542,18 @@ def _authoring_receipt(
 def _build_skill_record(
     receipt: ProceduralSkillAuthoringReceipt,
     review: ProceduralSkillApplyReview,
+    *,
+    apply_confirmation_token_hash: str,
 ) -> dict[str, Any]:
     projection = receipt.storage_projection
     now = utc_now_iso()
+    provenance = build_procedural_skill_provenance(
+        receipt,
+        skill_id=review.created_skill_id,
+        applied_at=now,
+        target_payload_hash=review.target_payload_hash,
+        apply_confirmation_token_hash=apply_confirmation_token_hash,
+    )
     return {
         "id": review.created_skill_id,
         "created_at": now,
@@ -560,6 +575,7 @@ def _build_skill_record(
         "authoring_hash": receipt.authoring_hash,
         "target_payload_hash": review.target_payload_hash,
         "executable": False,
+        "provenance": provenance,
     }
 
 

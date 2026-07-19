@@ -71,6 +71,7 @@ The current source tree is compared directly with the July 11 archive by SHA-256
 - Procedural Skill Authoring Receipt v3.5b with exact visible operator fields, source-and-payload token binding, 16 bounded restart-expiring process receipts, current-state drift diagnostics, and no Skill Library writer or execution.
 - Procedural Skill Apply Readiness v3.5c with current receipt/source/global duplicate/store-hash revalidation, deterministic target identity, fixed atomic receipt and rollback requirements, and no token generation, writer invocation, or execution from readiness.
 - Supervised Procedural Skill Apply Pilot v3.5d with a second exact token, one atomic verified non-executable Skill Library append per process, exact-byte rollback, compact source provenance, and no procedure execution or automatic apply.
+- Durable Skill Provenance Inspection v3.5e with embedded restart-safe source/contract/payload/confirmation hashes plus read-only `/skills why` and provenance Doctor diagnostics; no second writer or skill execution.
 - Contest Showcase v1 with a deterministic three-minute narrative and safety doctor.
 - Build Week Provenance Pack v1.
 
@@ -80,13 +81,13 @@ The generated evidence under `contest/provenance/` is the source of truth for th
 
 | Metric | July 11 baseline | Current Build Week state | Delta |
 |---|---:|---:|---:|
-| Submission-relevant files | 69 | 130 | +61 |
-| Python files | 66 | 103 | +37 |
-| Unit-test methods | 664 | 1009 | +345 |
-| Registry commands | 343 | 364 | +21 |
+| Submission-relevant files | 69 | 131 | +62 |
+| Python files | 66 | 104 | +38 |
+| Unit-test methods | 664 | 1019 | +355 |
+| Registry commands | 343 | 366 | +23 |
 | Registry categories | 39 | 41 | +2 |
 
-The file delta is not inferred from modification time. Every baseline and current submission-relevant file is hashed, then classified as added, changed, removed, or unchanged. The current manifest reports 61 added, 15 changed, 0 removed, and 54 unchanged files.
+The file delta is not inferred from modification time. Every baseline and current submission-relevant file is hashed, then classified as added, changed, removed, or unchanged. The current manifest reports 62 added, 15 changed, 0 removed, and 54 unchanged files.
 
 ## Reproduce The Evidence
 

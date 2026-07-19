@@ -281,7 +281,17 @@ _BASE_REGISTRY = [
             "/experiments reopen": "Reopen an experiment.",
         }.items()
     ],
-    *_read_only_specs("skills", {"/skills status": "Show skill-library status.", "/skills list": "List skills.", "/skills inspect": "Inspect a skill.", "/skills search": "Search skills deterministically."}),
+    *_read_only_specs(
+        "skills",
+        {
+            "/skills status": "Show skill-library status.",
+            "/skills list": "List skills.",
+            "/skills inspect": "Inspect a skill.",
+            "/skills why": "Explain and verify durable procedural skill provenance.",
+            "/skills provenance-doctor": "Audit durable procedural skill provenance.",
+            "/skills search": "Search skills deterministically.",
+        },
+    ),
     *[
         _spec(prefix, "skills", description, read_only=False, mutates="skills", risk="medium")
         for prefix, description in {
