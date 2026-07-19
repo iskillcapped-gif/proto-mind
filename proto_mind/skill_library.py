@@ -117,7 +117,7 @@ def format_skill_command(
         "  /skills inspect <id>\n"
         "  /skills why <id>\n"
         "  /skills provenance-doctor\n"
-        "  /skills lifecycle-status\n"
+        "  /skills lifecycle-status [--contract]\n"
         "  /skills lifecycle-history [--all]\n"
         "  /skills lifecycle-inspect <id>\n"
         "  /skills lifecycle-doctor\n"

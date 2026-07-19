@@ -314,6 +314,16 @@ from proto_mind.skill_lifecycle_audit import (
     ProceduralSkillLifecycleAudit,
     format_skill_lifecycle_audit_command,
 )
+from proto_mind.skill_lifecycle_metadata import (
+    PROCEDURAL_SKILL_LIFECYCLE_METADATA_FIELDS,
+    PROCEDURAL_SKILL_LIFECYCLE_METADATA_MODE,
+    PROCEDURAL_SKILL_LIFECYCLE_METADATA_SCHEMA,
+    PROCEDURAL_SKILL_LIFECYCLE_METADATA_WRITER_INSTALLED,
+    build_procedural_skill_lifecycle_metadata_preview,
+    format_procedural_skill_lifecycle_metadata_contract,
+    procedural_skill_lifecycle_metadata_doctor,
+    verify_procedural_skill_lifecycle_metadata,
+)
 from proto_mind.experience_learning_eligibility import (
     LEARNING_ELIGIBILITY_MAX_IDS_PER_KIND,
     LearningEligibilityRequest,
@@ -19385,6 +19395,130 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertEqual(command_registry_doctor()["status"], "OK")
         self.assertEqual(action_policy_doctor()["status"], "OK")
 
+    def test_skill_lifecycle_metadata_contract_is_deterministic_and_writer_absent(self) -> None:
+        first = format_procedural_skill_lifecycle_metadata_contract()
+        second = format_procedural_skill_lifecycle_metadata_contract()
+        doctor = procedural_skill_lifecycle_metadata_doctor()
+
+        self.assertEqual(first, second)
+        self.assertEqual(doctor.status, "OK")
+        self.assertTrue(doctor.deterministic_example_verified)
+        self.assertTrue(doctor.tamper_refused)
+        self.assertFalse(doctor.writer_installed)
+        self.assertFalse(PROCEDURAL_SKILL_LIFECYCLE_METADATA_WRITER_INSTALLED)
+        self.assertIn(PROCEDURAL_SKILL_LIFECYCLE_METADATA_MODE, first)
+        self.assertIn(PROCEDURAL_SKILL_LIFECYCLE_METADATA_SCHEMA, first)
+        self.assertIn("evidence_replay_after_restart: false", first)
+        self.assertIn("not a Skill Library writer", first)
+
+    def test_skill_lifecycle_metadata_preview_hashes_exact_bounded_contract(self) -> None:
+        metadata = build_procedural_skill_lifecycle_metadata_preview(
+            skill_id="skill_contract_test",
+            skill_provenance_id="skillprov_contract_test",
+            transitioned_at="2026-07-20T01:00:00+00:00",
+            decision_receipt_id="skilloutdec_contract_test",
+            decision_hash="1" * 64,
+            outcome_status="FAILURE_CANDIDATE",
+            selected_signal_id="evt_failure",
+            evidence_event_ids=("evt_result", "evt_failure", "evt_failure"),
+            capture_receipt_hashes=("3" * 64, "2" * 64),
+            review_hash="4" * 64,
+            before_record_hash="5" * 64,
+            confirmation_token_hash="6" * 64,
+        )
+        check = verify_procedural_skill_lifecycle_metadata(metadata)
+
+        self.assertTrue(check.verified)
+        self.assertEqual(check.status, "VERIFIED")
+        self.assertEqual(set(metadata), set(PROCEDURAL_SKILL_LIFECYCLE_METADATA_FIELDS))
+        self.assertEqual(metadata["evidence_event_ids"], ["evt_failure", "evt_result"])
+        self.assertEqual(metadata["capture_receipt_hashes"], ["2" * 64, "3" * 64])
+        self.assertTrue(metadata["id"].startswith("skilllife_"))
+        self.assertEqual(len(metadata["metadata_hash"]), 64)
+        self.assertFalse(metadata["evidence_replay_available"])
+        self.assertFalse(metadata["automatic"])
+        self.assertFalse(metadata["procedure_execution_performed"])
+
+    def test_skill_lifecycle_metadata_verifier_refuses_tamper_and_scope_expansion(self) -> None:
+        common = {
+            "skill_id": "skill_contract_test",
+            "skill_provenance_id": "skillprov_contract_test",
+            "transitioned_at": "2026-07-20T01:00:00+00:00",
+            "decision_receipt_id": "skilloutdec_contract_test",
+            "decision_hash": "1" * 64,
+            "outcome_status": "MIXED_EVIDENCE",
+            "selected_signal_id": "evt_mixed",
+            "evidence_event_ids": ("evt_mixed",),
+            "capture_receipt_hashes": ("2" * 64,),
+            "review_hash": "3" * 64,
+            "before_record_hash": "4" * 64,
+            "confirmation_token_hash": "5" * 64,
+        }
+        metadata = build_procedural_skill_lifecycle_metadata_preview(**common)
+        tampered = deepcopy(metadata)
+        tampered["reason"] = "operator_archive_without_evidence"
+        tampered_check = verify_procedural_skill_lifecycle_metadata(tampered)
+        invalid = {**common, "outcome_status": "SUCCESS_CANDIDATE"}
+
+        self.assertFalse(tampered_check.verified)
+        self.assertIn("reason", " ".join(tampered_check.issues).lower())
+        self.assertIn("hash", " ".join(tampered_check.issues).lower())
+        with self.assertRaises(ValueError):
+            build_procedural_skill_lifecycle_metadata_preview(**invalid)
+
+    def test_skill_lifecycle_audit_refuses_future_metadata_before_writer_install(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            store, library, _, applied = build_test_applied_procedural_skill(
+                Path(temp_dir)
+            )
+            records = library.read_snapshot()["records"]
+            provenance = records[0]["provenance"]
+            records[0]["lifecycle"] = build_procedural_skill_lifecycle_metadata_preview(
+                skill_id=applied.created_skill_id,
+                skill_provenance_id=str(provenance["id"]),
+                transitioned_at="2026-07-20T01:00:00+00:00",
+                decision_receipt_id="skilloutdec_future",
+                decision_hash="1" * 64,
+                outcome_status="FAILURE_CANDIDATE",
+                selected_signal_id="evt_failure",
+                evidence_event_ids=("evt_failure",),
+                capture_receipt_hashes=("2" * 64,),
+                review_hash="3" * 64,
+                before_record_hash="4" * 64,
+                confirmation_token_hash="5" * 64,
+            )
+            library._write_records(records)
+            entry = ProceduralSkillLifecycleAudit(
+                skills_path=library.skills_path,
+                persistent_memory_path=store.persistent_path,
+            ).get(applied.created_skill_id)
+
+        self.assertIsNotNone(entry)
+        assert entry is not None
+        self.assertEqual(entry.state, "invalid")
+        self.assertEqual(entry.lifecycle_evidence, "future_design_untrusted")
+        self.assertFalse(entry.outcome_archive_proven)
+        self.assertIn("before its writer is installed", " ".join(entry.issues))
+
+    def test_skill_lifecycle_contract_bypasses_corrupt_store_without_writing(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            skills_path = root / "skills.jsonl"
+            memory_path = root / "persistent_memory.json"
+            skills_path.write_text("{not-json\n", encoding="utf-8")
+            before = skills_path.read_bytes()
+            output = format_skill_lifecycle_audit_command(
+                "/skills lifecycle-status --contract",
+                skills_path=skills_path,
+                persistent_memory_path=memory_path,
+            )
+            after = skills_path.read_bytes()
+
+        self.assertIn("Status: OK", output)
+        self.assertIn("writer_installed: false", output)
+        self.assertEqual(after, before)
+        self.assertFalse(memory_path.exists())
+
     def test_learning_proposal_preview_requires_accepted_eligible_candidate(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -25104,6 +25238,9 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertEqual(report.total_skills, 0)
         self.assertIn(PROCEDURAL_SKILL_LIFECYCLE_AUDIT_MODE, status)
         self.assertIn("Status: OK", doctor)
+        self.assertIn("metadata_contract_status: OK", doctor)
+        self.assertIn("metadata_writer_installed: false", doctor)
+        self.assertIn("metadata_tamper_refused: true", doctor)
         self.assertEqual(after, before)
 
     def test_durable_skill_lifecycle_audit_recovers_active_verified_state(self) -> None:

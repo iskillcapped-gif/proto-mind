@@ -9,6 +9,14 @@ from typing import Any
 from proto_mind.command_registry import COMMAND_REGISTRY
 from proto_mind.memory_store import MemoryStore
 from proto_mind.skill_library import SkillLibrary
+from proto_mind.skill_lifecycle_metadata import (
+    PROCEDURAL_SKILL_LIFECYCLE_METADATA_SCHEMA,
+    PROCEDURAL_SKILL_LIFECYCLE_METADATA_WRITER_INSTALLED,
+    format_procedural_skill_lifecycle_metadata_contract,
+    is_procedural_skill_lifecycle_metadata_design,
+    procedural_skill_lifecycle_metadata_doctor,
+    verify_procedural_skill_lifecycle_metadata,
+)
 from proto_mind.skill_provenance import verify_procedural_skill_provenance
 
 
@@ -195,9 +203,20 @@ class ProceduralSkillLifecycleAudit:
             issues.append("Stored procedural skill unexpectedly claims executable capability.")
             state = "invalid"
         if lifecycle_metadata is not None:
-            issues.append(
-                "Skill contains unsupported durable lifecycle metadata; v3.5k defines no writer schema."
-            )
+            if is_procedural_skill_lifecycle_metadata_design(lifecycle_metadata):
+                metadata_check = verify_procedural_skill_lifecycle_metadata(
+                    lifecycle_metadata
+                )
+                if not metadata_check.verified:
+                    issues.extend(
+                        f"Lifecycle metadata: {item}"
+                        for item in metadata_check.issues
+                    )
+                issues.append(
+                    "Skill contains the v3.5l future lifecycle design before its writer is installed; durable cause is not trusted."
+                )
+            else:
+                issues.append("Skill contains unsupported durable lifecycle metadata.")
             state = "invalid"
 
         has_provenance = isinstance(provenance, dict)
@@ -248,7 +267,11 @@ class ProceduralSkillLifecycleAudit:
             )
             applied_at = str(provenance.get("applied_at") or "")
         lifecycle_evidence = (
-            "unsupported_record_field" if lifecycle_metadata is not None else "none"
+            "future_design_untrusted"
+            if is_procedural_skill_lifecycle_metadata_design(lifecycle_metadata)
+            else "unsupported_record_field"
+            if lifecycle_metadata is not None
+            else "none"
         )
         lifecycle_reason = (
             "not durably recorded"
@@ -300,6 +323,8 @@ def format_skill_lifecycle_audit_command(
         return None
     if any(marker in raw for marker in ("\n", ";", "&&", "||", "|")):
         return _audit_error("Command chaining and multi-command input are not allowed.")
+    if normalized == "/skills lifecycle-status --contract":
+        return format_procedural_skill_lifecycle_metadata_contract()
     audit = ProceduralSkillLifecycleAudit(
         skills_path=skills_path,
         persistent_memory_path=persistent_memory_path,
@@ -311,6 +336,8 @@ def format_skill_lifecycle_audit_command(
 
     if normalized == "/skills lifecycle-status":
         return format_skill_lifecycle_status(report)
+    if normalized.startswith("/skills lifecycle-status "):
+        return "Usage: /skills lifecycle-status [--contract]"
     if normalized == "/skills lifecycle-doctor":
         return format_skill_lifecycle_doctor(report)
     if normalized == "/skills lifecycle-history":
@@ -328,7 +355,7 @@ def format_skill_lifecycle_audit_command(
         entry = next((item for item in report.entries if item.skill_id == identifier), None)
         return format_skill_lifecycle_inspect(entry, identifier=identifier)
     return (
-        "Usage: /skills lifecycle-status | lifecycle-history [--all] | "
+        "Usage: /skills lifecycle-status [--contract] | lifecycle-history [--all] | "
         "lifecycle-inspect <skill_id> | lifecycle-doctor"
     )
 
@@ -352,7 +379,9 @@ def format_skill_lifecycle_status(
             f"legacy_unprovenanced: {report.legacy_unprovenanced_count}",
             f"unprovenanced: {report.unprovenanced_count}",
             f"invalid: {report.invalid_count}",
-            "Commands: lifecycle-history [--all] | lifecycle-inspect <id> | lifecycle-doctor",
+            f"metadata_schema: {PROCEDURAL_SKILL_LIFECYCLE_METADATA_SCHEMA}",
+            f"metadata_writer_installed: {str(PROCEDURAL_SKILL_LIFECYCLE_METADATA_WRITER_INSTALLED).lower()}",
+            "Commands: lifecycle-status --contract | lifecycle-history [--all] | lifecycle-inspect <id> | lifecycle-doctor",
             *_audit_boundary(),
         ]
     )
@@ -411,6 +440,12 @@ def format_skill_lifecycle_doctor(
 ) -> str:
     issues = list(report.issues)
     warnings = list(report.warnings)
+    metadata_report = procedural_skill_lifecycle_metadata_doctor()
+    if metadata_report.status != "OK":
+        issues.extend(
+            metadata_report.issues
+            or ["Procedural skill lifecycle metadata design is unhealthy."]
+        )
     registry = {item.prefix: item for item in COMMAND_REGISTRY}
     for prefix in (
         "/skills lifecycle-status",
@@ -438,6 +473,11 @@ def format_skill_lifecycle_doctor(
         f"archived_ambiguous: {report.archived_ambiguous_count}",
         f"drifted: {report.drifted_count}",
         f"invalid: {report.invalid_count}",
+        f"metadata_contract_status: {metadata_report.status}",
+        f"metadata_schema: {metadata_report.schema}",
+        f"metadata_writer_installed: {str(metadata_report.writer_installed).lower()}",
+        f"metadata_example_verified: {str(metadata_report.deterministic_example_verified).lower()}",
+        f"metadata_tamper_refused: {str(metadata_report.tamper_refused).lower()}",
         "lifecycle_history_invented: false",
         "mutation_performed: false",
     ]
