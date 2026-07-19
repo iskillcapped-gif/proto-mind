@@ -75,6 +75,7 @@ The current source tree is compared directly with the July 11 archive by SHA-256
 - Procedural Skill Outcome Review v3.5f with exact provenance-bound manual-use lineage, advisory success/failure/mixed candidates, explicit telemetry exclusion, and no event capture, skill mutation, or execution.
 - Supervised Manual Skill Outcome Capture v3.5g with exact session consent, a second provenance/evidence-bound token, one bounded four-event process-memory batch, restart-expiring receipts, and no procedure execution or persistent-store mutation.
 - Supervised Procedural Skill Outcome Decision v3.5h with exact review/capture-bound keep-revise-archive tokens, one terminal process receipt per skill, later-evidence drift diagnostics, and no apply readiness or Skill Library mutation.
+- Procedural Skill Lifecycle Apply Readiness v3.5i with current decision/evidence/capture/provenance/skill-byte revalidation and decision-specific keep/archive/revise safeguards, but no apply token or lifecycle writer.
 - Contest Showcase v1 with a deterministic three-minute narrative and safety doctor.
 - Build Week Provenance Pack v1.
 
@@ -86,8 +87,8 @@ The generated evidence under `contest/provenance/` is the source of truth for th
 |---|---:|---:|---:|
 | Submission-relevant files | 69 | 134 | +65 |
 | Python files | 66 | 107 | +41 |
-| Unit-test methods | 664 | 1049 | +385 |
-| Registry commands | 343 | 376 | +33 |
+| Unit-test methods | 664 | 1057 | +393 |
+| Registry commands | 343 | 379 | +36 |
 | Registry categories | 39 | 41 | +2 |
 
 The file delta is not inferred from modification time. Every baseline and current submission-relevant file is hashed, then classified as added, changed, removed, or unchanged. The current manifest reports 65 added, 15 changed, 0 removed, and 54 unchanged files.

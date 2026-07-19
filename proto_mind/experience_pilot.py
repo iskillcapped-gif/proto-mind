@@ -84,6 +84,10 @@ from proto_mind.experience_learning_skill_outcome_decision import (
     ProceduralSkillOutcomeDecisionBuilder,
     format_procedural_skill_outcome_decision_command,
 )
+from proto_mind.experience_learning_skill_lifecycle_readiness import (
+    ProceduralSkillLifecycleApplyReadiness,
+    format_procedural_skill_lifecycle_readiness_command,
+)
 from proto_mind.experience_learning_readiness import format_learning_apply_readiness_command
 from proto_mind.experience_turn import (
     format_cognitive_turn_episode,
@@ -583,6 +587,23 @@ def format_experience_pilot_command(
             )
             if skill_outcome_decision_output is not None:
                 return skill_outcome_decision_output
+            skill_lifecycle_readiness_output = (
+                format_procedural_skill_lifecycle_readiness_command(
+                    raw,
+                    reviewer=ProceduralSkillLifecycleApplyReadiness(
+                        builder=ProceduralSkillOutcomeDecisionBuilder(
+                            events=events,
+                            memory_store=memory_store,
+                            skill_library=skill_library,
+                            capture_session=pilot.skill_outcome_captures,
+                        ),
+                        skill_library=skill_library,
+                    ),
+                    session=pilot.skill_outcome_decisions,
+                )
+            )
+            if skill_lifecycle_readiness_output is not None:
+                return skill_lifecycle_readiness_output
             skill_outcome_output = format_procedural_skill_outcome_command(
                 raw,
                 events=events,
@@ -820,6 +841,8 @@ def _usage() -> str:
             "/experience learning skill-outcome-decision-preview <skill_id> <keep|revise|archive>",
             "/experience learning decide skill-outcome <keep|revise|archive> <skill_id> <token>",
             "/experience learning skill-outcome-decisions [<skill_id|receipt_id>]|skill-outcome-decision-doctor",
+            "/experience learning skill-outcome-lifecycle-readiness|skill-outcome-lifecycle-plan <skill_id|decision_receipt_id>",
+            "/experience learning skill-outcome-lifecycle-doctor",
             "/experience events [--last N]",
             "/experience inspect <event_id>",
             "/experience doctor",
