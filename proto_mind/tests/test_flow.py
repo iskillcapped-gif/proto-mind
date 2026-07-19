@@ -228,6 +228,13 @@ from proto_mind.experience_learning_lifecycle_audit import (
     LearningLifecycleTransitionAudit,
     format_learning_lifecycle_audit_command,
 )
+from proto_mind.experience_learning_skill_contract import (
+    PROCEDURAL_SKILL_APPLY_ENGINE_INSTALLED,
+    PROCEDURAL_SKILL_CONTRACT_MODE,
+    PROCEDURAL_SKILL_CONTRACT_SCHEMA,
+    ProceduralSkillContractBuilder,
+    format_procedural_skill_contract_command,
+)
 from proto_mind.experience_learning_eligibility import (
     LEARNING_ELIGIBILITY_MAX_IDS_PER_KIND,
     LearningEligibilityRequest,
@@ -21947,6 +21954,230 @@ class ProtoMindFlowTests(unittest.TestCase):
             "auto_allowed",
         )
         self.assertEqual(len(COMMAND_REGISTRY), 363)
+        self.assertEqual(command_registry_doctor()["status"], "OK")
+        self.assertEqual(action_policy_doctor()["status"], "OK")
+
+    def test_procedural_skill_contract_status_and_doctor_are_empty_read_only(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, store, _ = build_test_system(root)
+            before = (store.working_path.read_bytes(), store.persistent_path.read_bytes())
+            status = format_procedural_skill_contract_command(
+                "/experience learning skill-contract-status",
+                memory_store=store,
+                project_root=root,
+            )
+            doctor = format_procedural_skill_contract_command(
+                "/experience learning skill-contract-doctor",
+                memory_store=store,
+                project_root=root,
+            )
+            after = (store.working_path.read_bytes(), store.persistent_path.read_bytes())
+
+        self.assertIn("Status: OK", status)
+        self.assertIn("learned_lessons: 0", status)
+        self.assertIn("skill_apply_engine_installed: false", status)
+        self.assertIn("Status: OK", doctor)
+        self.assertEqual(before, after)
+
+    def test_procedural_skill_contract_preview_is_deterministic_and_incomplete(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, store, _, review = build_test_learning_outcome_review(root)
+            builder = ProceduralSkillContractBuilder(
+                memory_store=store,
+                skill_library=SkillLibrary(root / "skills.jsonl"),
+            )
+            before = store.persistent_path.read_bytes()
+            first = builder.review(review.lesson_memory_id)
+            restarted = ProceduralSkillContractBuilder(
+                memory_store=MemoryStore(store.working_path, store.persistent_path),
+                skill_library=SkillLibrary(root / "skills.jsonl"),
+            ).review(review.lesson_memory_id)
+            after = store.persistent_path.read_bytes()
+
+        self.assertEqual(first.status, "ELIGIBLE FOR OPERATOR AUTHORING")
+        self.assertTrue(first.eligible_for_operator_authoring)
+        self.assertEqual(first.lifecycle_state, "active")
+        self.assertEqual(first.contract.id, restarted.contract.id)
+        self.assertEqual(first.contract.contract_hash, restarted.contract.contract_hash)
+        self.assertEqual(first.contract.schema, PROCEDURAL_SKILL_CONTRACT_SCHEMA)
+        self.assertFalse(first.contract.complete)
+        self.assertFalse(first.contract.executable)
+        self.assertFalse(first.contract.promotion_allowed)
+        self.assertFalse(first.contract.automatic_synthesis_performed)
+        self.assertEqual(before, after)
+
+    def test_procedural_skill_contract_template_requires_operator_fields_without_write(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, store, _, review = build_test_learning_outcome_review(root)
+            skill_path = root / "proto_mind" / "data" / "skills.jsonl"
+            before_memory = store.persistent_path.read_bytes()
+            before_skill_exists = skill_path.exists()
+            template = format_procedural_skill_contract_command(
+                f"/experience learning skill-contract-template {review.lesson_memory_id}",
+                memory_store=store,
+                project_root=root,
+            )
+            checklist = format_procedural_skill_contract_command(
+                f"/experience learning skill-contract-checklist {review.lesson_memory_id}",
+                memory_store=store,
+                project_root=root,
+            )
+            after_memory = store.persistent_path.read_bytes()
+            after_skill_exists = skill_path.exists()
+
+        self.assertIn("Status: OPERATOR INPUT REQUIRED", template)
+        self.assertIn('"trigger": "<operator required>"', template)
+        self.assertIn('"steps": [', template)
+        self.assertIn('"executable": false', template)
+        self.assertIn("Required operator-authored fields:", checklist)
+        self.assertIn("known_failure_modes", checklist)
+        self.assertIn("no execution", checklist.lower())
+        self.assertEqual(before_memory, after_memory)
+        self.assertEqual(before_skill_exists, after_skill_exists)
+
+    def test_procedural_skill_contract_rejects_terminal_old_lesson(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, store, events, review, lifecycle, applies = (
+                build_test_learning_lifecycle_transition(root, decision="reject")
+            )
+            apply_test_learning_lifecycle_transition(
+                store, events, review, lifecycle, applies
+            )
+            result = ProceduralSkillContractBuilder(
+                memory_store=store,
+                skill_library=SkillLibrary(root / "skills.jsonl"),
+            ).review(review.lesson_memory_id)
+
+        self.assertEqual(result.status, "NOT ELIGIBLE")
+        self.assertEqual(result.lifecycle_state, "rejected")
+        self.assertFalse(result.checks["lesson_active"])
+        self.assertFalse(result.eligible_for_operator_authoring)
+
+    def test_procedural_skill_contract_supersede_uses_active_replacement_only(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, store, events, review, lifecycle, applies = (
+                build_test_learning_lifecycle_transition(root, decision="supersede")
+            )
+            apply_test_learning_lifecycle_transition(
+                store, events, review, lifecycle, applies
+            )
+            builder = ProceduralSkillContractBuilder(
+                memory_store=store,
+                skill_library=SkillLibrary(root / "skills.jsonl"),
+            )
+            old = builder.review(review.lesson_memory_id)
+            replacement = builder.review(review.replacement_memory_id)
+
+        self.assertEqual(old.status, "NOT ELIGIBLE")
+        self.assertEqual(old.lifecycle_state, "superseded")
+        self.assertEqual(replacement.status, "ELIGIBLE FOR OPERATOR AUTHORING")
+        self.assertEqual(replacement.lifecycle_state, "active")
+        self.assertEqual(replacement.contract.source_lesson_id, review.replacement_memory_id)
+
+    def test_procedural_skill_contract_detects_active_exact_skill_duplicate(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, store, _, review = build_test_learning_outcome_review(root)
+            record = store.load_persistent_memory()[0]
+            skills = SkillLibrary(root / "skills.jsonl")
+            skills.add_skill(
+                "Existing verified procedure",
+                category="workflow",
+                summary=record.content,
+            )
+            result = ProceduralSkillContractBuilder(
+                memory_store=store,
+                skill_library=skills,
+            ).review(review.lesson_memory_id)
+
+        self.assertEqual(result.status, "DUPLICATE")
+        self.assertFalse(result.checks["active_exact_duplicate_absent"])
+        self.assertEqual(len(result.duplicate_skill_ids), 1)
+        self.assertFalse(result.eligible_for_operator_authoring)
+
+    def test_procedural_skill_contract_fails_closed_on_tampered_provenance(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, store, _, review = build_test_learning_outcome_review(root)
+            record = store.load_persistent_memory()[0]
+            record.provenance["decision_id"] = "tampered_decision"
+            store.save_persistent_memory([record])
+            result = ProceduralSkillContractBuilder(
+                memory_store=store,
+                skill_library=SkillLibrary(root / "skills.jsonl"),
+            ).review(review.lesson_memory_id)
+
+        self.assertEqual(result.status, "ERROR")
+        self.assertFalse(result.checks["durable_provenance_verified"])
+        self.assertIsNone(result.contract)
+        self.assertFalse(result.eligible_for_operator_authoring)
+
+    def test_procedural_skill_contract_doctor_warns_on_malformed_skill_store(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, store, _, _ = build_test_learning_outcome_review(root)
+            skills = SkillLibrary(root / "skills.jsonl")
+            skills.skills_path.write_text("{malformed\n", encoding="utf-8")
+            report = ProceduralSkillContractBuilder(
+                memory_store=store,
+                skill_library=skills,
+            ).doctor()
+
+        self.assertEqual(report.status, "WARN")
+        self.assertEqual(report.malformed_skill_count, 1)
+        self.assertIn("malformed JSONL", " ".join(report.warnings))
+
+    def test_procedural_skill_contract_preview_handles_missing_id_cleanly(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            _, store, _ = build_test_system(root)
+            output = format_procedural_skill_contract_command(
+                "/experience learning skill-contract-preview missing",
+                memory_store=store,
+                project_root=root,
+            )
+
+        self.assertIn("Status: NOT ELIGIBLE", output)
+        self.assertIn("exact_memory_id_found: false", output)
+        self.assertIn("no procedure was synthesized", output)
+
+    def test_procedural_skill_contract_shared_handler_is_read_only_and_registered(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            coordinator, store, _, review = build_test_learning_outcome_review(root)
+            logger = SessionOperatorLogger(root / "session.jsonl", enabled=False)
+            skill_path = root / "proto_mind" / "data" / "skills.jsonl"
+            before = (store.working_path.read_bytes(), store.persistent_path.read_bytes())
+            output = process_interactive_input(
+                f"/experience learning skill-contract-preview {review.lesson_memory_id}",
+                coordinator=coordinator,
+                session_logger=logger,
+                project_root=root,
+            )
+            after = (store.working_path.read_bytes(), store.persistent_path.read_bytes())
+
+        self.assertIn("ELIGIBLE FOR OPERATOR AUTHORING", output)
+        self.assertEqual(before, after)
+        self.assertFalse(skill_path.exists())
+        self.assertEqual(logger.status().entry_count, 0)
+        self.assertEqual(
+            PROCEDURAL_SKILL_CONTRACT_MODE,
+            "read_only_operator_authoring_contract",
+        )
+        self.assertFalse(PROCEDURAL_SKILL_APPLY_ENGINE_INSTALLED)
+        self.assertEqual(
+            classify_command(
+                "/experience learning skill-contract-preview mem_lesson"
+            ).policy_class,
+            "auto_allowed",
+        )
+        self.assertEqual(len(COMMAND_REGISTRY), 363)
+        self.assertEqual(len({entry.category for entry in COMMAND_REGISTRY}), 41)
         self.assertEqual(command_registry_doctor()["status"], "OK")
         self.assertEqual(action_policy_doctor()["status"], "OK")
 

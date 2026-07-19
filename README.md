@@ -635,6 +635,8 @@ v3.4g adds the separately confirmed supervised lifecycle writer. `/experience le
 
 v3.4h adds restart-safe read-only lifecycle inspection over persistent learned lessons. `/experience learning lifecycle-audit-status`, `lifecycle-history [--all]`, `lifecycle-inspect <memory_id>`, and `lifecycle-audit-doctor` distinguish active, v3.4g rejected/superseded, operator-forgotten, unclassified inactive, and invalid states. Doctor verifies immutable provenance, lifecycle timestamps, replacement existence/activity/provenance/age, unique IDs, and acyclic replacement references. The history view explicitly reconstructs current durable state rather than claiming an append-only event log. It performs no repair, reactivation, rollback, receipt invention, store write, command execution, or Context Injection change.
 
+v3.5a adds a read-only procedural skill authoring contract over that verified lifecycle state. `/experience learning skill-contract-status`, `skill-contract-preview <memory_id>`, `skill-contract-template <memory_id>`, `skill-contract-checklist <memory_id>`, and `skill-contract-doctor` accept only one active provenance-verified learned lesson, fail closed on lifecycle/provenance/store problems, and reject exact active Skill Library duplicates. The deterministic `skill.procedure.contract.v1` draft binds its source record and provenance by SHA-256 and requires the operator to author trigger, preconditions, steps, permissions, verification, and known failure modes. It remains incomplete, non-executable, and non-promotable; no procedure is synthesized, accepted, stored, or run, and no skill writer or apply command exists.
+
 ## Contest Showcase
 
 Contest Showcase v1 turns the existing architecture into one read-only live presentation:

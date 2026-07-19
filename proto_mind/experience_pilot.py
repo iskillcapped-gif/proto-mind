@@ -50,6 +50,9 @@ from proto_mind.experience_learning_lifecycle_apply import (
 from proto_mind.experience_learning_lifecycle_audit import (
     format_learning_lifecycle_audit_command,
 )
+from proto_mind.experience_learning_skill_contract import (
+    format_procedural_skill_contract_command,
+)
 from proto_mind.experience_learning_readiness import format_learning_apply_readiness_command
 from proto_mind.experience_turn import (
     format_cognitive_turn_episode,
@@ -445,6 +448,13 @@ def format_experience_pilot_command(
         )
         if lifecycle_audit_output is not None:
             return lifecycle_audit_output
+        skill_contract_output = format_procedural_skill_contract_command(
+            raw,
+            memory_store=_owner_memory_store(owner),
+            project_root=project_root,
+        )
+        if skill_contract_output is not None:
+            return skill_contract_output
         lifecycle_apply_output = format_learning_lifecycle_apply_command(
             raw,
             events=events,
@@ -657,6 +667,8 @@ def _usage() -> str:
             "/experience learning lifecycle-apply-status|lifecycle-apply-receipt <id>|lifecycle-apply-doctor",
             "/experience learning lifecycle-audit-status|lifecycle-history [--all]",
             "/experience learning lifecycle-inspect <memory_id>|lifecycle-audit-doctor",
+            "/experience learning skill-contract-status|skill-contract-doctor",
+            "/experience learning skill-contract-preview|template|checklist <memory_id>",
             "/experience events [--last N]",
             "/experience inspect <event_id>",
             "/experience doctor",
