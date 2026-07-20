@@ -20,14 +20,14 @@
     {
       "category": "documentation",
       "path": "ARCHITECTURE_MAP_V2.md",
-      "sha256": "cc34a570c97653a00e678982845e46daedd519e3f51dc5d84e5dd106f41dc5cb",
-      "size": 113789
+      "sha256": "cdb79997460138e5dee979ab2e6f6aedd12589ddc57aeffc7d6b274331363480",
+      "size": 114964
     },
     {
       "category": "documentation",
       "path": "BUILD_WEEK_PROVENANCE.md",
-      "sha256": "5ddc143a096727be7a7cebd5ae6e8b193d8ad3048e422574b8598af3d8a40597",
-      "size": 12079
+      "sha256": "71c60026a16b3d47ee75f2010826c3afc5f436e075c62ee34dfb97782a1a1da0",
+      "size": 12415
     },
     {
       "category": "documentation",
@@ -38,7 +38,7 @@
     {
       "category": "documentation",
       "path": "CONTEST_SHOWCASE.md",
-      "sha256": "e50a357b2a63f0add22c3650a87ea95c9969cea498fb6ff2ed326eddcee981de",
+      "sha256": "48172b0727e64301ff91297d8d6218a57dceeb5533c07006bb68d4ad2214bb09",
       "size": 5804
     },
     {
@@ -56,20 +56,20 @@
     {
       "category": "documentation",
       "path": "MILESTONE_2026-05-23_OPERATOR_LOOP.md",
-      "sha256": "78022438134200b41b770bd7d969693537c1d6aa252524c9a0f586b6db9ddfc7",
-      "size": 62841
+      "sha256": "a53f6327a392519041f161a14be9ecdf8624f797a960db06fa4ab38df14f6160",
+      "size": 63530
     },
     {
       "category": "documentation",
       "path": "PROTO_MIND_ARCHITECT_LEDGER.md",
-      "sha256": "2d3a0e2e72380346f51c6225cecb15ea5a7a4c8655a388c9ce473748da38b7fb",
-      "size": 35256
+      "sha256": "113b0cc2a7c58c20dbe5380f011d2b8b508d34b57f91e44074555d3a12def726",
+      "size": 35901
     },
     {
       "category": "documentation",
       "path": "README.md",
-      "sha256": "b73f01e6bfbb993ec1c1366fa49723ad90b8f1cb1183d6ea66ed11b205a42cf8",
-      "size": 75414
+      "sha256": "ac2b8c61cd904bd405c33e2484b32a5bc790c96af79af1017268774a73c1d6d5",
+      "size": 76480
     },
     {
       "category": "documentation",
@@ -182,8 +182,8 @@
     {
       "category": "source",
       "path": "proto_mind/command_registry.py",
-      "sha256": "5df23a22f2b36b49be6fce8beb1710e6794213ead36619cfc66f635cddc55a7a",
-      "size": 49302
+      "sha256": "e49bfb5d34f2e49b6bd11e9a24ee100eebd2cc7d45128cb7bf28797a92251845",
+      "size": 49333
     },
     {
       "category": "source",
@@ -710,14 +710,14 @@
     {
       "category": "source",
       "path": "proto_mind/skill_library.py",
-      "sha256": "27c631f62fc5a99a3f3ce37614915b2aea39ab43bdedf53a9d8aa2ffbe241a27",
-      "size": 28693
+      "sha256": "558c416c1121499fdb381bd64827d854185cc31c40a635b9fe1d2925a41c3c31",
+      "size": 29628
     },
     {
       "category": "source",
       "path": "proto_mind/skill_lifecycle_audit.py",
-      "sha256": "52d3ecee34b4531a6b137ca02386dffafc4e20a9e866b88c53ac18cd65ddbff4",
-      "size": 22184
+      "sha256": "03a269d1c740b877d928b8e26e8598bfa787993c5ccf528437a52de2b8eca406",
+      "size": 24876
     },
     {
       "category": "source",
@@ -728,14 +728,20 @@
     {
       "category": "source",
       "path": "proto_mind/skill_lifecycle_restore.py",
-      "sha256": "deef14719f7facc7020b5db44f8bef186dbcfb826ebb4797e4aa4296f421289b",
-      "size": 36297
+      "sha256": "5b0ec799a4e6cb00639030a51db482703dc12e5e423222edaf83fd8e33a97d0f",
+      "size": 36386
+    },
+    {
+      "category": "source",
+      "path": "proto_mind/skill_lifecycle_restore_apply.py",
+      "sha256": "88c63a8e5b8ceb4538c343da81d1c0e4b9a240c7f4f259b34a93c68b5b766b77",
+      "size": 40582
     },
     {
       "category": "source",
       "path": "proto_mind/skill_lifecycle_restore_authorization.py",
-      "sha256": "1bedf543cb8eefaa3ffa6e5c7ccf7a76d303e8e908241ce1babb8ec5c076dc93",
-      "size": 33089
+      "sha256": "fd75d583cc239f8b3c3bcce415ff21de6137e245ee5c0c6575dcb9ff832bad6e",
+      "size": 34100
     },
     {
       "category": "source",
@@ -752,8 +758,8 @@
     {
       "category": "tests",
       "path": "proto_mind/tests/test_flow.py",
-      "sha256": "6cb93026c220cc9a246ff786711dd1af1ca96823e74b704bd7c71d0810607a11",
-      "size": 1356199
+      "sha256": "df905d07242fb634cbb6c8f2dc55890fc2ea1c36cd45dad81a7e731a0ab8fcbf",
+      "size": 1368880
     },
     {
       "category": "source",
@@ -858,7 +864,7 @@
       "size": 637
     }
   ],
-  "generated_at": "2026-07-20T09:37:26.242347+00:00",
+  "generated_at": "2026-07-20T18:41:51.095100+00:00",
   "label": "current_contest_state",
   "metrics": {
     "category_counts": {
@@ -866,15 +872,15 @@
       "documentation": 11,
       "scripts": 11,
       "setup": 4,
-      "source": 114,
+      "source": 115,
       "tests": 1
     },
-    "file_count": 142,
-    "python_file_count": 115,
+    "file_count": 143,
+    "python_file_count": 116,
     "registry_category_count": 41,
     "registry_command_count": 387,
-    "test_method_count": 1116,
-    "total_bytes": 4135119
+    "test_method_count": 1121,
+    "total_bytes": 4197051
   },
   "schema_version": 1,
   "scope": {

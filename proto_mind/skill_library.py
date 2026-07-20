@@ -32,6 +32,17 @@ def format_skill_command(
         project_root / "proto_mind" / "data" / "persistent_memory.json"
     )
     if normalized.startswith("/skills lifecycle"):
+        from proto_mind.skill_lifecycle_restore_apply import (
+            format_procedural_skill_restore_apply_command,
+        )
+
+        apply_output = format_procedural_skill_restore_apply_command(
+            stripped,
+            skills_path=library.skills_path,
+            persistent_memory_path=memory_path,
+        )
+        if apply_output is not None:
+            return apply_output
         from proto_mind.skill_lifecycle_restore_authorization import (
             format_procedural_skill_restore_authorization_command,
         )
@@ -131,6 +142,17 @@ def format_skill_command(
         skill_id = stripped[len("/skills archive") :].strip()
         return library.set_status(skill_id, "archived")
     if normalized.startswith("/skills restore"):
+        from proto_mind.skill_lifecycle_restore_apply import (
+            format_procedural_skill_restore_apply_command,
+        )
+
+        apply_output = format_procedural_skill_restore_apply_command(
+            stripped,
+            skills_path=library.skills_path,
+            persistent_memory_path=memory_path,
+        )
+        if apply_output is not None:
+            return apply_output
         skill_id = stripped[len("/skills restore") :].strip()
         return library.set_status(skill_id, "active")
     return (
@@ -141,11 +163,11 @@ def format_skill_command(
         "  /skills inspect <id>\n"
         "  /skills why <id>\n"
         "  /skills provenance-doctor\n"
-        "  /skills lifecycle-status [--contract|--restore-contract|--restore-authorization-contract]\n"
+        "  /skills lifecycle-status [--contract|--restore-contract|--restore-authorization-contract|--restore-applies]\n"
         "  /skills lifecycle-history [--all]\n"
         "  /skills lifecycle-inspect <id> [--restore-readiness|--restore-plan]\n"
-        "  /skills lifecycle-inspect <id> [--restore-authorization|--restore-authorization-plan]\n"
-        "  /skills lifecycle-doctor [--restore-contract|--restore-authorization]\n"
+        "  /skills lifecycle-inspect <id> [--restore-authorization|--restore-authorization-plan|--restore-apply-preview|--restore-apply-receipt]\n"
+        "  /skills lifecycle-doctor [--restore-contract|--restore-authorization|--restore-apply]\n"
         "  /skills update <id> --summary <text>\n"
         "  /skills body <id> <text>\n"
         "  /skills append <id> <text>\n"
@@ -154,7 +176,8 @@ def format_skill_command(
         "  /skills search <query> [--all]\n"
         "  /skills use <id>\n"
         "  /skills archive <id>\n"
-        "  /skills restore <id>"
+        "  /skills restore <id>\n"
+        "  /skills restore <id> <exact_token> --durable"
     )
 
 

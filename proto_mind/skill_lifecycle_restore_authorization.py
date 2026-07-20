@@ -29,9 +29,9 @@ PROCEDURAL_SKILL_RESTORE_AUTHORIZATION_SCHEMA = (
 PROCEDURAL_SKILL_RESTORE_AUTHORIZATION_MODE = (
     "read_only_exact_restore_authorization_readiness"
 )
-PROCEDURAL_SKILL_RESTORE_AUTHORIZATION_ENGINE_INSTALLED = False
-PROCEDURAL_SKILL_RESTORE_TOKEN_GENERATOR_INSTALLED = False
-PROCEDURAL_SKILL_RESTORE_RUN_ONCE_STATE_INSTALLED = False
+PROCEDURAL_SKILL_RESTORE_AUTHORIZATION_ENGINE_INSTALLED = True
+PROCEDURAL_SKILL_RESTORE_TOKEN_GENERATOR_INSTALLED = True
+PROCEDURAL_SKILL_RESTORE_RUN_ONCE_STATE_INSTALLED = True
 PROCEDURAL_SKILL_RESTORE_MAX_SUCCESSFUL_APPLIES_PER_PROCESS = 1
 PROCEDURAL_SKILL_RESTORE_CONFIRMATION_METHOD = (
     "exact_current_skill_lifecycle_restore_token"
@@ -103,11 +103,11 @@ class ProceduralSkillRestoreAuthorizationReadinessReport:
     issues: list[str]
     warnings: list[str]
     ready_for_authorization_design_review: bool
-    authorization_engine_installed: bool = False
-    token_generator_installed: bool = False
+    authorization_engine_installed: bool = True
+    token_generator_installed: bool = True
     token_generated: bool = False
-    run_once_state_installed: bool = False
-    writer_installed: bool = False
+    run_once_state_installed: bool = True
+    writer_installed: bool = True
     mutation_performed: bool = False
     procedure_execution_performed: bool = False
 
@@ -129,10 +129,10 @@ class ProceduralSkillRestoreAuthorizationDoctorReport:
     registry_coverage_ok: bool
     issues: list[str]
     warnings: list[str]
-    authorization_engine_installed: bool = False
-    token_generator_installed: bool = False
-    run_once_state_installed: bool = False
-    writer_installed: bool = False
+    authorization_engine_installed: bool = True
+    token_generator_installed: bool = True
+    run_once_state_installed: bool = True
+    writer_installed: bool = True
     mutation_performed: bool = False
 
     def to_dict(self) -> dict[str, Any]:
@@ -175,7 +175,7 @@ def review_procedural_skill_restore_authorization(
         "base_restore_design_ready": base.ready_for_design_review,
         "archived_verified_state": base.audit_state == "archived_verified",
         "current_status_archived": base.current_status == "archived",
-        "restore_writer_absent": not PROCEDURAL_SKILL_LIFECYCLE_RESTORE_WRITER_INSTALLED,
+        "restore_writer_installed": PROCEDURAL_SKILL_LIFECYCLE_RESTORE_WRITER_INSTALLED,
         "direct_status_guard_installed": SKILL_LIFECYCLE_DIRECT_STATUS_GUARD_INSTALLED,
         "payload_guard_installed": SKILL_LIFECYCLE_PAYLOAD_GUARD_INSTALLED,
         "current_record_hash_bound": bool(
@@ -202,13 +202,13 @@ def review_procedural_skill_restore_authorization(
             and blueprint.get("token_binding_fields")
             == list(PROCEDURAL_SKILL_RESTORE_TOKEN_BINDING_FIELDS)
         ),
-        "authorization_engine_absent": not (
+        "authorization_engine_installed": (
             PROCEDURAL_SKILL_RESTORE_AUTHORIZATION_ENGINE_INSTALLED
         ),
-        "token_generator_absent": not (
+        "token_generator_installed": (
             PROCEDURAL_SKILL_RESTORE_TOKEN_GENERATOR_INSTALLED
         ),
-        "run_once_state_absent": not (
+        "run_once_state_installed": (
             PROCEDURAL_SKILL_RESTORE_RUN_ONCE_STATE_INSTALLED
         ),
         "registry_surfaces_read_only": all(
@@ -224,7 +224,7 @@ def review_procedural_skill_restore_authorization(
         "base_restore_design_ready": "Base v3.5o restore design review is not current.",
         "archived_verified_state": "Authorization review requires archived_verified durable lifecycle state.",
         "current_status_archived": "Authorization review requires current archived status.",
-        "restore_writer_absent": "Restore writer must remain absent through v3.5r.",
+        "restore_writer_installed": "The separately gated durable restore writer is unavailable.",
         "direct_status_guard_installed": "Generic lifecycle status guard is unavailable.",
         "payload_guard_installed": "Lifecycle payload/telemetry guard is unavailable.",
         "current_record_hash_bound": "Current target record is unavailable or differs from the restore review hash.",
@@ -233,9 +233,9 @@ def review_procedural_skill_restore_authorization(
         "authorization_blueprint_complete": "Authorization blueprint is incomplete or invalid.",
         "future_receipt_contract_fixed": "Future restore receipt fields are not fixed.",
         "exact_confirmation_scope_fixed": "Future exact-confirmation binding fields are not fixed.",
-        "authorization_engine_absent": "Authorization engine must remain absent in v3.5r.",
-        "token_generator_absent": "Restore token generator must remain absent in v3.5r.",
-        "run_once_state_absent": "Restore run-once state must remain absent in v3.5r.",
+        "authorization_engine_installed": "The supervised restore authorization engine is unavailable.",
+        "token_generator_installed": "The exact restore token generator is unavailable.",
+        "run_once_state_installed": "The restore run-once process state is unavailable.",
         "registry_surfaces_read_only": "Restore authorization Registry surfaces are missing or mutating.",
         "token_not_generated": "Authorization readiness must never generate a token.",
         "mutation_not_performed": "Authorization readiness must never mutate the Skill Library.",
@@ -245,8 +245,8 @@ def review_procedural_skill_restore_authorization(
     issues.extend(messages[name] for name, passed in checks.items() if not passed)
     ready = all(checks.values()) and not issues
     warnings = [
-        "This is authorization design readiness only; no exact token can be generated or consumed.",
-        "A future apply must revalidate every bound hash immediately before one atomic write.",
+        "This read-only authorization review does not generate or consume an exact token.",
+        "The separate apply gate revalidates every bound hash immediately before one atomic write.",
         "A successful restore would reactivate availability only and would not execute or re-prove the procedure.",
     ]
     return ProceduralSkillRestoreAuthorizationReadinessReport(
@@ -265,6 +265,16 @@ def review_procedural_skill_restore_authorization(
         issues=_dedupe(issues),
         warnings=warnings,
         ready_for_authorization_design_review=ready,
+        authorization_engine_installed=(
+            PROCEDURAL_SKILL_RESTORE_AUTHORIZATION_ENGINE_INSTALLED
+        ),
+        token_generator_installed=(
+            PROCEDURAL_SKILL_RESTORE_TOKEN_GENERATOR_INSTALLED
+        ),
+        run_once_state_installed=(
+            PROCEDURAL_SKILL_RESTORE_RUN_ONCE_STATE_INSTALLED
+        ),
+        writer_installed=PROCEDURAL_SKILL_LIFECYCLE_RESTORE_WRITER_INSTALLED,
     )
 
 
@@ -304,18 +314,18 @@ def procedural_skill_restore_authorization_doctor(
         issues.append("Generic lifecycle status guard is unavailable.")
     if not SKILL_LIFECYCLE_PAYLOAD_GUARD_INSTALLED:
         issues.append("Lifecycle payload/telemetry guard is unavailable.")
-    if PROCEDURAL_SKILL_RESTORE_AUTHORIZATION_ENGINE_INSTALLED:
-        issues.append("Authorization engine must remain absent through v3.5r.")
-    if PROCEDURAL_SKILL_RESTORE_TOKEN_GENERATOR_INSTALLED:
-        issues.append("Restore token generator must remain absent through v3.5r.")
-    if PROCEDURAL_SKILL_RESTORE_RUN_ONCE_STATE_INSTALLED:
-        issues.append("Restore run-once state must remain absent through v3.5r.")
-    if PROCEDURAL_SKILL_LIFECYCLE_RESTORE_WRITER_INSTALLED:
-        issues.append("Restore writer must remain absent through v3.5r.")
+    if not PROCEDURAL_SKILL_RESTORE_AUTHORIZATION_ENGINE_INSTALLED:
+        issues.append("The supervised restore authorization engine is unavailable.")
+    if not PROCEDURAL_SKILL_RESTORE_TOKEN_GENERATOR_INSTALLED:
+        issues.append("The exact restore token generator is unavailable.")
+    if not PROCEDURAL_SKILL_RESTORE_RUN_ONCE_STATE_INSTALLED:
+        issues.append("The restore run-once process state is unavailable.")
+    if not PROCEDURAL_SKILL_LIFECYCLE_RESTORE_WRITER_INSTALLED:
+        issues.append("The separately gated durable restore writer is unavailable.")
     if not registry_ok:
         issues.append("Restore authorization Registry coverage is missing or unsafe.")
     warnings = [] if issues else [
-        "Authorization is design-only; no token, state, writer, or restore authority exists."
+        "Authorization review is read-only; token generation and mutation exist only in the separate explicit apply gate."
     ]
     return ProceduralSkillRestoreAuthorizationDoctorReport(
         status="ERROR" if issues else "OK",
@@ -336,6 +346,16 @@ def procedural_skill_restore_authorization_doctor(
         registry_coverage_ok=registry_ok,
         issues=_dedupe(issues),
         warnings=warnings,
+        authorization_engine_installed=(
+            PROCEDURAL_SKILL_RESTORE_AUTHORIZATION_ENGINE_INSTALLED
+        ),
+        token_generator_installed=(
+            PROCEDURAL_SKILL_RESTORE_TOKEN_GENERATOR_INSTALLED
+        ),
+        run_once_state_installed=(
+            PROCEDURAL_SKILL_RESTORE_RUN_ONCE_STATE_INSTALLED
+        ),
+        writer_installed=PROCEDURAL_SKILL_LIFECYCLE_RESTORE_WRITER_INSTALLED,
     )
 
 
@@ -477,10 +497,10 @@ def format_procedural_skill_restore_authorization_plan(
         "future_persistent_memory_unchanged: true",
         "future_post_write_verification_required: true",
         "future_exact_byte_rollback_required: true",
-        "current_authorization_engine_installed: false",
+        "current_authorization_engine_installed: true",
         "current_token_generated: false",
-        "current_run_once_state_installed: false",
-        "current_writer_installed: false",
+        "current_run_once_state_installed: true",
+        "current_writer_installed: true",
         "mutation_performed: false",
         "Future receipt fields:",
     ]
@@ -558,9 +578,9 @@ def _authorization_blueprint(*, base: Any, record: dict[str, Any]) -> dict[str, 
         ),
         "automatic": False,
         "procedure_execution_performed": False,
-        "authorization_engine_installed": False,
+        "authorization_engine_installed": True,
         "token_generated": False,
-        "writer_installed": False,
+        "writer_installed": True,
     }
 
 
@@ -635,15 +655,12 @@ def _authorization_blueprint_issues(value: Any) -> list[str]:
     ):
         if payload.get(field) is not True:
             issues.append(f"Authorization blueprint safety field {field} must be true.")
-    for field in (
-        "automatic",
-        "procedure_execution_performed",
-        "authorization_engine_installed",
-        "token_generated",
-        "writer_installed",
-    ):
+    for field in ("automatic", "procedure_execution_performed", "token_generated"):
         if payload.get(field) is not False:
             issues.append(f"Authorization blueprint safety field {field} must be false.")
+    for field in ("authorization_engine_installed", "writer_installed"):
+        if payload.get(field) is not True:
+            issues.append(f"Authorization blueprint capability field {field} must be true.")
     return _dedupe(issues)
 
 
@@ -680,9 +697,9 @@ def _example_authorization_blueprint() -> dict[str, Any]:
         ),
         "automatic": False,
         "procedure_execution_performed": False,
-        "authorization_engine_installed": False,
+        "authorization_engine_installed": True,
         "token_generated": False,
-        "writer_installed": False,
+        "writer_installed": True,
     }
 
 
@@ -712,9 +729,9 @@ def _authorization_error(message: str) -> str:
 def _authorization_boundary() -> list[str]:
     return [
         "Boundary:",
-        "- v3.5r is read-only authorization design readiness; it generates no exact token and captures no approval.",
-        "- Authorization engine, run-once state, restore writer, migration, repair, and procedure execution remain absent.",
-        "- A future writer must revalidate all hashes, preserve immutable fields and prior archive evidence, verify one atomic three-field mutation, and roll back exact bytes on any failure.",
+        "- Authorization review remains read-only; it never generates a token or captures approval by itself.",
+        "- The separate v3.5s gate is exact-token, run-once, and atomic; migration, repair, batch, and procedure execution remain absent.",
+        "- The separately gated writer revalidates all hashes, preserves immutable fields and prior archive evidence, verifies one atomic three-field mutation, and rolls back exact bytes on any failure.",
         "- No skill, memory, event, queue, export, session log, Context Injection, shell, model/API, or external action changed.",
     ]
 

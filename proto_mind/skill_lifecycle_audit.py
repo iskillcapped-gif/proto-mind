@@ -28,6 +28,7 @@ PROCEDURAL_SKILL_LIFECYCLE_STATES = frozenset(
     {
         "active_verified",
         "active_historical",
+        "active_restored_verified",
         "archived_verified",
         "archived_ambiguous",
         "drifted",
@@ -71,6 +72,7 @@ class ProceduralSkillLifecycleAuditReport:
     supervised_count: int
     active_verified_count: int
     active_historical_count: int
+    active_restored_verified_count: int
     archived_verified_count: int
     archived_ambiguous_count: int
     drifted_count: int
@@ -147,6 +149,7 @@ class ProceduralSkillLifecycleAudit:
             supervised_count=supervised,
             active_verified_count=counts["active_verified"],
             active_historical_count=counts["active_historical"],
+            active_restored_verified_count=counts["active_restored_verified"],
             archived_verified_count=counts["archived_verified"],
             archived_ambiguous_count=counts["archived_ambiguous"],
             drifted_count=counts["drifted"],
@@ -198,6 +201,7 @@ class ProceduralSkillLifecycleAudit:
         warnings: list[str] = []
         lifecycle_metadata = record.get("lifecycle")
         lifecycle_verified = False
+        restored_verified = False
         metadata_reason = ""
         state = "unprovenanced"
 
@@ -238,6 +242,45 @@ class ProceduralSkillLifecycleAudit:
                 else:
                     lifecycle_verified = True
                     metadata_reason = metadata_check.reason
+            elif (
+                isinstance(lifecycle_metadata, dict)
+                and lifecycle_metadata.get("schema")
+                == "skill.procedure.lifecycle.restore.v1"
+            ):
+                from proto_mind.skill_lifecycle_restore import (
+                    PROCEDURAL_SKILL_LIFECYCLE_RESTORE_WRITER_INSTALLED,
+                    verify_procedural_skill_lifecycle_restore_metadata,
+                )
+
+                restore_check = verify_procedural_skill_lifecycle_restore_metadata(
+                    lifecycle_metadata
+                )
+                if not restore_check.verified:
+                    issues.extend(
+                        f"Restore lifecycle metadata: {item}"
+                        for item in restore_check.issues
+                    )
+                elif not PROCEDURAL_SKILL_LIFECYCLE_RESTORE_WRITER_INSTALLED:
+                    issues.append(
+                        "Skill contains restore lifecycle metadata while its supervised writer is unavailable."
+                    )
+                elif stored_status != "active":
+                    issues.append(
+                        "Verified restore lifecycle metadata requires active skill status."
+                    )
+                elif restore_check.skill_id != skill_id:
+                    issues.append(
+                        "Restore lifecycle metadata skill_id does not match the skill record."
+                    )
+                elif not isinstance(provenance, dict) or lifecycle_metadata.get(
+                    "skill_provenance_id"
+                ) != provenance.get("id"):
+                    issues.append(
+                        "Restore lifecycle metadata does not bind the current embedded provenance."
+                    )
+                else:
+                    restored_verified = True
+                    metadata_reason = str(lifecycle_metadata.get("reason") or "")
             else:
                 issues.append("Skill contains unsupported durable lifecycle metadata.")
             if issues:
@@ -270,6 +313,10 @@ class ProceduralSkillLifecycleAudit:
             warnings.append(
                 "Archive status is durable, but its cause is not; outcome-driven archive is not proven after restart."
             )
+        elif stored_status == "active" and restored_verified and not issues:
+            state = "active_restored_verified"
+            if provenance_check.status == "HISTORICAL":
+                warnings.extend(provenance_check.warnings)
         elif provenance_check.status == "VERIFIED" and not issues:
             state = "active_verified"
         elif provenance_check.verified and not issues:
@@ -297,6 +344,8 @@ class ProceduralSkillLifecycleAudit:
         lifecycle_evidence = (
             "verified_operator_outcome_archive"
             if lifecycle_verified
+            else "verified_operator_restore_with_embedded_archive"
+            if restored_verified
             else "invalid_envelope"
             if is_procedural_skill_lifecycle_metadata_design(lifecycle_metadata)
             else "unsupported_record_field"
@@ -313,6 +362,7 @@ class ProceduralSkillLifecycleAudit:
         restart_safe = state in {
             "active_verified",
             "active_historical",
+            "active_restored_verified",
             "archived_verified",
         }
         return ProceduralSkillLifecycleAuditEntry(
@@ -328,7 +378,8 @@ class ProceduralSkillLifecycleAudit:
             applied_at=applied_at,
             lifecycle_evidence=lifecycle_evidence,
             lifecycle_reason=lifecycle_reason,
-            outcome_archive_proven=state == "archived_verified",
+            outcome_archive_proven=state
+            in {"archived_verified", "active_restored_verified"},
             restart_safe=restart_safe,
             executable=record.get("executable") is True,
             issues=_dedupe(issues),
@@ -410,6 +461,7 @@ def format_skill_lifecycle_status(
             f"supervised: {report.supervised_count}",
             f"active_verified: {report.active_verified_count}",
             f"active_historical: {report.active_historical_count}",
+            f"active_restored_verified: {report.active_restored_verified_count}",
             f"archived_verified: {report.archived_verified_count}",
             f"archived_ambiguous: {report.archived_ambiguous_count}",
             f"drifted: {report.drifted_count}",
@@ -507,6 +559,7 @@ def format_skill_lifecycle_doctor(
         f"supervised: {report.supervised_count}",
         f"active_verified: {report.active_verified_count}",
         f"active_historical: {report.active_historical_count}",
+        f"active_restored_verified: {report.active_restored_verified_count}",
         f"archived_verified: {report.archived_verified_count}",
         f"archived_ambiguous: {report.archived_ambiguous_count}",
         f"drifted: {report.drifted_count}",
@@ -557,7 +610,7 @@ def _audit_boundary() -> list[str]:
     return [
         "Boundary:",
         "- Read-only current durable-state reconstruction; no process receipt is treated as restart-safe history.",
-        "- Only a verified embedded lifecycle envelope proves outcome-driven archive; legacy archive remains ARCHIVED_AMBIGUOUS.",
+        "- Verified archive and restore envelopes preserve outcome-driven archive evidence; legacy archive remains ARCHIVED_AMBIGUOUS.",
         "- No skill, memory, event, receipt, queue, export, session log, Context Injection, shell, model/API, or external action changed.",
     ]
 

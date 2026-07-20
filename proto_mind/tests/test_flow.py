@@ -368,6 +368,16 @@ from proto_mind.skill_lifecycle_restore_authorization import (
     procedural_skill_restore_authorization_doctor,
     review_procedural_skill_restore_authorization,
 )
+from proto_mind.skill_lifecycle_restore_apply import (
+    PROCEDURAL_SKILL_RESTORE_APPLY_ENGINE_INSTALLED,
+    PROCEDURAL_SKILL_RESTORE_APPLY_MAX_RECEIPTS,
+    OperatorReviewedProceduralSkillRestoreApplySession,
+    ProceduralSkillRestoreApplyError,
+    format_procedural_skill_restore_apply_command,
+    procedural_skill_restore_apply_confirmation_token,
+    procedural_skill_restore_apply_receipt_hash,
+    reset_procedural_skill_restore_apply_session,
+)
 from proto_mind.experience_learning_eligibility import (
     LEARNING_ELIGIBILITY_MAX_IDS_PER_KIND,
     LearningEligibilityRequest,
@@ -25851,7 +25861,7 @@ class ProtoMindFlowTests(unittest.TestCase):
             report.metadata_blueprint["prior_archive_envelope"],
             record["lifecycle"],
         )
-        self.assertFalse(report.writer_installed)
+        self.assertTrue(report.writer_installed)
         self.assertFalse(report.apply_token_generated)
         self.assertFalse(report.mutation_performed)
 
@@ -25927,7 +25937,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
             self.assertIn(PROCEDURAL_SKILL_LIFECYCLE_RESTORE_MODE, contract)
             self.assertIn("Status: READY FOR RESTORE DESIGN REVIEW", readiness)
-            self.assertIn("future_writer_installed: false", plan)
+            self.assertIn("current_writer_installed: true", plan)
             self.assertIn("expected_changed_fields: lifecycle, status, updated_at", plan)
             self.assertNotIn("confirmation_token:", readiness)
             self.assertNotIn("confirmation_token:", plan)
@@ -25969,7 +25979,7 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertEqual(len(COMMAND_REGISTRY), 387)
         self.assertEqual(len({entry.category for entry in COMMAND_REGISTRY}), 41)
 
-    def test_skill_lifecycle_restore_doctor_locks_absent_writer(self) -> None:
+    def test_skill_lifecycle_restore_doctor_reports_supervised_writer(self) -> None:
         report = procedural_skill_lifecycle_restore_doctor()
 
         self.assertEqual(report.status, "OK")
@@ -25978,8 +25988,8 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertTrue(report.registry_coverage_ok)
         self.assertTrue(report.direct_status_guard_installed)
         self.assertTrue(report.payload_guard_installed)
-        self.assertFalse(report.writer_installed)
-        self.assertFalse(PROCEDURAL_SKILL_LIFECYCLE_RESTORE_WRITER_INSTALLED)
+        self.assertTrue(report.writer_installed)
+        self.assertTrue(PROCEDURAL_SKILL_LIFECYCLE_RESTORE_WRITER_INSTALLED)
         self.assertTrue(SKILL_LIFECYCLE_DIRECT_STATUS_GUARD_INSTALLED)
         self.assertTrue(SKILL_LIFECYCLE_PAYLOAD_GUARD_INSTALLED)
         self.assertEqual(command_registry_doctor()["status"], "OK")
@@ -26215,7 +26225,7 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertEqual(command_registry_doctor()["status"], "OK")
         self.assertEqual(action_policy_doctor()["status"], "OK")
 
-    def test_skill_restore_authorization_doctor_locks_absent_authority(self) -> None:
+    def test_skill_restore_authorization_doctor_reports_supervised_gate(self) -> None:
         report = procedural_skill_restore_authorization_doctor()
         output = format_procedural_skill_restore_authorization_command(
             "/skills lifecycle-doctor --restore-authorization",
@@ -26232,15 +26242,15 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertTrue(report.deterministic_example_verified)
         self.assertTrue(report.tamper_refused)
         self.assertTrue(report.restore_contract_healthy)
-        self.assertFalse(report.authorization_engine_installed)
-        self.assertFalse(report.token_generator_installed)
-        self.assertFalse(report.run_once_state_installed)
-        self.assertFalse(report.writer_installed)
-        self.assertFalse(PROCEDURAL_SKILL_RESTORE_AUTHORIZATION_ENGINE_INSTALLED)
-        self.assertFalse(PROCEDURAL_SKILL_RESTORE_TOKEN_GENERATOR_INSTALLED)
-        self.assertFalse(PROCEDURAL_SKILL_RESTORE_RUN_ONCE_STATE_INSTALLED)
+        self.assertTrue(report.authorization_engine_installed)
+        self.assertTrue(report.token_generator_installed)
+        self.assertTrue(report.run_once_state_installed)
+        self.assertTrue(report.writer_installed)
+        self.assertTrue(PROCEDURAL_SKILL_RESTORE_AUTHORIZATION_ENGINE_INSTALLED)
+        self.assertTrue(PROCEDURAL_SKILL_RESTORE_TOKEN_GENERATOR_INSTALLED)
+        self.assertTrue(PROCEDURAL_SKILL_RESTORE_RUN_ONCE_STATE_INSTALLED)
         self.assertIn("Status: OK", output)
-        self.assertIn("token_generator_installed: false", output)
+        self.assertIn("token_generator_installed: true", output)
 
     def test_skill_restore_authorization_readiness_binds_current_archived_record(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -26306,12 +26316,12 @@ class ProtoMindFlowTests(unittest.TestCase):
             self.assertEqual(store.persistent_path.read_bytes(), memory_before)
 
         self.assertIn("Authorization Contract v1", contract)
-        self.assertIn("token_generator_installed: false", contract)
+        self.assertIn("token_generator_installed: true", contract)
         self.assertIn("READY FOR AUTHORIZATION DESIGN REVIEW", readiness)
         self.assertIn("token_generated: false", readiness)
         self.assertIn("<authorization_blueprint_hash>", readiness)
         self.assertIn("future_expected_changed_fields: lifecycle, status, updated_at", plan)
-        self.assertIn("current_writer_installed: false", plan)
+        self.assertIn("current_writer_installed: true", plan)
         self.assertNotIn("confirmation_token:", readiness)
         self.assertNotIn("confirmation_token:", plan)
 
@@ -26372,6 +26382,262 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertTrue(registry["/skills lifecycle-status"].read_only)
         self.assertTrue(registry["/skills lifecycle-inspect"].read_only)
         self.assertTrue(registry["/skills lifecycle-doctor"].read_only)
+        self.assertEqual(len(COMMAND_REGISTRY), 387)
+        self.assertEqual(len({entry.category for entry in COMMAND_REGISTRY}), 41)
+        self.assertEqual(command_registry_doctor()["status"], "OK")
+        self.assertEqual(action_policy_doctor()["status"], "OK")
+
+    def test_skill_restore_apply_exact_token_preserves_archive_and_provenance(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            store, library, archived = build_test_durably_archived_procedural_skill(
+                Path(temp_dir)
+            )
+            session = OperatorReviewedProceduralSkillRestoreApplySession()
+            skill_before = library.skills_path.read_bytes()
+            memory_before = store.persistent_path.read_bytes()
+            review = session.review(
+                str(archived["id"]),
+                skills_path=library.skills_path,
+                persistent_memory_path=store.persistent_path,
+            )
+            receipt = session.apply(
+                str(archived["id"]),
+                token=procedural_skill_restore_apply_confirmation_token(review),
+                skills_path=library.skills_path,
+                persistent_memory_path=store.persistent_path,
+            )
+            restored = library.read_snapshot()["records"][0]
+            audit = ProceduralSkillLifecycleAudit(
+                skills_path=library.skills_path,
+                persistent_memory_path=store.persistent_path,
+            ).get(str(archived["id"]))
+            doctor = session.doctor(
+                skills_path=library.skills_path,
+                persistent_memory_path=store.persistent_path,
+            )
+            restored_bytes = library.skills_path.read_bytes()
+            use_output = library.use_skill(str(archived["id"]))
+            memory_after = store.persistent_path.read_bytes()
+            skill_after_use = library.skills_path.read_bytes()
+
+        self.assertEqual(review.status, "CONFIRMABLE")
+        self.assertTrue(review.confirmable)
+        self.assertNotEqual(restored_bytes, skill_before)
+        self.assertEqual(memory_after, memory_before)
+        self.assertEqual(restored["status"], "active")
+        self.assertEqual(restored["provenance"], archived["provenance"])
+        self.assertEqual(restored["body"], archived["body"])
+        self.assertEqual(
+            restored["lifecycle"]["prior_archive_envelope"], archived["lifecycle"]
+        )
+        self.assertTrue(
+            verify_procedural_skill_lifecycle_restore_metadata(
+                restored["lifecycle"]
+            ).verified
+        )
+        self.assertEqual(
+            set(receipt.to_dict()),
+            set(PROCEDURAL_SKILL_LIFECYCLE_RESTORE_RECEIPT_FIELDS),
+        )
+        self.assertEqual(receipt.exact_record_mutations, 1)
+        self.assertEqual(
+            receipt.changed_fields,
+            list(PROCEDURAL_SKILL_LIFECYCLE_RESTORE_EXPECTED_CHANGED_FIELDS),
+        )
+        self.assertEqual(
+            receipt.receipt_hash,
+            procedural_skill_restore_apply_receipt_hash(receipt.to_dict()),
+        )
+        self.assertTrue(receipt.post_state_verified)
+        self.assertTrue(receipt.archive_evidence_preserved)
+        self.assertTrue(receipt.durable_provenance_preserved)
+        self.assertTrue(receipt.persistent_memory_unchanged)
+        self.assertFalse(receipt.rollback_performed)
+        self.assertIsNotNone(audit)
+        assert audit is not None
+        self.assertEqual(audit.state, "active_restored_verified")
+        self.assertTrue(audit.restart_safe)
+        self.assertTrue(audit.outcome_archive_proven)
+        self.assertEqual(doctor.status, "OK")
+        self.assertIn("lifecycle payload mutation refused", use_output.lower())
+        self.assertEqual(skill_after_use, restored_bytes)
+
+    def test_skill_restore_apply_wrong_token_and_active_state_fail_closed(self) -> None:
+        with TemporaryDirectory() as archived_dir, TemporaryDirectory() as active_dir:
+            store, library, archived = build_test_durably_archived_procedural_skill(
+                Path(archived_dir)
+            )
+            session = OperatorReviewedProceduralSkillRestoreApplySession()
+            skill_before = library.skills_path.read_bytes()
+            memory_before = store.persistent_path.read_bytes()
+            with self.assertRaisesRegex(
+                ProceduralSkillRestoreApplyError, "token mismatch"
+            ):
+                session.apply(
+                    str(archived["id"]),
+                    token="WRONG-TOKEN",
+                    skills_path=library.skills_path,
+                    persistent_memory_path=store.persistent_path,
+                )
+            active_store, active_library, _, active = (
+                build_test_applied_procedural_skill(Path(active_dir))
+            )
+            active_review = session.review(
+                active.created_skill_id,
+                skills_path=active_library.skills_path,
+                persistent_memory_path=active_store.persistent_path,
+            )
+            skill_after = library.skills_path.read_bytes()
+            memory_after = store.persistent_path.read_bytes()
+
+        self.assertEqual(skill_after, skill_before)
+        self.assertEqual(memory_after, memory_before)
+        self.assertEqual(session.snapshot(), ())
+        self.assertFalse(active_review.confirmable)
+        self.assertIn("archived_verified", " ".join(active_review.issues))
+
+    def test_skill_restore_apply_is_run_once_per_process(self) -> None:
+        with TemporaryDirectory() as first_dir, TemporaryDirectory() as second_dir:
+            first_store, first_library, first = (
+                build_test_durably_archived_procedural_skill(Path(first_dir))
+            )
+            second_store, second_library, second = (
+                build_test_durably_archived_procedural_skill(Path(second_dir))
+            )
+            session = OperatorReviewedProceduralSkillRestoreApplySession()
+            first_review = session.review(
+                str(first["id"]),
+                skills_path=first_library.skills_path,
+                persistent_memory_path=first_store.persistent_path,
+            )
+            session.apply(
+                str(first["id"]),
+                token=procedural_skill_restore_apply_confirmation_token(first_review),
+                skills_path=first_library.skills_path,
+                persistent_memory_path=first_store.persistent_path,
+            )
+            second_before = second_library.skills_path.read_bytes()
+            second_review = session.review(
+                str(second["id"]),
+                skills_path=second_library.skills_path,
+                persistent_memory_path=second_store.persistent_path,
+            )
+            with self.assertRaisesRegex(
+                ProceduralSkillRestoreApplyError, "single durable restore slot"
+            ):
+                session.apply(
+                    str(second["id"]),
+                    token="unused",
+                    skills_path=second_library.skills_path,
+                    persistent_memory_path=second_store.persistent_path,
+                )
+            second_after = second_library.skills_path.read_bytes()
+
+        self.assertEqual(PROCEDURAL_SKILL_RESTORE_APPLY_MAX_RECEIPTS, 1)
+        self.assertFalse(second_review.confirmable)
+        self.assertEqual(second_after, second_before)
+        self.assertEqual(len(session.snapshot()), 1)
+
+    def test_skill_restore_apply_rolls_back_exact_bytes_on_verification_failure(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            store, library, archived = build_test_durably_archived_procedural_skill(
+                Path(temp_dir)
+            )
+            session = OperatorReviewedProceduralSkillRestoreApplySession()
+            review = session.review(
+                str(archived["id"]),
+                skills_path=library.skills_path,
+                persistent_memory_path=store.persistent_path,
+            )
+            skill_before = library.skills_path.read_bytes()
+            memory_before = store.persistent_path.read_bytes()
+            with patch(
+                "proto_mind.skill_lifecycle_restore_apply._verify_restore",
+                side_effect=ProceduralSkillRestoreApplyError("injected failure"),
+            ):
+                with self.assertRaisesRegex(
+                    ProceduralSkillRestoreApplyError, "exact original"
+                ):
+                    session.apply(
+                        str(archived["id"]),
+                        token=procedural_skill_restore_apply_confirmation_token(
+                            review
+                        ),
+                        skills_path=library.skills_path,
+                        persistent_memory_path=store.persistent_path,
+                    )
+            skill_after = library.skills_path.read_bytes()
+            memory_after = store.persistent_path.read_bytes()
+
+        self.assertEqual(skill_after, skill_before)
+        self.assertEqual(memory_after, memory_before)
+        self.assertEqual(session.snapshot(), ())
+
+    def test_skill_restore_apply_formatter_and_shared_route_are_guarded(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            store, library, archived = build_test_durably_archived_procedural_skill(
+                root / "fixture"
+            )
+            live_path = root / "proto_mind" / "data" / "skills.jsonl"
+            live_path.parent.mkdir(parents=True, exist_ok=True)
+            live_path.write_bytes(library.skills_path.read_bytes())
+            before = live_path.read_bytes()
+            reset_procedural_skill_restore_apply_session()
+            preview = format_skill_command(
+                f"/skills lifecycle-inspect {archived['id']} --restore-apply-preview",
+                project_root=root,
+                persistent_memory_path=store.persistent_path,
+            )
+            token = next(
+                line.split(": ", 1)[1]
+                for line in preview.splitlines()
+                if line.startswith("confirmation_token: ")
+            )
+            wrong = format_skill_command(
+                f"/skills restore {archived['id']} WRONG --durable",
+                project_root=root,
+                persistent_memory_path=store.persistent_path,
+            )
+            chained = format_procedural_skill_restore_apply_command(
+                f"/skills restore {archived['id']} {token} --durable; /skills list",
+                skills_path=live_path,
+                persistent_memory_path=store.persistent_path,
+            )
+            applied = format_skill_command(
+                f"/skills restore {archived['id']} {token} --durable",
+                project_root=root,
+                persistent_memory_path=store.persistent_path,
+            )
+            receipt = format_skill_command(
+                f"/skills lifecycle-inspect {archived['id']} --restore-apply-receipt",
+                project_root=root,
+                persistent_memory_path=store.persistent_path,
+            )
+            doctor = format_skill_command(
+                "/skills lifecycle-doctor --restore-apply",
+                project_root=root,
+                persistent_memory_path=store.persistent_path,
+            )
+            live_after = live_path.read_bytes()
+            reset_procedural_skill_restore_apply_session()
+
+        registry = {entry.prefix: entry for entry in COMMAND_REGISTRY}
+        self.assertIn("Status: CONFIRMABLE", preview)
+        self.assertIn("token mismatch", wrong)
+        self.assertNotEqual(live_after, before)
+        self.assertIn("Command chaining", chained)
+        self.assertIn("Status: APPLIED", applied)
+        self.assertIn("Status: OK", receipt)
+        self.assertIn("Status: OK", doctor)
+        self.assertTrue(PROCEDURAL_SKILL_RESTORE_APPLY_ENGINE_INSTALLED)
+        self.assertFalse(registry["/skills restore"].read_only)
+        self.assertEqual(registry["/skills restore"].mutates, "skills")
+        self.assertEqual(registry["/skills restore"].risk, "medium")
+        self.assertEqual(
+            classify_command("/skills restore x token --durable").policy_class,
+            "confirmation_required",
+        )
         self.assertEqual(len(COMMAND_REGISTRY), 387)
         self.assertEqual(len({entry.category for entry in COMMAND_REGISTRY}), 41)
         self.assertEqual(command_registry_doctor()["status"], "OK")

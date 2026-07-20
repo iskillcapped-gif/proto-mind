@@ -30,7 +30,7 @@ PROCEDURAL_SKILL_LIFECYCLE_RESTORE_SCHEMA = (
 PROCEDURAL_SKILL_LIFECYCLE_RESTORE_MODE = (
     "read_only_embedded_archive_restore_design_review"
 )
-PROCEDURAL_SKILL_LIFECYCLE_RESTORE_WRITER_INSTALLED = False
+PROCEDURAL_SKILL_LIFECYCLE_RESTORE_WRITER_INSTALLED = True
 PROCEDURAL_SKILL_LIFECYCLE_RESTORE_REASON = "operator_confirmed_reactivation"
 PROCEDURAL_SKILL_LIFECYCLE_RESTORE_MAX_ARCHIVE_BYTES = 16_384
 PROCEDURAL_SKILL_LIFECYCLE_RESTORE_EXPECTED_CHANGED_FIELDS = (
@@ -132,7 +132,7 @@ class ProceduralSkillLifecycleRestoreReadinessReport:
     issues: list[str]
     warnings: list[str]
     ready_for_design_review: bool
-    writer_installed: bool = False
+    writer_installed: bool = True
     direct_status_guard_installed: bool = True
     payload_guard_installed: bool = True
     apply_token_generated: bool = False
@@ -417,7 +417,7 @@ def review_procedural_skill_lifecycle_restore(
         "active_duplicate_absent": not active_duplicates,
         "store_hash_available": _is_sha256(store_hash),
         "record_hash_available": _is_sha256(record_hash),
-        "restore_writer_absent": not (
+        "restore_writer_installed": (
             PROCEDURAL_SKILL_LIFECYCLE_RESTORE_WRITER_INSTALLED
         ),
         "direct_status_guard_installed": (
@@ -447,7 +447,7 @@ def review_procedural_skill_lifecycle_restore(
         "active_duplicate_absent": "An active duplicate skill already exists.",
         "store_hash_available": "Current Skill Library SHA-256 is unavailable.",
         "record_hash_available": "Current skill record hash is unavailable.",
-        "restore_writer_absent": "Restore writer must remain absent through v3.5q.",
+        "restore_writer_installed": "The separately gated durable restore writer is unavailable.",
         "direct_status_guard_installed": "Generic status mutation guard is unavailable.",
         "payload_guard_installed": "Lifecycle-managed payload/telemetry mutation guard is unavailable.",
         "registry_surfaces_read_only": "Restore design Registry surfaces are missing or mutating.",
@@ -457,8 +457,8 @@ def review_procedural_skill_lifecycle_restore(
     issues.extend(messages[name] for name, passed in checks.items() if not passed)
     warnings = [
         "Restore would reactivate availability only; it would not execute the skill or prove current procedure quality.",
-        "A future writer needs a separate exact token, atomic verification, receipt, and exact-byte rollback.",
-        "The existing /skills restore command is not authorized for this provenanced lifecycle transition.",
+        "The separate apply gate requires an exact token, atomic verification, receipt, and exact-byte rollback.",
+        "Generic /skills restore <id> is not authorized; only the separate exact-token --durable gate may perform this transition.",
     ]
     ready = all(checks.values()) and not issues
     return ProceduralSkillLifecycleRestoreReadinessReport(
@@ -522,8 +522,8 @@ def procedural_skill_lifecycle_restore_doctor(
     ):
         if len(fields) != len(set(fields)):
             issues.append(f"Restore {label} field contract contains duplicates.")
-    if PROCEDURAL_SKILL_LIFECYCLE_RESTORE_WRITER_INSTALLED:
-        issues.append("Restore writer must remain absent through v3.5q.")
+    if not PROCEDURAL_SKILL_LIFECYCLE_RESTORE_WRITER_INSTALLED:
+        issues.append("The separately gated durable restore writer is unavailable.")
     if not SKILL_LIFECYCLE_DIRECT_STATUS_GUARD_INSTALLED:
         issues.append("Generic lifecycle status mutation guard is unavailable.")
     if not SKILL_LIFECYCLE_PAYLOAD_GUARD_INSTALLED:
@@ -539,7 +539,7 @@ def procedural_skill_lifecycle_restore_doctor(
         issues.append("Restore design Registry coverage is missing or unsafe.")
     if not issues:
         warnings.append(
-            "Restore is design-only; no token, writer, migration, or authorization exists."
+            "Restore review is read-only; only the separate exact-token run-once apply gate may invoke the writer."
         )
     return ProceduralSkillLifecycleRestoreDoctorReport(
         status="ERROR" if issues else "OK",
@@ -686,7 +686,7 @@ def format_procedural_skill_lifecycle_restore_plan(
         f"skill_id: {report.skill_id or 'missing'}",
         "future_transition: archived -> active",
         "future_operation: replace the archive envelope with a restore envelope that embeds the complete prior archive envelope",
-        "future_writer_installed: false",
+        f"current_writer_installed: {str(report.writer_installed).lower()}",
         "separate_confirmation_required: true",
         "expected_skill_record_mutations: 1",
         f"expected_changed_fields: {', '.join(report.expected_changed_fields)}",
@@ -901,9 +901,9 @@ def _restore_error(message: str) -> str:
 def _restore_boundary() -> list[str]:
     return [
         "Boundary:",
-        "- Restore design commands remain read-only; v3.5q adds byte-stable status and payload/telemetry guards, not a restore token, writer, authorization, or receipt.",
-        "- A future restore must preserve the complete verified archive envelope and exact skill provenance; reactivation is not procedure-quality proof.",
-        "- Generic status, payload, tag, and usage mutations are fail-closed for lifecycle-managed records and are never invoked here.",
+        "- Restore review commands remain read-only; the v3.5s writer is reachable only through a separate exact-token run-once apply gate.",
+        "- Any durable restore must preserve the complete verified archive envelope and exact skill provenance; reactivation is not procedure-quality proof.",
+        "- Generic status, payload, tag, and usage mutations remain fail-closed for lifecycle-managed records and are never invoked here.",
         "- No skill, memory, event, queue, export, session log, Context Injection, shell, model/API, procedure, or external action changed.",
     ]
 
