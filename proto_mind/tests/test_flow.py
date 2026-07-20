@@ -462,6 +462,7 @@ from proto_mind.showcase_layer import (
 )
 from proto_mind.skill_library import (
     SKILL_LIFECYCLE_DIRECT_STATUS_GUARD_INSTALLED,
+    SKILL_LIFECYCLE_PAYLOAD_GUARD_INSTALLED,
     SkillLibrary,
     format_skill_command,
 )
@@ -25966,9 +25967,11 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertTrue(report.tamper_refused)
         self.assertTrue(report.registry_coverage_ok)
         self.assertTrue(report.direct_status_guard_installed)
+        self.assertTrue(report.payload_guard_installed)
         self.assertFalse(report.writer_installed)
         self.assertFalse(PROCEDURAL_SKILL_LIFECYCLE_RESTORE_WRITER_INSTALLED)
         self.assertTrue(SKILL_LIFECYCLE_DIRECT_STATUS_GUARD_INSTALLED)
+        self.assertTrue(SKILL_LIFECYCLE_PAYLOAD_GUARD_INSTALLED)
         self.assertEqual(command_registry_doctor()["status"], "OK")
         self.assertEqual(action_policy_doctor()["status"], "OK")
 
@@ -26086,6 +26089,121 @@ class ProtoMindFlowTests(unittest.TestCase):
         )
         self.assertEqual(len(COMMAND_REGISTRY), 387)
         self.assertEqual(len({entry.category for entry in COMMAND_REGISTRY}), 41)
+
+    def test_skill_lifecycle_payload_mutations_refuse_exact_bytes(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, library, record = build_test_durably_archived_procedural_skill(
+                Path(temp_dir)
+            )
+            identifier = str(record["id"])
+            before = library.skills_path.read_bytes()
+            operations = (
+                ("update_summary", lambda: library.update_summary(identifier, "changed")),
+                ("set_body", lambda: library.set_body(identifier, "changed")),
+                ("append_body", lambda: library.append_body(identifier, "changed")),
+                ("add_tag", lambda: library.add_tag(identifier, "changed")),
+                ("remove_tag", lambda: library.remove_tag(identifier, "changed")),
+            )
+
+            for action, operation in operations:
+                with self.subTest(action=action):
+                    output = operation()
+                    self.assertIn("Skill lifecycle payload mutation refused", output)
+                    self.assertIn(f"requested_action: {action}", output)
+                    self.assertIn("mutation_performed: false", output)
+                    self.assertEqual(library.skills_path.read_bytes(), before)
+
+    def test_skill_lifecycle_use_refuses_telemetry_mutation_exact_bytes(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, library, record = build_test_durably_archived_procedural_skill(
+                Path(temp_dir)
+            )
+            identifier = str(record["id"])
+            before = library.skills_path.read_bytes()
+            uses_before = record.get("uses")
+            last_used_before = record.get("last_used_at")
+            output = library.use_skill(identifier)
+            current = library.read_snapshot()["records"][0]
+            after = library.skills_path.read_bytes()
+
+        self.assertIn("requested_action: use_skill", output)
+        self.assertIn("uses, last_used_at, updated_at", output)
+        self.assertEqual(after, before)
+        self.assertEqual(current.get("uses"), uses_before)
+        self.assertEqual(current.get("last_used_at"), last_used_before)
+
+    def test_skill_lifecycle_payload_guard_fails_closed_on_invalid_envelope(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            library = SkillLibrary(Path(temp_dir) / "skills.jsonl")
+            library.add_skill("Guard invalid lifecycle payload")
+            identifier = str(library.read_snapshot()["records"][0]["id"])
+            records = library.read_snapshot()["records"]
+            records[0]["lifecycle"] = "corrupt"
+            library._write_records(records)
+            before = library.skills_path.read_bytes()
+            update = library.update_summary(identifier, "must not change")
+            use = library.use_skill(identifier)
+
+            self.assertIn("lifecycle_schema: invalid_or_unknown", update)
+            self.assertIn("requested_action: use_skill", use)
+            self.assertEqual(library.skills_path.read_bytes(), before)
+
+    def test_skill_lifecycle_payload_guard_preserves_pre_lifecycle_behavior(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, library, _, applied = build_test_applied_procedural_skill(
+                Path(temp_dir)
+            )
+            identifier = applied.created_skill_id
+            original_tags = list(library.read_snapshot()["records"][0]["tags"])
+            outputs = [
+                library.update_summary(identifier, "Updated legacy summary"),
+                library.set_body(identifier, "Step one"),
+                library.append_body(identifier, "Step two"),
+                library.add_tag(identifier, "legacy"),
+                library.remove_tag(identifier, "legacy"),
+                library.use_skill(identifier),
+            ]
+            current = library.read_snapshot()["records"][0]
+
+        self.assertTrue(all("refused" not in output.lower() for output in outputs))
+        self.assertEqual(current["summary"], "Updated legacy summary")
+        self.assertEqual(current["body"], "Step one\nStep two")
+        self.assertEqual(current["tags"], original_tags)
+        self.assertEqual(current["uses"], 1)
+        self.assertNotIn("lifecycle", current)
+
+    def test_skill_lifecycle_payload_guard_routes_through_shared_cli(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            store, library, record = build_test_durably_archived_procedural_skill(
+                root / "fixture"
+            )
+            live_path = root / "proto_mind" / "data" / "skills.jsonl"
+            live_path.parent.mkdir(parents=True, exist_ok=True)
+            live_path.write_bytes(library.skills_path.read_bytes())
+            before = live_path.read_bytes()
+            update = format_skill_command(
+                f"/skills update {record['id']} --summary changed",
+                project_root=root,
+                persistent_memory_path=store.persistent_path,
+            )
+            use = format_skill_command(
+                f"/skills use {record['id']}",
+                project_root=root,
+                persistent_memory_path=store.persistent_path,
+            )
+
+            self.assertIn("requested_action: update_summary", update)
+            self.assertIn("requested_action: use_skill", use)
+            self.assertEqual(live_path.read_bytes(), before)
+
+        registry = {entry.prefix: entry for entry in COMMAND_REGISTRY}
+        self.assertIn("fail closed", registry["/skills update"].description)
+        self.assertIn("fail closed", registry["/skills use"].description)
+        self.assertEqual(len(COMMAND_REGISTRY), 387)
+        self.assertEqual(len({entry.category for entry in COMMAND_REGISTRY}), 41)
+        self.assertEqual(command_registry_doctor()["status"], "OK")
+        self.assertEqual(action_policy_doctor()["status"], "OK")
 
     def test_durable_skill_lifecycle_audit_does_not_invent_archive_cause(self) -> None:
         with TemporaryDirectory() as temp_dir:

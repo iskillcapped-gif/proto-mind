@@ -667,6 +667,8 @@ v3.5o design-locks restore without installing a writer. `/skills lifecycle-statu
 
 v3.5p closes direct status bypasses before any restore writer exists. `SkillLibrary.set_status` now refuses generic `/skills archive` and `/skills restore` whenever a record contains lifecycle metadata, including malformed or unsupported envelopes, and returns lifecycle inspect/readiness guidance without changing bytes or `updated_at`. This guard lives below CLI routing so internal callers cannot bypass it accidentally. Legacy provenanced records and ordinary operator skills without lifecycle metadata retain their existing archive/restore behavior, including the manual rollback path for newly authored skills. Registry count and policy classification are unchanged; no restore token/writer, migration, repair, procedure execution, model/API call, or Context Injection change is introduced.
 
+v3.5q closes the remaining in-place payload and telemetry bypasses for lifecycle-managed skills. The shared `SkillLibrary` mutation boundary now refuses summary/body/tag edits, and `/skills use` refuses usage-counter and timestamp updates, whenever a lifecycle field exists, including malformed envelopes. Refusal happens before callback, timestamp, or file rewrite and points to lifecycle inspection; exact bytes remain stable. Pre-lifecycle provenance records and ordinary operator skills retain the original edit/tag/use behavior. Restore Contract/Doctor reports both guards as installed; Registry remains 387 commands across 41 categories, and no revision/restore writer, skill execution, migration, model/API call, or Context Injection change is introduced.
+
 ## Contest Showcase
 
 Contest Showcase v1 turns the existing architecture into one read-only live presentation:

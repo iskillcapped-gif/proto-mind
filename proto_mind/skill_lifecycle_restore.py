@@ -11,6 +11,7 @@ from typing import Any
 from proto_mind.command_registry import COMMAND_REGISTRY
 from proto_mind.skill_library import (
     SKILL_LIFECYCLE_DIRECT_STATUS_GUARD_INSTALLED,
+    SKILL_LIFECYCLE_PAYLOAD_GUARD_INSTALLED,
     SkillLibrary,
 )
 from proto_mind.skill_lifecycle_audit import (
@@ -133,6 +134,7 @@ class ProceduralSkillLifecycleRestoreReadinessReport:
     ready_for_design_review: bool
     writer_installed: bool = False
     direct_status_guard_installed: bool = True
+    payload_guard_installed: bool = True
     apply_token_generated: bool = False
     mutation_performed: bool = False
 
@@ -147,6 +149,7 @@ class ProceduralSkillLifecycleRestoreDoctorReport:
     tamper_refused: bool
     writer_installed: bool
     direct_status_guard_installed: bool
+    payload_guard_installed: bool
     registry_coverage_ok: bool
     issues: list[str]
     warnings: list[str]
@@ -420,6 +423,7 @@ def review_procedural_skill_lifecycle_restore(
         "direct_status_guard_installed": (
             SKILL_LIFECYCLE_DIRECT_STATUS_GUARD_INSTALLED
         ),
+        "payload_guard_installed": SKILL_LIFECYCLE_PAYLOAD_GUARD_INSTALLED,
         "registry_surfaces_read_only": all(
             registry.get(prefix) is not None
             and registry[prefix].read_only
@@ -443,8 +447,9 @@ def review_procedural_skill_lifecycle_restore(
         "active_duplicate_absent": "An active duplicate skill already exists.",
         "store_hash_available": "Current Skill Library SHA-256 is unavailable.",
         "record_hash_available": "Current skill record hash is unavailable.",
-        "restore_writer_absent": "Restore writer must remain absent through v3.5p.",
+        "restore_writer_absent": "Restore writer must remain absent through v3.5q.",
         "direct_status_guard_installed": "Generic status mutation guard is unavailable.",
+        "payload_guard_installed": "Lifecycle-managed payload/telemetry mutation guard is unavailable.",
         "registry_surfaces_read_only": "Restore design Registry surfaces are missing or mutating.",
         "blueprint_bound": "Restore metadata blueprint is absent or unhashed.",
     }
@@ -484,6 +489,10 @@ def review_procedural_skill_lifecycle_restore(
         issues=_dedupe(issues),
         warnings=warnings,
         ready_for_design_review=ready,
+        direct_status_guard_installed=(
+            SKILL_LIFECYCLE_DIRECT_STATUS_GUARD_INSTALLED
+        ),
+        payload_guard_installed=SKILL_LIFECYCLE_PAYLOAD_GUARD_INSTALLED,
     )
 
 
@@ -514,9 +523,11 @@ def procedural_skill_lifecycle_restore_doctor(
         if len(fields) != len(set(fields)):
             issues.append(f"Restore {label} field contract contains duplicates.")
     if PROCEDURAL_SKILL_LIFECYCLE_RESTORE_WRITER_INSTALLED:
-        issues.append("Restore writer must remain absent through v3.5p.")
+        issues.append("Restore writer must remain absent through v3.5q.")
     if not SKILL_LIFECYCLE_DIRECT_STATUS_GUARD_INSTALLED:
         issues.append("Generic lifecycle status mutation guard is unavailable.")
+    if not SKILL_LIFECYCLE_PAYLOAD_GUARD_INSTALLED:
+        issues.append("Lifecycle-managed payload/telemetry mutation guard is unavailable.")
     registry = {entry.prefix: entry for entry in COMMAND_REGISTRY}
     registry_ok = all(
         registry.get(prefix) is not None
@@ -543,6 +554,7 @@ def procedural_skill_lifecycle_restore_doctor(
         direct_status_guard_installed=(
             SKILL_LIFECYCLE_DIRECT_STATUS_GUARD_INSTALLED
         ),
+        payload_guard_installed=SKILL_LIFECYCLE_PAYLOAD_GUARD_INSTALLED,
         registry_coverage_ok=registry_ok,
         issues=_dedupe(issues),
         warnings=_dedupe(warnings),
@@ -617,6 +629,7 @@ def format_procedural_skill_lifecycle_restore_contract() -> str:
             f"future_receipt_field_count: {report.receipt_field_count}",
             f"writer_installed: {str(report.writer_installed).lower()}",
             f"direct_status_guard_installed: {str(report.direct_status_guard_installed).lower()}",
+            f"payload_guard_installed: {str(report.payload_guard_installed).lower()}",
             "transition: archived -> active",
             "meaning: operator-confirmed reactivation only; not procedure-quality proof",
             "prior_archive_retention: full verified archive envelope embedded",
@@ -650,6 +663,7 @@ def format_procedural_skill_lifecycle_restore_readiness(
         f"active_duplicates: {', '.join(report.active_duplicate_skill_ids) or 'none'}",
         f"writer_installed: {str(report.writer_installed).lower()}",
         f"direct_status_guard_installed: {str(report.direct_status_guard_installed).lower()}",
+        f"payload_guard_installed: {str(report.payload_guard_installed).lower()}",
         "apply_token_generated: false",
         "mutation_performed: false",
         "Checks:",
@@ -705,6 +719,7 @@ def format_procedural_skill_lifecycle_restore_doctor(
         f"tamper_refused: {str(report.tamper_refused).lower()}",
         f"writer_installed: {str(report.writer_installed).lower()}",
         f"direct_status_guard_installed: {str(report.direct_status_guard_installed).lower()}",
+        f"payload_guard_installed: {str(report.payload_guard_installed).lower()}",
         f"registry_coverage_ok: {str(report.registry_coverage_ok).lower()}",
         "apply_token_generated: false",
         "mutation_performed: false",
@@ -886,9 +901,9 @@ def _restore_error(message: str) -> str:
 def _restore_boundary() -> list[str]:
     return [
         "Boundary:",
-        "- Restore design commands remain read-only; v3.5p adds only a byte-stable refusal guard, not a restore token, writer, authorization, or receipt.",
+        "- Restore design commands remain read-only; v3.5q adds byte-stable status and payload/telemetry guards, not a restore token, writer, authorization, or receipt.",
         "- A future restore must preserve the complete verified archive envelope and exact skill provenance; reactivation is not procedure-quality proof.",
-        "- Generic /skills archive and /skills restore are fail-closed for lifecycle-managed records and are never invoked here.",
+        "- Generic status, payload, tag, and usage mutations are fail-closed for lifecycle-managed records and are never invoked here.",
         "- No skill, memory, event, queue, export, session log, Context Injection, shell, model/API, procedure, or external action changed.",
     ]
 

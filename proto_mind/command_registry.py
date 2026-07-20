@@ -341,12 +341,12 @@ _BASE_REGISTRY = [
         _spec(prefix, "skills", description, read_only=False, mutates="skills", risk="medium")
         for prefix, description in {
             "/skills add": "Create a skill.",
-            "/skills update": "Update a skill summary.",
-            "/skills body": "Replace a skill body.",
-            "/skills append": "Append to a skill body.",
-            "/skills tag": "Add a skill tag.",
-            "/skills untag": "Remove a skill tag.",
-            "/skills use": "Retrieve a skill and increment usage metadata.",
+            "/skills update": "Update a legacy/operator skill summary; lifecycle-managed records fail closed.",
+            "/skills body": "Replace a legacy/operator skill body; lifecycle-managed records fail closed.",
+            "/skills append": "Append to a legacy/operator skill body; lifecycle-managed records fail closed.",
+            "/skills tag": "Add a legacy/operator skill tag; lifecycle-managed records fail closed.",
+            "/skills untag": "Remove a legacy/operator skill tag; lifecycle-managed records fail closed.",
+            "/skills use": "Retrieve a legacy/operator skill and increment usage metadata; lifecycle-managed records fail closed.",
             "/skills archive": "Archive a legacy/operator skill; lifecycle-managed records fail closed.",
             "/skills restore": "Restore a legacy/operator skill; lifecycle-managed records fail closed.",
         }.items()

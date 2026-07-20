@@ -13,6 +13,7 @@ from uuid import uuid4
 VALID_SKILL_STATUSES = {"active", "archived"}
 DEFAULT_SKILL_CATEGORY = "other"
 SKILL_LIFECYCLE_DIRECT_STATUS_GUARD_INSTALLED = True
+SKILL_LIFECYCLE_PAYLOAD_GUARD_INSTALLED = True
 
 
 def format_skill_command(
@@ -262,12 +263,22 @@ class SkillLibrary:
     def update_summary(self, skill_id: str, summary: str) -> str:
         if not skill_id.strip() or not summary.strip():
             return "Usage: /skills update <id> --summary <text>"
-        return self._mutate_skill(skill_id, lambda skill: _set_field(skill, "summary", summary.strip()), "Summary updated")
+        return self._mutate_skill(
+            skill_id,
+            lambda skill: _set_field(skill, "summary", summary.strip()),
+            "Summary updated",
+            requested_action="update_summary",
+        )
 
     def set_body(self, skill_id: str, body: str) -> str:
         if not skill_id.strip() or not body.strip():
             return "Usage: /skills body <id> <text>"
-        return self._mutate_skill(skill_id, lambda skill: _set_field(skill, "body", body.strip()), "Body updated")
+        return self._mutate_skill(
+            skill_id,
+            lambda skill: _set_field(skill, "body", body.strip()),
+            "Body updated",
+            requested_action="set_body",
+        )
 
     def append_body(self, skill_id: str, text: str) -> str:
         if not skill_id.strip() or not text.strip():
@@ -277,7 +288,12 @@ class SkillLibrary:
             existing = str(skill.get("body") or "").rstrip()
             skill["body"] = f"{existing}\n{text.strip()}" if existing else text.strip()
 
-        return self._mutate_skill(skill_id, callback, "Body appended")
+        return self._mutate_skill(
+            skill_id,
+            callback,
+            "Body appended",
+            requested_action="append_body",
+        )
 
     def add_tag(self, skill_id: str, tag: str) -> str:
         tag = tag.strip()
@@ -290,7 +306,12 @@ class SkillLibrary:
                 tags.append(tag)
             skill["tags"] = tags
 
-        return self._mutate_skill(skill_id, callback, "Tag added")
+        return self._mutate_skill(
+            skill_id,
+            callback,
+            "Tag added",
+            requested_action="add_tag",
+        )
 
     def remove_tag(self, skill_id: str, tag: str) -> str:
         tag = tag.strip()
@@ -300,7 +321,12 @@ class SkillLibrary:
         def callback(skill: dict[str, Any]) -> None:
             skill["tags"] = [str(item) for item in skill.get("tags") or [] if str(item) != tag]
 
-        return self._mutate_skill(skill_id, callback, "Tag removed")
+        return self._mutate_skill(
+            skill_id,
+            callback,
+            "Tag removed",
+            requested_action="remove_tag",
+        )
 
     def search(self, query: str, *, include_all: bool = False) -> str:
         query = query.strip()
@@ -337,6 +363,11 @@ class SkillLibrary:
         skill = _find_skill(state.records, skill_id)
         if not skill:
             return f"Skill not found: {skill_id}"
+        if "lifecycle" in skill:
+            return _lifecycle_payload_mutation_refused(
+                skill,
+                requested_action="use_skill",
+            )
         now = _utc_now()
         skill["uses"] = int(skill.get("uses") or 0) + 1
         skill["last_used_at"] = now
@@ -375,13 +406,25 @@ class SkillLibrary:
             f"  {skill.get('id')} — {_preview(str(skill.get('name', '')))}"
         )
 
-    def _mutate_skill(self, skill_id: str, callback: object, label: str) -> str:
+    def _mutate_skill(
+        self,
+        skill_id: str,
+        callback: object,
+        label: str,
+        *,
+        requested_action: str,
+    ) -> str:
         state = self._read_state()
         if state.has_load_problem:
             return _mutation_refused(state)
         skill = _find_skill(state.records, skill_id.strip())
         if not skill:
             return f"Skill not found: {skill_id.strip()}"
+        if "lifecycle" in skill:
+            return _lifecycle_payload_mutation_refused(
+                skill,
+                requested_action=requested_action,
+            )
         callback(skill)
         skill["updated_at"] = _utc_now()
         self._write_records(state.records)
@@ -616,6 +659,31 @@ def _lifecycle_status_mutation_refused(
             f"  lifecycle_schema: {schema}",
             "  reason: lifecycle-managed skills require a supervised transition contract",
             f"  inspect: {guidance}",
+            "  mutation_performed: false",
+        ]
+    )
+
+
+def _lifecycle_payload_mutation_refused(
+    skill: dict[str, Any], *, requested_action: str
+) -> str:
+    identifier = str(skill.get("id") or "unknown")
+    lifecycle = skill.get("lifecycle")
+    schema = (
+        str(lifecycle.get("schema") or "unknown")
+        if isinstance(lifecycle, dict)
+        else "invalid_or_unknown"
+    )
+    return "\n".join(
+        [
+            "Skill lifecycle payload mutation refused:",
+            f"  id: {identifier}",
+            f"  current_status: {skill.get('status', 'unknown')}",
+            f"  requested_action: {requested_action}",
+            f"  lifecycle_schema: {schema}",
+            "  protected_fields: summary, body, tags, uses, last_used_at, updated_at",
+            "  reason: lifecycle-managed skills require an explicit versioned revision or supervised lifecycle contract",
+            f"  inspect: /skills lifecycle-inspect {identifier}",
             "  mutation_performed: false",
         ]
     )
