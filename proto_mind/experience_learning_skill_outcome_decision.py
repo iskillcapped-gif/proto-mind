@@ -24,6 +24,9 @@ from proto_mind.experience_learning_skill_runtime import (
 from proto_mind.memory_store import MemoryStore
 from proto_mind.models import utc_now_iso
 from proto_mind.skill_library import SkillLibrary
+from proto_mind.experience_learning_skill_restore_reevaluation import (
+    restored_skill_requires_post_restore_contract,
+)
 
 
 PROCEDURAL_SKILL_OUTCOME_DECISION_VERSION = 1
@@ -156,6 +159,17 @@ class ProceduralSkillOutcomeDecisionBuilder:
         if normalized_decision not in PROCEDURAL_SKILL_OUTCOME_DECISIONS:
             raise ProceduralSkillOutcomeDecisionError(
                 "Decision must be keep, revise, or archive."
+            )
+        snapshot = self.skill_library.read_snapshot()
+        matching = [
+            record for record in snapshot["records"] if record.get("id") == skill_id.strip()
+        ]
+        if len(matching) == 1 and restored_skill_requires_post_restore_contract(
+            matching[0]
+        ):
+            raise ProceduralSkillOutcomeDecisionError(
+                "Restored skills require exact new post-restore evidence; the legacy "
+                "keep/revise/archive decision path fails closed."
             )
         review = self.review(skill_id.strip())
         allowed = PROCEDURAL_SKILL_OUTCOME_ALLOWED_DECISIONS.get(review.status, frozenset())

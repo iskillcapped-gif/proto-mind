@@ -18,6 +18,9 @@ from proto_mind.memory_store import MemoryStore
 from proto_mind.models import MemoryRecord, utc_now_iso
 from proto_mind.skill_library import SkillLibrary
 from proto_mind.skill_provenance import verify_procedural_skill_provenance
+from proto_mind.experience_learning_skill_restore_reevaluation import (
+    restored_skill_requires_post_restore_contract,
+)
 
 
 PROCEDURAL_SKILL_OUTCOME_CAPTURE_VERSION = 1
@@ -142,6 +145,11 @@ class ProceduralSkillOutcomeCaptureBuilder:
             raise ProceduralSkillOutcomeCaptureError(
                 "Only an active procedural skill can receive a manual outcome record."
             )
+        if restored_skill_requires_post_restore_contract(skill):
+            raise ProceduralSkillOutcomeCaptureError(
+                "Restored skills require a new restore-bound outcome capture contract; "
+                "the legacy capture path fails closed."
+            )
         provenance_check = verify_procedural_skill_provenance(
             skill,
             memory_records=memories,
@@ -185,6 +193,10 @@ class ProceduralSkillOutcomeCaptureBuilder:
             skill = self._load_exact_skill(skill_id)
             if skill.get("status") != "active":
                 return False, "skill is not active"
+            if restored_skill_requires_post_restore_contract(skill):
+                return False, (
+                    "restored skill requires a new restore-bound outcome capture contract"
+                )
             check = verify_procedural_skill_provenance(skill, memory_records=memories)
         except (OSError, TypeError, ValueError, ProceduralSkillOutcomeCaptureError) as exc:
             return False, str(exc)

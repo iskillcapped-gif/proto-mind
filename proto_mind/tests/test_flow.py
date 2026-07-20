@@ -276,6 +276,7 @@ from proto_mind.experience_learning_skill_outcome_capture import (
     PROCEDURAL_SKILL_OUTCOME_CAPTURE_MODE,
     OperatorReviewedProceduralSkillOutcomeCaptureSession,
     ProceduralSkillOutcomeCaptureBuilder,
+    ProceduralSkillOutcomeCaptureError,
     format_procedural_skill_outcome_capture_command,
     procedural_skill_outcome_capture_confirmation_token,
 )
@@ -388,6 +389,12 @@ from proto_mind.skill_lifecycle_restore_receipt_audit import (
     build_procedural_skill_restore_receipt_evidence,
     format_procedural_skill_restore_receipt_audit_command,
     verify_procedural_skill_restore_receipt_evidence,
+)
+from proto_mind.experience_learning_skill_restore_reevaluation import (
+    PROCEDURAL_SKILL_RESTORE_REEVALUATION_MODE,
+    PROCEDURAL_SKILL_RESTORE_REEVALUATION_REQUIRED_CALL_FIELDS,
+    ProceduralSkillRestoreReevaluationReviewer,
+    format_procedural_skill_restore_reevaluation_command,
 )
 from proto_mind.experience_learning_eligibility import (
     LEARNING_ELIGIBILITY_MAX_IDS_PER_KIND,
@@ -984,6 +991,64 @@ def build_test_durably_archived_procedural_skill(
     current = library.read_snapshot()["records"][0]
     assert current["id"] == record["id"]
     return store, library, current
+
+
+def build_test_restored_procedural_skill(
+    tmp_path: Path,
+) -> tuple[MemoryStore, SkillLibrary, dict[str, object]]:
+    store, library, archived = build_test_durably_archived_procedural_skill(tmp_path)
+    session = OperatorReviewedProceduralSkillRestoreApplySession()
+    review = session.review(
+        str(archived["id"]),
+        skills_path=library.skills_path,
+        persistent_memory_path=store.persistent_path,
+    )
+    session.apply(
+        str(archived["id"]),
+        token=procedural_skill_restore_apply_confirmation_token(review),
+        skills_path=library.skills_path,
+        persistent_memory_path=store.persistent_path,
+    )
+    return store, library, library.read_snapshot()["records"][0]
+
+
+def build_test_restored_skill_outcome_events(
+    skill: dict[str, object],
+    *,
+    outcome: str = "success",
+    after_restore: bool = True,
+    exact_restore_binding: bool = True,
+    execution_performed_by_proto_mind: bool = False,
+) -> list[dict[str, object]]:
+    events = [
+        event.to_dict()
+        for event in build_test_procedural_skill_outcome_events(
+            skill,
+            outcome=outcome,
+            execution_performed_by_proto_mind=execution_performed_by_proto_mind,
+        )
+    ]
+    lifecycle = skill["lifecycle"]
+    assert isinstance(lifecycle, dict)
+    restored_at = datetime.fromisoformat(
+        str(lifecycle["transitioned_at"]).replace("Z", "+00:00")
+    )
+    offset = timedelta(minutes=1 if after_restore else -2)
+    for index, event in enumerate(events):
+        event["created_at"] = (restored_at + offset + timedelta(seconds=index)).isoformat()
+    if exact_restore_binding:
+        evidence = build_procedural_skill_restore_receipt_evidence(skill)
+        payload = events[2]["payload"]
+        assert isinstance(payload, dict)
+        payload.update(
+            {
+                "post_restore_manual_use": True,
+                "restore_metadata_id": lifecycle["id"],
+                "restore_metadata_hash": lifecycle["metadata_hash"],
+                "restore_evidence_hash": evidence["evidence_hash"],
+            }
+        )
+    return events
 
 
 def build_test_learning_lifecycle_transition(
@@ -26952,6 +27017,196 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertEqual(report.orphan_process_receipt_count, 1)
         self.assertEqual(report.legacy_process_receipt_count, 1)
         self.assertIn("no current durable restore envelope", " ".join(report.warnings))
+
+    def test_restored_skill_reevaluation_requires_a_verified_restore(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            store, library, _, _ = build_test_applied_procedural_skill(Path(temp_dir))
+            record = library.read_snapshot()["records"][0]
+            review = ProceduralSkillRestoreReevaluationReviewer(
+                [],
+                [record],
+                store.load_persistent_memory(),
+                skills_path=library.skills_path,
+                persistent_memory_path=store.persistent_path,
+            ).review(str(record["id"]))
+
+        self.assertEqual(review.status, "NOT_RESTORED")
+        self.assertFalse(review.checks["active_restored_verified"])
+        self.assertFalse(review.future_lifecycle_decision_ready)
+        self.assertFalse(review.mutation_performed)
+
+    def test_restored_skill_reevaluation_excludes_old_and_unbound_evidence(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            store, library, record = build_test_restored_procedural_skill(Path(temp_dir))
+            pre_restore_events = build_test_restored_skill_outcome_events(
+                record,
+                after_restore=False,
+                exact_restore_binding=True,
+            )
+            unbound_events = build_test_restored_skill_outcome_events(
+                record,
+                after_restore=True,
+                exact_restore_binding=False,
+            )
+            reviewer_args = {
+                "skill_records": [record],
+                "memory_records": store.load_persistent_memory(),
+                "skills_path": library.skills_path,
+                "persistent_memory_path": store.persistent_path,
+            }
+            old_review = ProceduralSkillRestoreReevaluationReviewer(
+                pre_restore_events, **reviewer_args
+            ).review(str(record["id"]))
+            unbound_review = ProceduralSkillRestoreReevaluationReviewer(
+                unbound_events, **reviewer_args
+            ).review(str(record["id"]))
+
+        self.assertEqual(old_review.status, "NEEDS_POST_RESTORE_EVIDENCE")
+        self.assertEqual(old_review.pre_restore_manual_use_count, 1)
+        self.assertEqual(old_review.bound_post_restore_manual_use_count, 0)
+        self.assertIn("Excluded 1 pre-restore", " ".join(old_review.warnings))
+        self.assertEqual(unbound_review.status, "NEEDS_POST_RESTORE_EVIDENCE")
+        self.assertEqual(unbound_review.unbound_post_restore_manual_use_count, 1)
+        self.assertFalse(unbound_review.checks["exact_restore_binding_present"])
+        self.assertIn("without the exact restore binding", " ".join(unbound_review.warnings))
+
+    def test_restored_skill_reevaluation_accepts_exact_new_success_evidence(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            store, library, record = build_test_restored_procedural_skill(Path(temp_dir))
+            events = build_test_restored_skill_outcome_events(record, outcome="success")
+            skills_before = library.skills_path.read_bytes()
+            memory_before = store.persistent_path.read_bytes()
+            reviewer = ProceduralSkillRestoreReevaluationReviewer(
+                events,
+                [record],
+                store.load_persistent_memory(),
+                skills_path=library.skills_path,
+                persistent_memory_path=store.persistent_path,
+            )
+            review = reviewer.review(str(record["id"]))
+            doctor = reviewer.doctor()
+            skills_after = library.skills_path.read_bytes()
+            memory_after = store.persistent_path.read_bytes()
+
+        self.assertEqual(review.status, "POST_RESTORE_SUCCESS_CANDIDATE")
+        self.assertEqual(review.bound_post_restore_manual_use_count, 1)
+        self.assertEqual(review.post_restore_signal_count, 1)
+        self.assertTrue(review.checks["manual_use_strictly_after_restore"])
+        self.assertTrue(review.checks["exact_restore_binding_present"])
+        self.assertTrue(review.checks["decisive_post_restore_outcome_found"])
+        self.assertEqual(len(review.review_hash), 64)
+        self.assertFalse(review.future_lifecycle_decision_ready)
+        self.assertEqual(doctor.status, "OK")
+        self.assertEqual(doctor.exact_post_restore_evidence_count, 1)
+        self.assertEqual(skills_after, skills_before)
+        self.assertEqual(memory_after, memory_before)
+
+    def test_restored_skill_reevaluation_refuses_execution_claim(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            store, library, record = build_test_restored_procedural_skill(Path(temp_dir))
+            events = build_test_restored_skill_outcome_events(
+                record,
+                execution_performed_by_proto_mind=True,
+            )
+            review = ProceduralSkillRestoreReevaluationReviewer(
+                events,
+                [record],
+                store.load_persistent_memory(),
+                skills_path=library.skills_path,
+                persistent_memory_path=store.persistent_path,
+            ).review(str(record["id"]))
+
+        self.assertEqual(review.status, "ERROR")
+        self.assertFalse(review.checks["proto_mind_execution_absent"])
+        self.assertIn("execution_performed_by_proto_mind=false", " ".join(review.issues))
+
+    def test_restored_skill_legacy_capture_and_decision_paths_fail_closed(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            store, library, record = build_test_restored_procedural_skill(Path(temp_dir))
+            capture_builder = ProceduralSkillOutcomeCaptureBuilder(
+                memory_store=store,
+                skill_library=library,
+            )
+            with self.assertRaisesRegex(
+                ProceduralSkillOutcomeCaptureError, "restore-bound"
+            ):
+                capture_builder.build(
+                    session_id="session_restored",
+                    skill_id=str(record["id"]),
+                    outcome="success",
+                    evidence="Manual restored-skill result.",
+                )
+            decision_builder = ProceduralSkillOutcomeDecisionBuilder(
+                events=build_test_restored_skill_outcome_events(record),
+                memory_store=store,
+                skill_library=library,
+                capture_session=OperatorReviewedProceduralSkillOutcomeCaptureSession(),
+            )
+            with self.assertRaisesRegex(
+                ProceduralSkillOutcomeDecisionError, "post-restore evidence"
+            ):
+                decision_builder.build(str(record["id"]), "keep")
+
+        self.assertEqual(capture_builder.current_skill_is_valid(str(record["id"]))[0], False)
+
+    def test_restored_skill_reevaluation_commands_are_read_only_and_registered(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            store, library, record = build_test_restored_procedural_skill(Path(temp_dir))
+            events = build_test_restored_skill_outcome_events(record)
+            before = (library.skills_path.read_bytes(), store.persistent_path.read_bytes())
+            common = {
+                "events": events,
+                "memory_store": store,
+                "skill_library": library,
+            }
+            contract = format_procedural_skill_restore_reevaluation_command(
+                "/experience learning skill-outcome-doctor --post-restore-contract",
+                **common,
+            )
+            review = format_procedural_skill_restore_reevaluation_command(
+                f"/experience learning skill-outcome-review {record['id']} --post-restore",
+                **common,
+            )
+            plan = format_procedural_skill_restore_reevaluation_command(
+                f"/experience learning skill-outcome-review {record['id']} --post-restore-plan",
+                **common,
+            )
+            doctor = format_procedural_skill_restore_reevaluation_command(
+                "/experience learning skill-outcome-doctor --post-restore",
+                **common,
+            )
+            chained = format_procedural_skill_restore_reevaluation_command(
+                "/experience learning skill-outcome-doctor --post-restore; /skills list",
+                **common,
+            )
+            after = (library.skills_path.read_bytes(), store.persistent_path.read_bytes())
+
+        registry = {entry.prefix: entry for entry in COMMAND_REGISTRY}
+        assert contract is not None
+        assert review is not None
+        assert plan is not None
+        assert doctor is not None
+        assert chained is not None
+        self.assertIn(PROCEDURAL_SKILL_RESTORE_REEVALUATION_MODE, contract)
+        self.assertIn(
+            ", ".join(PROCEDURAL_SKILL_RESTORE_REEVALUATION_REQUIRED_CALL_FIELDS),
+            contract,
+        )
+        self.assertIn("POST_RESTORE_SUCCESS_CANDIDATE", review)
+        self.assertIn("future_capture_command_available: false", plan)
+        self.assertIn("Status: OK", doctor)
+        self.assertIn("Command chaining", chained)
+        self.assertEqual(after, before)
+        for prefix in (
+            "/experience learning skill-outcome-review",
+            "/experience learning skill-outcome-doctor",
+        ):
+            self.assertTrue(registry[prefix].read_only)
+            self.assertEqual(registry[prefix].mutates, "none")
+        self.assertEqual(len(COMMAND_REGISTRY), 387)
+        self.assertEqual(len({entry.category for entry in COMMAND_REGISTRY}), 41)
+        self.assertEqual(command_registry_doctor()["status"], "OK")
+        self.assertEqual(action_policy_doctor()["status"], "OK")
 
     def test_durable_skill_lifecycle_audit_does_not_invent_archive_cause(self) -> None:
         with TemporaryDirectory() as temp_dir:

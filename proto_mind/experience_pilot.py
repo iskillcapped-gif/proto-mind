@@ -73,6 +73,9 @@ from proto_mind.experience_learning_skill_apply import (
 from proto_mind.experience_learning_skill_outcome import (
     format_procedural_skill_outcome_command,
 )
+from proto_mind.experience_learning_skill_restore_reevaluation import (
+    format_procedural_skill_restore_reevaluation_command,
+)
 from proto_mind.experience_learning_skill_outcome_capture import (
     OperatorReviewedProceduralSkillOutcomeCaptureSession,
     ProceduralSkillOutcomeCaptureBuilder,
@@ -641,6 +644,16 @@ def format_experience_pilot_command(
             )
             if skill_lifecycle_readiness_output is not None:
                 return skill_lifecycle_readiness_output
+            skill_restore_reevaluation_output = (
+                format_procedural_skill_restore_reevaluation_command(
+                    raw,
+                    events=events,
+                    memory_store=memory_store,
+                    skill_library=skill_library,
+                )
+            )
+            if skill_restore_reevaluation_output is not None:
+                return skill_restore_reevaluation_output
             skill_outcome_output = format_procedural_skill_outcome_command(
                 raw,
                 events=events,
@@ -875,6 +888,8 @@ def _usage() -> str:
             "/experience learning capture skill-outcome <skill_id> <success|failure> <token> --evidence <identical text>",
             "/experience learning skill-outcome-captures [<capture_id>]|skill-outcome-capture-doctor",
             "/experience learning skill-outcome-review <skill_id>|skill-outcome-doctor",
+            "/experience learning skill-outcome-review <skill_id> --post-restore|--post-restore-plan",
+            "/experience learning skill-outcome-doctor --post-restore|--post-restore-contract",
             "/experience learning skill-outcome-decision-preview <skill_id> <keep|revise|archive>",
             "/experience learning decide skill-outcome <keep|revise|archive> <skill_id> <token>",
             "/experience learning skill-outcome-decisions [<skill_id|receipt_id>]|skill-outcome-decision-doctor",
