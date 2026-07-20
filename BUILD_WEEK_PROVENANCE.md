@@ -84,6 +84,7 @@ The current source tree is compared directly with the July 11 archive by SHA-256
 - Durable Skill Lifecycle Restore Design Review v3.5o with embedded prior-archive evidence, current-state/duplicate revalidation, exact future mutation and receipt boundaries, and no token or writer.
 - Direct Lifecycle Status Guardrail v3.5p with byte-stable refusal for lifecycle-managed/corrupt generic archive/restore and preserved legacy/operator compatibility.
 - Lifecycle-Managed Skill Payload Guardrail v3.5q with byte-stable refusal for summary/body/tag/use mutations on lifecycle-managed/corrupt records and preserved pre-lifecycle/operator compatibility.
+- Durable Restore Authorization Readiness v3.5r with exact current hash/evidence binding, immutable-field and future receipt/rollback scope, and no token generator, authorization engine, state, writer, or mutation.
 - Contest Showcase v1 with a deterministic three-minute narrative and safety doctor.
 - Build Week Provenance Pack v1.
 
@@ -93,13 +94,13 @@ The generated evidence under `contest/provenance/` is the source of truth for th
 
 | Metric | July 11 baseline | Current Build Week state | Delta |
 |---|---:|---:|---:|
-| Submission-relevant files | 69 | 141 | +72 |
-| Python files | 66 | 114 | +48 |
-| Unit-test methods | 664 | 1111 | +447 |
+| Submission-relevant files | 69 | 142 | +73 |
+| Python files | 66 | 115 | +49 |
+| Unit-test methods | 664 | 1116 | +452 |
 | Registry commands | 343 | 387 | +44 |
 | Registry categories | 39 | 41 | +2 |
 
-The file delta is not inferred from modification time. Every baseline and current submission-relevant file is hashed, then classified as added, changed, removed, or unchanged. The current manifest reports 72 added, 15 changed, 0 removed, and 54 unchanged files.
+The file delta is not inferred from modification time. Every baseline and current submission-relevant file is hashed, then classified as added, changed, removed, or unchanged. The current manifest reports 73 added, 15 changed, 0 removed, and 54 unchanged files.
 
 ## Reproduce The Evidence
 

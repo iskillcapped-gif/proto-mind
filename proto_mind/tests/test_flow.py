@@ -358,6 +358,16 @@ from proto_mind.skill_lifecycle_restore import (
     review_procedural_skill_lifecycle_restore,
     verify_procedural_skill_lifecycle_restore_metadata,
 )
+from proto_mind.skill_lifecycle_restore_authorization import (
+    PROCEDURAL_SKILL_RESTORE_AUTHORIZATION_BLUEPRINT_FIELDS,
+    PROCEDURAL_SKILL_RESTORE_AUTHORIZATION_ENGINE_INSTALLED,
+    PROCEDURAL_SKILL_RESTORE_AUTHORIZATION_SCHEMA,
+    PROCEDURAL_SKILL_RESTORE_RUN_ONCE_STATE_INSTALLED,
+    PROCEDURAL_SKILL_RESTORE_TOKEN_GENERATOR_INSTALLED,
+    format_procedural_skill_restore_authorization_command,
+    procedural_skill_restore_authorization_doctor,
+    review_procedural_skill_restore_authorization,
+)
 from proto_mind.experience_learning_eligibility import (
     LEARNING_ELIGIBILITY_MAX_IDS_PER_KIND,
     LearningEligibilityRequest,
@@ -26200,6 +26210,168 @@ class ProtoMindFlowTests(unittest.TestCase):
         registry = {entry.prefix: entry for entry in COMMAND_REGISTRY}
         self.assertIn("fail closed", registry["/skills update"].description)
         self.assertIn("fail closed", registry["/skills use"].description)
+        self.assertEqual(len(COMMAND_REGISTRY), 387)
+        self.assertEqual(len({entry.category for entry in COMMAND_REGISTRY}), 41)
+        self.assertEqual(command_registry_doctor()["status"], "OK")
+        self.assertEqual(action_policy_doctor()["status"], "OK")
+
+    def test_skill_restore_authorization_doctor_locks_absent_authority(self) -> None:
+        report = procedural_skill_restore_authorization_doctor()
+        output = format_procedural_skill_restore_authorization_command(
+            "/skills lifecycle-doctor --restore-authorization",
+            skills_path=Path("missing-skills.jsonl"),
+            persistent_memory_path=Path("missing-memory.json"),
+        )
+
+        self.assertEqual(report.status, "OK")
+        self.assertEqual(report.schema, PROCEDURAL_SKILL_RESTORE_AUTHORIZATION_SCHEMA)
+        self.assertEqual(
+            report.blueprint_field_count,
+            len(PROCEDURAL_SKILL_RESTORE_AUTHORIZATION_BLUEPRINT_FIELDS),
+        )
+        self.assertTrue(report.deterministic_example_verified)
+        self.assertTrue(report.tamper_refused)
+        self.assertTrue(report.restore_contract_healthy)
+        self.assertFalse(report.authorization_engine_installed)
+        self.assertFalse(report.token_generator_installed)
+        self.assertFalse(report.run_once_state_installed)
+        self.assertFalse(report.writer_installed)
+        self.assertFalse(PROCEDURAL_SKILL_RESTORE_AUTHORIZATION_ENGINE_INSTALLED)
+        self.assertFalse(PROCEDURAL_SKILL_RESTORE_TOKEN_GENERATOR_INSTALLED)
+        self.assertFalse(PROCEDURAL_SKILL_RESTORE_RUN_ONCE_STATE_INSTALLED)
+        self.assertIn("Status: OK", output)
+        self.assertIn("token_generator_installed: false", output)
+
+    def test_skill_restore_authorization_readiness_binds_current_archived_record(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            store, library, record = build_test_durably_archived_procedural_skill(
+                Path(temp_dir)
+            )
+            skill_before = library.skills_path.read_bytes()
+            memory_before = store.persistent_path.read_bytes()
+            report = review_procedural_skill_restore_authorization(
+                str(record["id"]),
+                skills_path=library.skills_path,
+                persistent_memory_path=store.persistent_path,
+            )
+
+            self.assertEqual(library.skills_path.read_bytes(), skill_before)
+            self.assertEqual(store.persistent_path.read_bytes(), memory_before)
+
+        blueprint = report.authorization_blueprint
+        self.assertEqual(report.status, "READY FOR AUTHORIZATION DESIGN REVIEW")
+        self.assertTrue(report.ready_for_authorization_design_review)
+        self.assertEqual(len(report.authorization_blueprint_hash), 64)
+        self.assertEqual(blueprint["skill_id"], record["id"])
+        self.assertEqual(blueprint["from_status"], "archived")
+        self.assertEqual(blueprint["to_status"], "active")
+        self.assertEqual(
+            blueprint["expected_changed_fields"],
+            list(PROCEDURAL_SKILL_LIFECYCLE_RESTORE_EXPECTED_CHANGED_FIELDS),
+        )
+        self.assertEqual(
+            blueprint["future_receipt_fields"],
+            list(PROCEDURAL_SKILL_LIFECYCLE_RESTORE_RECEIPT_FIELDS),
+        )
+        self.assertIn("body", blueprint["immutable_record_fields"])
+        self.assertIn("provenance", blueprint["immutable_record_fields"])
+        self.assertFalse(report.token_generated)
+        self.assertFalse(report.mutation_performed)
+
+    def test_skill_restore_authorization_commands_are_read_only(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            store, library, record = build_test_durably_archived_procedural_skill(
+                Path(temp_dir)
+            )
+            skill_before = library.skills_path.read_bytes()
+            memory_before = store.persistent_path.read_bytes()
+            common = {
+                "skills_path": library.skills_path,
+                "persistent_memory_path": store.persistent_path,
+            }
+            contract = format_procedural_skill_restore_authorization_command(
+                "/skills lifecycle-status --restore-authorization-contract",
+                **common,
+            )
+            readiness = format_procedural_skill_restore_authorization_command(
+                f"/skills lifecycle-inspect {record['id']} --restore-authorization",
+                **common,
+            )
+            plan = format_procedural_skill_restore_authorization_command(
+                f"/skills lifecycle-inspect {record['id']} --restore-authorization-plan",
+                **common,
+            )
+
+            self.assertEqual(library.skills_path.read_bytes(), skill_before)
+            self.assertEqual(store.persistent_path.read_bytes(), memory_before)
+
+        self.assertIn("Authorization Contract v1", contract)
+        self.assertIn("token_generator_installed: false", contract)
+        self.assertIn("READY FOR AUTHORIZATION DESIGN REVIEW", readiness)
+        self.assertIn("token_generated: false", readiness)
+        self.assertIn("<authorization_blueprint_hash>", readiness)
+        self.assertIn("future_expected_changed_fields: lifecycle, status, updated_at", plan)
+        self.assertIn("current_writer_installed: false", plan)
+        self.assertNotIn("confirmation_token:", readiness)
+        self.assertNotIn("confirmation_token:", plan)
+
+    def test_skill_restore_authorization_refuses_active_and_missing_records(self) -> None:
+        with TemporaryDirectory() as active_dir, TemporaryDirectory() as missing_dir:
+            active_store, active_library, _, active_record = (
+                build_test_applied_procedural_skill(Path(active_dir))
+            )
+            active = review_procedural_skill_restore_authorization(
+                active_record.created_skill_id,
+                skills_path=active_library.skills_path,
+                persistent_memory_path=active_store.persistent_path,
+            )
+            missing_root = Path(missing_dir)
+            before = list(missing_root.rglob("*"))
+            missing = review_procedural_skill_restore_authorization(
+                "missing",
+                skills_path=missing_root / "skills.jsonl",
+                persistent_memory_path=missing_root / "memory.json",
+            )
+            after = list(missing_root.rglob("*"))
+
+        self.assertEqual(active.status, "NOT READY")
+        self.assertIn("archived_verified", " ".join(active.issues))
+        self.assertEqual(missing.status, "NOT READY")
+        self.assertFalse(missing.ready_for_authorization_design_review)
+        self.assertEqual(after, before)
+
+    def test_skill_restore_authorization_shared_route_and_registry_are_safe(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            store, library, record = build_test_durably_archived_procedural_skill(
+                root / "fixture"
+            )
+            live_path = root / "proto_mind" / "data" / "skills.jsonl"
+            live_path.parent.mkdir(parents=True, exist_ok=True)
+            live_path.write_bytes(library.skills_path.read_bytes())
+            before = live_path.read_bytes()
+            output = format_skill_command(
+                f"/skills lifecycle-inspect {record['id']} --restore-authorization-plan",
+                project_root=root,
+                persistent_memory_path=store.persistent_path,
+            )
+            chained = format_skill_command(
+                (
+                    "/skills lifecycle-status --restore-authorization-contract; "
+                    "/skills restore x"
+                ),
+                project_root=root,
+                persistent_memory_path=store.persistent_path,
+            )
+
+            self.assertEqual(live_path.read_bytes(), before)
+
+        registry = {entry.prefix: entry for entry in COMMAND_REGISTRY}
+        self.assertIn("Authorization Plan v1", output)
+        self.assertIn("Command chaining", chained)
+        self.assertTrue(registry["/skills lifecycle-status"].read_only)
+        self.assertTrue(registry["/skills lifecycle-inspect"].read_only)
+        self.assertTrue(registry["/skills lifecycle-doctor"].read_only)
         self.assertEqual(len(COMMAND_REGISTRY), 387)
         self.assertEqual(len({entry.category for entry in COMMAND_REGISTRY}), 41)
         self.assertEqual(command_registry_doctor()["status"], "OK")
