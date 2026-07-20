@@ -43,6 +43,21 @@ def format_skill_command(
         )
         if apply_output is not None:
             return apply_output
+        from proto_mind.skill_lifecycle_restore_apply import (
+            procedural_skill_restore_apply_receipts_snapshot,
+        )
+        from proto_mind.skill_lifecycle_restore_receipt_audit import (
+            format_procedural_skill_restore_receipt_audit_command,
+        )
+
+        receipt_audit_output = format_procedural_skill_restore_receipt_audit_command(
+            stripped,
+            skills_path=library.skills_path,
+            persistent_memory_path=memory_path,
+            process_receipts=procedural_skill_restore_apply_receipts_snapshot(),
+        )
+        if receipt_audit_output is not None:
+            return receipt_audit_output
         from proto_mind.skill_lifecycle_restore_authorization import (
             format_procedural_skill_restore_authorization_command,
         )
@@ -163,11 +178,12 @@ def format_skill_command(
         "  /skills inspect <id>\n"
         "  /skills why <id>\n"
         "  /skills provenance-doctor\n"
-        "  /skills lifecycle-status [--contract|--restore-contract|--restore-authorization-contract|--restore-applies]\n"
-        "  /skills lifecycle-history [--all]\n"
+        "  /skills lifecycle-status [--contract|--restore-contract|--restore-authorization-contract|--restore-applies|--restore-receipt-contract]\n"
+        "  /skills lifecycle-history [--all|--restore-receipts]\n"
         "  /skills lifecycle-inspect <id> [--restore-readiness|--restore-plan]\n"
         "  /skills lifecycle-inspect <id> [--restore-authorization|--restore-authorization-plan|--restore-apply-preview|--restore-apply-receipt]\n"
-        "  /skills lifecycle-doctor [--restore-contract|--restore-authorization|--restore-apply]\n"
+        "  /skills lifecycle-inspect <id> [--restore-receipt-audit|--restore-receipt-export]\n"
+        "  /skills lifecycle-doctor [--restore-contract|--restore-authorization|--restore-apply|--restore-receipts]\n"
         "  /skills update <id> --summary <text>\n"
         "  /skills body <id> <text>\n"
         "  /skills append <id> <text>\n"

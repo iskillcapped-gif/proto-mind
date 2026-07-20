@@ -550,6 +550,12 @@ def reset_procedural_skill_restore_apply_session() -> None:
     _RESTORE_APPLY_SESSION = OperatorReviewedProceduralSkillRestoreApplySession()
 
 
+def procedural_skill_restore_apply_receipts_snapshot() -> tuple[dict[str, Any], ...]:
+    """Expose a defensive read-only snapshot for receipt audit comparison."""
+
+    return _RESTORE_APPLY_SESSION.snapshot()
+
+
 def procedural_skill_restore_apply_confirmation_token(
     review: ProceduralSkillRestoreApplyReview,
 ) -> str:

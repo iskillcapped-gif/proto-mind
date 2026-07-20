@@ -87,6 +87,7 @@ The current source tree is compared directly with the July 11 archive by SHA-256
 - Durable Restore Authorization Readiness v3.5r with exact current hash/evidence binding, immutable-field and future receipt/rollback scope, and no token generator, authorization engine, state, writer, or mutation.
 - Supervised Durable Restore Apply Pilot v3.5s with one exact hash-bound token, one atomic three-field restore per process, embedded prior-archive evidence, immutable provenance/payload and unchanged-memory proof, fixed receipt verification, restart-safe `active_restored_verified`, and exact-byte rollback without procedure execution.
 - PySide6 Cognitive Control Room v2.0.0 with a local/private identity header, read-only Context Injection and Registry indicators, four prompt chips, and twelve grouped no-mutation Control Deck actions over the unchanged shared desktop runtime.
+- Durable Restore Receipt Audit v3.5t with restart-safe hashed evidence reconstruction, exact current-process comparison, legacy/orphan/mismatch diagnostics, copyable JSON, and no invented process receipt or writer.
 - Contest Showcase v1 with a deterministic three-minute narrative and safety doctor.
 - Build Week Provenance Pack v1.
 
@@ -96,13 +97,13 @@ The generated evidence under `contest/provenance/` is the source of truth for th
 
 | Metric | July 11 baseline | Current Build Week state | Delta |
 |---|---:|---:|---:|
-| Submission-relevant files | 69 | 143 | +74 |
-| Python files | 66 | 116 | +50 |
-| Unit-test methods | 664 | 1122 | +458 |
+| Submission-relevant files | 69 | 144 | +75 |
+| Python files | 66 | 117 | +51 |
+| Unit-test methods | 664 | 1128 | +464 |
 | Registry commands | 343 | 387 | +44 |
 | Registry categories | 39 | 41 | +2 |
 
-The file delta is not inferred from modification time. Every baseline and current submission-relevant file is hashed, then classified as added, changed, removed, or unchanged. The current manifest reports 74 added, 16 changed, 0 removed, and 53 unchanged files.
+The file delta is not inferred from modification time. Every baseline and current submission-relevant file is hashed, then classified as added, changed, removed, or unchanged. The current manifest reports 75 added, 16 changed, 0 removed, and 53 unchanged files.
 
 ## Reproduce The Evidence
 

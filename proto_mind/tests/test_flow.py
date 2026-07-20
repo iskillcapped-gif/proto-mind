@@ -378,6 +378,17 @@ from proto_mind.skill_lifecycle_restore_apply import (
     procedural_skill_restore_apply_receipt_hash,
     reset_procedural_skill_restore_apply_session,
 )
+from proto_mind.skill_lifecycle_restore_receipt_audit import (
+    PROCEDURAL_SKILL_RESTORE_DURABLY_RECOVERABLE_RECEIPT_FIELDS,
+    PROCEDURAL_SKILL_RESTORE_PROCESS_ONLY_RECEIPT_FIELDS,
+    PROCEDURAL_SKILL_RESTORE_RECEIPT_AUDIT_MODE,
+    PROCEDURAL_SKILL_RESTORE_RECEIPT_AUDIT_SCHEMA,
+    PROCEDURAL_SKILL_RESTORE_RECEIPT_EVIDENCE_FIELDS,
+    ProceduralSkillRestoreReceiptAudit,
+    build_procedural_skill_restore_receipt_evidence,
+    format_procedural_skill_restore_receipt_audit_command,
+    verify_procedural_skill_restore_receipt_evidence,
+)
 from proto_mind.experience_learning_eligibility import (
     LEARNING_ELIGIBILITY_MAX_IDS_PER_KIND,
     LearningEligibilityRequest,
@@ -26685,6 +26696,262 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertEqual(len({entry.category for entry in COMMAND_REGISTRY}), 41)
         self.assertEqual(command_registry_doctor()["status"], "OK")
         self.assertEqual(action_policy_doctor()["status"], "OK")
+
+    def test_skill_restore_receipt_audit_recovers_durable_evidence_after_restart(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            store, library, archived = build_test_durably_archived_procedural_skill(
+                Path(temp_dir)
+            )
+            apply_session = OperatorReviewedProceduralSkillRestoreApplySession()
+            review = apply_session.review(
+                str(archived["id"]),
+                skills_path=library.skills_path,
+                persistent_memory_path=store.persistent_path,
+            )
+            apply_session.apply(
+                str(archived["id"]),
+                token=procedural_skill_restore_apply_confirmation_token(review),
+                skills_path=library.skills_path,
+                persistent_memory_path=store.persistent_path,
+            )
+            skills_before = library.skills_path.read_bytes()
+            memory_before = store.persistent_path.read_bytes()
+            # No process receipts simulates a fresh process after restart.
+            entry = ProceduralSkillRestoreReceiptAudit(
+                skills_path=library.skills_path,
+                persistent_memory_path=store.persistent_path,
+            ).get(str(archived["id"]))
+            skills_after = library.skills_path.read_bytes()
+            memory_after = store.persistent_path.read_bytes()
+
+        self.assertIsNotNone(entry)
+        assert entry is not None
+        self.assertEqual(entry.status, "VERIFIED")
+        self.assertEqual(entry.audit_state, "active_restored_verified")
+        self.assertEqual(entry.process_receipt_status, "NOT_AVAILABLE")
+        self.assertTrue(entry.current_state_verified)
+        self.assertTrue(entry.restart_safe)
+        self.assertFalse(entry.original_apply_receipt_reconstructed)
+        self.assertFalse(entry.process_receipt_persisted)
+        self.assertFalse(entry.mutation_performed)
+        self.assertEqual(entry.evidence["schema"], PROCEDURAL_SKILL_RESTORE_RECEIPT_AUDIT_SCHEMA)
+        self.assertEqual(set(entry.evidence), set(PROCEDURAL_SKILL_RESTORE_RECEIPT_EVIDENCE_FIELDS))
+        self.assertTrue(
+            verify_procedural_skill_restore_receipt_evidence(entry.evidence).verified
+        )
+        self.assertEqual(
+            entry.durably_recoverable_receipt_fields,
+            list(PROCEDURAL_SKILL_RESTORE_DURABLY_RECOVERABLE_RECEIPT_FIELDS),
+        )
+        self.assertEqual(
+            entry.process_only_receipt_fields,
+            list(PROCEDURAL_SKILL_RESTORE_PROCESS_ONLY_RECEIPT_FIELDS),
+        )
+        self.assertEqual(skills_after, skills_before)
+        self.assertEqual(memory_after, memory_before)
+
+    def test_skill_restore_receipt_audit_matches_current_process_receipt(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            store, library, archived = build_test_durably_archived_procedural_skill(
+                Path(temp_dir)
+            )
+            apply_session = OperatorReviewedProceduralSkillRestoreApplySession()
+            review = apply_session.review(
+                str(archived["id"]),
+                skills_path=library.skills_path,
+                persistent_memory_path=store.persistent_path,
+            )
+            receipt = apply_session.apply(
+                str(archived["id"]),
+                token=procedural_skill_restore_apply_confirmation_token(review),
+                skills_path=library.skills_path,
+                persistent_memory_path=store.persistent_path,
+            )
+            before = (library.skills_path.read_bytes(), store.persistent_path.read_bytes())
+            report = ProceduralSkillRestoreReceiptAudit(
+                skills_path=library.skills_path,
+                persistent_memory_path=store.persistent_path,
+                process_receipts=apply_session.snapshot(),
+            ).inspect()
+            after = (library.skills_path.read_bytes(), store.persistent_path.read_bytes())
+
+        self.assertEqual(report.status, "OK")
+        self.assertEqual(report.verified_evidence_count, 1)
+        self.assertEqual(report.matched_process_receipt_count, 1)
+        self.assertEqual(report.unavailable_process_receipt_count, 0)
+        self.assertEqual(report.entries[0].process_receipt_status, "MATCHED")
+        self.assertEqual(report.entries[0].process_receipt_id, receipt.restore_apply_id)
+        self.assertEqual(report.entries[0].process_receipt_hash, receipt.receipt_hash)
+        self.assertFalse(report.receipt_history_invented)
+        self.assertFalse(report.mutation_performed)
+        self.assertEqual(after, before)
+
+    def test_skill_restore_receipt_export_is_copyable_json_and_read_only(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            store, library, archived = build_test_durably_archived_procedural_skill(
+                Path(temp_dir)
+            )
+            apply_session = OperatorReviewedProceduralSkillRestoreApplySession()
+            review = apply_session.review(
+                str(archived["id"]),
+                skills_path=library.skills_path,
+                persistent_memory_path=store.persistent_path,
+            )
+            apply_session.apply(
+                str(archived["id"]),
+                token=procedural_skill_restore_apply_confirmation_token(review),
+                skills_path=library.skills_path,
+                persistent_memory_path=store.persistent_path,
+            )
+            before = (library.skills_path.read_bytes(), store.persistent_path.read_bytes())
+            common = {
+                "skills_path": library.skills_path,
+                "persistent_memory_path": store.persistent_path,
+                "process_receipts": (),
+            }
+            contract = format_procedural_skill_restore_receipt_audit_command(
+                "/skills lifecycle-status --restore-receipt-contract", **common
+            )
+            history = format_procedural_skill_restore_receipt_audit_command(
+                "/skills lifecycle-history --restore-receipts", **common
+            )
+            inspected = format_procedural_skill_restore_receipt_audit_command(
+                f"/skills lifecycle-inspect {archived['id']} --restore-receipt-audit",
+                **common,
+            )
+            exported = format_procedural_skill_restore_receipt_audit_command(
+                f"/skills lifecycle-inspect {archived['id']} --restore-receipt-export",
+                **common,
+            )
+            doctor = format_procedural_skill_restore_receipt_audit_command(
+                "/skills lifecycle-doctor --restore-receipts", **common
+            )
+            after = (library.skills_path.read_bytes(), store.persistent_path.read_bytes())
+
+        assert contract is not None
+        assert history is not None
+        assert inspected is not None
+        assert exported is not None
+        assert doctor is not None
+        evidence_text = exported.split("Evidence JSON:\n", 1)[1].split("\nBoundary:", 1)[0]
+        evidence = json.loads(evidence_text)
+        self.assertIn(PROCEDURAL_SKILL_RESTORE_RECEIPT_AUDIT_MODE, contract)
+        self.assertIn("original_apply_receipt_reconstructed: false", contract)
+        self.assertIn(str(archived["id"]), history)
+        self.assertIn("process_receipt_status: NOT_AVAILABLE", inspected)
+        self.assertEqual(evidence["skill_id"], archived["id"])
+        self.assertTrue(verify_procedural_skill_restore_receipt_evidence(evidence).verified)
+        self.assertIn("file_written: false", exported)
+        self.assertIn("Status: OK", doctor)
+        self.assertEqual(after, before)
+
+    def test_skill_restore_receipt_audit_reports_legacy_and_tamper(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            store, library, archived = build_test_durably_archived_procedural_skill(
+                Path(temp_dir)
+            )
+            apply_session = OperatorReviewedProceduralSkillRestoreApplySession()
+            review = apply_session.review(
+                str(archived["id"]),
+                skills_path=library.skills_path,
+                persistent_memory_path=store.persistent_path,
+            )
+            apply_session.apply(
+                str(archived["id"]),
+                token=procedural_skill_restore_apply_confirmation_token(review),
+                skills_path=library.skills_path,
+                persistent_memory_path=store.persistent_path,
+            )
+            record = library.read_snapshot()["records"][0]
+            evidence = build_procedural_skill_restore_receipt_evidence(record)
+            tampered = deepcopy(evidence)
+            tampered["prior_archive_hash"] = "0" * 64
+            legacy = ({"restore_apply_id": "legacy", "skill_id": archived["id"]},)
+            report = ProceduralSkillRestoreReceiptAudit(
+                skills_path=library.skills_path,
+                persistent_memory_path=store.persistent_path,
+                process_receipts=legacy,
+            ).inspect()
+
+        self.assertFalse(verify_procedural_skill_restore_receipt_evidence(tampered).verified)
+        self.assertEqual(report.status, "WARN")
+        self.assertEqual(report.legacy_process_receipt_count, 1)
+        self.assertEqual(report.entries[0].status, "VERIFIED")
+        self.assertEqual(report.entries[0].process_receipt_status, "LEGACY")
+        self.assertIn("legacy/incomplete", " ".join(report.entries[0].warnings))
+
+    def test_skill_restore_receipt_shared_route_and_registry_are_read_only(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            store, library, archived = build_test_durably_archived_procedural_skill(
+                root / "fixture"
+            )
+            apply_session = OperatorReviewedProceduralSkillRestoreApplySession()
+            review = apply_session.review(
+                str(archived["id"]),
+                skills_path=library.skills_path,
+                persistent_memory_path=store.persistent_path,
+            )
+            apply_session.apply(
+                str(archived["id"]),
+                token=procedural_skill_restore_apply_confirmation_token(review),
+                skills_path=library.skills_path,
+                persistent_memory_path=store.persistent_path,
+            )
+            live_path = root / "proto_mind" / "data" / "skills.jsonl"
+            live_path.parent.mkdir(parents=True, exist_ok=True)
+            live_path.write_bytes(library.skills_path.read_bytes())
+            before = (live_path.read_bytes(), store.persistent_path.read_bytes())
+            reset_procedural_skill_restore_apply_session()
+            output = format_skill_command(
+                f"/skills lifecycle-inspect {archived['id']} --restore-receipt-audit",
+                project_root=root,
+                persistent_memory_path=store.persistent_path,
+            )
+            chained = format_skill_command(
+                "/skills lifecycle-status --restore-receipt-contract; /skills restore x",
+                project_root=root,
+                persistent_memory_path=store.persistent_path,
+            )
+            after = (live_path.read_bytes(), store.persistent_path.read_bytes())
+
+        registry = {entry.prefix: entry for entry in COMMAND_REGISTRY}
+        self.assertIn("Status: VERIFIED", output)
+        self.assertIn("Command chaining", chained)
+        self.assertEqual(after, before)
+        for prefix in (
+            "/skills lifecycle-status",
+            "/skills lifecycle-history",
+            "/skills lifecycle-inspect",
+            "/skills lifecycle-doctor",
+        ):
+            self.assertTrue(registry[prefix].read_only)
+            self.assertEqual(registry[prefix].mutates, "none")
+        self.assertEqual(len(COMMAND_REGISTRY), 387)
+        self.assertEqual(len({entry.category for entry in COMMAND_REGISTRY}), 41)
+        self.assertEqual(command_registry_doctor()["status"], "OK")
+        self.assertEqual(action_policy_doctor()["status"], "OK")
+
+    def test_skill_restore_receipt_doctor_detects_orphan_process_receipt(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            store, library, _ = build_test_durably_archived_procedural_skill(
+                Path(temp_dir)
+            )
+            report = ProceduralSkillRestoreReceiptAudit(
+                skills_path=library.skills_path,
+                persistent_memory_path=store.persistent_path,
+                process_receipts=(
+                    {"restore_apply_id": "orphan", "skill_id": "missing_skill"},
+                ),
+            ).inspect()
+
+        self.assertEqual(report.status, "WARN")
+        self.assertEqual(report.durable_restore_count, 0)
+        self.assertEqual(report.orphan_process_receipt_count, 1)
+        self.assertEqual(report.legacy_process_receipt_count, 1)
+        self.assertIn("no current durable restore envelope", " ".join(report.warnings))
 
     def test_durable_skill_lifecycle_audit_does_not_invent_archive_cause(self) -> None:
         with TemporaryDirectory() as temp_dir:
