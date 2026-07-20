@@ -10,9 +10,9 @@ from typing import Any, Iterable
 PROCEDURAL_SKILL_LIFECYCLE_METADATA_VERSION = 1
 PROCEDURAL_SKILL_LIFECYCLE_METADATA_SCHEMA = "skill.procedure.lifecycle.v1"
 PROCEDURAL_SKILL_LIFECYCLE_METADATA_MODE = (
-    "read_only_hashed_archive_transition_design_lock"
+    "hashed_archive_transition_contract_with_supervised_writer"
 )
-PROCEDURAL_SKILL_LIFECYCLE_METADATA_WRITER_INSTALLED = False
+PROCEDURAL_SKILL_LIFECYCLE_METADATA_WRITER_INSTALLED = True
 PROCEDURAL_SKILL_LIFECYCLE_METADATA_MAX_EVIDENCE_IDS = 16
 PROCEDURAL_SKILL_LIFECYCLE_METADATA_TRANSITIONS = frozenset({"archive"})
 PROCEDURAL_SKILL_LIFECYCLE_METADATA_REASON = (
@@ -289,11 +289,11 @@ def procedural_skill_lifecycle_metadata_doctor(
         issues.append("Lifecycle metadata field contract contains duplicates.")
     if PROCEDURAL_SKILL_LIFECYCLE_METADATA_TRANSITIONS != {"archive"}:
         issues.append("Lifecycle metadata v1 transition scope expanded unexpectedly.")
-    if PROCEDURAL_SKILL_LIFECYCLE_METADATA_WRITER_INSTALLED:
-        issues.append("Lifecycle metadata writer must remain uninstalled in v3.5l.")
+    if not PROCEDURAL_SKILL_LIFECYCLE_METADATA_WRITER_INSTALLED:
+        issues.append("Lifecycle metadata writer is unavailable after v3.5n activation.")
     if not issues:
         warnings.append(
-            "Design verifies structurally, but no writer or migration is authorized."
+            "The installed writer is archive-only, exact-token, run-once, and performs no migration."
         )
     return ProceduralSkillLifecycleMetadataDoctorReport(
         status="ERROR" if issues else "OK",
@@ -324,7 +324,7 @@ def format_procedural_skill_lifecycle_metadata_contract() -> str:
         f"supported_transitions: {', '.join(report.supported_transitions)}",
         f"writer_installed: {str(report.writer_installed).lower()}",
         "keep_behavior: byte-stable no-op; no durable lifecycle envelope",
-        "archive_behavior: future active -> archived envelope only",
+        "archive_behavior: separately confirmed active -> archived envelope only",
         "restore_or_revision_behavior: outside v1; separate design required",
         "evidence_retention: compact ids and hashes only",
         "evidence_replay_after_restart: false",
@@ -333,9 +333,9 @@ def format_procedural_skill_lifecycle_metadata_contract() -> str:
         "Required fields:",
         f"- {', '.join(PROCEDURAL_SKILL_LIFECYCLE_METADATA_FIELDS)}",
         "Boundary:",
-        "- This is a deterministic detached schema preview, not a Skill Library writer or migration.",
-        "- A self-valid envelope attests what a future supervised writer recorded; it does not recreate expired process evidence.",
-        "- Existing archived skills remain ambiguous until a separately authorized writer records supported durable evidence.",
+        "- This deterministic schema is used only by the separately confirmed v3.5n archive writer; no migration exists.",
+        "- A self-valid envelope attests what the supervised writer recorded; it does not recreate expired process evidence.",
+        "- Legacy archived skills remain ambiguous; no migration or lifecycle-envelope backfill exists.",
         "- No skill, memory, event, receipt, queue, export, session log, Context Injection, shell, model/API, or external action changed.",
     ]
     return "\n".join(lines)

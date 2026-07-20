@@ -27,7 +27,7 @@ PROCEDURAL_SKILL_LIFECYCLE_METADATA_READINESS_VERSION = 1
 PROCEDURAL_SKILL_LIFECYCLE_METADATA_READINESS_MODE = (
     "read_only_current_archive_decision_to_exact_future_envelope_blueprint"
 )
-PROCEDURAL_SKILL_LIFECYCLE_METADATA_READINESS_WRITER_INSTALLED = False
+PROCEDURAL_SKILL_LIFECYCLE_METADATA_READINESS_WRITER_INSTALLED = True
 PROCEDURAL_SKILL_LIFECYCLE_CURRENT_WRITER_SUPPORTS_METADATA = False
 PROCEDURAL_SKILL_LIFECYCLE_METADATA_DYNAMIC_FIELDS = (
     "id",
@@ -85,8 +85,8 @@ class ProceduralSkillLifecycleMetadataReadinessReport:
     warnings: list[str]
     ready_for_writer_design_review: bool
     metadata_required: bool
-    future_writer_ready: bool = False
-    writer_installed: bool = False
+    future_writer_ready: bool = True
+    writer_installed: bool = True
     current_writer_compatible: bool = False
     apply_token_generated: bool = False
     mutation_performed: bool = False
@@ -143,9 +143,9 @@ class ProceduralSkillLifecycleMetadataReadiness:
                     and base.contract.future_target_status == "active"
                 ),
                 "metadata_contract_healthy": metadata_report.status == "OK",
-                "future_writer_uninstalled": not (
+                "durable_writer_installed": (
                     PROCEDURAL_SKILL_LIFECYCLE_METADATA_READINESS_WRITER_INSTALLED
-                    or PROCEDURAL_SKILL_LIFECYCLE_METADATA_WRITER_INSTALLED
+                    and PROCEDURAL_SKILL_LIFECYCLE_METADATA_WRITER_INSTALLED
                 ),
                 "current_writer_not_claimed_compatible": not (
                     PROCEDURAL_SKILL_LIFECYCLE_CURRENT_WRITER_SUPPORTS_METADATA
@@ -159,7 +159,7 @@ class ProceduralSkillLifecycleMetadataReadiness:
                     "Only a current keep no-op may bypass durable metadata; revise needs a separate replacement contract."
                 ),
                 "metadata_contract_healthy": "The v3.5l lifecycle metadata contract is unhealthy.",
-                "future_writer_uninstalled": "A lifecycle metadata writer appeared before separate authorization.",
+                "durable_writer_installed": "The separately gated lifecycle metadata writer is unavailable.",
                 "current_writer_not_claimed_compatible": "The v3.5j writer must not be treated as metadata-capable.",
                 "apply_token_not_generated": "Readiness must never generate an apply token.",
                 "mutation_not_performed": "Readiness must never mutate the Skill Library.",
@@ -229,9 +229,9 @@ class ProceduralSkillLifecycleMetadataReadiness:
                 <= PROCEDURAL_SKILL_LIFECYCLE_METADATA_MAX_EVIDENCE_IDS
                 and all(_is_sha256(value) for value in receipt.capture_receipt_hashes)
             ),
-            "future_writer_uninstalled": not (
+            "durable_writer_installed": (
                 PROCEDURAL_SKILL_LIFECYCLE_METADATA_READINESS_WRITER_INSTALLED
-                or PROCEDURAL_SKILL_LIFECYCLE_METADATA_WRITER_INSTALLED
+                and PROCEDURAL_SKILL_LIFECYCLE_METADATA_WRITER_INSTALLED
             ),
             "current_writer_not_claimed_compatible": not (
                 PROCEDURAL_SKILL_LIFECYCLE_CURRENT_WRITER_SUPPORTS_METADATA
@@ -254,7 +254,7 @@ class ProceduralSkillLifecycleMetadataReadiness:
             "metadata_static_fields_complete": "The future lifecycle metadata blueprint is incomplete.",
             "evidence_ids_bounded": "Decision evidence ids exceed or miss the v3.5l bound.",
             "capture_hashes_bounded": "Capture receipt hashes exceed or violate the v3.5l bound.",
-            "future_writer_uninstalled": "A lifecycle metadata writer appeared before separate authorization.",
+            "durable_writer_installed": "The separately gated lifecycle metadata writer is unavailable.",
             "current_writer_not_claimed_compatible": "The v3.5j writer must not be treated as metadata-capable.",
             "apply_token_not_generated": "Readiness must never generate an apply token.",
             "mutation_not_performed": "Readiness must never mutate the Skill Library.",
@@ -263,10 +263,10 @@ class ProceduralSkillLifecycleMetadataReadiness:
         warnings = [
             "The blueprint binds current decision evidence and skill bytes, but dynamic write-time fields remain absent.",
             "The current v3.5j writer changes only status/updated_at and cannot persist this envelope.",
-            "A separate checkpointed writer, token, exact mutation verifier, and byte rollback remain mandatory.",
+            "The installed writer still requires a fresh exact token, exact mutation verification, and byte rollback.",
         ]
         ready = all(checks.values()) and not issues
-        status = "READY FOR DURABLE WRITER DESIGN REVIEW" if ready else "NOT READY"
+        status = "READY FOR DURABLE APPLY PREVIEW" if ready else "NOT READY"
         return ProceduralSkillLifecycleMetadataReadinessReport(
             status=status,
             decision_receipt_id=receipt.id,
@@ -300,8 +300,8 @@ def procedural_skill_lifecycle_metadata_readiness_doctor(
     warnings: list[str] = []
     if metadata_report.status != "OK":
         issues.extend(metadata_report.issues)
-    if PROCEDURAL_SKILL_LIFECYCLE_METADATA_READINESS_WRITER_INSTALLED:
-        issues.append("Durable lifecycle metadata readiness writer must remain absent.")
+    if not PROCEDURAL_SKILL_LIFECYCLE_METADATA_READINESS_WRITER_INSTALLED:
+        issues.append("Durable lifecycle metadata writer must be installed after v3.5n activation.")
     if PROCEDURAL_SKILL_LIFECYCLE_CURRENT_WRITER_SUPPORTS_METADATA:
         issues.append("The v3.5j writer must not be labeled metadata-capable.")
     if tuple(sorted(PROCEDURAL_SKILL_LIFECYCLE_METADATA_EXPECTED_CHANGED_FIELDS)) != (
@@ -316,7 +316,7 @@ def procedural_skill_lifecycle_metadata_readiness_doctor(
         issues.append("Future metadata receipt fields contain duplicates.")
     if not issues:
         warnings.append(
-            "Readiness validates a future writer contract only; no token or writer exists."
+            "Readiness never generates a token; the installed archive writer has a separate exact confirmation gate."
         )
     return ProceduralSkillLifecycleMetadataReadinessDoctorReport(
         status="ERROR" if issues else "OK",
@@ -355,7 +355,7 @@ def format_procedural_skill_lifecycle_metadata_readiness(
         f"skill_record_hash: {report.skill_record_hash}",
         f"writer_installed: {str(report.writer_installed).lower()}",
         f"current_writer_compatible: {str(report.current_writer_compatible).lower()}",
-        "future_writer_ready: false",
+        f"future_writer_ready: {str(report.future_writer_ready).lower()}",
         "apply_token_generated: false",
         "mutation_performed: false",
         "Checks:",
@@ -404,7 +404,10 @@ def format_procedural_skill_lifecycle_metadata_plan(
         "durable_provenance_must_remain_identical: true",
         "persistent_memory_must_remain_unchanged: true",
         "rollback_on_any_failure: exact original Skill Library bytes",
-        f"rollback_suggestion: /skills restore {report.skill_id}",
+        (
+            "rollback_suggestion: manual review required; restore needs a separate "
+            "durable lifecycle transition contract"
+        ),
         "dynamic_write_time_fields:",
     ]
     lines.extend(
@@ -519,7 +522,7 @@ def _compact(value: Any) -> str:
 def _boundary() -> list[str]:
     return [
         "Boundary:",
-        "- Readiness binds current evidence and bytes to a future envelope blueprint; it creates no token or authorization.",
+        "- Readiness binds current evidence and bytes to an envelope blueprint; it creates no token or authorization.",
         "- The current v3.5j writer is not metadata-capable and is never invoked by this layer.",
         "- No skill, memory, event, receipt, queue, export, session log, Context Injection, shell, model/API, or external action changed.",
     ]

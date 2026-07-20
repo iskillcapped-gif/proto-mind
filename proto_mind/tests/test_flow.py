@@ -305,6 +305,15 @@ from proto_mind.experience_learning_skill_lifecycle_metadata_readiness import (
     format_procedural_skill_lifecycle_metadata_readiness,
     procedural_skill_lifecycle_metadata_readiness_doctor,
 )
+from proto_mind.experience_learning_skill_lifecycle_metadata_apply import (
+    PROCEDURAL_SKILL_LIFECYCLE_METADATA_APPLY_MAX_RECEIPTS,
+    PROCEDURAL_SKILL_LIFECYCLE_METADATA_APPLY_MODE,
+    OperatorReviewedProceduralSkillLifecycleMetadataApplySession,
+    ProceduralSkillLifecycleMetadataApplyError,
+    format_procedural_skill_lifecycle_metadata_apply_command,
+    procedural_skill_lifecycle_metadata_apply_confirmation_token,
+    procedural_skill_lifecycle_metadata_apply_receipt_hash,
+)
 from proto_mind.experience_learning_skill_lifecycle_apply import (
     PROCEDURAL_SKILL_LIFECYCLE_APPLY_MAX_RECEIPTS,
     PROCEDURAL_SKILL_LIFECYCLE_APPLY_MODE,
@@ -328,6 +337,7 @@ from proto_mind.skill_lifecycle_audit import (
 from proto_mind.skill_lifecycle_metadata import (
     PROCEDURAL_SKILL_LIFECYCLE_METADATA_FIELDS,
     PROCEDURAL_SKILL_LIFECYCLE_METADATA_MODE,
+    PROCEDURAL_SKILL_LIFECYCLE_METADATA_REASON,
     PROCEDURAL_SKILL_LIFECYCLE_METADATA_SCHEMA,
     PROCEDURAL_SKILL_LIFECYCLE_METADATA_WRITER_INSTALLED,
     build_procedural_skill_lifecycle_metadata_preview,
@@ -19406,7 +19416,7 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertEqual(command_registry_doctor()["status"], "OK")
         self.assertEqual(action_policy_doctor()["status"], "OK")
 
-    def test_skill_lifecycle_metadata_contract_is_deterministic_and_writer_absent(self) -> None:
+    def test_skill_lifecycle_metadata_contract_is_deterministic_and_writer_gated(self) -> None:
         first = format_procedural_skill_lifecycle_metadata_contract()
         second = format_procedural_skill_lifecycle_metadata_contract()
         doctor = procedural_skill_lifecycle_metadata_doctor()
@@ -19415,12 +19425,12 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertEqual(doctor.status, "OK")
         self.assertTrue(doctor.deterministic_example_verified)
         self.assertTrue(doctor.tamper_refused)
-        self.assertFalse(doctor.writer_installed)
-        self.assertFalse(PROCEDURAL_SKILL_LIFECYCLE_METADATA_WRITER_INSTALLED)
+        self.assertTrue(doctor.writer_installed)
+        self.assertTrue(PROCEDURAL_SKILL_LIFECYCLE_METADATA_WRITER_INSTALLED)
         self.assertIn(PROCEDURAL_SKILL_LIFECYCLE_METADATA_MODE, first)
         self.assertIn(PROCEDURAL_SKILL_LIFECYCLE_METADATA_SCHEMA, first)
         self.assertIn("evidence_replay_after_restart: false", first)
-        self.assertIn("not a Skill Library writer", first)
+        self.assertIn("separately confirmed v3.5n archive writer", first)
 
     def test_skill_lifecycle_metadata_preview_hashes_exact_bounded_contract(self) -> None:
         metadata = build_procedural_skill_lifecycle_metadata_preview(
@@ -19477,7 +19487,7 @@ class ProtoMindFlowTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             build_procedural_skill_lifecycle_metadata_preview(**invalid)
 
-    def test_skill_lifecycle_audit_refuses_future_metadata_before_writer_install(self) -> None:
+    def test_skill_lifecycle_audit_refuses_envelope_status_mismatch(self) -> None:
         with TemporaryDirectory() as temp_dir:
             store, library, _, applied = build_test_applied_procedural_skill(
                 Path(temp_dir)
@@ -19507,9 +19517,9 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertIsNotNone(entry)
         assert entry is not None
         self.assertEqual(entry.state, "invalid")
-        self.assertEqual(entry.lifecycle_evidence, "future_design_untrusted")
+        self.assertEqual(entry.lifecycle_evidence, "invalid_envelope")
         self.assertFalse(entry.outcome_archive_proven)
-        self.assertIn("before its writer is installed", " ".join(entry.issues))
+        self.assertIn("requires archived skill status", " ".join(entry.issues))
 
     def test_skill_lifecycle_contract_bypasses_corrupt_store_without_writing(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -19526,7 +19536,7 @@ class ProtoMindFlowTests(unittest.TestCase):
             after = skills_path.read_bytes()
 
         self.assertIn("Status: OK", output)
-        self.assertIn("writer_installed: false", output)
+        self.assertIn("writer_installed: true", output)
         self.assertEqual(after, before)
         self.assertFalse(memory_path.exists())
 
@@ -19545,7 +19555,7 @@ class ProtoMindFlowTests(unittest.TestCase):
             skill_after = library.skills_path.read_bytes()
             memory_after = store.persistent_path.read_bytes()
 
-        self.assertEqual(report.status, "READY FOR DURABLE WRITER DESIGN REVIEW")
+        self.assertEqual(report.status, "READY FOR DURABLE APPLY PREVIEW")
         self.assertTrue(report.ready_for_writer_design_review)
         self.assertTrue(report.metadata_required)
         self.assertEqual(len(report.metadata_blueprint_hash), 64)
@@ -19560,7 +19570,7 @@ class ProtoMindFlowTests(unittest.TestCase):
             report.expected_changed_fields,
             list(PROCEDURAL_SKILL_LIFECYCLE_METADATA_EXPECTED_CHANGED_FIELDS),
         )
-        self.assertFalse(report.writer_installed)
+        self.assertTrue(report.writer_installed)
         self.assertFalse(report.current_writer_compatible)
         self.assertFalse(report.apply_token_generated)
         self.assertFalse(report.mutation_performed)
@@ -19591,11 +19601,11 @@ class ProtoMindFlowTests(unittest.TestCase):
                 session=pilot.skill_outcome_decisions,
             )
 
-        self.assertIn("READY FOR DURABLE WRITER DESIGN REVIEW", readiness)
+        self.assertIn("READY FOR DURABLE APPLY PREVIEW", readiness)
         self.assertIn(PROCEDURAL_SKILL_LIFECYCLE_METADATA_READINESS_MODE, readiness)
-        self.assertIn("writer_installed: false", readiness)
+        self.assertIn("writer_installed: true", readiness)
         self.assertIn("current_writer_compatible: false", readiness)
-        self.assertIn("future_writer_ready: false", readiness)
+        self.assertIn("future_writer_ready: true", readiness)
         self.assertIn("expected_record_mutations: 1", plan)
         self.assertIn("expected_changed_fields: lifecycle, status, updated_at", plan)
         self.assertIn("exact original Skill Library bytes", plan)
@@ -19706,12 +19716,12 @@ class ProtoMindFlowTests(unittest.TestCase):
         contract_doctor = procedural_skill_lifecycle_metadata_readiness_doctor()
         self.assertIn("Durable Procedural Skill Lifecycle Writer Readiness Doctor", doctor)
         self.assertIn("metadata_contract_status: OK", doctor)
-        self.assertIn("writer_installed: false", doctor)
+        self.assertIn("writer_installed: true", doctor)
         self.assertIn("current_writer_compatible: false", doctor)
         self.assertIn("Usage:", invalid)
         self.assertIn("Command chaining", chained)
         self.assertEqual(contract_doctor.status, "OK")
-        self.assertFalse(PROCEDURAL_SKILL_LIFECYCLE_METADATA_READINESS_WRITER_INSTALLED)
+        self.assertTrue(PROCEDURAL_SKILL_LIFECYCLE_METADATA_READINESS_WRITER_INSTALLED)
         self.assertFalse(PROCEDURAL_SKILL_LIFECYCLE_CURRENT_WRITER_SUPPORTS_METADATA)
         self.assertEqual(len(COMMAND_REGISTRY), 387)
         self.assertEqual(len({entry.category for entry in COMMAND_REGISTRY}), 41)
@@ -24896,7 +24906,11 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertIn("expected_skill_record_mutations: 1", output)
         self.assertIn("atomic_write_required: true", output)
         self.assertIn("future_target_status: archived", output)
-        self.assertIn(f"rollback_suggestion: /skills restore {record['id']}", output)
+        self.assertIn(
+            "rollback_suggestion: manual review required; restore needs a separate "
+            "durable lifecycle transition contract",
+            output,
+        )
         self.assertIn("confirmation_token_hash", output)
 
     def test_skill_lifecycle_revise_plan_requires_separate_versioned_payload(self) -> None:
@@ -25128,26 +25142,94 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertTrue(applied.persistent_memory_unchanged)
         self.assertEqual(len(applied.receipt_hash), 64)
 
-    def test_skill_lifecycle_archive_apply_is_atomic_narrow_and_provenance_safe(self) -> None:
+    def test_legacy_skill_lifecycle_archive_redirects_to_durable_gate(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            store, library, pilot, _, receipt, reviewer = (
+                build_test_procedural_skill_lifecycle_readiness(
+                    Path(temp_dir), outcomes=("failure",), decision="archive"
+                )
+            )
+            skill_before = library.skills_path.read_bytes()
+            memory_before = store.persistent_path.read_bytes()
+            review = pilot.skill_lifecycle_applies.review(receipt, reviewer=reviewer)
+            output = format_procedural_skill_lifecycle_apply_command(
+                f"/experience learning skill-outcome-lifecycle-apply-preview {receipt.id}",
+                decision_session=pilot.skill_outcome_decisions,
+                apply_session=pilot.skill_lifecycle_applies,
+                reviewer=reviewer,
+            )
+            skill_after = library.skills_path.read_bytes()
+            memory_after = store.persistent_path.read_bytes()
+
+        self.assertFalse(review.confirmable)
+        self.assertIn("Status: NOT CONFIRMABLE", output)
+        self.assertIn("requires the separately confirmed --durable", output)
+        self.assertNotIn("confirmation_token:", output)
+        self.assertEqual(skill_after, skill_before)
+        self.assertEqual(memory_after, memory_before)
+
+    def test_durable_skill_lifecycle_apply_preview_is_exact_and_read_only(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            store, library, pilot, _, receipt, reviewer = (
+                build_test_procedural_skill_lifecycle_readiness(
+                    Path(temp_dir), outcomes=("failure",), decision="archive"
+                )
+            )
+            skill_before = library.skills_path.read_bytes()
+            memory_before = store.persistent_path.read_bytes()
+            preview = format_procedural_skill_lifecycle_metadata_apply_command(
+                (
+                    "/experience learning skill-outcome-lifecycle-apply-preview "
+                    f"{receipt.id} --durable"
+                ),
+                decision_session=pilot.skill_outcome_decisions,
+                apply_session=pilot.skill_lifecycle_metadata_applies,
+                reviewer=reviewer,
+            )
+            wrong = format_procedural_skill_lifecycle_metadata_apply_command(
+                (
+                    "/experience learning apply skill-outcome-lifecycle "
+                    f"{receipt.id} WRONG --durable"
+                ),
+                decision_session=pilot.skill_outcome_decisions,
+                apply_session=pilot.skill_lifecycle_metadata_applies,
+                reviewer=reviewer,
+            )
+
+            self.assertIn("Status: CONFIRMABLE", preview)
+            self.assertIn("CONFIRM-DURABLE-SKILL-LIFECYCLE-ARCHIVE-", preview)
+            self.assertIn(
+                "expected_changed_fields: lifecycle, status, updated_at", preview
+            )
+            self.assertIn("token mismatch", wrong)
+            self.assertEqual(library.skills_path.read_bytes(), skill_before)
+            self.assertEqual(store.persistent_path.read_bytes(), memory_before)
+            self.assertEqual(pilot.skill_lifecycle_metadata_applies.snapshot(), ())
+
+    def test_durable_skill_lifecycle_apply_writes_exact_envelope_and_receipt(self) -> None:
         with TemporaryDirectory() as temp_dir:
             store, library, pilot, record, receipt, reviewer = (
                 build_test_procedural_skill_lifecycle_readiness(
                     Path(temp_dir), outcomes=("failure",), decision="archive"
                 )
             )
+            before_record = deepcopy(library.read_snapshot()["records"][0])
             memory_before = store.persistent_path.read_bytes()
-            before_record = library.read_snapshot()["records"][0]
-            review = pilot.skill_lifecycle_applies.review(receipt, reviewer=reviewer)
-            applied = pilot.skill_lifecycle_applies.apply(
+            review = pilot.skill_lifecycle_metadata_applies.review(
+                receipt, reviewer=reviewer
+            )
+            token = procedural_skill_lifecycle_metadata_apply_confirmation_token(
+                review
+            )
+            applied = pilot.skill_lifecycle_metadata_applies.apply(
                 receipt,
-                token=procedural_skill_lifecycle_apply_confirmation_token(review),
+                token=token,
                 reviewer=reviewer,
             )
             after_record = library.read_snapshot()["records"][0]
             memory_after = store.persistent_path.read_bytes()
-            provenance = verify_procedural_skill_provenance(
-                after_record,
-                memory_records=store.load_persistent_memory(),
+            metadata_check = verify_procedural_skill_lifecycle_metadata(
+                after_record["lifecycle"]
             )
 
         changed = sorted(
@@ -25156,16 +25238,114 @@ class ProtoMindFlowTests(unittest.TestCase):
             if before_record.get(key) != after_record.get(key)
         )
         self.assertEqual(str(record["id"]), applied.skill_id)
-        self.assertEqual(changed, ["status", "updated_at"])
+        self.assertEqual(changed, ["lifecycle", "status", "updated_at"])
         self.assertEqual(after_record["status"], "archived")
         self.assertEqual(after_record["provenance"], before_record["provenance"])
+        self.assertEqual(after_record["lifecycle"]["id"], applied.metadata_id)
+        self.assertEqual(after_record["lifecycle"]["metadata_hash"], applied.metadata_hash)
+        self.assertTrue(metadata_check.verified)
         self.assertEqual(memory_after, memory_before)
-        self.assertEqual(applied.actual_record_mutations, 1)
-        self.assertTrue(applied.skill_mutation_performed)
-        self.assertFalse(applied.target_execution_performed)
-        self.assertTrue(provenance.verified)
-        self.assertTrue(provenance.current_payload_matches)
-        self.assertEqual(applied.rollback_suggestion, f"/skills restore {record['id']}")
+        self.assertEqual(
+            set(applied.to_dict()),
+            set(PROCEDURAL_SKILL_LIFECYCLE_METADATA_FUTURE_RECEIPT_FIELDS),
+        )
+        self.assertEqual(applied.exact_record_mutations, 1)
+        self.assertEqual(applied.changed_fields, ["lifecycle", "status", "updated_at"])
+        self.assertEqual(
+            applied.receipt_hash,
+            procedural_skill_lifecycle_metadata_apply_receipt_hash(
+                applied.to_dict()
+            ),
+        )
+        self.assertTrue(applied.post_state_verified)
+        self.assertTrue(applied.durable_provenance_preserved)
+        self.assertTrue(applied.persistent_memory_unchanged)
+        self.assertFalse(applied.rollback_performed)
+
+    def test_durable_skill_lifecycle_apply_is_run_once(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, library, pilot, _, receipt, reviewer = (
+                build_test_procedural_skill_lifecycle_readiness(
+                    Path(temp_dir), outcomes=("failure",), decision="archive"
+                )
+            )
+            review = pilot.skill_lifecycle_metadata_applies.review(
+                receipt, reviewer=reviewer
+            )
+            token = procedural_skill_lifecycle_metadata_apply_confirmation_token(
+                review
+            )
+            pilot.skill_lifecycle_metadata_applies.apply(
+                receipt, token=token, reviewer=reviewer
+            )
+            before_second = library.skills_path.read_bytes()
+            second = format_procedural_skill_lifecycle_metadata_apply_command(
+                (
+                    "/experience learning apply skill-outcome-lifecycle "
+                    f"{receipt.id} {token} --durable"
+                ),
+                decision_session=pilot.skill_outcome_decisions,
+                apply_session=pilot.skill_lifecycle_metadata_applies,
+                reviewer=reviewer,
+            )
+
+            self.assertIn("already durably applied", second)
+            self.assertEqual(library.skills_path.read_bytes(), before_second)
+            self.assertEqual(len(pilot.skill_lifecycle_metadata_applies.snapshot()), 1)
+
+    def test_durable_skill_lifecycle_apply_refuses_keep_and_revise(self) -> None:
+        for decision, outcomes in (("keep", ("success",)), ("revise", ("failure",))):
+            with self.subTest(decision=decision), TemporaryDirectory() as temp_dir:
+                store, library, pilot, _, receipt, reviewer = (
+                    build_test_procedural_skill_lifecycle_readiness(
+                        Path(temp_dir), outcomes=outcomes, decision=decision
+                    )
+                )
+                skill_before = library.skills_path.read_bytes()
+                memory_before = store.persistent_path.read_bytes()
+                output = format_procedural_skill_lifecycle_metadata_apply_command(
+                    (
+                        "/experience learning skill-outcome-lifecycle-apply-preview "
+                        f"{receipt.id} --durable"
+                    ),
+                    decision_session=pilot.skill_outcome_decisions,
+                    apply_session=pilot.skill_lifecycle_metadata_applies,
+                    reviewer=reviewer,
+                )
+
+                self.assertIn("Status: NOT CONFIRMABLE", output)
+                self.assertNotIn("confirmation_token:", output)
+                self.assertEqual(library.skills_path.read_bytes(), skill_before)
+                self.assertEqual(store.persistent_path.read_bytes(), memory_before)
+
+    def test_durable_skill_lifecycle_apply_refuses_drift_after_preview(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, library, pilot, record, receipt, reviewer = (
+                build_test_procedural_skill_lifecycle_readiness(
+                    Path(temp_dir), outcomes=("failure",), decision="archive"
+                )
+            )
+            review = pilot.skill_lifecycle_metadata_applies.review(
+                receipt, reviewer=reviewer
+            )
+            token = procedural_skill_lifecycle_metadata_apply_confirmation_token(
+                review
+            )
+            library.update_summary(str(record["id"]), "Changed after durable preview.")
+            drifted_before = library.skills_path.read_bytes()
+            output = format_procedural_skill_lifecycle_metadata_apply_command(
+                (
+                    "/experience learning apply skill-outcome-lifecycle "
+                    f"{receipt.id} {token} --durable"
+                ),
+                decision_session=pilot.skill_outcome_decisions,
+                apply_session=pilot.skill_lifecycle_metadata_applies,
+                reviewer=reviewer,
+            )
+
+            self.assertIn("Current durable lifecycle readiness is not READY", output)
+            self.assertEqual(library.skills_path.read_bytes(), drifted_before)
+            self.assertEqual(pilot.skill_lifecycle_metadata_applies.snapshot(), ())
 
     def test_skill_lifecycle_apply_refuses_wrong_token_and_second_run(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -25250,34 +25430,99 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertEqual(drifted_after, drifted_before)
         self.assertEqual(pilot.skill_lifecycle_applies.snapshot(), ())
 
-    def test_skill_lifecycle_archive_rolls_back_exact_bytes_on_verification_failure(self) -> None:
+    def test_durable_skill_lifecycle_archive_rolls_back_exact_bytes_on_verification_failure(self) -> None:
         with TemporaryDirectory() as temp_dir:
             _, library, pilot, _, receipt, reviewer = (
                 build_test_procedural_skill_lifecycle_readiness(
                     Path(temp_dir), outcomes=("failure",), decision="archive"
                 )
             )
-            review = pilot.skill_lifecycle_applies.review(receipt, reviewer=reviewer)
+            review = pilot.skill_lifecycle_metadata_applies.review(
+                receipt, reviewer=reviewer
+            )
             before = library.skills_path.read_bytes()
             with patch(
-                "proto_mind.experience_learning_skill_lifecycle_apply._verify_archive_transition",
-                side_effect=ProceduralSkillLifecycleApplyError("forced verification failure"),
+                "proto_mind.experience_learning_skill_lifecycle_metadata_apply._verify_durable_archive",
+                side_effect=ProceduralSkillLifecycleMetadataApplyError(
+                    "forced verification failure"
+                ),
             ):
-                output = format_procedural_skill_lifecycle_apply_command(
+                output = format_procedural_skill_lifecycle_metadata_apply_command(
                     (
                         "/experience learning apply skill-outcome-lifecycle "
                         f"{receipt.id} "
-                        f"{procedural_skill_lifecycle_apply_confirmation_token(review)}"
+                        f"{procedural_skill_lifecycle_metadata_apply_confirmation_token(review)} "
+                        "--durable"
                     ),
                     decision_session=pilot.skill_outcome_decisions,
-                    apply_session=pilot.skill_lifecycle_applies,
+                    apply_session=pilot.skill_lifecycle_metadata_applies,
                     reviewer=reviewer,
                 )
             after = library.skills_path.read_bytes()
 
         self.assertIn("exact original Skill Library bytes were restored", output)
         self.assertEqual(after, before)
-        self.assertEqual(pilot.skill_lifecycle_applies.snapshot(), ())
+        self.assertEqual(pilot.skill_lifecycle_metadata_applies.snapshot(), ())
+
+    def test_durable_skill_lifecycle_receipt_views_and_doctor_are_read_only(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            store, library, pilot, _, receipt, reviewer = (
+                build_test_procedural_skill_lifecycle_readiness(
+                    Path(temp_dir), outcomes=("failure",), decision="archive"
+                )
+            )
+            review = pilot.skill_lifecycle_metadata_applies.review(
+                receipt, reviewer=reviewer
+            )
+            applied = pilot.skill_lifecycle_metadata_applies.apply(
+                receipt,
+                token=procedural_skill_lifecycle_metadata_apply_confirmation_token(
+                    review
+                ),
+                reviewer=reviewer,
+            )
+            skill_before = library.skills_path.read_bytes()
+            memory_before = store.persistent_path.read_bytes()
+            receipts_before = pilot.skill_lifecycle_metadata_applies.snapshot()
+            common = {
+                "decision_session": pilot.skill_outcome_decisions,
+                "apply_session": pilot.skill_lifecycle_metadata_applies,
+                "reviewer": reviewer,
+            }
+            listed = format_procedural_skill_lifecycle_metadata_apply_command(
+                "/experience learning skill-outcome-lifecycle-applies --durable",
+                **common,
+            )
+            inspected = format_procedural_skill_lifecycle_metadata_apply_command(
+                (
+                    "/experience learning skill-outcome-lifecycle-applies "
+                    f"{applied.lifecycle_apply_id} --durable"
+                ),
+                **common,
+            )
+            doctor = format_procedural_skill_lifecycle_metadata_apply_command(
+                "/experience learning skill-outcome-lifecycle-apply-doctor --durable",
+                **common,
+            )
+            chained = format_procedural_skill_lifecycle_metadata_apply_command(
+                (
+                    "/experience learning skill-outcome-lifecycle-applies --durable; "
+                    "/skills restore x"
+                ),
+                **common,
+            )
+
+            self.assertIn(applied.lifecycle_apply_id, listed)
+            self.assertIn("Status: OK", inspected)
+            self.assertIn(f"receipt_hash: {applied.receipt_hash}", inspected)
+            self.assertIn("Status: OK", doctor)
+            self.assertIn(PROCEDURAL_SKILL_LIFECYCLE_METADATA_APPLY_MODE, doctor)
+            self.assertIn("Command chaining", chained)
+            self.assertEqual(library.skills_path.read_bytes(), skill_before)
+            self.assertEqual(store.persistent_path.read_bytes(), memory_before)
+            self.assertEqual(
+                pilot.skill_lifecycle_metadata_applies.snapshot(), receipts_before
+            )
 
     def test_skill_lifecycle_apply_receipt_views_and_doctor_are_read_only(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -25362,7 +25607,7 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertEqual(command_registry_doctor()["status"], "OK")
         self.assertEqual(action_policy_doctor()["status"], "OK")
 
-    def test_skill_lifecycle_archive_apply_routes_through_shared_experience_handler(self) -> None:
+    def test_durable_skill_lifecycle_archive_routes_through_shared_experience_handler(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             store, library, pilot, _, receipt, _ = (
@@ -25383,7 +25628,10 @@ class ProtoMindFlowTests(unittest.TestCase):
             setattr(coordinator, EXPERIENCE_PILOT_ATTR, pilot)
             memory_before = store.persistent_path.read_bytes()
             preview = format_experience_pilot_command(
-                f"/experience learning skill-outcome-lifecycle-apply-preview {receipt.id}",
+                (
+                    "/experience learning skill-outcome-lifecycle-apply-preview "
+                    f"{receipt.id} --durable"
+                ),
                 owner=coordinator,
                 project_root=root,
             )
@@ -25395,7 +25643,7 @@ class ProtoMindFlowTests(unittest.TestCase):
             applied = format_experience_pilot_command(
                 (
                     "/experience learning apply skill-outcome-lifecycle "
-                    f"{receipt.id} {token}"
+                    f"{receipt.id} {token} --durable"
                 ),
                 owner=coordinator,
                 project_root=root,
@@ -25405,10 +25653,15 @@ class ProtoMindFlowTests(unittest.TestCase):
 
         self.assertIn("Status: CONFIRMABLE", preview)
         self.assertIn("Status: APPLIED", applied)
-        self.assertIn("target_execution_performed: false", applied)
+        self.assertIn("procedure_execution_performed: false", applied)
         self.assertEqual(live_record["status"], "archived")
+        self.assertTrue(
+            verify_procedural_skill_lifecycle_metadata(
+                live_record["lifecycle"]
+            ).verified
+        )
         self.assertEqual(memory_after, memory_before)
-        self.assertEqual(len(pilot.skill_lifecycle_applies.snapshot()), 1)
+        self.assertEqual(len(pilot.skill_lifecycle_metadata_applies.snapshot()), 1)
 
     def test_durable_skill_lifecycle_audit_handles_missing_stores_read_only(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -25438,7 +25691,7 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertIn(PROCEDURAL_SKILL_LIFECYCLE_AUDIT_MODE, status)
         self.assertIn("Status: OK", doctor)
         self.assertIn("metadata_contract_status: OK", doctor)
-        self.assertIn("metadata_writer_installed: false", doctor)
+        self.assertIn("metadata_writer_installed: true", doctor)
         self.assertIn("metadata_tamper_refused: true", doctor)
         self.assertEqual(after, before)
 
@@ -25459,20 +25712,46 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertFalse(entry.outcome_archive_proven)
         self.assertEqual(entry.lifecycle_evidence, "none")
 
-    def test_durable_skill_lifecycle_audit_does_not_invent_archive_cause(self) -> None:
+    def test_durable_skill_lifecycle_audit_recovers_verified_archive(self) -> None:
         with TemporaryDirectory() as temp_dir:
             store, library, pilot, record, receipt, reviewer = (
                 build_test_procedural_skill_lifecycle_readiness(
                     Path(temp_dir), outcomes=("failure",), decision="archive"
                 )
             )
-            review = pilot.skill_lifecycle_applies.review(receipt, reviewer=reviewer)
-            pilot.skill_lifecycle_applies.apply(
+            review = pilot.skill_lifecycle_metadata_applies.review(
+                receipt, reviewer=reviewer
+            )
+            pilot.skill_lifecycle_metadata_applies.apply(
                 receipt,
-                token=procedural_skill_lifecycle_apply_confirmation_token(review),
+                token=procedural_skill_lifecycle_metadata_apply_confirmation_token(
+                    review
+                ),
                 reviewer=reviewer,
             )
-            # A fresh audit sees only durable stores, never the process receipt above.
+            entry = ProceduralSkillLifecycleAudit(
+                skills_path=library.skills_path,
+                persistent_memory_path=store.persistent_path,
+            ).get(str(record["id"]))
+
+        self.assertIsNotNone(entry)
+        assert entry is not None
+        self.assertEqual(entry.state, "archived_verified")
+        self.assertTrue(entry.restart_safe)
+        self.assertTrue(entry.outcome_archive_proven)
+        self.assertEqual(
+            entry.lifecycle_reason, PROCEDURAL_SKILL_LIFECYCLE_METADATA_REASON
+        )
+
+    def test_durable_skill_lifecycle_audit_does_not_invent_archive_cause(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            store, library, _, record, _, _ = (
+                build_test_procedural_skill_lifecycle_readiness(
+                    Path(temp_dir), outcomes=("failure",), decision="archive"
+                )
+            )
+            library.set_status(str(record["id"]), "archived")
+            # This simulates a legacy/manual archive without a lifecycle envelope.
             entry = ProceduralSkillLifecycleAudit(
                 skills_path=library.skills_path,
                 persistent_memory_path=store.persistent_path,
@@ -25566,7 +25845,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
         self.assertIn("was not found", missing)
         self.assertIn("Command chaining", chained)
-        self.assertIn("no outcome cause is invented", chained)
+        self.assertIn("legacy archive remains ARCHIVED_AMBIGUOUS", chained)
 
     def test_durable_skill_lifecycle_shared_route_registry_and_policy_are_safe(self) -> None:
         with TemporaryDirectory() as temp_dir:

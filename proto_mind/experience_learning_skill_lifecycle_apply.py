@@ -28,7 +28,7 @@ from proto_mind.skill_provenance import verify_procedural_skill_provenance
 
 PROCEDURAL_SKILL_LIFECYCLE_APPLY_VERSION = 1
 PROCEDURAL_SKILL_LIFECYCLE_APPLY_MODE = (
-    "single_exact_confirmed_keep_or_atomic_archive"
+    "legacy_exact_keep_noop_with_archive_redirected_to_durable_gate"
 )
 PROCEDURAL_SKILL_LIFECYCLE_APPLY_MAX_RECEIPTS = 1
 PROCEDURAL_SKILL_LIFECYCLE_APPLY_ENGINE_INSTALLED = True
@@ -427,6 +427,7 @@ class OperatorReviewedProceduralSkillLifecycleApplySession:
         checks = {
             "readiness_current": readiness.ready_for_design_review,
             "decision_supported": receipt.decision in {"keep", "archive"},
+            "archive_requires_durable_gate": receipt.decision != "archive",
             "revision_refused": receipt.decision != "revise",
             "decision_not_applied": receipt.id not in self._receipts,
             "run_once_slot_available": (
@@ -447,6 +448,7 @@ class OperatorReviewedProceduralSkillLifecycleApplySession:
         messages = {
             "readiness_current": "Current procedural skill lifecycle readiness is not READY.",
             "decision_supported": "Only keep or archive may enter the v3.5j lifecycle apply gate.",
+            "archive_requires_durable_gate": "Archive now requires the separately confirmed --durable metadata gate.",
             "revision_refused": "Revision requires a separate versioned replacement contract.",
             "decision_not_applied": "This terminal decision was already applied in this process.",
             "run_once_slot_available": "The single lifecycle apply slot is already used this process.",
@@ -523,7 +525,7 @@ def format_procedural_skill_lifecycle_apply_command(
         for prefix in prefixes
     ):
         return None
-    if any(marker in raw for marker in ("\n", ";", "&&", "||")):
+    if any(marker in raw for marker in ("\n", ";", "&&", "||", "|")):
         return _apply_error("Command chaining and multi-command input are not allowed.")
     parts = raw.split()
 
@@ -894,8 +896,8 @@ def _apply_error(message: str) -> str:
 def _apply_boundary() -> list[str]:
     return [
         "Boundary:",
-        "- Only one exact confirmed keep or archive decision may be applied per process; revise is refused.",
-        "- Keep is a byte-stable no-op; archive may change only one skill status and updated_at with exact-byte rollback on failure.",
+        "- This legacy gate permits only one exact confirmed keep no-op per process; archive requires --durable and revise is refused.",
+        "- Keep is byte-stable; this path cannot create a new ambiguous archive without durable lifecycle metadata.",
         "- No procedure, shell, arbitrary dispatch, batch, memory/event write, model/API, external action, session log, or Context Injection change occurred.",
     ]
 

@@ -552,7 +552,10 @@ def _contract_for(decision: str, skill_id: str) -> ProceduralSkillLifecycleContr
             atomic_write_required=True,
             revision_payload_required=False,
             preserve_original_until_verified=True,
-            rollback_suggestion=f"/skills restore {skill_id}",
+            rollback_suggestion=(
+                "manual review required; restore needs a separate durable "
+                "lifecycle transition contract"
+            ),
         )
     return ProceduralSkillLifecycleContract(
         **common,
@@ -583,7 +586,7 @@ def _contract_is_safe(contract: ProceduralSkillLifecycleContract) -> bool:
             and contract.direct_lifecycle_apply_allowed
             and contract.atomic_write_required
             and not contract.revision_payload_required
-            and contract.rollback_suggestion.startswith("/skills restore ")
+            and contract.rollback_suggestion.startswith("manual review required;")
         )
     return bool(
         contract.decision == "revise"

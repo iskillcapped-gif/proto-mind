@@ -80,6 +80,7 @@ The current source tree is compared directly with the July 11 archive by SHA-256
 - Durable Procedural Skill Lifecycle Audit v3.5k with restart-safe read-only state reconstruction, explicit archived ambiguity, provenance/drift checks, and no invented transition history or writer expansion.
 - Durable Skill Lifecycle Metadata Design Lock v3.5l with a pure hashed archive-envelope contract, bounded evidence fingerprints, deterministic tamper checks, no writer, and no Registry expansion.
 - Durable Skill Lifecycle Writer Readiness v3.5m with current archive evidence/byte revalidation, fixed future envelope blueprint, exact mutation/receipt/rollback plan, and no token or writer.
+- Durable Skill Lifecycle Metadata Apply Pilot v3.5n with a separate exact token, one atomic three-field archive transition, fixed receipt verification, exact-byte rollback, and restart-safe embedded evidence.
 - Contest Showcase v1 with a deterministic three-minute narrative and safety doctor.
 - Build Week Provenance Pack v1.
 
@@ -89,13 +90,13 @@ The generated evidence under `contest/provenance/` is the source of truth for th
 
 | Metric | July 11 baseline | Current Build Week state | Delta |
 |---|---:|---:|---:|
-| Submission-relevant files | 69 | 139 | +70 |
-| Python files | 66 | 112 | +46 |
-| Unit-test methods | 664 | 1086 | +422 |
+| Submission-relevant files | 69 | 140 | +71 |
+| Python files | 66 | 113 | +47 |
+| Unit-test methods | 664 | 1093 | +429 |
 | Registry commands | 343 | 387 | +44 |
 | Registry categories | 39 | 41 | +2 |
 
-The file delta is not inferred from modification time. Every baseline and current submission-relevant file is hashed, then classified as added, changed, removed, or unchanged. The current manifest reports 70 added, 15 changed, 0 removed, and 54 unchanged files.
+The file delta is not inferred from modification time. Every baseline and current submission-relevant file is hashed, then classified as added, changed, removed, or unchanged. The current manifest reports 71 added, 15 changed, 0 removed, and 54 unchanged files.
 
 ## Reproduce The Evidence
 

@@ -92,6 +92,10 @@ from proto_mind.experience_learning_skill_lifecycle_apply import (
     OperatorReviewedProceduralSkillLifecycleApplySession,
     format_procedural_skill_lifecycle_apply_command,
 )
+from proto_mind.experience_learning_skill_lifecycle_metadata_apply import (
+    OperatorReviewedProceduralSkillLifecycleMetadataApplySession,
+    format_procedural_skill_lifecycle_metadata_apply_command,
+)
 from proto_mind.experience_learning_readiness import format_learning_apply_readiness_command
 from proto_mind.experience_turn import (
     format_cognitive_turn_episode,
@@ -173,6 +177,9 @@ class SupervisedExperiencePilot:
         self._skill_outcome_captures = OperatorReviewedProceduralSkillOutcomeCaptureSession()
         self._skill_outcome_decisions = OperatorReviewedProceduralSkillOutcomeDecisionSession()
         self._skill_lifecycle_applies = OperatorReviewedProceduralSkillLifecycleApplySession()
+        self._skill_lifecycle_metadata_applies = (
+            OperatorReviewedProceduralSkillLifecycleMetadataApplySession()
+        )
         self._lock = RLock()
 
     @property
@@ -242,6 +249,12 @@ class SupervisedExperiencePilot:
     @property
     def skill_lifecycle_applies(self) -> OperatorReviewedProceduralSkillLifecycleApplySession:
         return self._skill_lifecycle_applies
+
+    @property
+    def skill_lifecycle_metadata_applies(
+        self,
+    ) -> OperatorReviewedProceduralSkillLifecycleMetadataApplySession:
+        return self._skill_lifecycle_metadata_applies
 
     def preview(self) -> str:
         with self._lock:
@@ -601,6 +614,16 @@ def format_experience_pilot_command(
                 builder=skill_outcome_decision_builder,
                 skill_library=skill_library,
             )
+            skill_lifecycle_metadata_apply_output = (
+                format_procedural_skill_lifecycle_metadata_apply_command(
+                    raw,
+                    decision_session=pilot.skill_outcome_decisions,
+                    apply_session=pilot.skill_lifecycle_metadata_applies,
+                    reviewer=skill_lifecycle_reviewer,
+                )
+            )
+            if skill_lifecycle_metadata_apply_output is not None:
+                return skill_lifecycle_metadata_apply_output
             skill_lifecycle_apply_output = format_procedural_skill_lifecycle_apply_command(
                 raw,
                 decision_session=pilot.skill_outcome_decisions,
