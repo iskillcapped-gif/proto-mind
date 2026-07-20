@@ -30,6 +30,17 @@ def format_skill_command(
         project_root / "proto_mind" / "data" / "persistent_memory.json"
     )
     if normalized.startswith("/skills lifecycle"):
+        from proto_mind.skill_lifecycle_restore import (
+            format_procedural_skill_lifecycle_restore_command,
+        )
+
+        restore_output = format_procedural_skill_lifecycle_restore_command(
+            stripped,
+            skills_path=library.skills_path,
+            persistent_memory_path=memory_path,
+        )
+        if restore_output is not None:
+            return restore_output
         from proto_mind.skill_lifecycle_audit import (
             format_skill_lifecycle_audit_command,
         )
@@ -117,10 +128,10 @@ def format_skill_command(
         "  /skills inspect <id>\n"
         "  /skills why <id>\n"
         "  /skills provenance-doctor\n"
-        "  /skills lifecycle-status [--contract]\n"
+        "  /skills lifecycle-status [--contract|--restore-contract]\n"
         "  /skills lifecycle-history [--all]\n"
-        "  /skills lifecycle-inspect <id>\n"
-        "  /skills lifecycle-doctor\n"
+        "  /skills lifecycle-inspect <id> [--restore-readiness|--restore-plan]\n"
+        "  /skills lifecycle-doctor [--restore-contract]\n"
         "  /skills update <id> --summary <text>\n"
         "  /skills body <id> <text>\n"
         "  /skills append <id> <text>\n"

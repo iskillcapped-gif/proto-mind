@@ -19,7 +19,7 @@ Last updated: 2026-07-20
   - Ollama via `PROTO_MIND_REASONER=ollama`, `PROTO_MIND_OLLAMA_MODEL`, `PROTO_MIND_OLLAMA_URL`.
 - Normal prompts go through observer, retrieval, reasoner, memory evaluation, self-reflection, grounding audit, and session logging.
 - Slash/operator commands bypass normal cognitive turns and should not become cognitive session log turns.
-- Supervised Experience Pilot v3.3a observes consented turns; v3.3b projects episodes; v3.3c previews candidates; v3.3d captures decisions; v3.3e reviews selected-scope eligibility; v3.3f records proposals; v3.3g revalidates apply readiness; v3.4a permits one separately confirmed, atomic, verified memory lesson; v3.4b embeds restart-safe compact provenance; v3.4c permits only verified learned lessons into recall; v3.4d reviews later outcomes; v3.4e records an exact operator lifecycle decision; v3.4f revalidates that decision; v3.4g permits one separately confirmed keep/reject/supersede transition; v3.4h reconstructs and audits durable lifecycle state after restart; v3.5a projects an active verified lesson into a read-only procedural skill contract; v3.5b records exact operator-authored fields in a bounded restart-expiring receipt; v3.5c revalidates that receipt and current Skill Library; v3.5d permits one separately confirmed atomic verified non-executable skill record per process; v3.5e embeds restart-safe skill provenance and audits it read-only; v3.5f reviews exact manual-use outcome lineage; v3.5g separately confirms and captures that operator-reported evidence; v3.5h records an exact operator keep/revise/archive decision over confirmed evidence; v3.5i revalidates that decision against current evidence, provenance, skill bytes, and decision-specific future safeguards; v3.5j permits one separately confirmed keep no-op or legacy archive transition; v3.5k reconstructs durable procedural skill state after restart without inventing archive cause; v3.5l locks a hashed archive envelope; v3.5m binds a current archive decision to its exact writer blueprint; v3.5n permits one separately confirmed atomic durable archive and restart-safe verification. Review/proposal/decision/detailed-receipt state remains bounded and process-memory-only; no automatic, batch, revision, restore, or procedure execution exists.
+- Supervised Experience Pilot v3.3a observes consented turns; v3.3b projects episodes; v3.3c previews candidates; v3.3d captures decisions; v3.3e reviews selected-scope eligibility; v3.3f records proposals; v3.3g revalidates apply readiness; v3.4a permits one separately confirmed, atomic, verified memory lesson; v3.4b embeds restart-safe compact provenance; v3.4c permits only verified learned lessons into recall; v3.4d reviews later outcomes; v3.4e records an exact operator lifecycle decision; v3.4f revalidates that decision; v3.4g permits one separately confirmed keep/reject/supersede transition; v3.4h reconstructs and audits durable lifecycle state after restart; v3.5a projects an active verified lesson into a read-only procedural skill contract; v3.5b records exact operator-authored fields in a bounded restart-expiring receipt; v3.5c revalidates that receipt and current Skill Library; v3.5d permits one separately confirmed atomic verified non-executable skill record per process; v3.5e embeds restart-safe skill provenance and audits it read-only; v3.5f reviews exact manual-use outcome lineage; v3.5g separately confirms and captures that operator-reported evidence; v3.5h records an exact operator keep/revise/archive decision over confirmed evidence; v3.5i revalidates that decision against current evidence, provenance, skill bytes, and decision-specific future safeguards; v3.5j permits one separately confirmed keep no-op or legacy archive transition; v3.5k reconstructs durable procedural skill state after restart without inventing archive cause; v3.5l locks a hashed archive envelope; v3.5m binds a current archive decision to its exact writer blueprint; v3.5n permits one separately confirmed atomic durable archive and restart-safe verification; v3.5o design-locks restore by embedding the complete prior archive envelope and revalidating current state without authority. Review/proposal/decision/detailed-receipt state remains bounded and process-memory-only; no automatic, batch, revision, restore writer, or procedure execution exists.
 - Build Week submission provenance uses the July 11 pre-contest archive SHA-256 plus generated baseline/current/delta manifests; prior work and contest work are explicitly separated.
 - Primary Build Week Codex `/feedback` Session ID is `019d73be-1d7e-7401-8efe-f5e165736db4`.
 - Repository privacy review excludes local cognitive/runtime stores, removes user-specific checkout paths from public artifacts, and documents synthetic credential fixtures and publication boundaries.
@@ -29,7 +29,7 @@ Last updated: 2026-07-20
 ## Current Verification Baseline
 
 - Current test command: `scripts/run_tests.sh`.
-- Current test count: 1093 unit tests OK.
+- Current test count: 1101 unit tests OK.
 - Compile check: `python -m compileall proto_mind` via `scripts/run_tests.sh` OK.
 - Pytest: optional; currently not installed and skipped cleanly.
 
@@ -62,6 +62,7 @@ Last updated: 2026-07-20
 - Durable Skill Lifecycle Metadata Design Lock v3.5l: pure canonical envelope builder/verifier plus existing status/Doctor integration, with no writer, migration, or Registry expansion.
 - Durable Skill Lifecycle Writer Readiness v3.5m: optional `--durable` readiness/plan binds current archive evidence to fixed metadata, mutation, receipt, and rollback requirements without a new command prefix or writer.
 - Durable Skill Lifecycle Metadata Apply Pilot v3.5n: mandatory `--durable` apply preview/token permits one atomic archive envelope, exact three-field verification and byte rollback; lifecycle audit recovers `archived_verified` after restart.
+- Durable Skill Lifecycle Restore Design Review v3.5o: read-only restore contract/readiness/plan embeds the complete verified archive envelope and locks future mutation/receipt/rollback scope without a token or writer.
 - World Model Lite v1.0: prediction-vs-reality records in `proto_mind/data/world_model.jsonl`, 0..5 scoring.
 - Operating Loop v1.1: read-only cross-module reports, deterministic next-action suggestions, and daily capture workflow commands.
 - Memory Consolidation Preview v1.3.1: read-only suggestions, Markdown/JSON exports, safe queue, queue doctor/cleanup preview, approved-only allowlisted apply, structured apply receipts, and undo preview.
@@ -162,18 +163,18 @@ Last updated: 2026-07-20
 
 ## Last Completed Milestone
 
-v3.5n / Durable Skill Lifecycle Metadata Apply Pilot:
+v3.5o / Durable Skill Lifecycle Restore Design Review:
 
-- Existing lifecycle apply prefixes accept mandatory `--durable` without Registry expansion; preview binds a separate exact token to the current v3.5h decision, evidence, provenance, exact skill/store hashes, metadata blueprint, and fixed mutation scope.
-- One archive may atomically change exactly one Skill Library record and only `lifecycle`, `status`, and `updated_at`. Post-write verification proves the envelope, immutable provenance, unchanged memory, fixed 21-field receipt, and exact-byte rollback boundary.
-- The embedded envelope survives restart and lets lifecycle audit report `archived_verified`; detailed apply receipts remain bounded process memory. Legacy archive without `--durable` now fails closed.
-- Keep remains envelope-free and byte-stable; revise and restore have no writer. Registry remains 387 commands across 41 categories; the full suite is 1093 tests OK.
-- No migration, repair, procedure execution, batch/generic dispatch, shell, model/API, export/session-log mutation, external action, or Context Injection change was added.
+- Existing lifecycle status/inspect/Doctor prefixes expose `--restore-contract`, `--restore-readiness`, and `--restore-plan` without Registry expansion.
+- Only one current `archived_verified`, provenance-current, non-executable skill with unique IDs and no active duplicate reaches `READY FOR RESTORE DESIGN REVIEW`.
+- The detached `skill.procedure.lifecycle.restore.v1` envelope preserves the complete verified archive envelope, binds current store/record/review hashes, and constrains a future writer to one record, exactly `lifecycle/status/updated_at`, a fixed 21-field receipt, unchanged memory/provenance, and exact-byte rollback.
+- Restore means operator-confirmed availability only, not procedure-quality proof. Registry remains 387 commands across 41 categories; the full suite is 1101 tests OK.
+- No token, writer, authorization, receipt, direct restore, migration, repair, procedure execution, shell, model/API, store/export/session-log mutation, external action, or Context Injection change was added.
 
 ## Next Candidate Tasks
 
 - Submission Readiness: keep the public repository and provenance manifests current, finalize English Devpost copy, and record the sub-three-minute video.
-- v3.5o / Durable Skill Lifecycle Restore Design Review: specify a separate current-envelope-bound restore transition and rollback contract read-only before considering any writer; revision remains outside scope.
+- v3.5p / Durable Skill Direct-Restore Guardrail: make generic `/skills restore` fail closed for lifecycle-managed archived skills and direct operators to the supervised readiness path, while preserving legacy/operator skill behavior.
 - Memory Migration Plan: design deterministic compaction/archive rules for the 8 previewed legacy candidates; no apply step without separate approval.
 - Command Dispatch Architecture v2: replace the linear formatter chain with typed incremental family registration while preserving exact command behavior and runner isolation.
 - Test Suite Structure v1: split the 15k-line flow suite by domain without changing test semantics or commands.
@@ -218,6 +219,7 @@ v3.5n / Durable Skill Lifecycle Metadata Apply Pilot:
 - Natural policy labels are introspection-only; exact context-enable phrases still execute immediately under existing v2 routing behavior.
 - Action Preview is not an execution planner or approval engine; plans reflect static registry/policy metadata only.
 - Action run is intentionally narrow and run-once; receipt hashes detect local inconsistency but are not signatures, authentication, or tamper-proof storage.
+- Generic `/skills restore` remains available for legacy/operator records and is not yet lifecycle-envelope-aware; operators must not use it on `archived_verified` skills before the planned v3.5p guardrail.
 - No true streaming or real Stop cancellation yet for blocking Ollama calls.
 
 ## Standard Codex Brief Template

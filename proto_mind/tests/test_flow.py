@@ -345,6 +345,19 @@ from proto_mind.skill_lifecycle_metadata import (
     procedural_skill_lifecycle_metadata_doctor,
     verify_procedural_skill_lifecycle_metadata,
 )
+from proto_mind.skill_lifecycle_restore import (
+    PROCEDURAL_SKILL_LIFECYCLE_RESTORE_EXPECTED_CHANGED_FIELDS,
+    PROCEDURAL_SKILL_LIFECYCLE_RESTORE_FIELDS,
+    PROCEDURAL_SKILL_LIFECYCLE_RESTORE_MODE,
+    PROCEDURAL_SKILL_LIFECYCLE_RESTORE_RECEIPT_FIELDS,
+    PROCEDURAL_SKILL_LIFECYCLE_RESTORE_SCHEMA,
+    PROCEDURAL_SKILL_LIFECYCLE_RESTORE_WRITER_INSTALLED,
+    build_procedural_skill_lifecycle_restore_metadata_preview,
+    format_procedural_skill_lifecycle_restore_command,
+    procedural_skill_lifecycle_restore_doctor,
+    review_procedural_skill_lifecycle_restore,
+    verify_procedural_skill_lifecycle_restore_metadata,
+)
 from proto_mind.experience_learning_eligibility import (
     LEARNING_ELIGIBILITY_MAX_IDS_PER_KIND,
     LearningEligibilityRequest,
@@ -912,6 +925,29 @@ def build_test_procedural_skill_lifecycle_readiness(
         skill_library=library,
     )
     return store, library, pilot, record, receipt, reviewer
+
+
+def build_test_durably_archived_procedural_skill(
+    tmp_path: Path,
+) -> tuple[MemoryStore, SkillLibrary, dict[str, object]]:
+    store, library, pilot, record, receipt, reviewer = (
+        build_test_procedural_skill_lifecycle_readiness(
+            tmp_path,
+            outcomes=("failure",),
+            decision="archive",
+        )
+    )
+    review = pilot.skill_lifecycle_metadata_applies.review(
+        receipt, reviewer=reviewer
+    )
+    pilot.skill_lifecycle_metadata_applies.apply(
+        receipt,
+        token=procedural_skill_lifecycle_metadata_apply_confirmation_token(review),
+        reviewer=reviewer,
+    )
+    current = library.read_snapshot()["records"][0]
+    assert current["id"] == record["id"]
+    return store, library, current
 
 
 def build_test_learning_lifecycle_transition(
@@ -25742,6 +25778,211 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertEqual(
             entry.lifecycle_reason, PROCEDURAL_SKILL_LIFECYCLE_METADATA_REASON
         )
+
+    def test_skill_lifecycle_restore_contract_embeds_verified_archive(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, _, record = build_test_durably_archived_procedural_skill(
+                Path(temp_dir)
+            )
+            archive = deepcopy(record["lifecycle"])
+            restore = build_procedural_skill_lifecycle_restore_metadata_preview(
+                skill_id=str(record["id"]),
+                skill_provenance_id=str(record["provenance"]["id"]),
+                transitioned_at="2026-07-20T02:00:00+00:00",
+                prior_archive_envelope=archive,
+                restore_review_hash="6" * 64,
+                before_record_hash="7" * 64,
+                confirmation_token_hash="8" * 64,
+            )
+            check = verify_procedural_skill_lifecycle_restore_metadata(restore)
+            tampered = deepcopy(restore)
+            tampered["prior_archive_envelope"]["reason"] = "invented"
+            tamper_check = verify_procedural_skill_lifecycle_restore_metadata(
+                tampered
+            )
+
+        self.assertTrue(check.verified)
+        self.assertEqual(restore["schema"], PROCEDURAL_SKILL_LIFECYCLE_RESTORE_SCHEMA)
+        self.assertEqual(restore["prior_archive_envelope"], archive)
+        self.assertEqual(restore["prior_archive_hash"], archive["metadata_hash"])
+        self.assertEqual(set(restore), set(PROCEDURAL_SKILL_LIFECYCLE_RESTORE_FIELDS))
+        self.assertFalse(tamper_check.verified)
+
+    def test_skill_lifecycle_restore_readiness_accepts_only_verified_archive(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            store, library, record = build_test_durably_archived_procedural_skill(
+                root
+            )
+            report = review_procedural_skill_lifecycle_restore(
+                str(record["id"]),
+                skills_path=library.skills_path,
+                persistent_memory_path=store.persistent_path,
+            )
+
+        self.assertEqual(report.status, "READY FOR RESTORE DESIGN REVIEW")
+        self.assertTrue(report.ready_for_design_review)
+        self.assertEqual(report.audit_state, "archived_verified")
+        self.assertEqual(report.provenance_status, "VERIFIED")
+        self.assertEqual(
+            report.expected_changed_fields,
+            list(PROCEDURAL_SKILL_LIFECYCLE_RESTORE_EXPECTED_CHANGED_FIELDS),
+        )
+        self.assertEqual(
+            report.future_receipt_fields,
+            list(PROCEDURAL_SKILL_LIFECYCLE_RESTORE_RECEIPT_FIELDS),
+        )
+        self.assertEqual(
+            report.metadata_blueprint["prior_archive_envelope"],
+            record["lifecycle"],
+        )
+        self.assertFalse(report.writer_installed)
+        self.assertFalse(report.apply_token_generated)
+        self.assertFalse(report.mutation_performed)
+
+    def test_skill_lifecycle_restore_readiness_refuses_active_and_legacy_archive(self) -> None:
+        with TemporaryDirectory() as active_dir, TemporaryDirectory() as legacy_dir:
+            active_store, active_library, _, active_record = (
+                build_test_applied_procedural_skill(Path(active_dir))
+            )
+            active = review_procedural_skill_lifecycle_restore(
+                str(active_record.created_skill_id),
+                skills_path=active_library.skills_path,
+                persistent_memory_path=active_store.persistent_path,
+            )
+            legacy_store, legacy_library, _, legacy_record = (
+                build_test_applied_procedural_skill(Path(legacy_dir))
+            )
+            legacy_library.set_status(legacy_record.created_skill_id, "archived")
+            legacy = review_procedural_skill_lifecycle_restore(
+                legacy_record.created_skill_id,
+                skills_path=legacy_library.skills_path,
+                persistent_memory_path=legacy_store.persistent_path,
+            )
+
+        self.assertFalse(active.ready_for_design_review)
+        self.assertEqual(active.audit_state, "active_verified")
+        self.assertIn("Only an archived_verified", " ".join(active.issues))
+        self.assertFalse(legacy.ready_for_design_review)
+        self.assertEqual(legacy.audit_state, "archived_ambiguous")
+        self.assertIn("archive envelope", " ".join(legacy.issues).lower())
+
+    def test_skill_lifecycle_restore_readiness_refuses_active_duplicate(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            store, library, record = build_test_durably_archived_procedural_skill(
+                root
+            )
+            library.add_skill(str(record["name"]))
+            report = review_procedural_skill_lifecycle_restore(
+                str(record["id"]),
+                skills_path=library.skills_path,
+                persistent_memory_path=store.persistent_path,
+            )
+
+        self.assertFalse(report.ready_for_design_review)
+        self.assertTrue(report.active_duplicate_skill_ids)
+        self.assertIn("active duplicate", " ".join(report.issues).lower())
+
+    def test_skill_lifecycle_restore_commands_are_read_only(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            store, library, record = build_test_durably_archived_procedural_skill(
+                root
+            )
+            skill_before = library.skills_path.read_bytes()
+            memory_before = store.persistent_path.read_bytes()
+            common = {
+                "skills_path": library.skills_path,
+                "persistent_memory_path": store.persistent_path,
+            }
+            contract = format_procedural_skill_lifecycle_restore_command(
+                "/skills lifecycle-status --restore-contract", **common
+            )
+            readiness = format_procedural_skill_lifecycle_restore_command(
+                f"/skills lifecycle-inspect {record['id']} --restore-readiness",
+                **common,
+            )
+            plan = format_procedural_skill_lifecycle_restore_command(
+                f"/skills lifecycle-inspect {record['id']} --restore-plan", **common
+            )
+            doctor = format_procedural_skill_lifecycle_restore_command(
+                "/skills lifecycle-doctor --restore-contract", **common
+            )
+
+            self.assertIn(PROCEDURAL_SKILL_LIFECYCLE_RESTORE_MODE, contract)
+            self.assertIn("Status: READY FOR RESTORE DESIGN REVIEW", readiness)
+            self.assertIn("future_writer_installed: false", plan)
+            self.assertIn("expected_changed_fields: lifecycle, status, updated_at", plan)
+            self.assertNotIn("confirmation_token:", readiness)
+            self.assertNotIn("confirmation_token:", plan)
+            self.assertIn("Status: OK", doctor)
+            self.assertEqual(library.skills_path.read_bytes(), skill_before)
+            self.assertEqual(store.persistent_path.read_bytes(), memory_before)
+
+    def test_skill_lifecycle_restore_shared_route_and_registry_are_safe(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            store, library, record = build_test_durably_archived_procedural_skill(
+                root / "fixture"
+            )
+            live_path = root / "proto_mind" / "data" / "skills.jsonl"
+            live_path.parent.mkdir(parents=True, exist_ok=True)
+            live_path.write_bytes(library.skills_path.read_bytes())
+            before = live_path.read_bytes()
+            output = format_skill_command(
+                f"/skills lifecycle-inspect {record['id']} --restore-plan",
+                project_root=root,
+                persistent_memory_path=store.persistent_path,
+            )
+            chained = format_skill_command(
+                (
+                    "/skills lifecycle-status --restore-contract; "
+                    "/skills restore x"
+                ),
+                project_root=root,
+                persistent_memory_path=store.persistent_path,
+            )
+
+            self.assertEqual(live_path.read_bytes(), before)
+
+        registry = {entry.prefix: entry for entry in COMMAND_REGISTRY}
+        self.assertIn("Restore Plan v1", output)
+        self.assertIn("Command chaining", chained)
+        self.assertTrue(registry["/skills lifecycle-status"].read_only)
+        self.assertTrue(registry["/skills lifecycle-inspect"].read_only)
+        self.assertEqual(len(COMMAND_REGISTRY), 387)
+        self.assertEqual(len({entry.category for entry in COMMAND_REGISTRY}), 41)
+
+    def test_skill_lifecycle_restore_doctor_locks_absent_writer(self) -> None:
+        report = procedural_skill_lifecycle_restore_doctor()
+
+        self.assertEqual(report.status, "OK")
+        self.assertTrue(report.deterministic_example_verified)
+        self.assertTrue(report.tamper_refused)
+        self.assertTrue(report.registry_coverage_ok)
+        self.assertFalse(report.writer_installed)
+        self.assertFalse(PROCEDURAL_SKILL_LIFECYCLE_RESTORE_WRITER_INSTALLED)
+        self.assertEqual(command_registry_doctor()["status"], "OK")
+        self.assertEqual(action_policy_doctor()["status"], "OK")
+
+    def test_skill_lifecycle_restore_missing_stores_remain_absent(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            skills_path = root / "skills.jsonl"
+            memory_path = root / "persistent_memory.json"
+            before = list(root.rglob("*"))
+            output = format_procedural_skill_lifecycle_restore_command(
+                "/skills lifecycle-inspect missing --restore-readiness",
+                skills_path=skills_path,
+                persistent_memory_path=memory_path,
+            )
+            after = list(root.rglob("*"))
+
+        self.assertIn("Status: NOT READY", output)
+        self.assertIn("exactly one target skill record", output)
+        self.assertNotIn("Traceback", output)
+        self.assertEqual(after, before)
 
     def test_durable_skill_lifecycle_audit_does_not_invent_archive_cause(self) -> None:
         with TemporaryDirectory() as temp_dir:
