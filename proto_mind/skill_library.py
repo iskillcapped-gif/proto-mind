@@ -12,6 +12,7 @@ from uuid import uuid4
 
 VALID_SKILL_STATUSES = {"active", "archived"}
 DEFAULT_SKILL_CATEGORY = "other"
+SKILL_LIFECYCLE_DIRECT_STATUS_GUARD_INSTALLED = True
 
 
 def format_skill_command(
@@ -358,7 +359,21 @@ class SkillLibrary:
             return f"Usage: /skills {'archive' if status == 'archived' else 'restore'} <id>"
         if status not in VALID_SKILL_STATUSES:
             return f"Invalid skill status: {status}"
-        return self._mutate_skill(skill_id, lambda skill: _set_field(skill, "status", status), f"{status.capitalize()} skill")
+        state = self._read_state()
+        if state.has_load_problem:
+            return _mutation_refused(state)
+        skill = _find_skill(state.records, skill_id.strip())
+        if not skill:
+            return f"Skill not found: {skill_id.strip()}"
+        if "lifecycle" in skill:
+            return _lifecycle_status_mutation_refused(skill, requested_status=status)
+        _set_field(skill, "status", status)
+        skill["updated_at"] = _utc_now()
+        self._write_records(state.records)
+        return (
+            f"{status.capitalize()} skill:\n"
+            f"  {skill.get('id')} — {_preview(str(skill.get('name', '')))}"
+        )
 
     def _mutate_skill(self, skill_id: str, callback: object, label: str) -> str:
         state = self._read_state()
@@ -575,6 +590,35 @@ def _summary_suffix(skill: dict[str, Any]) -> str:
 
 def _set_field(record: dict[str, Any], field_name: str, value: object) -> None:
     record[field_name] = value
+
+
+def _lifecycle_status_mutation_refused(
+    skill: dict[str, Any], *, requested_status: str
+) -> str:
+    identifier = str(skill.get("id") or "unknown")
+    lifecycle = skill.get("lifecycle")
+    schema = (
+        str(lifecycle.get("schema") or "unknown")
+        if isinstance(lifecycle, dict)
+        else "invalid_or_unknown"
+    )
+    guidance = (
+        f"/skills lifecycle-inspect {identifier} --restore-readiness"
+        if requested_status == "active"
+        else f"/skills lifecycle-inspect {identifier}"
+    )
+    return "\n".join(
+        [
+            "Skill lifecycle mutation refused:",
+            f"  id: {identifier}",
+            f"  current_status: {skill.get('status', 'unknown')}",
+            f"  requested_status: {requested_status}",
+            f"  lifecycle_schema: {schema}",
+            "  reason: lifecycle-managed skills require a supervised transition contract",
+            f"  inspect: {guidance}",
+            "  mutation_performed: false",
+        ]
+    )
 
 
 def _mutation_refused(state: _SkillReadState) -> str:

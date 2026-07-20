@@ -82,6 +82,7 @@ The current source tree is compared directly with the July 11 archive by SHA-256
 - Durable Skill Lifecycle Writer Readiness v3.5m with current archive evidence/byte revalidation, fixed future envelope blueprint, exact mutation/receipt/rollback plan, and no token or writer.
 - Durable Skill Lifecycle Metadata Apply Pilot v3.5n with a separate exact token, one atomic three-field archive transition, fixed receipt verification, exact-byte rollback, and restart-safe embedded evidence.
 - Durable Skill Lifecycle Restore Design Review v3.5o with embedded prior-archive evidence, current-state/duplicate revalidation, exact future mutation and receipt boundaries, and no token or writer.
+- Direct Lifecycle Status Guardrail v3.5p with byte-stable refusal for lifecycle-managed/corrupt generic archive/restore and preserved legacy/operator compatibility.
 - Contest Showcase v1 with a deterministic three-minute narrative and safety doctor.
 - Build Week Provenance Pack v1.
 
@@ -93,7 +94,7 @@ The generated evidence under `contest/provenance/` is the source of truth for th
 |---|---:|---:|---:|
 | Submission-relevant files | 69 | 141 | +72 |
 | Python files | 66 | 114 | +48 |
-| Unit-test methods | 664 | 1101 | +437 |
+| Unit-test methods | 664 | 1106 | +442 |
 | Registry commands | 343 | 387 | +44 |
 | Registry categories | 39 | 41 | +2 |
 

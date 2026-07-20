@@ -460,7 +460,11 @@ from proto_mind.showcase_layer import (
     ContestShowcase,
     format_showcase_command,
 )
-from proto_mind.skill_library import SkillLibrary, format_skill_command
+from proto_mind.skill_library import (
+    SKILL_LIFECYCLE_DIRECT_STATUS_GUARD_INSTALLED,
+    SkillLibrary,
+    format_skill_command,
+)
 from proto_mind.task_queue import TaskQueue, format_task_command
 from proto_mind.topic_utils import extract_topic_tags
 from proto_mind.main import format_natural_command, is_exit_command, process_interactive_input
@@ -25961,8 +25965,10 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertTrue(report.deterministic_example_verified)
         self.assertTrue(report.tamper_refused)
         self.assertTrue(report.registry_coverage_ok)
+        self.assertTrue(report.direct_status_guard_installed)
         self.assertFalse(report.writer_installed)
         self.assertFalse(PROCEDURAL_SKILL_LIFECYCLE_RESTORE_WRITER_INSTALLED)
+        self.assertTrue(SKILL_LIFECYCLE_DIRECT_STATUS_GUARD_INSTALLED)
         self.assertEqual(command_registry_doctor()["status"], "OK")
         self.assertEqual(action_policy_doctor()["status"], "OK")
 
@@ -25983,6 +25989,103 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertIn("exactly one target skill record", output)
         self.assertNotIn("Traceback", output)
         self.assertEqual(after, before)
+
+    def test_skill_lifecycle_direct_restore_refuses_durable_archive_exact_bytes(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            store, library, record = build_test_durably_archived_procedural_skill(
+                Path(temp_dir)
+            )
+            skill_before = library.skills_path.read_bytes()
+            memory_before = store.persistent_path.read_bytes()
+            output = library.set_status(str(record["id"]), "active")
+            entry = ProceduralSkillLifecycleAudit(
+                skills_path=library.skills_path,
+                persistent_memory_path=store.persistent_path,
+            ).get(str(record["id"]))
+
+            self.assertIn("Skill lifecycle mutation refused", output)
+            self.assertIn("requested_status: active", output)
+            self.assertIn("--restore-readiness", output)
+            self.assertIn("mutation_performed: false", output)
+            self.assertEqual(library.skills_path.read_bytes(), skill_before)
+            self.assertEqual(store.persistent_path.read_bytes(), memory_before)
+            self.assertIsNotNone(entry)
+            assert entry is not None
+            self.assertEqual(entry.state, "archived_verified")
+
+    def test_skill_lifecycle_direct_archive_refuses_managed_record_exact_bytes(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, library, record = build_test_durably_archived_procedural_skill(
+                Path(temp_dir)
+            )
+            before = library.skills_path.read_bytes()
+            output = library.set_status(str(record["id"]), "archived")
+
+            self.assertIn("Skill lifecycle mutation refused", output)
+            self.assertIn("requested_status: archived", output)
+            self.assertEqual(library.skills_path.read_bytes(), before)
+
+    def test_skill_lifecycle_direct_status_refuses_invalid_envelope(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            library = SkillLibrary(Path(temp_dir) / "skills.jsonl")
+            library.add_skill("Guard invalid lifecycle")
+            identifier = str(library.read_snapshot()["records"][0]["id"])
+            library.set_status(identifier, "archived")
+            records = library.read_snapshot()["records"]
+            records[0]["lifecycle"] = {"schema": "unsupported"}
+            library._write_records(records)
+            before = library.skills_path.read_bytes()
+            refused = library.set_status(identifier, "active")
+
+            self.assertIn("lifecycle_schema: unsupported", refused)
+            self.assertIn("mutation_performed: false", refused)
+            self.assertEqual(library.skills_path.read_bytes(), before)
+
+    def test_skill_lifecycle_direct_restore_preserves_legacy_provenanced_behavior(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            _, library, _, applied = build_test_applied_procedural_skill(
+                Path(temp_dir)
+            )
+            archived = library.set_status(applied.created_skill_id, "archived")
+            restored = library.set_status(applied.created_skill_id, "active")
+            record = library.read_snapshot()["records"][0]
+
+        self.assertIn("Archived skill", archived)
+        self.assertIn("Active skill", restored)
+        self.assertEqual(record["status"], "active")
+        self.assertNotIn("lifecycle", record)
+
+    def test_skill_lifecycle_direct_restore_guard_routes_through_shared_cli(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            store, library, record = build_test_durably_archived_procedural_skill(
+                root / "fixture"
+            )
+            live_path = root / "proto_mind" / "data" / "skills.jsonl"
+            live_path.parent.mkdir(parents=True, exist_ok=True)
+            live_path.write_bytes(library.skills_path.read_bytes())
+            before = live_path.read_bytes()
+            output = format_skill_command(
+                f"/skills restore {record['id']}",
+                project_root=root,
+                persistent_memory_path=store.persistent_path,
+            )
+
+            self.assertIn("Skill lifecycle mutation refused", output)
+            self.assertIn("--restore-readiness", output)
+            self.assertEqual(live_path.read_bytes(), before)
+
+        registry = {entry.prefix: entry for entry in COMMAND_REGISTRY}
+        restore_spec = registry["/skills restore"]
+        self.assertFalse(restore_spec.read_only)
+        self.assertEqual(restore_spec.mutates, "skills")
+        self.assertEqual(restore_spec.risk, "medium")
+        self.assertEqual(
+            classify_command("/skills restore skill_x").policy_class,
+            "confirmation_required",
+        )
+        self.assertEqual(len(COMMAND_REGISTRY), 387)
+        self.assertEqual(len({entry.category for entry in COMMAND_REGISTRY}), 41)
 
     def test_durable_skill_lifecycle_audit_does_not_invent_archive_cause(self) -> None:
         with TemporaryDirectory() as temp_dir:

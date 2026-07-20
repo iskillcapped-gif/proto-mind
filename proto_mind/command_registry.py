@@ -347,8 +347,8 @@ _BASE_REGISTRY = [
             "/skills tag": "Add a skill tag.",
             "/skills untag": "Remove a skill tag.",
             "/skills use": "Retrieve a skill and increment usage metadata.",
-            "/skills archive": "Archive a skill.",
-            "/skills restore": "Restore a skill.",
+            "/skills archive": "Archive a legacy/operator skill; lifecycle-managed records fail closed.",
+            "/skills restore": "Restore a legacy/operator skill; lifecycle-managed records fail closed.",
         }.items()
     ],
     *_read_only_specs("world", {"/world status": "Show world-model status.", "/world list": "List world predictions.", "/world inspect": "Inspect a world prediction.", "/world stats": "Show deterministic prediction statistics."}),
