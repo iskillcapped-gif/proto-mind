@@ -96,6 +96,7 @@
       "proto_mind/memory_keeper.py",
       "proto_mind/models.py",
       "proto_mind/observer.py",
+      "proto_mind/pyside_app.py",
       "proto_mind/reasoners/mock_reasoner.py",
       "proto_mind/self_reflection.py",
       "proto_mind/skill_library.py",
@@ -137,7 +138,6 @@
       "proto_mind/plan_layer.py",
       "proto_mind/prechange_layer.py",
       "proto_mind/proto_status.py",
-      "proto_mind/pyside_app.py",
       "proto_mind/python_env.py",
       "proto_mind/reasoner.py",
       "proto_mind/reasoners/__init__.py",
@@ -160,7 +160,7 @@
       "requirements-ui.txt"
     ]
   },
-  "generated_at": "2026-07-20T18:41:51.095100+00:00",
+  "generated_at": "2026-07-20T19:14:33.229304+00:00",
   "limitations": [
     "This is local equivalent evidence, not a third-party timestamp authority.",
     "Codex /feedback Session IDs and future dated Git commits should accompany this manifest.",
@@ -189,21 +189,21 @@
     },
     "test_method_count": {
       "baseline": 664,
-      "current": 1121,
-      "delta": 457
+      "current": 1122,
+      "delta": 458
     },
     "total_bytes": {
       "baseline": 2188652,
-      "current": 4197051,
-      "delta": 2008399
+      "current": 4213212,
+      "delta": 2024560
     }
   },
   "schema_version": 1,
   "summary": {
     "added_count": 74,
-    "changed_count": 15,
+    "changed_count": 16,
     "meaningful_extension_evidence": true,
     "removed_count": 0,
-    "unchanged_count": 54
+    "unchanged_count": 53
   }
 }

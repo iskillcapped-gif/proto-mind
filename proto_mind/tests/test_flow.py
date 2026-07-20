@@ -4758,20 +4758,34 @@ class ProtoMindFlowTests(unittest.TestCase):
 
     def test_pyside_app_imports_safely_and_exposes_optional_dependency_message(self) -> None:
         self.assertTrue(hasattr(pyside_app, "main"))
-        self.assertEqual(pyside_app.PYSIDE_APP_VERSION, "v1.5.2")
-        self.assertIn("v1.5.2", pyside_app.PYSIDE_APP_TITLE)
-        self.assertIn("v1.5.2", pyside_app.START_MESSAGE)
+        self.assertEqual(pyside_app.PYSIDE_APP_VERSION, "v2.0.0")
+        self.assertIn("Cognitive Control Room", pyside_app.PYSIDE_APP_TITLE)
+        self.assertIn("Welcome back", pyside_app.START_MESSAGE)
         self.assertIn("PySide6 is not installed.", pyside_app.pyside_missing_message())
         self.assertIn("python3 -m pip install PySide6", pyside_app.pyside_missing_message())
 
     def test_pyside_panel_command_mapping_and_scripts(self) -> None:
-        self.assertEqual(pyside_app.PYSIDE_PANEL_COMMANDS["Check System"], "/session self-check")
-        self.assertEqual(pyside_app.PYSIDE_PANEL_COMMANDS["Refresh Status"], "/session log status")
-        self.assertEqual(pyside_app.PYSIDE_PANEL_COMMANDS["Health"], "/session health")
-        self.assertEqual(pyside_app.PYSIDE_PANEL_COMMANDS["Doctor"], "/session doctor")
-        self.assertEqual(pyside_app.PYSIDE_PANEL_COMMANDS["Review"], "/session review")
-        self.assertEqual(pyside_app.PYSIDE_PANEL_COMMANDS["Log Status"], "/session log status")
-        self.assertEqual(pyside_app.PYSIDE_PANEL_COMMANDS["Export Last 20"], "/session log export --last 20")
+        self.assertEqual(pyside_app.PYSIDE_PANEL_COMMANDS["Start Brief"], "/session start-brief")
+        self.assertEqual(pyside_app.PYSIDE_PANEL_COMMANDS["Daily Brief"], "/daily brief")
+        self.assertEqual(pyside_app.PYSIDE_PANEL_COMMANDS["Next Work"], "/agenda next")
+        self.assertEqual(pyside_app.PYSIDE_PANEL_COMMANDS["Experience"], "/experience doctor")
+        self.assertEqual(pyside_app.PYSIDE_PANEL_COMMANDS["Skill State"], "/skills lifecycle-status")
+        self.assertEqual(pyside_app.PYSIDE_PANEL_COMMANDS["Showcase"], "/showcase demo")
+        self.assertEqual(len(pyside_app.PYSIDE_PANEL_COMMANDS), 12)
+        registry = {entry.prefix: entry for entry in COMMAND_REGISTRY}
+        for command in pyside_app.PYSIDE_PANEL_COMMANDS.values():
+            self.assertIn(command, registry)
+            self.assertTrue(registry[command].read_only)
+            self.assertEqual(registry[command].mutates, "none")
+        self.assertEqual(
+            [group for group, _ in pyside_app.PYSIDE_CONTROL_DECK_GROUPS],
+            ["SESSION", "COGNITIVE STATE", "TRUST & EVIDENCE"],
+        )
+        self.assertEqual(len(pyside_app.PYSIDE_PROMPT_CHIPS), 4)
+        self.assertEqual(
+            pyside_app.pyside_registry_summary(),
+            "387 commands / 41 capability families",
+        )
 
         root = Path(__file__).resolve().parents[2]
         ollama_script = root / "scripts" / "run_pyside_ollama.sh"
@@ -4800,6 +4814,7 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertIn("CFBundleName", build_text)
         self.assertIn("<string>Proto-Mind</string>", build_text)
         self.assertIn("CFBundleExecutable", build_text)
+        self.assertIn("<string>2.0.0</string>", build_text)
         self.assertIn("CFBundleIconFile", build_text)
         self.assertIn("ProtoMind.icns", build_text)
         self.assertIn("iconutil -c icns", build_text)
@@ -4836,6 +4851,28 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertIn("/Applications", shortcut_text)
         self.assertIn("ln -sfn", shortcut_text)
 
+    def test_pyside_context_indicator_is_read_only_and_fail_closed(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            before = list(root.rglob("*"))
+            missing = pyside_app.read_context_indicator(root)
+            after = list(root.rglob("*"))
+            settings_path = root / "proto_mind" / "data" / "context_injection.json"
+            settings_path.parent.mkdir(parents=True)
+            settings_path.write_text('{"enabled": true}', encoding="utf-8")
+            enabled = pyside_app.read_context_indicator(root)
+            settings_path.write_text('{"enabled": false}', encoding="utf-8")
+            disabled = pyside_app.read_context_indicator(root)
+            settings_path.write_text("not-json", encoding="utf-8")
+            invalid = pyside_app.read_context_indicator(root)
+
+        self.assertEqual(missing.state, "OFF")
+        self.assertEqual(after, before)
+        self.assertEqual(enabled.text, "CONTEXT ON")
+        self.assertEqual(disabled.text, "CONTEXT OFF")
+        self.assertEqual(invalid.state, "UNKNOWN")
+        self.assertIn("no UI repair", invalid.detail)
+
     def test_pyside_enter_send_key_helpers_and_badge_styles(self) -> None:
         self.assertTrue(pyside_app.should_send_on_key("return"))
         self.assertTrue(pyside_app.should_send_on_key("enter"))
@@ -4850,6 +4887,12 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertIn("#7a5518", pyside_app.pyside_badge_style("WARN"))
         self.assertIn("#7a2d2d", pyside_app.pyside_badge_style("ERROR"))
         self.assertIn("#4a4d55", pyside_app.pyside_badge_style("UNKNOWN"))
+        self.assertIn("#8ee3ce", pyside_app.pyside_context_style("OFF"))
+        self.assertIn("#ffd18a", pyside_app.pyside_context_style("ON"))
+        stylesheet = pyside_app.pyside_dark_stylesheet()
+        self.assertIn("QFrame#brandCard", stylesheet)
+        self.assertIn("QFrame#controlDeck", stylesheet)
+        self.assertIn("QPushButton#primaryButton", stylesheet)
 
     def test_pyside_worker_helpers_and_optional_worker_class(self) -> None:
         self.assertTrue(pyside_app.can_start_pyside_worker(busy=False, text="hello"))

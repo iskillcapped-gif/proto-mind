@@ -29,7 +29,7 @@ Last updated: 2026-07-20
 ## Current Verification Baseline
 
 - Current test command: `scripts/run_tests.sh`.
-- Current test count: 1121 unit tests OK.
+- Current test count: 1122 unit tests OK.
 - Compile check: `python -m compileall proto_mind` via `scripts/run_tests.sh` OK.
 - Pytest: optional; currently not installed and skipped cleanly.
 
@@ -38,7 +38,7 @@ Last updated: 2026-07-20
 - Python 3.11 Environment Guard v1.0: stable Python selector scripts and early runtime guard.
 - CLI/shared handler: `proto_mind.main`, reused by CLI, tkinter desktop, and PySide desktop.
 - Tkinter Desktop v0.5: compact/debug chat, system panel, clipboard fixes, transcript export, prefs.
-- PySide6 Desktop UI v1.5.2: dark UI, worker thread, Stop skeleton, markdown rendering, local macOS `.app` launcher, Desktop shortcut helper.
+- PySide6 Cognitive Control Room v2.0.0: intentional amber/teal desktop UI, shared worker/chat runtime, live local/context/capability indicators, 12 grouped read-only Control Deck actions, markdown rendering, local macOS `.app` launcher, and Desktop shortcut helper.
 - Session Control Room: `/session self-check`, `/session health`, `/session doctor`, `/session review`, `/session log ...`, plus Session Rituals v1 read-only start/end/checkpoint/handoff briefs.
 - Natural Command Router v2.3: exact routes plus policy-aware registry metadata in `/natural explain|list|doctor`, with suggestions still non-executing.
 - Command Registry v1.0: metadata for 387 slash-command prefixes across 41 categories with mutation/risk labels and Natural Router consistency checks.
@@ -167,13 +167,13 @@ Last updated: 2026-07-20
 
 ## Last Completed Milestone
 
-v3.5s / Supervised Durable Restore Apply Pilot:
+PySide6 Cognitive Control Room v2.0.0:
 
-- Existing lifecycle prefixes now expose apply preview, process receipts, and apply Doctor; the existing medium-risk `/skills restore` prefix accepts only `<id> <exact_token> --durable` for lifecycle-managed records.
-- One process may restore one current `archived_verified` skill. Immediately before one atomic write, all store, record, authorization, metadata, prior-archive, and immutable-field hashes are revalidated.
-- Success changes exactly `lifecycle`, `status`, and `updated_at`, embeds the full verified archive envelope, preserves payload/provenance and persistent memory, then reconstructs `active_restored_verified` after a fresh audit.
-- Wrong token, stale/active/duplicate/corrupt state, second apply, chaining, post-write mismatch, and procedure use fail closed; post-write failure restores exact original Skill Library bytes.
-- Registry remains 387 commands across 41 categories; the full suite is 1121 tests OK. Context Injection remains disabled, and no batch, revision, procedure execution, shell, model/API, queue/export/session-log, or external action was added.
+- The local `.app` now presents Proto-Mind as a cognitive operating console rather than a generic chat shell while preserving the shared CLI/desktop runtime and worker behavior.
+- The identity bar exposes local/private state, Context Injection state, and Registry capability counts without initializing or repairing settings.
+- Twelve grouped Control Deck actions surface session, cognitive-state, trust, evidence, warning, snapshot, and showcase reports. Every action is Registry-confirmed read-only with `mutates=none`.
+- Four prompt chips provide deterministic shortcuts for the daily brief, next work, full doctor, and showcase without adding command execution or autonomous behavior.
+- The macOS launcher metadata is v2.0.0. Registry remains 387 commands across 41 categories; the full suite is 1122 tests OK, and no cognitive, store, session-log, or Context Injection behavior changed.
 
 ## Next Candidate Tasks
 
@@ -186,7 +186,8 @@ v3.5s / Supervised Durable Restore Apply Pilot:
 - Architect Ledger maintenance automation: command to print or refresh this file from current module state.
 - Data Integrity Doctor polish: optional export/report snapshot and thresholds config.
 - Consolidation queue polish: add optional preview-to-queue helper and receipt export filtering.
-- Context Injection UI indicator in PySide: show enabled/disabled and latest audit summary.
+- Cognitive Control Room follow-up: add an optional compact latest Context Injection audit summary without changing settings or normal-prompt behavior.
+- Cognitive Control Room follow-up: render selected operator reports as typed dashboard cards while retaining exact text output and shared command handling.
 - Context Injection safe compact output: avoid mock backend echoing the full injected prompt in normal CLI debug displays.
 - Context Pack relevance ranking: deterministic scoring for memories/tasks/skills without embeddings.
 - Task/Experiment/World integration views in PySide System Panel.

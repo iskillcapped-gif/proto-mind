@@ -20,14 +20,14 @@
     {
       "category": "documentation",
       "path": "ARCHITECTURE_MAP_V2.md",
-      "sha256": "cdb79997460138e5dee979ab2e6f6aedd12589ddc57aeffc7d6b274331363480",
-      "size": 114964
+      "sha256": "2515309d94ef8ab3ba17f91f2dca9f97e36030c3816e58ab513b7d556443291a",
+      "size": 115924
     },
     {
       "category": "documentation",
       "path": "BUILD_WEEK_PROVENANCE.md",
-      "sha256": "71c60026a16b3d47ee75f2010826c3afc5f436e075c62ee34dfb97782a1a1da0",
-      "size": 12415
+      "sha256": "cd2a00e42ef785b6c711ba94ea0238e566a98d12a36d4617b7ad7db27f4c45a4",
+      "size": 12660
     },
     {
       "category": "documentation",
@@ -38,7 +38,7 @@
     {
       "category": "documentation",
       "path": "CONTEST_SHOWCASE.md",
-      "sha256": "48172b0727e64301ff91297d8d6218a57dceeb5533c07006bb68d4ad2214bb09",
+      "sha256": "9b34388bf9b72de6c7fe68f21d61254d8d7ddbccc6c5f6a878c7cf8ede1c9d3d",
       "size": 5804
     },
     {
@@ -56,20 +56,20 @@
     {
       "category": "documentation",
       "path": "MILESTONE_2026-05-23_OPERATOR_LOOP.md",
-      "sha256": "a53f6327a392519041f161a14be9ecdf8624f797a960db06fa4ab38df14f6160",
-      "size": 63530
+      "sha256": "6597490b0ff2cd12242ca3ef169c4931968f7b708b7110f98ac4245692074de4",
+      "size": 64175
     },
     {
       "category": "documentation",
       "path": "PROTO_MIND_ARCHITECT_LEDGER.md",
-      "sha256": "113b0cc2a7c58c20dbe5380f011d2b8b508d34b57f91e44074555d3a12def726",
-      "size": 35901
+      "sha256": "21f32331c2a07f4f126bce900882a2ded09e96ebc5a644c13c91ed35da935317",
+      "size": 36041
     },
     {
       "category": "documentation",
       "path": "README.md",
-      "sha256": "ac2b8c61cd904bd405c33e2484b32a5bc790c96af79af1017268774a73c1d6d5",
-      "size": 76480
+      "sha256": "5615e074f5212f134d6e68ee40cdd008d5a5ee3f1672258e35005ea44a53e150",
+      "size": 76892
     },
     {
       "category": "documentation",
@@ -602,8 +602,8 @@
     {
       "category": "source",
       "path": "proto_mind/pyside_app.py",
-      "sha256": "49aa3fc8122c4e878d6592c9c289819dfe55c212d2ee337315aed67a34f1b4d4",
-      "size": 33505
+      "sha256": "9daedde9ab7b43a3ac4b8b00aa98f143e65577a2333c10953ebd1e6411956a37",
+      "size": 45007
     },
     {
       "category": "source",
@@ -758,8 +758,8 @@
     {
       "category": "tests",
       "path": "proto_mind/tests/test_flow.py",
-      "sha256": "df905d07242fb634cbb6c8f2dc55890fc2ea1c36cd45dad81a7e731a0ab8fcbf",
-      "size": 1368880
+      "sha256": "a7019c0663c418f7be4f39f12ae3e297e0639b838a0c9bc8fe9eabcf1e0f4585",
+      "size": 1371137
     },
     {
       "category": "source",
@@ -800,7 +800,7 @@
     {
       "category": "scripts",
       "path": "scripts/build_macos_app_launcher.sh",
-      "sha256": "76d66857584ce29aa2e945ca85f5dcaedda8b9357e563b658f348158c3a49ae2",
+      "sha256": "26d8e5e149652f270278050e3f2c5ad4c0c8fc845437702fd7d9c38603b9c403",
       "size": 8805
     },
     {
@@ -864,7 +864,7 @@
       "size": 637
     }
   ],
-  "generated_at": "2026-07-20T18:41:51.095100+00:00",
+  "generated_at": "2026-07-20T19:14:33.229304+00:00",
   "label": "current_contest_state",
   "metrics": {
     "category_counts": {
@@ -879,8 +879,8 @@
     "python_file_count": 116,
     "registry_category_count": 41,
     "registry_command_count": 387,
-    "test_method_count": 1121,
-    "total_bytes": 4197051
+    "test_method_count": 1122,
+    "total_bytes": 4213212
   },
   "schema_version": 1,
   "scope": {

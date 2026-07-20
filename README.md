@@ -704,7 +704,7 @@ scripts/run_pyside_mock.sh
 scripts/run_pyside_ollama.sh
 ```
 
-The local macOS `.app` launcher remains a machine-local wrapper, not a portable signed bundle.
+The local macOS `.app` launcher remains a machine-local wrapper, not a portable signed bundle. PySide6 Cognitive Control Room v2.0.0 gives it a local/private identity bar, a read-only Context Injection indicator, live Registry capability counts, four prompt chips, and twelve grouped session/cognitive-state/trust-and-evidence actions. Every Control Deck target is Registry-confirmed read-only with `mutates=none`; shared CLI routing, normal reasoning, stores, and Context Injection behavior are unchanged.
 
 ## Natural Commands
 

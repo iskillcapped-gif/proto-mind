@@ -2,15 +2,16 @@ from __future__ import annotations
 
 from datetime import datetime
 from html import escape
+import json
 from os import getenv
 from pathlib import Path
 from traceback import print_exc
 from dataclasses import dataclass
 from re import match
 
+from proto_mind.command_registry import COMMAND_REGISTRY
 from proto_mind.desktop_app import (
     DesktopRuntime,
-    PANEL_COMMANDS,
     classify_desktop_output,
     compact_desktop_output,
     create_desktop_runtime,
@@ -29,6 +30,8 @@ try:
     from PySide6.QtWidgets import (
         QApplication,
         QCheckBox,
+        QFrame,
+        QGridLayout,
         QHBoxLayout,
         QLabel,
         QMainWindow,
@@ -48,6 +51,8 @@ except ImportError as exc:  # pragma: no cover - depends on optional dependency.
     QByteArray = None  # type: ignore[assignment]
     QObject = object  # type: ignore[assignment,misc]
     QCheckBox = None  # type: ignore[assignment]
+    QFrame = None  # type: ignore[assignment]
+    QGridLayout = None  # type: ignore[assignment]
     QHBoxLayout = None  # type: ignore[assignment]
     QLabel = None  # type: ignore[assignment]
     QMainWindow = object  # type: ignore[assignment,misc]
@@ -68,17 +73,57 @@ except ImportError as exc:  # pragma: no cover - depends on optional dependency.
     PYSIDE_IMPORT_ERROR = exc
 
 
-PYSIDE_PANEL_COMMANDS = dict(PANEL_COMMANDS)
-PYSIDE_APP_VERSION = "v1.5.2"
-PYSIDE_APP_TITLE = f"Proto-Mind Desktop PySide {PYSIDE_APP_VERSION}"
+PYSIDE_APP_VERSION = "v2.0.0"
+PYSIDE_APP_TITLE = f"Proto-Mind Cognitive Control Room {PYSIDE_APP_VERSION}"
+PYSIDE_COMMAND_COUNT = len(COMMAND_REGISTRY)
+PYSIDE_CATEGORY_COUNT = len({entry.category for entry in COMMAND_REGISTRY})
 
-START_MESSAGE = f"""{PYSIDE_APP_TITLE}
-Local-first optional desktop shell.
-Try:
-- проверь свою систему
-- /session self-check
-- /session health
-- /session doctor
+PYSIDE_CONTROL_DECK_GROUPS = (
+    (
+        "SESSION",
+        (
+            ("Start Brief", "/session start-brief"),
+            ("Daily Brief", "/daily brief"),
+            ("Next Work", "/agenda next"),
+            ("Handoff", "/session handoff-brief"),
+        ),
+    ),
+    (
+        "COGNITIVE STATE",
+        (
+            ("System Status", "/proto status"),
+            ("Experience", "/experience doctor"),
+            ("Memory Card", "/memory-card short"),
+            ("Skill State", "/skills lifecycle-status"),
+        ),
+    ),
+    (
+        "TRUST & EVIDENCE",
+        (
+            ("Full Doctor", "/proto doctor"),
+            ("Warnings", "/warnings status"),
+            ("Snapshot Diff", "/proto snapshot-diff-status"),
+            ("Showcase", "/showcase demo"),
+        ),
+    ),
+)
+PYSIDE_PANEL_COMMANDS = {
+    label: command
+    for _, actions in PYSIDE_CONTROL_DECK_GROUPS
+    for label, command in actions
+}
+PYSIDE_PROMPT_CHIPS = (
+    ("DAILY", "/daily brief"),
+    ("NEXT", "/agenda next"),
+    ("DOCTOR", "/proto doctor"),
+    ("SHOWCASE", "/showcase demo"),
+)
+
+START_MESSAGE = """# Welcome back
+**Proto-Mind is local, inspectable, and operator-guided.**
+
+Use the Control Deck for a safe system view, or continue the conversation below.
+Start with `Daily Brief`, `Next Work`, or `Showcase`.
 """
 
 
@@ -98,6 +143,64 @@ def can_start_pyside_worker(*, busy: bool, text: str) -> bool:
 class ButtonState:
     text: str
     enabled: bool
+
+
+@dataclass(frozen=True)
+class ContextIndicator:
+    state: str
+    text: str
+    detail: str
+
+
+def pyside_registry_summary() -> str:
+    return f"{PYSIDE_COMMAND_COUNT} commands / {PYSIDE_CATEGORY_COUNT} capability families"
+
+
+def read_context_indicator(project_root: Path) -> ContextIndicator:
+    settings_path = Path(project_root) / "proto_mind" / "data" / "context_injection.json"
+    if not settings_path.exists():
+        return ContextIndicator(
+            state="OFF",
+            text="CONTEXT OFF",
+            detail="Disabled by default; settings file is absent.",
+        )
+    try:
+        payload = json.loads(settings_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return ContextIndicator(
+            state="UNKNOWN",
+            text="CONTEXT UNKNOWN",
+            detail="Context settings are unreadable; no UI repair was attempted.",
+        )
+    if not isinstance(payload, dict):
+        return ContextIndicator(
+            state="UNKNOWN",
+            text="CONTEXT UNKNOWN",
+            detail="Context settings have an invalid root type.",
+        )
+    enabled = payload.get("enabled") is True
+    return ContextIndicator(
+        state="ON" if enabled else "OFF",
+        text="CONTEXT ON" if enabled else "CONTEXT OFF",
+        detail=(
+            "Preview-safe context injection is enabled for normal prompts."
+            if enabled
+            else "Preview-safe context injection is disabled."
+        ),
+    )
+
+
+def pyside_context_style(state: str) -> str:
+    colors = {
+        "OFF": ("#163b37", "#8ee3ce", "#285f57"),
+        "ON": ("#493718", "#ffd18a", "#7d5c26"),
+        "UNKNOWN": ("#3b3030", "#f2b8b5", "#684545"),
+    }
+    background, foreground, border = colors.get(state.upper(), colors["UNKNOWN"])
+    return (
+        f"background: {background}; color: {foreground}; border: 1px solid {border}; "
+        "border-radius: 9px; padding: 6px 10px; font-weight: 700;"
+    )
 
 
 class CancelController:
@@ -342,53 +445,160 @@ def pyside_message_reset_html() -> str:
 def pyside_dark_stylesheet() -> str:
     return """
     QMainWindow, QWidget {
-        background: #141820;
-        color: #e6edf3;
+        background: #0b1016;
+        color: #eee9df;
+        font-family: "Avenir Next", "Helvetica Neue";
         font-size: 13px;
     }
+    QFrame#brandCard {
+        background: #111923;
+        border: 1px solid #253344;
+        border-left: 3px solid #d7a75b;
+        border-radius: 14px;
+    }
+    QLabel#brandMark {
+        background: #d7a75b;
+        color: #111923;
+        border-radius: 17px;
+        font-size: 14px;
+        font-weight: 800;
+        padding: 8px;
+    }
+    QLabel#brandTitle {
+        color: #fff7e8;
+        font-size: 18px;
+        font-weight: 700;
+        letter-spacing: 0.8px;
+    }
+    QLabel#brandSubtitle, QLabel#mutedLabel {
+        color: #8e9bad;
+        font-size: 11px;
+    }
+    QLabel#localBadge {
+        background: #182b2a;
+        color: #84d8c5;
+        border: 1px solid #2a5b54;
+        border-radius: 9px;
+        padding: 6px 10px;
+        font-weight: 700;
+    }
+    QFrame#controlDeck {
+        background: #101720;
+        border: 1px solid #253344;
+        border-radius: 14px;
+    }
+    QLabel#deckTitle {
+        color: #fff7e8;
+        font-size: 16px;
+        font-weight: 700;
+        letter-spacing: 0.6px;
+    }
+    QLabel#sectionTitle, QLabel#inputLabel {
+        color: #d7a75b;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 1.2px;
+    }
+    QFrame#composer {
+        background: #101720;
+        border: 1px solid #253344;
+        border-radius: 13px;
+    }
     QTextEdit, QPlainTextEdit {
-        background: #0f131a;
-        color: #e6edf3;
-        border: 1px solid #2a3342;
+        background: #0d131a;
+        color: #eee9df;
+        border: 1px solid #263545;
         border-radius: 10px;
         padding: 10px;
-        selection-background-color: #315d8a;
+        selection-background-color: #376c67;
         selection-color: #ffffff;
     }
+    QTextEdit:focus, QPlainTextEdit:focus {
+        border: 1px solid #4f8f86;
+    }
     QPushButton {
-        background: #252d3a;
-        color: #f0f4f8;
-        border: 1px solid #3a4556;
+        background: #1a2430;
+        color: #eee9df;
+        border: 1px solid #304052;
         border-radius: 8px;
         padding: 8px 10px;
+        font-weight: 600;
     }
     QPushButton:hover {
-        background: #303a4b;
+        background: #243241;
+        border-color: #4c657e;
+    }
+    QPushButton#primaryButton {
+        background: #d7a75b;
+        color: #111923;
+        border: 1px solid #edc47f;
+        min-width: 72px;
+        font-weight: 800;
+    }
+    QPushButton#primaryButton:hover {
+        background: #e6b96f;
+    }
+    QPushButton#dangerButton {
+        background: #251b1c;
+        color: #e5a7a3;
+        border-color: #5e3537;
+        min-width: 64px;
+    }
+    QPushButton#quickActionButton {
+        background: #151f29;
+        color: #d9e0e7;
+        border-color: #2b3b4c;
+        text-align: left;
+        padding: 9px 10px;
+    }
+    QPushButton#quickActionButton:hover {
+        background: #1b302f;
+        color: #a7eadb;
+        border-color: #35655f;
+    }
+    QPushButton#chipButton {
+        background: transparent;
+        color: #aeb9c6;
+        border: 1px solid #2c3b4b;
+        border-radius: 10px;
+        padding: 5px 10px;
+        font-size: 10px;
+        font-weight: 800;
+    }
+    QPushButton#chipButton:hover {
+        color: #ffd18a;
+        border-color: #7d6034;
     }
     QPushButton:disabled {
-        background: #1d232d;
-        color: #7f8792;
+        background: #121922;
+        color: #596472;
+        border-color: #202b37;
     }
     QCheckBox {
         spacing: 8px;
+        color: #aeb9c6;
     }
     QLabel {
-        color: #d8dee9;
+        color: #d9e0e7;
+    }
+    QSplitter::handle {
+        background: #111923;
+        width: 4px;
     }
     """
 
 
 def pyside_chat_document_css() -> str:
     return """
-    body { background: #0f131a; color: #e6edf3; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
-    .message-block { margin: 0 0 18px 0; }
+    body { background: #0d131a; color: #eee9df; font-family: "Avenir Next", "Helvetica Neue", sans-serif; }
+    .message-block { margin: 0 0 20px 0; }
     .message-reset { margin: 0; padding: 0; height: 1px; line-height: 1px; }
     .message, .report { margin: 0 0 18px 0; }
-    .speaker { color: #8ec5ff; font-weight: 700; margin-bottom: 6px; }
-    .system .speaker { color: #a8b3c4; }
-    .system .body { color: #a8b3c4; }
-    .body { white-space: normal; line-height: 1.42; }
-    h1, h2, h3 { color: #f4d58d; margin: 10px 0 6px 0; }
+    .speaker { color: #7fd8c4; font-weight: 700; margin-bottom: 7px; letter-spacing: 0.4px; }
+    .system .speaker { color: #8390a0; }
+    .system .body { color: #9ca7b5; }
+    .body { white-space: normal; line-height: 1.5; }
+    h1, h2, h3 { color: #ffd18a; margin: 10px 0 7px 0; }
     h1 { font-size: 20px; }
     h2 { font-size: 17px; }
     h3 { font-size: 15px; }
@@ -396,18 +606,18 @@ def pyside_chat_document_css() -> str:
     ul, ol { margin-top: 6px; margin-bottom: 10px; padding-left: 24px; }
     li { margin: 3px 0; }
     code {
-        background: #182234;
-        border: 1px solid #2c3a4f;
+        background: #17212b;
+        border: 1px solid #304052;
         border-radius: 4px;
-        color: #f0d58c;
+        color: #ffd18a;
         font-family: Menlo, Monaco, Consolas, monospace;
         padding: 1px 4px;
     }
     pre {
-        background: #101722;
-        border: 1px solid #263244;
+        background: #0a1016;
+        border: 1px solid #263545;
         border-radius: 8px;
-        color: #d8dee9;
+        color: #d9e0e7;
         font-family: Menlo, Monaco, Consolas, monospace;
         font-size: 12px;
         line-height: 1.35;
@@ -510,10 +720,11 @@ if PYSIDE_AVAILABLE:
             self.panel_buttons: list[QPushButton] = []
 
             self.setWindowTitle(PYSIDE_APP_TITLE)
-            self.resize(1100, 750)
+            self.setMinimumSize(1040, 700)
+            self.resize(1280, 820)
             self._build_ui()
             self._restore_geometry()
-            self.append_system_message(START_MESSAGE.strip())
+            self.append_assistant_message(START_MESSAGE.strip())
             self._refresh_panel()
             QTimer.singleShot(100, self._startup_status_refresh)
 
@@ -522,8 +733,8 @@ if PYSIDE_AVAILABLE:
             central = QWidget()
             self.setCentralWidget(central)
             root_layout = QHBoxLayout(central)
-            root_layout.setContentsMargins(14, 14, 14, 14)
-            root_layout.setSpacing(12)
+            root_layout.setContentsMargins(16, 16, 16, 14)
+            root_layout.setSpacing(14)
 
             splitter = QSplitter(Qt.Orientation.Horizontal)
             root_layout.addWidget(splitter)
@@ -531,28 +742,64 @@ if PYSIDE_AVAILABLE:
             left = QWidget()
             left_layout = QVBoxLayout(left)
             left_layout.setContentsMargins(0, 0, 0, 0)
-            left_layout.setSpacing(10)
+            left_layout.setSpacing(11)
             splitter.addWidget(left)
 
-            right = QWidget()
-            right.setMinimumWidth(260)
-            right.setMaximumWidth(340)
+            right = QFrame()
+            right.setObjectName("controlDeck")
+            right.setMinimumWidth(330)
+            right.setMaximumWidth(390)
             right_layout = QVBoxLayout(right)
-            right_layout.setContentsMargins(12, 12, 12, 12)
-            right_layout.setSpacing(8)
+            right_layout.setContentsMargins(14, 14, 14, 14)
+            right_layout.setSpacing(9)
             splitter.addWidget(right)
-            splitter.setSizes([820, 280])
+            splitter.setSizes([900, 350])
+
+            brand = QFrame()
+            brand.setObjectName("brandCard")
+            brand_layout = QHBoxLayout(brand)
+            brand_layout.setContentsMargins(14, 10, 14, 10)
+            brand_layout.setSpacing(12)
+
+            brand_mark = QLabel("PM")
+            brand_mark.setObjectName("brandMark")
+            brand_mark.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            brand_mark.setFixedSize(38, 38)
+            brand_layout.addWidget(brand_mark)
+
+            brand_copy = QVBoxLayout()
+            brand_copy.setSpacing(1)
+            brand_title = QLabel("PROTO-MIND")
+            brand_title.setObjectName("brandTitle")
+            brand_subtitle = QLabel(
+                f"CONTROL ROOM {PYSIDE_APP_VERSION} / LOCAL-FIRST"
+            )
+            brand_subtitle.setObjectName("brandSubtitle")
+            brand_copy.addWidget(brand_title)
+            brand_copy.addWidget(brand_subtitle)
+            brand_layout.addLayout(brand_copy, stretch=1)
+
+            local_badge = QLabel("LOCAL / PRIVATE")
+            local_badge.setObjectName("localBadge")
+            local_badge.setToolTip("Proto-Mind uses the local project and local reasoner configuration.")
+            brand_layout.addWidget(local_badge)
+            self.header_context_label = QLabel("CONTEXT OFF")
+            brand_layout.addWidget(self.header_context_label)
+            left_layout.addWidget(brand)
 
             self.chat = QTextEdit()
             self.chat.setReadOnly(True)
+            self.chat.setObjectName("conversationView")
             self.chat.document().setDefaultStyleSheet(pyside_chat_document_css())
             left_layout.addWidget(self.chat, stretch=1)
 
             controls = QHBoxLayout()
+            controls.setSpacing(8)
             self.debug_checkbox = QCheckBox("Debug output")
             self.debug_checkbox.setChecked(self.preferences.debug_output)
             self.debug_checkbox.stateChanged.connect(self._on_debug_toggle)
             controls.addWidget(self.debug_checkbox)
+            controls.addStretch(1)
 
             copy_all = QPushButton("Copy All")
             copy_all.clicked.connect(self._copy_all)
@@ -567,25 +814,75 @@ if PYSIDE_AVAILABLE:
             controls.addWidget(clear_button)
             left_layout.addLayout(controls)
 
+            chip_row = QHBoxLayout()
+            chip_row.setSpacing(7)
+            chip_label = QLabel("QUICK RUN")
+            chip_label.setObjectName("inputLabel")
+            chip_row.addWidget(chip_label)
+            for label, command in PYSIDE_PROMPT_CHIPS:
+                chip_row.addWidget(
+                    self._make_command_button(
+                        label,
+                        command,
+                        object_name="chipButton",
+                        announce=True,
+                    )
+                )
+            chip_row.addStretch(1)
+            left_layout.addLayout(chip_row)
+
+            composer = QFrame()
+            composer.setObjectName("composer")
+            composer_layout = QVBoxLayout(composer)
+            composer_layout.setContentsMargins(11, 9, 11, 10)
+            composer_layout.setSpacing(6)
+            input_heading = QHBoxLayout()
+            input_label = QLabel("OPERATOR INPUT")
+            input_label.setObjectName("inputLabel")
+            input_hint = QLabel("ENTER TO SEND / SHIFT+ENTER FOR NEW LINE")
+            input_hint.setObjectName("mutedLabel")
+            input_heading.addWidget(input_label)
+            input_heading.addStretch(1)
+            input_heading.addWidget(input_hint)
+            composer_layout.addLayout(input_heading)
+
             input_row = QHBoxLayout()
+            input_row.setSpacing(8)
             self.input_box = ChatInput(self._send_from_input)
-            self.input_box.setMinimumHeight(92)
-            self.input_box.setMaximumHeight(130)
-            self.input_box.setPlaceholderText("Type a message. Enter sends, Shift+Enter adds a newline.")
+            self.input_box.setMinimumHeight(76)
+            self.input_box.setMaximumHeight(118)
+            self.input_box.setPlaceholderText(
+                "Ask Proto-Mind, continue the current goal, or enter an exact command..."
+            )
             input_row.addWidget(self.input_box, stretch=1)
 
             self.send_button = QPushButton("Send")
+            self.send_button.setObjectName("primaryButton")
+            self.send_button.setMinimumHeight(42)
             self.send_button.clicked.connect(self._send_from_input)
             input_row.addWidget(self.send_button)
 
             self.stop_button = QPushButton("Stop")
+            self.stop_button.setObjectName("dangerButton")
+            self.stop_button.setMinimumHeight(42)
             self.stop_button.clicked.connect(self._request_stop)
             input_row.addWidget(self.stop_button)
-            left_layout.addLayout(input_row)
+            composer_layout.addLayout(input_row)
+            left_layout.addWidget(composer)
 
-            title = QLabel("System")
-            title.setStyleSheet("font-weight: bold; font-size: 14px;")
-            right_layout.addWidget(title)
+            self.status_label = QLabel("Status: ready")
+            self.status_label.setObjectName("mutedLabel")
+            self.status_label.setSizePolicy(
+                QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+            )
+            left_layout.addWidget(self.status_label)
+
+            deck_title = QLabel("CONTROL DECK")
+            deck_title.setObjectName("deckTitle")
+            right_layout.addWidget(deck_title)
+            deck_subtitle = QLabel("Safe views over the cognitive stack")
+            deck_subtitle.setObjectName("mutedLabel")
+            right_layout.addWidget(deck_subtitle)
 
             self.overall_label = QLabel("Overall: UNKNOWN")
             self.overall_label.setFrameStyle(QLabel.Shape.Box)
@@ -595,18 +892,24 @@ if PYSIDE_AVAILABLE:
             self.runtime_label.setFrameStyle(QLabel.Shape.Box)
             right_layout.addWidget(self.runtime_label)
 
+            self.context_label = QLabel("CONTEXT OFF")
+            right_layout.addWidget(self.context_label)
+
             self.backend_label = QLabel()
             self.model_label = QLabel()
+            self.capability_label = QLabel()
             self.log_entries_label = QLabel()
             self.last_check_label = QLabel()
             self.debug_label = QLabel()
             for label in (
                 self.backend_label,
                 self.model_label,
+                self.capability_label,
                 self.log_entries_label,
                 self.last_check_label,
                 self.debug_label,
             ):
+                label.setObjectName("mutedLabel")
                 label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
                 right_layout.addWidget(label)
 
@@ -615,19 +918,51 @@ if PYSIDE_AVAILABLE:
             self.auto_self_check.stateChanged.connect(self._on_auto_self_check_toggle)
             right_layout.addWidget(self.auto_self_check)
 
-            for label, command in PYSIDE_PANEL_COMMANDS.items():
-                button = QPushButton(label)
-                if label == "Refresh Status":
-                    button.clicked.connect(lambda _checked=False: self._send("/session log status", append_user=False, display_mode="status_refresh"))
-                else:
-                    button.clicked.connect(lambda _checked=False, value=command: self._send(value, append_user=False, announce=True))
-                right_layout.addWidget(button)
-                self.panel_buttons.append(button)
+            for group_name, actions in PYSIDE_CONTROL_DECK_GROUPS:
+                section = QLabel(group_name)
+                section.setObjectName("sectionTitle")
+                right_layout.addWidget(section)
+                grid = QGridLayout()
+                grid.setHorizontalSpacing(7)
+                grid.setVerticalSpacing(7)
+                for index, (label, command) in enumerate(actions):
+                    grid.addWidget(
+                        self._make_command_button(
+                            label,
+                            command,
+                            object_name="quickActionButton",
+                            announce=True,
+                        ),
+                        index // 2,
+                        index % 2,
+                    )
+                grid.setColumnStretch(0, 1)
+                grid.setColumnStretch(1, 1)
+                right_layout.addLayout(grid)
 
             right_layout.addStretch(1)
-            self.status_label = QLabel("Status: ready")
-            self.status_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-            left_layout.addWidget(self.status_label)
+
+        def _make_command_button(
+            self,
+            label: str,
+            command: str,
+            *,
+            object_name: str,
+            announce: bool,
+        ) -> QPushButton:
+            button = QPushButton(label)
+            button.setObjectName(object_name)
+            button.setToolTip(command)
+            button.setAccessibleName(f"Run {command}")
+            button.clicked.connect(
+                lambda _checked=False, value=command, show=announce: self._send(
+                    value,
+                    append_user=False,
+                    announce=show,
+                )
+            )
+            self.panel_buttons.append(button)
+            return button
 
         def _set_busy(self, busy: bool) -> None:
             self.busy = busy
@@ -789,6 +1124,14 @@ if PYSIDE_AVAILABLE:
             self.overall_label.setStyleSheet(pyside_badge_style(self.overall_status))
             self.runtime_label.setText(format_runtime_label(self.runtime_state))
             self.runtime_label.setStyleSheet(runtime_style_for_state(self.runtime_state))
+            context = read_context_indicator(self.runtime.project_root)
+            context_style = pyside_context_style(context.state)
+            self.context_label.setText(context.text)
+            self.context_label.setStyleSheet(context_style)
+            self.context_label.setToolTip(context.detail)
+            self.header_context_label.setText(context.text)
+            self.header_context_label.setStyleSheet(context_style)
+            self.header_context_label.setToolTip(context.detail)
             send_state = pyside_send_button_state(self.runtime_state)
             stop_state = pyside_stop_button_state(self.runtime_state)
             self.send_button.setText(send_state.text)
@@ -797,6 +1140,7 @@ if PYSIDE_AVAILABLE:
             self.stop_button.setEnabled(stop_state.enabled and self.busy)
             self.backend_label.setText(f"Backend: {self.runtime.backend_name}")
             self.model_label.setText(f"Model: {self.runtime.model_name or 'none'}")
+            self.capability_label.setText(pyside_registry_summary())
             entries = str(self.log_entries) if self.log_entries is not None else "unknown"
             self.log_entries_label.setText(f"Log entries: {entries}")
             self.last_check_label.setText(f"Last check: {self.last_check}")
@@ -868,7 +1212,7 @@ if PYSIDE_AVAILABLE:
             try:
                 self.restoreGeometry(QByteArray.fromBase64(geometry.removeprefix("pyside6:").encode("ascii")))
             except Exception:
-                self.resize(1100, 750)
+                self.resize(1280, 820)
 
         def closeEvent(self, event: object) -> None:
             self.preferences.window_geometry = encode_pyside_geometry(self.saveGeometry())
