@@ -396,6 +396,14 @@ from proto_mind.experience_learning_skill_restore_reevaluation import (
     ProceduralSkillRestoreReevaluationReviewer,
     format_procedural_skill_restore_reevaluation_command,
 )
+from proto_mind.experience_learning_skill_restore_capture_readiness import (
+    PROCEDURAL_SKILL_RESTORE_CAPTURE_FUTURE_RECEIPT_FIELDS,
+    PROCEDURAL_SKILL_RESTORE_CAPTURE_READINESS_MODE,
+    ProceduralSkillRestoreCaptureReadiness,
+    ProceduralSkillRestoreCaptureReadinessError,
+    format_procedural_skill_restore_capture_readiness_command,
+    verify_procedural_skill_restore_capture_blueprint,
+)
 from proto_mind.experience_learning_eligibility import (
     LEARNING_ELIGIBILITY_MAX_IDS_PER_KIND,
     LearningEligibilityRequest,
@@ -27207,6 +27215,194 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertEqual(len({entry.category for entry in COMMAND_REGISTRY}), 41)
         self.assertEqual(command_registry_doctor()["status"], "OK")
         self.assertEqual(action_policy_doctor()["status"], "OK")
+
+    def test_restored_skill_capture_readiness_binds_exact_current_evidence(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            store, library, record = build_test_restored_procedural_skill(Path(temp_dir))
+            before = (library.skills_path.read_bytes(), store.persistent_path.read_bytes())
+            readiness = ProceduralSkillRestoreCaptureReadiness(
+                memory_store=store,
+                skill_library=library,
+            )
+            report = readiness.review(
+                session_id="session_restore_capture",
+                pilot_state="consented",
+                skill_id=str(record["id"]),
+                outcome="success",
+                evidence="Operator manually verified the restored procedure.",
+            )
+            current, current_issues = readiness.current_state_matches(report)
+            verified, verify_issues = verify_procedural_skill_restore_capture_blueprint(
+                report.to_dict()
+            )
+            after = (library.skills_path.read_bytes(), store.persistent_path.read_bytes())
+
+        lifecycle = record["lifecycle"]
+        assert isinstance(lifecycle, dict)
+        restore_evidence = build_procedural_skill_restore_receipt_evidence(record)
+        self.assertEqual(report.status, "READY FOR AUTHORIZATION DESIGN")
+        self.assertTrue(report.ready_for_authorization_design)
+        self.assertEqual(report.restore_metadata_hash, lifecycle["metadata_hash"])
+        self.assertEqual(report.restore_evidence_hash, restore_evidence["evidence_hash"])
+        self.assertEqual(
+            tuple(report.required_tool_called_fields),
+            PROCEDURAL_SKILL_RESTORE_REEVALUATION_REQUIRED_CALL_FIELDS,
+        )
+        self.assertEqual(
+            tuple(report.future_receipt_fields),
+            PROCEDURAL_SKILL_RESTORE_CAPTURE_FUTURE_RECEIPT_FIELDS,
+        )
+        self.assertTrue(current, current_issues)
+        self.assertTrue(verified, verify_issues)
+        self.assertFalse(report.confirmation_token_generated)
+        self.assertFalse(report.writer_installed)
+        self.assertFalse(report.event_append_performed)
+        self.assertEqual(after, before)
+
+    def test_restored_skill_capture_readiness_requires_exact_session_consent(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            store, library, record = build_test_restored_procedural_skill(Path(temp_dir))
+            report = ProceduralSkillRestoreCaptureReadiness(
+                memory_store=store,
+                skill_library=library,
+            ).review(
+                session_id="session_restore_capture",
+                pilot_state="disabled",
+                skill_id=str(record["id"]),
+                outcome="failure",
+                evidence="Manual restored procedure did not meet the expected result.",
+            )
+
+        self.assertEqual(report.status, "NOT READY")
+        self.assertFalse(report.checks["session_consent_active"])
+        self.assertIn("consent is not active", " ".join(report.issues))
+        self.assertFalse(report.confirmation_token_generated)
+
+    def test_restored_skill_capture_readiness_refuses_ordinary_or_invalid_input(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            store, library, _, _ = build_test_applied_procedural_skill(Path(temp_dir))
+            record = library.read_snapshot()["records"][0]
+            readiness = ProceduralSkillRestoreCaptureReadiness(
+                memory_store=store,
+                skill_library=library,
+            )
+            with self.assertRaisesRegex(
+                ProceduralSkillRestoreCaptureReadinessError, "restore envelope"
+            ):
+                readiness.review(
+                    session_id="session_restore_capture",
+                    pilot_state="consented",
+                    skill_id=str(record["id"]),
+                    outcome="success",
+                    evidence="Ordinary active skill.",
+                )
+            with self.assertRaisesRegex(
+                ProceduralSkillRestoreCaptureReadinessError, "success or failure"
+            ):
+                readiness.review(
+                    session_id="session_restore_capture",
+                    pilot_state="consented",
+                    skill_id=str(record["id"]),
+                    outcome="mixed",
+                    evidence="Invalid outcome.",
+                )
+
+    def test_restored_skill_capture_readiness_detects_tamper_and_store_drift(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            store, library, record = build_test_restored_procedural_skill(Path(temp_dir))
+            readiness = ProceduralSkillRestoreCaptureReadiness(
+                memory_store=store,
+                skill_library=library,
+            )
+            report = readiness.review(
+                session_id="session_restore_capture",
+                pilot_state="consented",
+                skill_id=str(record["id"]),
+                outcome="success",
+                evidence="Verified before deterministic tamper check.",
+            )
+            tampered = report.to_dict()
+            tampered["restore_evidence_hash"] = "0" * 64
+            verified, verify_issues = verify_procedural_skill_restore_capture_blueprint(
+                tampered
+            )
+            library.skills_path.write_bytes(library.skills_path.read_bytes() + b"\n")
+            current, current_issues = readiness.current_state_matches(report)
+
+        self.assertFalse(verified)
+        self.assertIn("blueprint hash", " ".join(verify_issues))
+        self.assertFalse(current)
+        self.assertIn("bytes changed", " ".join(current_issues))
+
+    def test_restored_skill_capture_readiness_commands_are_read_only(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            store, library, record = build_test_restored_procedural_skill(Path(temp_dir))
+            readiness = ProceduralSkillRestoreCaptureReadiness(
+                memory_store=store,
+                skill_library=library,
+            )
+            before = (library.skills_path.read_bytes(), store.persistent_path.read_bytes())
+            common = {
+                "readiness": readiness,
+                "pilot_state": "consented",
+                "pilot_session_id": "session_restore_capture",
+            }
+            preview = format_procedural_skill_restore_capture_readiness_command(
+                "/experience learning skill-outcome-capture-preview "
+                f"{record['id']} success --evidence \"Manual exact result.\" "
+                "--post-restore-readiness",
+                **common,
+            )
+            plan = format_procedural_skill_restore_capture_readiness_command(
+                "/experience learning skill-outcome-capture-preview "
+                f"{record['id']} success --evidence \"Manual exact result.\" "
+                "--post-restore-plan",
+                **common,
+            )
+            contract = format_procedural_skill_restore_capture_readiness_command(
+                "/experience learning skill-outcome-capture-doctor --post-restore-contract",
+                **common,
+            )
+            doctor = format_procedural_skill_restore_capture_readiness_command(
+                "/experience learning skill-outcome-capture-doctor --post-restore",
+                **common,
+            )
+            chained = format_procedural_skill_restore_capture_readiness_command(
+                "/experience learning skill-outcome-capture-doctor --post-restore; /skills list",
+                **common,
+            )
+            after = (library.skills_path.read_bytes(), store.persistent_path.read_bytes())
+
+        assert preview is not None
+        assert plan is not None
+        assert contract is not None
+        assert doctor is not None
+        assert chained is not None
+        self.assertIn("READY FOR AUTHORIZATION DESIGN", preview)
+        self.assertIn("confirmation_token_generated: false", preview)
+        self.assertIn("Future exact sequence", plan)
+        self.assertIn("Status: DESIGN LOCKED", contract)
+        self.assertIn("Status: OK", doctor)
+        self.assertIn("Command chaining", chained)
+        self.assertEqual(after, before)
+
+    def test_restored_skill_capture_readiness_registry_and_policy_remain_safe(self) -> None:
+        registry = {entry.prefix: entry for entry in COMMAND_REGISTRY}
+        for prefix in (
+            "/experience learning skill-outcome-capture-preview",
+            "/experience learning skill-outcome-capture-doctor",
+        ):
+            self.assertTrue(registry[prefix].read_only)
+            self.assertEqual(registry[prefix].mutates, "none")
+            self.assertEqual(registry[prefix].risk, "low")
+        self.assertEqual(len(COMMAND_REGISTRY), 387)
+        self.assertEqual(len({entry.category for entry in COMMAND_REGISTRY}), 41)
+        self.assertEqual(command_registry_doctor()["status"], "OK")
+        self.assertEqual(action_policy_doctor()["status"], "OK")
+        self.assertEqual(
+            PROCEDURAL_SKILL_RESTORE_CAPTURE_READINESS_MODE,
+            "read_only_exact_restore_bound_capture_authorization_design",
+        )
 
     def test_durable_skill_lifecycle_audit_does_not_invent_archive_cause(self) -> None:
         with TemporaryDirectory() as temp_dir:

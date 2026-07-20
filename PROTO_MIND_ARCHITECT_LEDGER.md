@@ -2,7 +2,7 @@
 
 Purpose: compact architectural memory for future Codex prompts. Keep this file short, current, and operator-readable so future tasks do not need to restate the whole project history.
 
-Last updated: 2026-07-20
+Last updated: 2026-07-21
 
 ## Current Stable State
 
@@ -19,7 +19,7 @@ Last updated: 2026-07-20
   - Ollama via `PROTO_MIND_REASONER=ollama`, `PROTO_MIND_OLLAMA_MODEL`, `PROTO_MIND_OLLAMA_URL`.
 - Normal prompts go through observer, retrieval, reasoner, memory evaluation, self-reflection, grounding audit, and session logging.
 - Slash/operator commands bypass normal cognitive turns and should not become cognitive session log turns.
-- Supervised Experience Pilot v3.3a observes consented turns; v3.3b projects episodes; v3.3c previews candidates; v3.3d captures decisions; v3.3e reviews selected-scope eligibility; v3.3f records proposals; v3.3g revalidates apply readiness; v3.4a permits one separately confirmed, atomic, verified memory lesson; v3.4b embeds restart-safe compact provenance; v3.4c permits only verified learned lessons into recall; v3.4d reviews later outcomes; v3.4e records an exact operator lifecycle decision; v3.4f revalidates that decision; v3.4g permits one separately confirmed keep/reject/supersede transition; v3.4h reconstructs and audits durable lifecycle state after restart; v3.5a projects an active verified lesson into a read-only procedural skill contract; v3.5b records exact operator-authored fields in a bounded restart-expiring receipt; v3.5c revalidates that receipt and current Skill Library; v3.5d permits one separately confirmed atomic verified non-executable skill record per process; v3.5e embeds restart-safe skill provenance and audits it read-only; v3.5f reviews exact manual-use outcome lineage; v3.5g separately confirms and captures that operator-reported evidence; v3.5h records an exact operator keep/revise/archive decision over confirmed evidence; v3.5i revalidates that decision against current evidence, provenance, skill bytes, and decision-specific future safeguards; v3.5j permits one separately confirmed keep no-op or legacy archive transition; v3.5k reconstructs durable procedural skill state after restart without inventing archive cause; v3.5l locks a hashed archive envelope; v3.5m binds a current archive decision to its exact writer blueprint; v3.5n permits one separately confirmed atomic durable archive and restart-safe verification; v3.5o design-locks restore by embedding the complete prior archive envelope; v3.5p blocks generic status mutations; v3.5q blocks generic payload/tag/use mutations; v3.5r binds restore authorization; v3.5s permits one exact-token, run-once, atomic durable restore with fixed receipt and restart-safe verification; v3.5t reconstructs and audits only the receipt evidence that survived in the durable restore envelope; v3.5u requires exact new restore-bound manual evidence before any later lifecycle decision. Review/proposal/decision/detailed-receipt state remains bounded and process-memory-only; no automatic, batch, revision, or procedure execution exists.
+- Supervised Experience Pilot v3.3a observes consented turns; v3.3b projects episodes; v3.3c previews candidates; v3.3d captures decisions; v3.3e reviews selected-scope eligibility; v3.3f records proposals; v3.3g revalidates apply readiness; v3.4a permits one separately confirmed, atomic, verified memory lesson; v3.4b embeds restart-safe compact provenance; v3.4c permits only verified learned lessons into recall; v3.4d reviews later outcomes; v3.4e records an exact operator lifecycle decision; v3.4f revalidates that decision; v3.4g permits one separately confirmed keep/reject/supersede transition; v3.4h reconstructs and audits durable lifecycle state after restart; v3.5a projects an active verified lesson into a read-only procedural skill contract; v3.5b records exact operator-authored fields in a bounded restart-expiring receipt; v3.5c revalidates that receipt and current Skill Library; v3.5d permits one separately confirmed atomic verified non-executable skill record per process; v3.5e embeds restart-safe skill provenance and audits it read-only; v3.5f reviews exact manual-use outcome lineage; v3.5g separately confirms and captures that operator-reported evidence; v3.5h records an exact operator keep/revise/archive decision over confirmed evidence; v3.5i revalidates that decision against current evidence, provenance, skill bytes, and decision-specific future safeguards; v3.5j permits one separately confirmed keep no-op or legacy archive transition; v3.5k reconstructs durable procedural skill state after restart without inventing archive cause; v3.5l locks a hashed archive envelope; v3.5m binds a current archive decision to its exact writer blueprint; v3.5n permits one separately confirmed atomic durable archive and restart-safe verification; v3.5o design-locks restore by embedding the complete prior archive envelope; v3.5p blocks generic status mutations; v3.5q blocks generic payload/tag/use mutations; v3.5r binds restore authorization; v3.5s permits one exact-token, run-once, atomic durable restore with fixed receipt and restart-safe verification; v3.5t reconstructs and audits only the receipt evidence that survived in the durable restore envelope; v3.5u requires exact new restore-bound manual evidence before any later lifecycle decision; v3.5v binds the future post-restore capture blueprint to consent, current skill/store/provenance/restore hashes, exact event fields, and a fixed receipt contract without creating authority. Review/proposal/decision/detailed-receipt state remains bounded and process-memory-only; no automatic, batch, revision, or procedure execution exists.
 - Build Week submission provenance uses the July 11 pre-contest archive SHA-256 plus generated baseline/current/delta manifests; prior work and contest work are explicitly separated.
 - Primary Build Week Codex `/feedback` Session ID is `019d73be-1d7e-7401-8efe-f5e165736db4`.
 - Repository privacy review excludes local cognitive/runtime stores, removes user-specific checkout paths from public artifacts, and documents synthetic credential fixtures and publication boundaries.
@@ -29,7 +29,7 @@ Last updated: 2026-07-20
 ## Current Verification Baseline
 
 - Current test command: `scripts/run_tests.sh`.
-- Current test count: 1134 unit tests OK.
+- Current test count: 1140 unit tests OK.
 - Compile check: `python -m compileall proto_mind` via `scripts/run_tests.sh` OK.
 - Pytest: optional; currently not installed and skipped cleanly.
 
@@ -69,6 +69,7 @@ Last updated: 2026-07-20
 - Supervised Durable Restore Apply Pilot v3.5s: one exact hash-bound token can atomically reactivate one `archived_verified` skill per process by changing only `lifecycle/status/updated_at`; the fixed 21-field receipt proves archive retention, immutable provenance/payload, unchanged memory, restart-safe `active_restored_verified`, and exact-byte rollback readiness.
 - Durable Restore Receipt Audit v3.5t: read-only reconstruction hashes ten provable receipt fields from the embedded restore envelope/current record, compares a live process receipt when available, flags legacy/orphan/mismatched receipts, and prints copyable JSON without persisting or inventing the original 21-field receipt.
 - Restored Skill Re-evaluation Design v3.5u: read-only review excludes pre-restore and unbound evidence, requires exact provenance/restore/evidence hashes on new manual-use anchors, and blocks legacy capture/decision paths for restored skills until a separate writer exists.
+- Supervised Post-Restore Outcome Capture Readiness v3.5v: read-only future-capture blueprint binds exact session consent, current Skill Library/record/provenance hashes, restore metadata/evidence, outcome evidence, required four-event fields, and fixed receipt scope; token generation, event append, writer, and procedure execution remain absent.
 - World Model Lite v1.0: prediction-vs-reality records in `proto_mind/data/world_model.jsonl`, 0..5 scoring.
 - Operating Loop v1.1: read-only cross-module reports, deterministic next-action suggestions, and daily capture workflow commands.
 - Memory Consolidation Preview v1.3.1: read-only suggestions, Markdown/JSON exports, safe queue, queue doctor/cleanup preview, approved-only allowlisted apply, structured apply receipts, and undo preview.
@@ -169,18 +170,18 @@ Last updated: 2026-07-20
 
 ## Last Completed Milestone
 
-v3.5u / Restored Skill Re-evaluation Design:
+v3.5v / Supervised Post-Restore Outcome Capture Readiness:
 
-- Existing outcome-review/Doctor prefixes now expose `--post-restore`, `--post-restore-plan`, and `--post-restore-contract` without Registry expansion.
-- Re-evaluation uses `lifecycle.transitioned_at` as a strict temporal boundary, excludes old pre-archive evidence, and rejects later manual-use events unless provenance plus restore metadata/evidence hashes match exactly.
-- Exact new success/failure/mixed signals can be reviewed, but every result remains `future_lifecycle_decision_ready=false`; no decision token, capture writer, or apply path exists.
-- Legacy v3.5g capture and v3.5h keep/revise/archive decision paths now fail closed for restored skills because they cannot bind the restore envelope. Ordinary pre-restore skills remain compatible.
-- Registry remains 387 commands across 41 categories; the full suite is 1134 tests OK. No event/store/export/session-log mutation, procedure execution, model/API, or Context Injection change was added.
+- Existing capture-preview/Doctor prefixes now expose `--post-restore-readiness`, `--post-restore-plan`, `--post-restore`, and `--post-restore-contract` without Registry expansion.
+- The deterministic blueprint is available only for the exact current `active_restored_verified` skill and binds current-process consent, provenance/payload, Skill Library bytes, complete skill record, restore metadata/evidence, outcome, and bounded operator evidence.
+- A fixed four-event sequence, exact restore-bound `tool_called` fields, future token namespace, and fixed receipt schema are reviewable before any authority exists; current-state and blueprint tamper checks fail closed.
+- The output remains authorization-design-only: no confirmation token, writer, event append, receipt, lifecycle decision, procedure execution, store/export/session-log mutation, model/API call, or Context Injection change exists.
+- Registry remains 387 commands across 41 categories; the full suite is 1140 tests OK.
 
 ## Next Candidate Tasks
 
 - Submission Readiness: keep the public repository and provenance manifests current, finalize English Devpost copy, and record the sub-three-minute video.
-- v3.5v / Supervised Post-Restore Outcome Capture Readiness: design an exact consent/token/receipt contract that can emit the required restore-bound event fields; no writer before separate review.
+- v3.5w / Supervised Post-Restore Outcome Capture Authorization Readiness: design one exact session-bound token and run-once receipt gate over an unchanged v3.5v blueprint; no event append or writer before separate review.
 - Memory Migration Plan: design deterministic compaction/archive rules for the 8 previewed legacy candidates; no apply step without separate approval.
 - Command Dispatch Architecture v2: replace the linear formatter chain with typed incremental family registration while preserving exact command behavior and runner isolation.
 - Test Suite Structure v1: split the 15k-line flow suite by domain without changing test semantics or commands.

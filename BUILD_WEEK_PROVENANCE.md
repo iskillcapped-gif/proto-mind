@@ -89,6 +89,7 @@ The current source tree is compared directly with the July 11 archive by SHA-256
 - PySide6 Cognitive Control Room v2.0.0 with a local/private identity header, read-only Context Injection and Registry indicators, four prompt chips, and twelve grouped no-mutation Control Deck actions over the unchanged shared desktop runtime.
 - Durable Restore Receipt Audit v3.5t with restart-safe hashed evidence reconstruction, exact current-process comparison, legacy/orphan/mismatch diagnostics, copyable JSON, and no invented process receipt or writer.
 - Restored Skill Re-evaluation Design v3.5u with a strict restore-time boundary, exact provenance/restore/evidence binding, stale/unbound evidence exclusion, and fail-closed legacy capture/decision paths without a writer.
+- Supervised Post-Restore Outcome Capture Readiness v3.5v with active-consent and exact current restore/provenance/store hash binding, a fixed event/receipt blueprint, tamper/staleness refusal, and no token, writer, append, or execution.
 - Contest Showcase v1 with a deterministic three-minute narrative and safety doctor.
 - Build Week Provenance Pack v1.
 
@@ -98,13 +99,13 @@ The generated evidence under `contest/provenance/` is the source of truth for th
 
 | Metric | July 11 baseline | Current Build Week state | Delta |
 |---|---:|---:|---:|
-| Submission-relevant files | 69 | 145 | +76 |
-| Python files | 66 | 118 | +52 |
-| Unit-test methods | 664 | 1134 | +470 |
+| Submission-relevant files | 69 | 146 | +77 |
+| Python files | 66 | 119 | +53 |
+| Unit-test methods | 664 | 1140 | +476 |
 | Registry commands | 343 | 387 | +44 |
 | Registry categories | 39 | 41 | +2 |
 
-The file delta is not inferred from modification time. Every baseline and current submission-relevant file is hashed, then classified as added, changed, removed, or unchanged. The current manifest reports 76 added, 16 changed, 0 removed, and 53 unchanged files.
+The file delta is not inferred from modification time. Every baseline and current submission-relevant file is hashed, then classified as added, changed, removed, or unchanged. The current manifest reports 77 added, 16 changed, 0 removed, and 53 unchanged files.
 
 ## Reproduce The Evidence
 

@@ -82,6 +82,10 @@ from proto_mind.experience_learning_skill_outcome_capture import (
     format_procedural_skill_outcome_capture_command,
     is_valid_procedural_skill_outcome_event_batch,
 )
+from proto_mind.experience_learning_skill_restore_capture_readiness import (
+    ProceduralSkillRestoreCaptureReadiness,
+    format_procedural_skill_restore_capture_readiness_command,
+)
 from proto_mind.experience_learning_skill_outcome_decision import (
     OperatorReviewedProceduralSkillOutcomeDecisionSession,
     ProceduralSkillOutcomeDecisionBuilder,
@@ -586,6 +590,19 @@ def format_experience_pilot_command(
             )
             if skill_readiness_output is not None:
                 return skill_readiness_output
+            restore_capture_readiness_output = (
+                format_procedural_skill_restore_capture_readiness_command(
+                    raw,
+                    readiness=ProceduralSkillRestoreCaptureReadiness(
+                        memory_store=memory_store,
+                        skill_library=skill_library,
+                    ),
+                    pilot_state=pilot.state,
+                    pilot_session_id=pilot.session_id,
+                )
+            )
+            if restore_capture_readiness_output is not None:
+                return restore_capture_readiness_output
             skill_outcome_capture_output = format_procedural_skill_outcome_capture_command(
                 raw,
                 builder=ProceduralSkillOutcomeCaptureBuilder(
@@ -885,6 +902,8 @@ def _usage() -> str:
             "/experience learning apply skill <receipt_id|memory_id> <exact token>",
             "/experience learning skill-apply-status|skill-apply-receipt <id>|skill-apply-pilot-doctor",
             "/experience learning skill-outcome-capture-preview <skill_id> <success|failure> --evidence <text>",
+            "/experience learning skill-outcome-capture-preview <skill_id> <success|failure> --evidence <text> --post-restore-readiness|--post-restore-plan",
+            "/experience learning skill-outcome-capture-doctor --post-restore|--post-restore-contract",
             "/experience learning capture skill-outcome <skill_id> <success|failure> <token> --evidence <identical text>",
             "/experience learning skill-outcome-captures [<capture_id>]|skill-outcome-capture-doctor",
             "/experience learning skill-outcome-review <skill_id>|skill-outcome-doctor",
