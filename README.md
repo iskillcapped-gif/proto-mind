@@ -45,6 +45,8 @@ Then run:
 /exit
 ```
 
+On a fresh public clone, `/showcase status` can report `BLOCKED` and `/showcase doctor` can report `WARN`. This is the expected fail-closed state: private identity, memory, warning-ledger runtime records, and other local stores are intentionally not published. The commands should still complete cleanly, report Context Injection as disabled, expose the fixed four-command read-only runner allowlist, and perform no mutation. The submitted video demonstrates the populated local operator state without publishing personal data.
+
 For the contest UI:
 
 ```bash

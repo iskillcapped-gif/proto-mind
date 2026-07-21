@@ -86,6 +86,7 @@ Inside the CLI:
 Expected results:
 
 - the Showcase reports continuity, Experience, governance, and bounded action;
+- on a fresh clone, Showcase status may be `BLOCKED` and Doctor may be `WARN` because private runtime stores are intentionally excluded; this is expected fail-closed behavior, not a crash;
 - Context Injection is disabled;
 - Experience preview prints a process-session-specific consent command but captures nothing yet;
 - runner dry-run prints an exact command but performs no execution;
