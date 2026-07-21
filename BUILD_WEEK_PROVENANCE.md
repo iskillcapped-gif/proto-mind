@@ -101,7 +101,7 @@ The generated evidence under `contest/provenance/` is the source of truth for th
 |---|---:|---:|---:|
 | Submission-relevant files | 69 | 146 | +77 |
 | Python files | 66 | 119 | +53 |
-| Unit-test methods | 664 | 1140 | +476 |
+| Unit-test methods | 664 | 1144 | +480 |
 | Registry commands | 343 | 387 | +44 |
 | Registry categories | 39 | 41 | +2 |
 

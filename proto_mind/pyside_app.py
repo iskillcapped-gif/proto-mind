@@ -9,7 +9,7 @@ from traceback import print_exc
 from dataclasses import dataclass
 from re import match
 
-from proto_mind.command_registry import COMMAND_REGISTRY
+from proto_mind.command_registry import COMMAND_REGISTRY, match_registered_command
 from proto_mind.desktop_app import (
     DesktopRuntime,
     classify_desktop_output,
@@ -39,6 +39,7 @@ try:
         QPushButton,
         QSizePolicy,
         QSplitter,
+        QTabWidget,
         QTextEdit,
         QVBoxLayout,
         QWidget,
@@ -60,6 +61,7 @@ except ImportError as exc:  # pragma: no cover - depends on optional dependency.
     QPushButton = None  # type: ignore[assignment]
     QSizePolicy = None  # type: ignore[assignment]
     QSplitter = None  # type: ignore[assignment]
+    QTabWidget = None  # type: ignore[assignment]
     QTextEdit = None  # type: ignore[assignment]
     QTextCursor = None  # type: ignore[assignment]
     Qt = None  # type: ignore[assignment]
@@ -73,7 +75,7 @@ except ImportError as exc:  # pragma: no cover - depends on optional dependency.
     PYSIDE_IMPORT_ERROR = exc
 
 
-PYSIDE_APP_VERSION = "v2.0.0"
+PYSIDE_APP_VERSION = "v2.1.0"
 PYSIDE_APP_TITLE = f"Proto-Mind Cognitive Control Room {PYSIDE_APP_VERSION}"
 PYSIDE_COMMAND_COUNT = len(COMMAND_REGISTRY)
 PYSIDE_CATEGORY_COUNT = len({entry.category for entry in COMMAND_REGISTRY})
@@ -118,6 +120,94 @@ PYSIDE_PROMPT_CHIPS = (
     ("DOCTOR", "/proto doctor"),
     ("SHOWCASE", "/showcase demo"),
 )
+
+PYSIDE_DEMO_DYNAMIC_PREFIXES = frozenset(
+    {
+        "/experience consent CONSENT EXPERIENCE PREVIEW FOR SESSION:",
+        "/runner-exec run CONFIRM RUN READONLY:",
+    }
+)
+
+
+@dataclass(frozen=True)
+class DemoStep:
+    number: int
+    label: str
+    action: str
+    payload: str
+    hint: str
+
+
+@dataclass(frozen=True)
+class DemoDeckDoctorReport:
+    status: str
+    step_count: int
+    issues: list[str]
+
+
+PYSIDE_DEMO_DECK_STEPS = (
+    DemoStep(1, "Readiness", "command", "/showcase status", "Verify that the live demo is safe to begin."),
+    DemoStep(2, "System Story", "command", "/showcase demo", "Show continuity, experience, governance, and bounded action."),
+    DemoStep(3, "Broad Refusal", "command", "/experience consent yes", "Demonstrate that broad approval is rejected."),
+    DemoStep(4, "Consent Preview", "command", "/experience preview", "Generate the exact process-session consent command."),
+    DemoStep(5, "Exact Consent", "extract", "/experience consent CONSENT EXPERIENCE PREVIEW FOR SESSION:", "Unlocked only by the exact command printed in step 4."),
+    DemoStep(6, "Cognitive Turn", "normal_prompt", "What do you remember about the current direction of Proto-Mind, and what should we do next?", "Run one normal continuity turn for bounded Experience capture."),
+    DemoStep(7, "Explain Episode", "command", "/experience episode latest", "Connect the latest turn to compact provenance-linked events."),
+    DemoStep(8, "Learning Preview", "command", "/experience learning preview latest", "Show deterministic learning candidates without applying them."),
+    DemoStep(9, "Runner Dry-Run", "command", "/runner-exec dry-run /daily doctor", "Preview one fixed read-only internal action."),
+    DemoStep(10, "Exact Runner", "extract", "/runner-exec run CONFIRM RUN READONLY:", "Unlocked only by the exact command printed in step 9."),
+    DemoStep(11, "Verify Evidence", "command", "/runner-exec evidence-check", "Validate bounded in-memory execution evidence."),
+    DemoStep(12, "Stop Capture", "command", "/experience stop", "Stop Experience capture for the current process session."),
+)
+
+
+def extract_pyside_demo_command(output: str, expected_prefix: str) -> str | None:
+    """Extract one exact demo command without accepting chains or arbitrary prefixes."""
+    if expected_prefix not in PYSIDE_DEMO_DYNAMIC_PREFIXES:
+        return None
+    for raw_line in str(output).splitlines():
+        candidate = raw_line.strip()
+        if candidate.startswith("exact_usage: "):
+            candidate = candidate[len("exact_usage: ") :].strip()
+        if not candidate.startswith(expected_prefix) or candidate == expected_prefix:
+            continue
+        if len(candidate) > 600 or any(marker in candidate for marker in (";", "&&", "||", "|")):
+            continue
+        suffix = candidate[len(expected_prefix) :].strip()
+        if expected_prefix.startswith("/runner-exec") and suffix != "/daily doctor":
+            continue
+        if expected_prefix.startswith("/experience") and match(r"^[A-Za-z0-9_-]{1,80}$", suffix) is None:
+            continue
+        return candidate
+    return None
+
+
+def pyside_demo_deck_doctor() -> DemoDeckDoctorReport:
+    issues: list[str] = []
+    numbers = [step.number for step in PYSIDE_DEMO_DECK_STEPS]
+    if numbers != list(range(1, len(PYSIDE_DEMO_DECK_STEPS) + 1)):
+        issues.append("Demo step numbers must be unique and contiguous.")
+    for step in PYSIDE_DEMO_DECK_STEPS:
+        if step.action == "command":
+            if match_registered_command(step.payload) is None:
+                issues.append(f"Step {step.number} command is not registered: {step.payload}")
+            if any(marker in step.payload for marker in (";", "&&", "||", "|")):
+                issues.append(f"Step {step.number} contains a command chain.")
+        elif step.action == "extract":
+            if step.payload not in PYSIDE_DEMO_DYNAMIC_PREFIXES:
+                issues.append(f"Step {step.number} uses an unknown dynamic prefix.")
+        elif step.action == "normal_prompt":
+            if not step.payload.strip() or step.payload.lstrip().startswith("/"):
+                issues.append(f"Step {step.number} must contain a normal prompt.")
+        else:
+            issues.append(f"Step {step.number} has an unsupported action: {step.action}")
+        if "/context injection enable" in step.payload or "/context injection disable" in step.payload:
+            issues.append(f"Step {step.number} must not change Context Injection.")
+    return DemoDeckDoctorReport(
+        status="OK" if not issues else "ERROR",
+        step_count=len(PYSIDE_DEMO_DECK_STEPS),
+        issues=issues,
+    )
 
 START_MESSAGE = """# Welcome back
 **Proto-Mind is local, inspectable, and operator-guided.**
@@ -487,6 +577,27 @@ def pyside_dark_stylesheet() -> str:
         border: 1px solid #253344;
         border-radius: 14px;
     }
+    QTabWidget#deckTabs::pane {
+        background: #0d141c;
+        border: 1px solid #253344;
+        border-radius: 10px;
+        top: -1px;
+    }
+    QTabWidget#deckTabs QTabBar::tab {
+        background: #111923;
+        color: #8795a6;
+        border: 1px solid #253344;
+        border-bottom: none;
+        padding: 8px 12px;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.8px;
+    }
+    QTabWidget#deckTabs QTabBar::tab:selected {
+        background: #17232d;
+        color: #ffd18a;
+        border-color: #705b36;
+    }
     QLabel#deckTitle {
         color: #fff7e8;
         font-size: 16px;
@@ -555,6 +666,46 @@ def pyside_dark_stylesheet() -> str:
         background: #1b302f;
         color: #a7eadb;
         border-color: #35655f;
+    }
+    QPushButton#demoActionButton {
+        background: #15222a;
+        color: #dce8e5;
+        border: 1px solid #2b4d4a;
+        text-align: left;
+        padding: 9px 9px;
+        font-size: 11px;
+    }
+    QPushButton#demoActionButton:hover {
+        background: #1a3433;
+        color: #a7eadb;
+        border-color: #4b7d75;
+    }
+    QPushButton#demoGateButton {
+        background: #302719;
+        color: #ffd18a;
+        border: 1px solid #73592f;
+        text-align: left;
+        padding: 9px 9px;
+        font-size: 11px;
+        font-weight: 800;
+    }
+    QPushButton#demoGateButton:hover {
+        background: #46371f;
+        border-color: #b18443;
+    }
+    QPushButton#demoGateButton:disabled {
+        background: #17191b;
+        color: #746b5d;
+        border-color: #37322a;
+    }
+    QLabel#demoStatus {
+        background: #111923;
+        color: #8ee3ce;
+        border: 1px solid #2b4d4a;
+        border-radius: 8px;
+        padding: 7px 9px;
+        font-size: 10px;
+        font-weight: 700;
     }
     QPushButton#chipButton {
         background: transparent;
@@ -718,6 +869,8 @@ if PYSIDE_AVAILABLE:
             self.cancel_requested_for_current_worker = False
             self.active_stream_speaker: str | None = None
             self.panel_buttons: list[QPushButton] = []
+            self.demo_dynamic_buttons: dict[str, QPushButton] = {}
+            self.last_raw_response = ""
 
             self.setWindowTitle(PYSIDE_APP_TITLE)
             self.setMinimumSize(1040, 700)
@@ -918,10 +1071,17 @@ if PYSIDE_AVAILABLE:
             self.auto_self_check.stateChanged.connect(self._on_auto_self_check_toggle)
             right_layout.addWidget(self.auto_self_check)
 
+            deck_tabs = QTabWidget()
+            deck_tabs.setObjectName("deckTabs")
+
+            control_tab = QWidget()
+            control_layout = QVBoxLayout(control_tab)
+            control_layout.setContentsMargins(10, 10, 10, 10)
+            control_layout.setSpacing(8)
             for group_name, actions in PYSIDE_CONTROL_DECK_GROUPS:
                 section = QLabel(group_name)
                 section.setObjectName("sectionTitle")
-                right_layout.addWidget(section)
+                control_layout.addWidget(section)
                 grid = QGridLayout()
                 grid.setHorizontalSpacing(7)
                 grid.setVerticalSpacing(7)
@@ -938,9 +1098,39 @@ if PYSIDE_AVAILABLE:
                     )
                 grid.setColumnStretch(0, 1)
                 grid.setColumnStretch(1, 1)
-                right_layout.addLayout(grid)
+                control_layout.addLayout(grid)
+            control_layout.addStretch(1)
+            deck_tabs.addTab(control_tab, "CONTROL")
 
-            right_layout.addStretch(1)
+            demo_tab = QWidget()
+            demo_layout = QVBoxLayout(demo_tab)
+            demo_layout.setContentsMargins(10, 10, 10, 10)
+            demo_layout.setSpacing(8)
+            demo_intro = QLabel(
+                "CONTEST DEMO / FOLLOW 01-12\n"
+                "Exact gates unlock only after their preview step."
+            )
+            demo_intro.setObjectName("mutedLabel")
+            demo_intro.setWordWrap(True)
+            demo_layout.addWidget(demo_intro)
+
+            self.demo_status_label = QLabel("Follow the numbered steps. No copy/paste needed.")
+            self.demo_status_label.setObjectName("demoStatus")
+            self.demo_status_label.setWordWrap(True)
+            demo_layout.addWidget(self.demo_status_label)
+
+            demo_grid = QGridLayout()
+            demo_grid.setHorizontalSpacing(7)
+            demo_grid.setVerticalSpacing(7)
+            for index, step in enumerate(PYSIDE_DEMO_DECK_STEPS):
+                demo_grid.addWidget(self._make_demo_button(step), index // 2, index % 2)
+            demo_grid.setColumnStretch(0, 1)
+            demo_grid.setColumnStretch(1, 1)
+            demo_layout.addLayout(demo_grid)
+            demo_layout.addStretch(1)
+            deck_tabs.addTab(demo_tab, "DEMO RUNWAY")
+
+            right_layout.addWidget(deck_tabs, stretch=1)
 
         def _make_command_button(
             self,
@@ -963,6 +1153,36 @@ if PYSIDE_AVAILABLE:
             )
             self.panel_buttons.append(button)
             return button
+
+        def _make_demo_button(self, step: DemoStep) -> QPushButton:
+            button = QPushButton(f"{step.number:02d}  {step.label}")
+            button.setObjectName("demoGateButton" if step.action == "extract" else "demoActionButton")
+            button.setToolTip(f"{step.hint}\n\n{step.payload}")
+            button.setAccessibleName(f"Demo step {step.number}: {step.label}")
+            button.clicked.connect(lambda _checked=False, value=step: self._run_demo_step(value))
+            if step.action == "extract":
+                button.setEnabled(False)
+                self.demo_dynamic_buttons[step.payload] = button
+            self.panel_buttons.append(button)
+            return button
+
+        def _run_demo_step(self, step: DemoStep) -> None:
+            if step.action == "extract":
+                self._run_demo_extracted_command(step.payload)
+                return
+            if step.action == "normal_prompt":
+                self._send(step.payload, append_user=True)
+                return
+            self._send(step.payload, append_user=False, announce=True)
+
+        def _run_demo_extracted_command(self, expected_prefix: str) -> None:
+            command = extract_pyside_demo_command(self.last_raw_response, expected_prefix)
+            if command is None:
+                self.append_system_message(
+                    "Exact demo command is not ready. Run the preceding preview step first."
+                )
+                return
+            self._send(command, append_user=False, announce=True)
 
         def _set_busy(self, busy: bool) -> None:
             self.busy = busy
@@ -1028,6 +1248,7 @@ if PYSIDE_AVAILABLE:
 
         def _finish_response(self, response: str | None, *, cancel_requested: bool = False) -> None:
             was_cancel_requested = cancel_requested or self.cancel_requested_for_current_worker
+            self.last_raw_response = response or ""
             self._set_busy(False)
             if response is None:
                 self.close()
@@ -1154,6 +1375,26 @@ if PYSIDE_AVAILABLE:
                     debug_enabled=self.debug_checkbox.isChecked(),
                 )
             )
+            self._refresh_demo_buttons()
+
+        def _refresh_demo_buttons(self) -> None:
+            ready_labels: list[str] = []
+            for prefix, button in self.demo_dynamic_buttons.items():
+                command = extract_pyside_demo_command(self.last_raw_response, prefix)
+                button.setEnabled((not self.busy) and command is not None)
+                if command is None:
+                    button.setToolTip("Locked. Run the preceding preview step first.")
+                    continue
+                button.setToolTip(f"Ready to run exact command:\n{command}")
+                ready_labels.append("consent" if prefix.startswith("/experience") else "read-only run")
+            if ready_labels:
+                self.demo_status_label.setText(
+                    f"Exact {' and '.join(ready_labels)} gate ready. Continue with the highlighted step."
+                )
+            elif self.busy:
+                self.demo_status_label.setText("Demo step is running through the shared handler...")
+            else:
+                self.demo_status_label.setText("Follow the numbered steps. No copy/paste needed.")
 
         def _on_debug_toggle(self) -> None:
             self.preferences.debug_output = self.debug_checkbox.isChecked()

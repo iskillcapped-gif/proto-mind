@@ -29,7 +29,7 @@ Last updated: 2026-07-21
 ## Current Verification Baseline
 
 - Current test command: `scripts/run_tests.sh`.
-- Current test count: 1140 unit tests OK.
+- Current test count: 1144 unit tests OK.
 - Compile check: `python -m compileall proto_mind` via `scripts/run_tests.sh` OK.
 - Pytest: optional; currently not installed and skipped cleanly.
 
@@ -38,7 +38,7 @@ Last updated: 2026-07-21
 - Python 3.11 Environment Guard v1.0: stable Python selector scripts and early runtime guard.
 - CLI/shared handler: `proto_mind.main`, reused by CLI, tkinter desktop, and PySide desktop.
 - Tkinter Desktop v0.5: compact/debug chat, system panel, clipboard fixes, transcript export, prefs.
-- PySide6 Cognitive Control Room v2.0.0: intentional amber/teal desktop UI, shared worker/chat runtime, live local/context/capability indicators, 12 grouped read-only Control Deck actions, markdown rendering, local macOS `.app` launcher, and Desktop shortcut helper.
+- PySide6 Cognitive Control Room v2.1.0: intentional amber/teal desktop UI, shared worker/chat runtime, live local/context/capability indicators, the original 12-action Control tab, and a 12-step contest Demo Runway with preview-gated exact consent/runner buttons; markdown rendering, local macOS `.app` launcher, and Desktop shortcut helper remain intact.
 - Session Control Room: `/session self-check`, `/session health`, `/session doctor`, `/session review`, `/session log ...`, plus Session Rituals v1 read-only start/end/checkpoint/handoff briefs.
 - Natural Command Router v2.3: exact routes plus policy-aware registry metadata in `/natural explain|list|doctor`, with suggestions still non-executing.
 - Command Registry v1.0: metadata for 387 slash-command prefixes across 41 categories with mutation/risk labels and Natural Router consistency checks.
@@ -170,13 +170,14 @@ Last updated: 2026-07-21
 
 ## Last Completed Milestone
 
-v3.5v / Supervised Post-Restore Outcome Capture Readiness:
+PySide6 Cognitive Control Room v2.1.0 / Contest Demo Runway:
 
-- Existing capture-preview/Doctor prefixes now expose `--post-restore-readiness`, `--post-restore-plan`, `--post-restore`, and `--post-restore-contract` without Registry expansion.
-- The deterministic blueprint is available only for the exact current `active_restored_verified` skill and binds current-process consent, provenance/payload, Skill Library bytes, complete skill record, restore metadata/evidence, outcome, and bounded operator evidence.
-- A fixed four-event sequence, exact restore-bound `tool_called` fields, future token namespace, and fixed receipt schema are reviewable before any authority exists; current-state and blueprint tamper checks fail closed.
-- The output remains authorization-design-only: no confirmation token, writer, event append, receipt, lifecycle decision, procedure execution, store/export/session-log mutation, model/API call, or Context Injection change exists.
-- Registry remains 387 commands across 41 categories; the full suite is 1140 tests OK.
+- A dedicated `DEMO RUNWAY` tab turns the accepted three-minute showcase into twelve numbered controls, avoiding manual command copy/paste while retaining the existing `CONTROL` tab.
+- Every step still runs through `DesktopRuntime`; the UI adds no alternate dispatcher, shell path, model/API call, or store writer.
+- Exact Experience consent and exact read-only runner controls remain locked until the preceding preview/dry-run output exposes the expected command under one of two fixed prefixes.
+- Safe extraction rejects unknown prefixes, command chains, empty tokens, and oversized lines; no UI token synthesis or persisted approval exists.
+- Context Injection behavior remains unchanged and visible; launcher metadata is v2.1.0.
+- Registry remains 387 commands across 41 categories; the full suite is 1144 tests OK.
 
 ## Next Candidate Tasks
 

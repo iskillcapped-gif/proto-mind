@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import asdict, dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, Iterable
@@ -563,7 +563,7 @@ def _correction_event(events: list[ExperienceEvent]) -> ExperienceEvent:
     grounding = next(event for event in events if event.event_type == "grounding_evaluated")
     return ExperienceEvent(
         id="evt_outcome-review_1_08_user_corrected",
-        created_at="2026-07-21T00:01:00+00:00",
+        created_at=_event_time_offset(grounding.created_at, minutes=1),
         event_type="user_corrected",
         session_id=grounding.session_id,
         turn_id=grounding.turn_id,
@@ -583,7 +583,7 @@ def _replacement_events(
 ) -> list[ExperienceEvent]:
     reflection = ExperienceEvent(
         id="evt_outcome-review_1_09_reflection_created",
-        created_at="2026-07-21T00:02:00+00:00",
+        created_at=_event_time_offset(correction.created_at, minutes=1),
         event_type="reflection_created",
         session_id=correction.session_id,
         turn_id=correction.turn_id,
@@ -598,7 +598,7 @@ def _replacement_events(
     )
     lesson = ExperienceEvent(
         id="evt_outcome-review_1_10_lesson_candidate_created",
-        created_at="2026-07-21T00:03:00+00:00",
+        created_at=_event_time_offset(correction.created_at, minutes=2),
         event_type="lesson_candidate_created",
         session_id=correction.session_id,
         turn_id=correction.turn_id,
@@ -613,7 +613,7 @@ def _replacement_events(
     )
     promotion = ExperienceEvent(
         id="evt_outcome-review_1_11_memory_promoted",
-        created_at="2026-07-21T00:04:00+00:00",
+        created_at=_event_time_offset(correction.created_at, minutes=3),
         event_type="memory_promoted",
         session_id=correction.session_id,
         turn_id=correction.turn_id,
@@ -629,6 +629,11 @@ def _replacement_events(
         confidence=0.9,
     )
     return [reflection, lesson, promotion]
+
+
+def _event_time_offset(value: str, *, minutes: int) -> str:
+    base = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    return (base + timedelta(minutes=minutes)).isoformat()
 
 
 def _fixture_lesson(

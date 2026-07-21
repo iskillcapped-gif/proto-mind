@@ -4842,7 +4842,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
     def test_pyside_app_imports_safely_and_exposes_optional_dependency_message(self) -> None:
         self.assertTrue(hasattr(pyside_app, "main"))
-        self.assertEqual(pyside_app.PYSIDE_APP_VERSION, "v2.0.0")
+        self.assertEqual(pyside_app.PYSIDE_APP_VERSION, "v2.1.0")
         self.assertIn("Cognitive Control Room", pyside_app.PYSIDE_APP_TITLE)
         self.assertIn("Welcome back", pyside_app.START_MESSAGE)
         self.assertIn("PySide6 is not installed.", pyside_app.pyside_missing_message())
@@ -4898,7 +4898,7 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertIn("CFBundleName", build_text)
         self.assertIn("<string>Proto-Mind</string>", build_text)
         self.assertIn("CFBundleExecutable", build_text)
-        self.assertIn("<string>2.0.0</string>", build_text)
+        self.assertIn("<string>2.1.0</string>", build_text)
         self.assertIn("CFBundleIconFile", build_text)
         self.assertIn("ProtoMind.icns", build_text)
         self.assertIn("iconutil -c icns", build_text)
@@ -4934,6 +4934,71 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertIn("--applications", shortcut_text)
         self.assertIn("/Applications", shortcut_text)
         self.assertIn("ln -sfn", shortcut_text)
+
+    def test_pyside_demo_runway_has_safe_ordered_steps(self) -> None:
+        steps = pyside_app.PYSIDE_DEMO_DECK_STEPS
+        self.assertEqual([step.number for step in steps], list(range(1, 13)))
+        self.assertEqual(steps[0].payload, "/showcase status")
+        self.assertEqual(steps[5].action, "normal_prompt")
+        self.assertEqual(steps[8].payload, "/runner-exec dry-run /daily doctor")
+        self.assertEqual(steps[-1].payload, "/experience stop")
+        self.assertNotIn("/context injection", "\n".join(step.payload for step in steps))
+        report = pyside_app.pyside_demo_deck_doctor()
+        self.assertEqual(report.status, "OK")
+        self.assertEqual(report.step_count, 12)
+        self.assertEqual(report.issues, [])
+
+    def test_pyside_demo_runway_extracts_exact_experience_consent(self) -> None:
+        command = (
+            "/experience consent CONSENT EXPERIENCE PREVIEW FOR SESSION: "
+            "experience-20260721-ab12"
+        )
+        output = f"Experience Preview\nExact consent command:\n{command}\n"
+        self.assertEqual(
+            pyside_app.extract_pyside_demo_command(
+                output,
+                "/experience consent CONSENT EXPERIENCE PREVIEW FOR SESSION:",
+            ),
+            command,
+        )
+
+    def test_pyside_demo_runway_extracts_exact_runner_usage(self) -> None:
+        command = "/runner-exec run CONFIRM RUN READONLY: /daily doctor"
+        output = f"Read-only Runner MVP Dry Run\nexact_usage: {command}\n"
+        self.assertEqual(
+            pyside_app.extract_pyside_demo_command(
+                output,
+                "/runner-exec run CONFIRM RUN READONLY:",
+            ),
+            command,
+        )
+
+    def test_pyside_demo_runway_extractor_refuses_unsafe_or_unknown_commands(self) -> None:
+        runner_prefix = "/runner-exec run CONFIRM RUN READONLY:"
+        self.assertIsNone(
+            pyside_app.extract_pyside_demo_command(
+                "exact_usage: /runner-exec run CONFIRM RUN READONLY: /daily doctor; /memory status",
+                runner_prefix,
+            )
+        )
+        self.assertIsNone(
+            pyside_app.extract_pyside_demo_command(
+                "/context injection enable true",
+                "/context injection enable",
+            )
+        )
+        self.assertIsNone(
+            pyside_app.extract_pyside_demo_command(
+                "/runner-exec run CONFIRM RUN READONLY:",
+                runner_prefix,
+            )
+        )
+        self.assertIsNone(
+            pyside_app.extract_pyside_demo_command(
+                "/runner-exec run CONFIRM RUN READONLY: /exports doctor",
+                runner_prefix,
+            )
+        )
 
     def test_pyside_context_indicator_is_read_only_and_fail_closed(self) -> None:
         with TemporaryDirectory() as temp_dir:

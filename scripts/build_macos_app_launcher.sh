@@ -134,9 +134,9 @@ cat > "${PLIST}" <<PLIST
   <key>CFBundleIdentifier</key>
   <string>local.proto-mind.pyside</string>
   <key>CFBundleVersion</key>
-  <string>2.0.0</string>
+  <string>2.1.0</string>
   <key>CFBundleShortVersionString</key>
-  <string>2.0.0</string>
+  <string>2.1.0</string>
 ${ICON_PLIST_ENTRY}
   <key>CFBundlePackageType</key>
   <string>APPL</string>

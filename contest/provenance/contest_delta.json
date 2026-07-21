@@ -163,7 +163,7 @@
       "requirements-ui.txt"
     ]
   },
-  "generated_at": "2026-07-20T23:27:57.422664+00:00",
+  "generated_at": "2026-07-21T16:18:55.399109+00:00",
   "limitations": [
     "This is local equivalent evidence, not a third-party timestamp authority.",
     "Codex /feedback Session IDs and future dated Git commits should accompany this manifest.",
@@ -192,13 +192,13 @@
     },
     "test_method_count": {
       "baseline": 664,
-      "current": 1140,
-      "delta": 476
+      "current": 1144,
+      "delta": 480
     },
     "total_bytes": {
       "baseline": 2188652,
-      "current": 4355734,
-      "delta": 2167082
+      "current": 4370588,
+      "delta": 2181936
     }
   },
   "schema_version": 1,

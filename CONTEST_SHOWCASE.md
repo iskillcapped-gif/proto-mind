@@ -40,7 +40,9 @@ The important distinction is that capabilities are not the intelligence. The nor
 
 ## Three-Minute Demo
 
-Start Proto-Mind:
+Open the local `Proto-Mind.app`, select `DEMO RUNWAY`, and follow buttons `01` through `12`. The two amber gate buttons unlock only after their preceding preview step, so no dynamic command needs to be copied during recording.
+
+CLI fallback:
 
 ```bash
 cd /path/to/proto_mind
@@ -116,7 +118,8 @@ Narration:
 
 ## Recording Checklist
 
-- Record the terminal or PySide window at readable scale.
+- Record the PySide window at readable scale and select the `DEMO RUNWAY` tab before speaking.
+- Follow buttons `01` through `12`; do not manually copy the session consent or runner confirmation.
 - Keep `/showcase demo` visible long enough to show all four sections.
 - Show that consent is refused before preview or for a broad phrase such as `yes`.
 - Show `/experience episode latest`, then one event ID and its `/experience inspect` provenance output.
@@ -127,7 +130,7 @@ Narration:
 ## Current Verified Baseline
 
 - Python 3.11.15.
-- 1140 unit tests passing.
+- 1144 unit tests passing.
 - 387 registered commands across 41 categories.
 - Context Injection disabled.
 - Experience persistence disabled.
