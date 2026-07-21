@@ -1,6 +1,6 @@
 # Proto-Mind — OpenAI Build Week Submission Draft
 
-This file is a copy-ready submission handoff. Replace the YouTube placeholder after the upload finishes, then submit through <https://openai.devpost.com/> before July 21, 2026 at 5:00 PM Pacific Time.
+This file is a copy-ready submission handoff for <https://openai.devpost.com/> before July 21, 2026 at 5:00 PM Pacific Time.
 
 ## Submission Fields
 
@@ -8,7 +8,7 @@ This file is a copy-ready submission handoff. Replace the YouTube placeholder af
 - **Tagline:** A local-first cognitive operating system with inspectable memory, consented experience, supervised learning, and bounded action.
 - **Recommended track:** Apps for Your Life
 - **Code repository:** <https://github.com/iskillcapped-gif/proto-mind>
-- **Demo video:** `ADD_PUBLIC_YOUTUBE_URL_HERE`
+- **Demo video:** <https://youtu.be/CHr4GJj19tI>
 - **Primary Codex /feedback Session ID:** `019d73be-1d7e-7401-8efe-f5e165736db4`
 - **License:** Apache License 2.0
 
@@ -120,7 +120,7 @@ Select `DEMO RUNWAY` and follow steps `01` through `12`. Ollama is optional; use
 - [x] Installation, supported-platform, and no-rebuild testing instructions.
 - [x] Primary `/feedback` Session ID.
 - [x] Demo under three minutes recorded with audio.
-- [ ] Replace `ADD_PUBLIC_YOUTUBE_URL_HERE` with the public YouTube URL.
+- [x] Public YouTube URL added: <https://youtu.be/CHr4GJj19tI>.
 - [ ] Confirm the YouTube video is publicly visible and contains no unlicensed music/material.
 - [ ] Submit the Devpost entry before the deadline.
 

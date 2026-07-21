@@ -17,6 +17,8 @@ The comparison excludes private runtime stores, exports, logs, backups, and secr
 
 Repository publication boundaries, resolved path leaks, intentional redaction fixtures, and remaining pre-publication decisions are documented in [`REPOSITORY_PRIVACY_REVIEW.md`](REPOSITORY_PRIVACY_REVIEW.md).
 
+Build Week demo video: [Proto Mind](https://youtu.be/CHr4GJj19tI).
+
 ## Build Week Judge Quickstart
 
 Proto-Mind can be evaluated locally without rebuilding a package, creating an account, or connecting a cloud service. The deterministic mock backend is included.
