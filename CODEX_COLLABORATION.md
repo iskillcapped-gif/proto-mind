@@ -50,7 +50,10 @@ The machine-readable baseline proves these modules were absent or changed after 
 - v3.2a-v3.2m Experience Ledger, privacy, consent, evidence, learning-review, and readiness layers.
 - v3.3a Supervised In-Memory Experience Pilot.
 - v3.3b Cognitive Turn Episode View.
+- v3.3c-v3.4h supervised candidate review, exact-token memory lesson promotion, durable provenance/recall, outcome review, lifecycle apply, and restart-safe audit.
+- v3.5a-v3.5v supervised procedural skill contracts, apply, provenance, outcome/lifecycle review, durable archive/restore, guardrails, and post-restore readiness.
 - Contest Showcase v1.
+- PySide Cognitive Control Room v2.1.0 with a preview-gated twelve-step contest Demo Runway.
 - Build Week Provenance Pack v1.
 
 ## Required Session Evidence

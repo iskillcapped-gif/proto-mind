@@ -26,20 +26,26 @@
     {
       "category": "documentation",
       "path": "BUILD_WEEK_PROVENANCE.md",
-      "sha256": "96837421ba5c30582eb85ec24d80902a32d8655382c373850e2c450b8a7d0b11",
-      "size": 13336
+      "sha256": "687338a015c3e610113de95fb2d3737e6926ce1575fcc5dad968cf9fd7346f0d",
+      "size": 13383
     },
     {
       "category": "documentation",
       "path": "CODEX_COLLABORATION.md",
-      "sha256": "ad7e313f4cc13414d02a92105347ce418b7291136997c0c4e7b16f26d8500b98",
-      "size": 3991
+      "sha256": "716ff8dccc670083b83bc1734a12e9dcb5813f5e18da037a6a9a42c6ae09e1bd",
+      "size": 4411
     },
     {
       "category": "documentation",
       "path": "CONTEST_SHOWCASE.md",
       "sha256": "3fba144b2f48195e36be6f0b2428818e299c7a5bb61ec67ecf1d2dd71292523d",
       "size": 6166
+    },
+    {
+      "category": "documentation",
+      "path": "DEVPOST_SUBMISSION.md",
+      "sha256": "a726de0bffae5bf0bbd1b9aa6c3374867465b93047a8281b08df5d73ad674850",
+      "size": 7516
     },
     {
       "category": "documentation",
@@ -68,8 +74,8 @@
     {
       "category": "documentation",
       "path": "README.md",
-      "sha256": "a89261e9a9e1f44cfa6cd95dbd32a3ea14e9a6a41f08358b9e9760862c2be421",
-      "size": 79715
+      "sha256": "2aa72a8d5ef2d5147a8bb82f5e5b088f2adc226e221cc27cbddfccf54859b26c",
+      "size": 82078
     },
     {
       "category": "documentation",
@@ -882,23 +888,23 @@
       "size": 637
     }
   ],
-  "generated_at": "2026-07-21T16:18:55.399109+00:00",
+  "generated_at": "2026-07-21T19:02:42.675990+00:00",
   "label": "current_contest_state",
   "metrics": {
     "category_counts": {
       "assets": 1,
-      "documentation": 11,
+      "documentation": 12,
       "scripts": 11,
       "setup": 4,
       "source": 118,
       "tests": 1
     },
-    "file_count": 146,
+    "file_count": 147,
     "python_file_count": 119,
     "registry_category_count": 41,
     "registry_command_count": 387,
     "test_method_count": 1144,
-    "total_bytes": 4370588
+    "total_bytes": 4380934
   },
   "schema_version": 1,
   "scope": {

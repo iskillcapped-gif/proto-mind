@@ -17,6 +17,52 @@ The comparison excludes private runtime stores, exports, logs, backups, and secr
 
 Repository publication boundaries, resolved path leaks, intentional redaction fixtures, and remaining pre-publication decisions are documented in [`REPOSITORY_PRIVACY_REVIEW.md`](REPOSITORY_PRIVACY_REVIEW.md).
 
+## Build Week Judge Quickstart
+
+Proto-Mind can be evaluated locally without rebuilding a package, creating an account, or connecting a cloud service. The deterministic mock backend is included.
+
+Supported evaluation path:
+
+- Python 3.11+.
+- macOS for the PySide desktop and local `.app` launcher.
+- The CLI is dependency-free and uses POSIX helper scripts; Linux is expected to work but the submission baseline was verified on macOS.
+- Ollama is optional. It is not required for tests or the deterministic showcase reports.
+
+```bash
+git clone https://github.com/iskillcapped-gif/proto-mind.git
+cd proto-mind
+scripts/which_python.sh
+scripts/run_tests.sh
+scripts/run_cli.sh
+```
+
+Then run:
+
+```text
+/showcase status
+/showcase demo
+/showcase doctor
+/exit
+```
+
+For the contest UI:
+
+```bash
+python3.11 -m venv .venv
+.venv/bin/python -m pip install -r requirements-ui.txt
+scripts/run_pyside_mock.sh
+```
+
+Open the `DEMO RUNWAY` tab and follow buttons `01` through `12`. Exact consent and runner controls remain locked until their preceding preview generates the correct process-bound command.
+
+Expected verified baseline: Python 3.11, 1144 unit tests, 387 registered command prefixes across 41 categories, Context Injection disabled, no persistent live Experience capture, and a four-command fixed read-only runner allowlist.
+
+### Codex And GPT-5.6 Collaboration
+
+Proto-Mind existed before Build Week as a local memory, command, and safety prototype. During the submission period, the operator used Codex/GPT-5.6 to inspect that baseline, design bounded milestones, implement and test cognitive continuity hardening, typed Experience provenance, exact-consent capture, explainable episodes, supervised memory/skill learning lifecycles, and the contest Demo Runway. The operator chose the product direction, autonomy limits, privacy rules, and whether each milestone could proceed; Codex handled repository analysis, implementation, regression testing, failure diagnosis, and documentation. The exact baseline/current distinction and reproducible SHA-256 evidence are in [`BUILD_WEEK_PROVENANCE.md`](BUILD_WEEK_PROVENANCE.md), with the collaboration narrative in [`CODEX_COLLABORATION.md`](CODEX_COLLABORATION.md).
+
+Copy-ready Devpost text, testing instructions, repository URL, and the final submission checklist are in [`DEVPOST_SUBMISSION.md`](DEVPOST_SUBMISSION.md).
+
 ## License
 
 Proto-Mind is licensed under the [Apache License 2.0](LICENSE), including its explicit patent grant and notice-preservation requirements.
