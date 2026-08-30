@@ -23,6 +23,7 @@ from proto_mind.desktop_app import (
     save_desktop_preferences,
     save_transcript,
 )
+from proto_mind.desktop_view_model import build_local_capability_card_html
 
 try:
     from PySide6.QtCore import QByteArray, QObject, Qt, QThread, QTimer, Signal, Slot
@@ -75,7 +76,7 @@ except ImportError as exc:  # pragma: no cover - depends on optional dependency.
     PYSIDE_IMPORT_ERROR = exc
 
 
-PYSIDE_APP_VERSION = "v2.1.0"
+PYSIDE_APP_VERSION = "v2.2.0"
 PYSIDE_APP_TITLE = f"Proto-Mind Cognitive Control Room {PYSIDE_APP_VERSION}"
 PYSIDE_COMMAND_COUNT = len(COMMAND_REGISTRY)
 PYSIDE_CATEGORY_COUNT = len({entry.category for entry in COMMAND_REGISTRY})
@@ -775,6 +776,55 @@ def pyside_chat_document_css() -> str:
         padding: 10px;
         white-space: pre-wrap;
     }
+    .capability-card {
+        background: #101923;
+        border: 1px solid #31505a;
+        border-left: 4px solid #7fd8c4;
+        border-radius: 10px;
+        margin: 0 0 18px 0;
+        padding: 14px;
+    }
+    .capability-status-warn { border-left-color: #d7a75b; }
+    .capability-status-blocked, .capability-status-error { border-left-color: #d06b65; }
+    .capability-status-unknown { border-left-color: #7b8794; }
+    .capability-kicker {
+        color: #7fd8c4;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 1px;
+        margin-bottom: 5px;
+    }
+    .capability-title {
+        color: #fff7e8;
+        font-size: 17px;
+        font-weight: 700;
+        margin-bottom: 4px;
+    }
+    .capability-summary { color: #b9c4cf; margin-bottom: 9px; }
+    .capability-meta { color: #d7a75b; font-family: Menlo, Monaco, Consolas, monospace; }
+    .capability-command { margin-right: 12px; }
+    .capability-status { color: #7fd8c4; font-weight: 700; }
+    .capability-status-warn .capability-status { color: #ffd18a; }
+    .capability-status-blocked .capability-status,
+    .capability-status-error .capability-status { color: #f29a92; }
+    .capability-status-unknown .capability-status { color: #9ca7b5; }
+    .capability-badges { margin: 9px 0; }
+    .capability-badge {
+        background: #182b2a;
+        border: 1px solid #2a5b54;
+        color: #84d8c5;
+        font-size: 9px;
+        font-weight: 700;
+        margin-right: 5px;
+        padding: 2px 5px;
+    }
+    .capability-output {
+        background: #0a1016;
+        border: 1px solid #263545;
+        color: #d9e0e7;
+        margin: 10px 0 8px 0;
+    }
+    .capability-footnote { color: #738091; font-size: 10px; }
     """
 
 
@@ -1242,11 +1292,18 @@ if PYSIDE_AVAILABLE:
             self.current_worker = None
 
         def _finish_worker_response(self, result: object) -> None:
+            user_input = str(result.get("input", "")) if isinstance(result, dict) else ""
             response = result.get("response") if isinstance(result, dict) else None
             cancel_requested = bool(result.get("cancel_requested")) if isinstance(result, dict) else False
-            self._finish_response(response, cancel_requested=cancel_requested)
+            self._finish_response(response, user_input=user_input, cancel_requested=cancel_requested)
 
-        def _finish_response(self, response: str | None, *, cancel_requested: bool = False) -> None:
+        def _finish_response(
+            self,
+            response: str | None,
+            *,
+            user_input: str = "",
+            cancel_requested: bool = False,
+        ) -> None:
             was_cancel_requested = cancel_requested or self.cancel_requested_for_current_worker
             self.last_raw_response = response or ""
             self._set_busy(False)
@@ -1261,14 +1318,18 @@ if PYSIDE_AVAILABLE:
                     self.append_system_message("Operation finished after stop request.")
                     self.cancel_requested_for_current_worker = False
                 return
-            display = format_desktop_response(response, debug=self.debug_checkbox.isChecked())
-            kind = classify_desktop_output(response)
-            if kind == "system":
-                self.append_system_message(display)
-            elif kind == "report":
-                self.append_report_message(display)
+            typed_card = build_local_capability_card_html(user_input, response)
+            if typed_card is not None:
+                self.append_local_capability_card(typed_card)
             else:
-                self.append_assistant_message(display)
+                display = format_desktop_response(response, debug=self.debug_checkbox.isChecked())
+                kind = classify_desktop_output(response)
+                if kind == "system":
+                    self.append_system_message(display)
+                elif kind == "report":
+                    self.append_report_message(display)
+                else:
+                    self.append_assistant_message(display)
             self._update_panel_from_output(response)
             if response.startswith("System error:"):
                 self.runtime_state = "error"
@@ -1427,6 +1488,16 @@ if PYSIDE_AVAILABLE:
 
         def append_report_message(self, text: str) -> None:
             self._append("Proto-Mind / System report", text, report=True)
+
+        def append_local_capability_card(self, card_html: str) -> None:
+            cursor = self.chat.textCursor()
+            cursor.movePosition(QTextCursor.MoveOperation.End)
+            cursor.insertHtml(card_html)
+            cursor.insertHtml(pyside_message_reset_html())
+            cursor.insertBlock()
+            self.chat.setTextCursor(cursor)
+            scrollbar = self.chat.verticalScrollBar()
+            scrollbar.setValue(scrollbar.maximum())
 
         def _append(
             self,

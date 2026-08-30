@@ -2,7 +2,7 @@
 
 Purpose: compact architectural memory for future Codex prompts. Keep this file short, current, and operator-readable so future tasks do not need to restate the whole project history.
 
-Last updated: 2026-07-21
+Last updated: 2026-07-29
 
 ## Current Stable State
 
@@ -29,7 +29,7 @@ Last updated: 2026-07-21
 ## Current Verification Baseline
 
 - Current test command: `scripts/run_tests.sh`.
-- Current test count: 1144 unit tests OK.
+- Current test count: 1152 unit tests OK.
 - Compile check: `python -m compileall proto_mind` via `scripts/run_tests.sh` OK.
 - Pytest: optional; currently not installed and skipped cleanly.
 
@@ -38,7 +38,7 @@ Last updated: 2026-07-21
 - Python 3.11 Environment Guard v1.0: stable Python selector scripts and early runtime guard.
 - CLI/shared handler: `proto_mind.main`, reused by CLI, tkinter desktop, and PySide desktop.
 - Tkinter Desktop v0.5: compact/debug chat, system panel, clipboard fixes, transcript export, prefs.
-- PySide6 Cognitive Control Room v2.1.0: intentional amber/teal desktop UI, shared worker/chat runtime, live local/context/capability indicators, the original 12-action Control tab, and a 12-step contest Demo Runway with preview-gated exact consent/runner buttons; markdown rendering, local macOS `.app` launcher, and Desktop shortcut helper remain intact.
+- PySide6 Cognitive Control Room v2.2.0: intentional amber/teal desktop UI, shared worker/chat runtime, live local/context/capability indicators, four exact fail-closed typed local capability cards, the original 12-action Control tab, and a 12-step contest Demo Runway with preview-gated exact consent/runner buttons; markdown rendering, local macOS `.app` launcher, and Desktop shortcut helper remain intact.
 - Session Control Room: `/session self-check`, `/session health`, `/session doctor`, `/session review`, `/session log ...`, plus Session Rituals v1 read-only start/end/checkpoint/handoff briefs.
 - Natural Command Router v2.3: exact routes plus policy-aware registry metadata in `/natural explain|list|doctor`, with suggestions still non-executing.
 - Command Registry v1.0: metadata for 387 slash-command prefixes across 41 categories with mutation/risk labels and Natural Router consistency checks.
@@ -94,6 +94,8 @@ Last updated: 2026-07-21
 - Operating Loop v2.7 / Post-Acceptance Closure v1: read-only `/closure status|summary|next|handoff|doctor` for live milestone closure, next-session transfer through Memory Card, and manual v2.9 selection without persisted closure state.
 - Operating Loop v2.8 / Operator Memory Card v1: read-only `/memory-card status|short|full|codex|doctor` for compact chat continuity, structured project review, and reusable Codex task context without persistent card state.
 - Operating Loop v2.9 / Command Capability Map v1: read-only `/capabilities status|list|map|safety|doctor|handoff` for Registry-derived family discovery, workflow phases, policy-aware safety classification, and copyable capability context leading into dry-run planning.
+- Local Capability Contract v1: transport-free typed contracts for the exact four-command read-only runner allowlist, with zero-argument schemas, conservative MCP-style annotations, a three-channel local result envelope, and Capability Doctor drift checks; no server, network, external host, dependency, or runner expansion.
+- Local Typed ViewModel v1: pure PySide presentation projection for those exact four contracts, with escaped full-report cards, local-boundary validation, and fail-closed text fallback; shared routing, CLI, tkinter, stores, and runner scope remain unchanged.
 - Operating Loop v2.10 / Dry-Run Intent Layer v1: read-only `/plan status|next|dry-run|gates|doctor|handoff` for deterministic manual action proposals, mandatory gates, verification evidence, and stop conditions without execution or authorization.
 - Operating Loop v2.11 / Confirmation Gate and Authorization Vocabulary v1: read-only `/confirm status|policy|levels|requirements|doctor|handoff` for advisory authorization classes and future execution gates without confirmation capture, approval persistence, authorization, or execution.
 - Operating Loop v2.12 / Execution Sandbox Design and Command Runner Blueprint v1: read-only `/sandbox status|blueprint|boundaries|allowlist|denied|doctor|handoff` for future runner architecture, strict boundaries, design-only candidates, denied classes, evidence, and gates without an execution path.
@@ -170,17 +172,18 @@ Last updated: 2026-07-21
 
 ## Last Completed Milestone
 
-PySide6 Cognitive Control Room v2.1.0 / Contest Demo Runway:
+Local Typed ViewModel v1:
 
-- A dedicated `DEMO RUNWAY` tab turns the accepted three-minute showcase into twelve numbered controls, avoiding manual command copy/paste while retaining the existing `CONTROL` tab.
-- Every step still runs through `DesktopRuntime`; the UI adds no alternate dispatcher, shell path, model/API call, or store writer.
-- Exact Experience consent and exact read-only runner controls remain locked until the preceding preview/dry-run output exposes the expected command under one of two fixed prefixes.
-- Safe extraction rejects unknown prefixes, command chains, empty tokens, and oversized lines; no UI token synthesis or persisted approval exists.
-- Context Injection behavior remains unchanged and visible; launcher metadata is v2.1.0.
-- Registry remains 387 commands across 41 categories; the full suite is 1144 tests OK.
+- Projects the existing three-channel local contract envelope into PySide-only card models after the shared handler returns.
+- Applies only to exact `/warnings unknown`, `/daily doctor`, `/exports doctor`, and `/capabilities safety` input.
+- Escapes all report content, preserves the complete text report, and falls back to the existing renderer on any mismatch or presentation error.
+- Performs no dispatch, persistence, network access, context change, or runner expansion.
+- Registry remains 387 commands across 41 categories; runner execution scope and Context Injection behavior are unchanged.
 
 ## Next Candidate Tasks
 
+- Local Typed Card Expansion Review: evaluate one additional read-only report at a time only after an explicit contract, output schema, local-boundary test, and text-fallback fixture exist.
+- Local Contract Expansion Review: evaluate additional read-only commands one at a time with explicit schemas and doctor fixtures; do not infer safety from Registry membership alone.
 - Submission Readiness: keep the public repository and provenance manifests current, finalize English Devpost copy, and record the sub-three-minute video.
 - v3.5w / Supervised Post-Restore Outcome Capture Authorization Readiness: design one exact session-bound token and run-once receipt gate over an unchanged v3.5v blueprint; no event append or writer before separate review.
 - Memory Migration Plan: design deterministic compaction/archive rules for the 8 previewed legacy candidates; no apply step without separate approval.
@@ -191,7 +194,6 @@ PySide6 Cognitive Control Room v2.1.0 / Contest Demo Runway:
 - Data Integrity Doctor polish: optional export/report snapshot and thresholds config.
 - Consolidation queue polish: add optional preview-to-queue helper and receipt export filtering.
 - Cognitive Control Room follow-up: add an optional compact latest Context Injection audit summary without changing settings or normal-prompt behavior.
-- Cognitive Control Room follow-up: render selected operator reports as typed dashboard cards while retaining exact text output and shared command handling.
 - Context Injection safe compact output: avoid mock backend echoing the full injected prompt in normal CLI debug displays.
 - Context Pack relevance ranking: deterministic scoring for memories/tasks/skills without embeddings.
 - Task/Experiment/World integration views in PySide System Panel.

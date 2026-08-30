@@ -35,6 +35,12 @@ from proto_mind.command_registry import (
     format_commands_command,
     match_registered_command,
 )
+from proto_mind.capability_contracts import (
+    LOCAL_CAPABILITY_CONTRACTS,
+    build_local_capability_result,
+    get_local_capability_contract,
+    local_capability_contract_doctor,
+)
 from proto_mind.capability_map import CommandCapabilityMap, format_capability_command
 from proto_mind.closure_layer import PostAcceptanceClosure, format_closure_command
 from proto_mind.confirmation_layer import ConfirmationVocabulary, format_confirmation_command
@@ -516,6 +522,12 @@ from proto_mind.task_queue import TaskQueue, format_task_command
 from proto_mind.topic_utils import extract_topic_tags
 from proto_mind.main import format_natural_command, is_exit_command, process_interactive_input
 from proto_mind import desktop_app, pyside_app
+from proto_mind.desktop_view_model import (
+    LOCAL_CAPABILITY_CARD_BADGES,
+    build_local_capability_card_html,
+    project_local_capability_card,
+    render_local_capability_card_html,
+)
 from proto_mind.world_model import WorldModelLite, format_world_command
 from proto_mind.warning_inspector import LegacyWarningInspector, format_warning_command
 
@@ -4842,7 +4854,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
     def test_pyside_app_imports_safely_and_exposes_optional_dependency_message(self) -> None:
         self.assertTrue(hasattr(pyside_app, "main"))
-        self.assertEqual(pyside_app.PYSIDE_APP_VERSION, "v2.1.0")
+        self.assertEqual(pyside_app.PYSIDE_APP_VERSION, "v2.2.0")
         self.assertIn("Cognitive Control Room", pyside_app.PYSIDE_APP_TITLE)
         self.assertIn("Welcome back", pyside_app.START_MESSAGE)
         self.assertIn("PySide6 is not installed.", pyside_app.pyside_missing_message())
@@ -4898,7 +4910,7 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertIn("CFBundleName", build_text)
         self.assertIn("<string>Proto-Mind</string>", build_text)
         self.assertIn("CFBundleExecutable", build_text)
-        self.assertIn("<string>2.1.0</string>", build_text)
+        self.assertIn("<string>2.2.0</string>", build_text)
         self.assertIn("CFBundleIconFile", build_text)
         self.assertIn("ProtoMind.icns", build_text)
         self.assertIn("iconutil -c icns", build_text)
@@ -5116,6 +5128,91 @@ class ProtoMindFlowTests(unittest.TestCase):
         report = pyside_app.pyside_message_html("System report", "Status: <WARN>", report=True)
         self.assertIn("<pre>", report)
         self.assertIn("Status: &lt;WARN&gt;", report)
+
+    def test_desktop_view_model_projects_only_exact_local_contract_commands(self) -> None:
+        for contract in LOCAL_CAPABILITY_CONTRACTS:
+            with self.subTest(command=contract.command):
+                output = f"{contract.title}\nStatus: OK\nlocal report"
+                view_model = project_local_capability_card(contract.command, output)
+
+                self.assertIsNotNone(view_model)
+                self.assertEqual(view_model.contract_name, contract.name)
+                self.assertEqual(view_model.command, contract.command)
+                self.assertEqual(view_model.status, "OK")
+                self.assertEqual(view_model.body, output)
+                self.assertEqual(view_model.badges, LOCAL_CAPABILITY_CARD_BADGES)
+                self.assertTrue(view_model.local_only)
+                self.assertTrue(view_model.read_only)
+                self.assertEqual(view_model.transport, "none")
+
+        for unsafe_input in (
+            "daily_doctor",
+            "/daily doctor --verbose",
+            "/memory status",
+            "run daily doctor",
+            "",
+        ):
+            with self.subTest(unsafe_input=unsafe_input):
+                self.assertIsNone(project_local_capability_card(unsafe_input, "Status: OK"))
+
+    def test_desktop_view_model_renders_escaped_local_capability_card(self) -> None:
+        output = "Daily Layer Doctor\nStatus: WARN\n<script>alert('x')</script>"
+        view_model = project_local_capability_card("/daily doctor", output)
+
+        self.assertIsNotNone(view_model)
+        rendered = render_local_capability_card_html(view_model)
+
+        self.assertIn("PROTO-MIND LOCAL CAPABILITY", rendered)
+        self.assertIn("capability-status-warn", rendered)
+        self.assertIn("/daily doctor", rendered)
+        self.assertIn("LOCAL", rendered)
+        self.assertIn("READ ONLY", rendered)
+        self.assertIn("NO NETWORK", rendered)
+        self.assertIn("&lt;script&gt;alert(&#x27;x&#x27;)&lt;/script&gt;", rendered)
+        self.assertNotIn("<script>", rendered)
+
+    def test_desktop_view_model_fails_closed_to_text_fallback(self) -> None:
+        unsafe_envelope = {
+            "structuredContent": {
+                "command": "/daily doctor",
+                "contract": "daily_doctor",
+                "status": "OK",
+                "summary": "Daily Layer Doctor",
+                "read_only": True,
+                "local_only": True,
+            },
+            "content": [{"type": "text", "text": "Daily Layer Doctor"}],
+            "_meta": {
+                "proto_mind": {
+                    "local_only": False,
+                    "transport": "network",
+                    "network_access": True,
+                    "store_mutation": False,
+                    "external_exposure": True,
+                }
+            },
+        }
+        fake_result = SimpleNamespace(to_mcp_result=lambda: unsafe_envelope)
+        with patch("proto_mind.desktop_view_model.build_local_capability_result", return_value=fake_result):
+            self.assertIsNone(project_local_capability_card("/daily doctor", "Daily Layer Doctor"))
+        with patch(
+            "proto_mind.desktop_view_model.build_local_capability_result",
+            side_effect=RuntimeError("presentation failure"),
+        ):
+            self.assertIsNone(build_local_capability_card_html("/daily doctor", "Daily Layer Doctor"))
+
+    def test_pyside_typed_capability_card_css_is_present(self) -> None:
+        stylesheet = pyside_app.pyside_chat_document_css()
+        card = build_local_capability_card_html(
+            "/exports doctor",
+            "Export Retention Doctor\nStatus: OK\nNo findings.",
+        )
+
+        self.assertIsNotNone(card)
+        self.assertIn(".capability-card", stylesheet)
+        self.assertIn(".capability-status-warn", stylesheet)
+        self.assertIn("capability-card", card)
+        self.assertIn("Check local exports", card)
 
     def test_pyside_message_blocks_are_isolated_after_numbered_lists(self) -> None:
         first = pyside_app.pyside_message_html("Proto-Mind", "1. one\n2. two")
@@ -6402,12 +6499,14 @@ class ProtoMindFlowTests(unittest.TestCase):
         self.assertIn(REDACTION_PREFIX, russian.text)
 
     def test_experience_privacy_redacts_common_credential_formats(self) -> None:
+        # Assemble the synthetic fixture without a key-shaped literal in published sources.
+        synthetic_aws_key = "AKIA" + "ABCDEFGHIJKLMNOP"
         cases = {
             "Authorization: Bearer abcdefghijklmnopqrstuvwxyz": "bearer_token",
             "postgresql://proto:private-pass@localhost/db": "uri_credentials",
             "sk-proj-abcdefghijklmnopqrstuvwxyz123456": "openai_key",
             "ghp_abcdefghijklmnopqrstuvwxyz123456": "github_token",
-            "AKIAABCDEFGHIJKLMNOP": "aws_access_key",
+            synthetic_aws_key: "aws_access_key",
         }
 
         for value, category in cases.items():
@@ -15445,6 +15544,68 @@ class ProtoMindFlowTests(unittest.TestCase):
             self.assertFalse(json.loads((data_dir / "context_injection.json").read_text(encoding="utf-8"))["enabled"])
             self.assertEqual(logger.status().entry_count, 0)
 
+    def test_local_capability_contracts_match_runner_allowlist_and_mcp_shape(self) -> None:
+        self.assertEqual(
+            tuple(contract.command for contract in LOCAL_CAPABILITY_CONTRACTS),
+            tuple(ACTIVE_READONLY_ALLOWLIST),
+        )
+        self.assertEqual(len({contract.name for contract in LOCAL_CAPABILITY_CONTRACTS}), 4)
+        for contract in LOCAL_CAPABILITY_CONTRACTS:
+            descriptor = contract.to_descriptor()
+            self.assertEqual(descriptor["inputSchema"]["properties"], {})
+            self.assertFalse(descriptor["inputSchema"]["additionalProperties"])
+            self.assertEqual(
+                descriptor["annotations"],
+                {
+                    "readOnlyHint": True,
+                    "destructiveHint": False,
+                    "openWorldHint": False,
+                    "idempotentHint": True,
+                },
+            )
+            self.assertTrue(descriptor["_meta"]["proto_mind"]["local_only"])
+            self.assertEqual(descriptor["_meta"]["proto_mind"]["transport"], "none")
+            self.assertFalse(descriptor["_meta"]["proto_mind"]["network_access"])
+            self.assertFalse(descriptor["_meta"]["proto_mind"]["external_exposure"])
+        self.assertEqual(local_capability_contract_doctor()["status"], "OK")
+
+    def test_local_capability_result_uses_explicit_three_channel_envelope(self) -> None:
+        output = "Daily Layer Doctor\nStatus: WARN\n- accepted legacy warning"
+        result = build_local_capability_result("/daily doctor", output).to_mcp_result()
+
+        self.assertEqual(set(result), {"structuredContent", "content", "_meta"})
+        self.assertEqual(result["structuredContent"]["command"], "/daily doctor")
+        self.assertEqual(result["structuredContent"]["contract"], "daily_doctor")
+        self.assertEqual(result["structuredContent"]["status"], "WARN")
+        self.assertEqual(result["structuredContent"]["summary"], "Daily Layer Doctor")
+        self.assertTrue(result["structuredContent"]["read_only"])
+        self.assertTrue(result["structuredContent"]["local_only"])
+        self.assertEqual(result["content"], [{"type": "text", "text": output}])
+        self.assertEqual(result["_meta"]["proto_mind"]["transport"], "none")
+        self.assertFalse(result["_meta"]["proto_mind"]["network_access"])
+        self.assertFalse(result["_meta"]["proto_mind"]["store_mutation"])
+        self.assertFalse(result["_meta"]["proto_mind"]["full_output_exportable"])
+
+    def test_local_capability_contract_lookup_refuses_unlisted_commands(self) -> None:
+        self.assertEqual(get_local_capability_contract("daily_doctor").command, "/daily doctor")
+        self.assertEqual(get_local_capability_contract("/exports doctor").name, "exports_doctor")
+        self.assertIsNone(get_local_capability_contract("/memory status"))
+        with self.assertRaisesRegex(ValueError, "no local capability contract"):
+            build_local_capability_result("/memory status", "Memory status")
+
+    def test_local_capability_contract_doctor_rejects_registry_policy_drift(self) -> None:
+        drifted_registry = tuple(
+            replace(spec, read_only=False, mutates="session", risk="medium")
+            if spec.prefix == "/daily doctor"
+            else spec
+            for spec in COMMAND_REGISTRY
+        )
+
+        report = local_capability_contract_doctor(registry=drifted_registry)
+
+        self.assertEqual(report["status"], "ERROR")
+        self.assertTrue(any("/daily doctor" in item["message"] for item in report["findings"]))
+
     def test_capability_status_reports_warn_baseline_and_safe_generation(self) -> None:
         with TemporaryDirectory() as temp_dir:
             project_root = Path(temp_dir)
@@ -15461,6 +15622,9 @@ class ProtoMindFlowTests(unittest.TestCase):
             self.assertIn("blockers: 0", output)
             self.assertIn("detected_command_families: 41", output)
             self.assertIn("capability_map_generation_safe: true", output)
+            self.assertIn("local_typed_contracts: 4", output)
+            self.assertIn("contract_transport: none", output)
+            self.assertIn("external_contract_exposure: false", output)
 
     def test_capability_status_blocks_unknown_warnings_or_blockers(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -15520,6 +15684,10 @@ class ProtoMindFlowTests(unittest.TestCase):
             self.assertIn("/proto snapshot-diff-status", output)
             self.assertIn("runtime mode: read-only for the listed commands", output)
             self.assertIn("awareness → prechange → focus", output)
+            self.assertIn("Local Typed Capability Contracts", output)
+            self.assertIn("result_envelope: structuredContent + content + _meta", output)
+            self.assertIn("warnings_unknown -> /warnings unknown", output)
+            self.assertIn("transport: none", output)
             self.assertIn("did not run any listed command", output)
 
     def test_capability_safety_uses_registry_and_policy_conservatively(self) -> None:
@@ -15539,6 +15707,9 @@ class ProtoMindFlowTests(unittest.TestCase):
             self.assertIn("UNKNOWN capability and blocked", output)
             for gate in ("Rule 0 backup/checkpoint", "/prechange status", "/warnings unknown", "/acceptance criteria", "/baseline current"):
                 self.assertIn(gate, output)
+            self.assertIn("Local typed contract boundary:", output)
+            self.assertIn("Result shape is structuredContent + content + _meta", output)
+            self.assertIn("no MCP server or network adapter is installed", output)
             self.assertIn("executes nothing and grants no authorization", output)
 
     def test_capability_handoff_prints_copyable_family_context(self) -> None:
@@ -15574,6 +15745,7 @@ class ProtoMindFlowTests(unittest.TestCase):
             self.assertIn("All capability commands are registered", output)
             self.assertIn("read-only with mutates=none", output)
             self.assertIn("Command Registry is reachable and healthy", output)
+            self.assertIn("Local capability contracts are healthy: 4 exact read-only zero-argument contracts", output)
             self.assertIn("Memory Card, Closure, Baseline, Acceptance, Focus, Pre-Change, Agenda, Session, Milestone, Warning, Export, and Snapshot helpers are reachable", output)
             self.assertIn("Warning state is computable", output)
             self.assertIn("Context Injection is disabled", output)

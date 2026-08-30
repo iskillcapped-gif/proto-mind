@@ -5,6 +5,11 @@ from pathlib import Path
 from typing import Any
 
 from proto_mind.action_policy import POLICY_CLASSES, classify_command
+from proto_mind.capability_contracts import (
+    LOCAL_CAPABILITY_CONTRACTS,
+    format_local_capability_contracts,
+    local_capability_contract_doctor,
+)
 from proto_mind.command_registry import COMMAND_REGISTRY, command_registry_doctor
 from proto_mind.memory_card_layer import OperatorMemoryCard
 from proto_mind.memory_store import MemoryStore
@@ -150,6 +155,9 @@ class CommandCapabilityMap:
                 f"blockers: {state['blocker_count']}",
                 f"detected_command_families: {state['family_count']}",
                 f"capability_map_generation_safe: {str(state['capability_generation_safe']).lower()}",
+                f"local_typed_contracts: {len(LOCAL_CAPABILITY_CONTRACTS)}",
+                "contract_transport: none",
+                "external_contract_exposure: false",
                 "",
                 "Index boundary:",
                 "- Registry-derived documentation only; no command, capability state, file, prompt, or runtime record was created or changed.",
@@ -207,6 +215,8 @@ class CommandCapabilityMap:
                 "Workflow:",
                 "- awareness → prechange → focus → dry-run plan → human-controlled Codex work → acceptance → baseline → closure / memory-card",
                 "",
+                *format_local_capability_contracts().splitlines(),
+                "",
                 "No automatic execution:",
                 "- The map did not run any listed command or advance workflow state.",
             ]
@@ -258,6 +268,11 @@ class CommandCapabilityMap:
                 "10. /activation preconditions and /activation blockers",
                 "11. /runner-mvp design and /runner-mvp stop-conditions",
                 "",
+                "Local typed contract boundary:",
+                f"- contracts: {len(LOCAL_CAPABILITY_CONTRACTS)}; transport=none; external_exposure=false",
+                "- Exact runner allowlist only; zero arguments; readOnlyHint=true; destructiveHint=false; openWorldHint=false; idempotentHint=true.",
+                "- Result shape is structuredContent + content + _meta, but no MCP server or network adapter is installed.",
+                "",
                 "Safety boundary:",
                 "- Classification is advisory only; this command executes nothing and grants no authorization.",
             ]
@@ -301,6 +316,22 @@ class CommandCapabilityMap:
             {"severity": "OK", "message": "Command Registry is reachable and healthy."}
             if registry_health["status"] == "OK"
             else {"severity": "ERROR", "message": f"Command Registry Doctor status is {registry_health['status']}."}
+        )
+        contract_health = local_capability_contract_doctor()
+        findings.append(
+            {
+                "severity": "OK",
+                "message": (
+                    f"Local capability contracts are healthy: {contract_health['contracts_checked']} exact "
+                    "read-only zero-argument contracts; transport=none."
+                ),
+            }
+            if contract_health["status"] == "OK"
+            else {
+                "severity": "ERROR",
+                "message": "Local capability contract doctor failed: "
+                + "; ".join(item["message"] for item in contract_health["findings"]),
+            }
         )
         unavailable = [command for command in _DEPENDENCY_COMMANDS if command not in registry]
         findings.append(
@@ -355,6 +386,7 @@ class CommandCapabilityMap:
                 "Key families: /daily, /session, /milestone, /warnings, /agenda, /prechange, /focus, /acceptance, /baseline, /closure, /memory-card, /capabilities, /plan, /exports, /proto snapshot-diff",
                 f"Warnings: accepted={len(state['accepted'])}, unknown={len(state['unknown'])}, blockers={state['blocker_count']}",
                 f"Context Injection: {state['context_state']}",
+                f"Local typed contracts: {len(LOCAL_CAPABILITY_CONTRACTS)}; transport=none; external exposure=false",
                 "",
                 "Safety gates:",
                 "- Rule 0 backup/checkpoint; /prechange status; /warnings unknown; /acceptance criteria; /baseline current",
