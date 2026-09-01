@@ -257,6 +257,25 @@ class IdentityStore:
             "active_boundaries": len(_active_items(data, "boundaries")),
         }
 
+    def read_persona_source(self) -> dict[str, Any]:
+        """Project active identity fields without initializing or rewriting the store."""
+        state = self._read_state(initialize=False)
+        if state.error:
+            return {"status": "ERROR", "error": state.error}
+        if state.data is None:
+            return {"status": "missing"}
+        data = state.data
+        profile = data.get("profile", {}) if isinstance(data.get("profile"), dict) else {}
+        return {
+            "status": "OK",
+            "version": data.get("version", ""),
+            "updated_at": data.get("updated_at", ""),
+            "profile": {field: profile.get(field, "") for field in sorted(PROFILE_FIELDS)},
+            "values": [_persona_item(item) for item in _active_items(data, "values")],
+            "principles": [_persona_item(item) for item in _active_items(data, "principles")],
+            "boundaries": [_persona_item(item) for item in _active_items(data, "boundaries")],
+        }
+
     def _read_state(self, *, initialize: bool) -> "_IdentityReadState":
         if not self.identity_path.exists():
             if not initialize:
@@ -426,6 +445,14 @@ def _find_item(data: dict[str, Any], item_id: str) -> tuple[str, dict[str, Any]]
 
 def _active_items(data: dict[str, Any], section: str) -> list[dict[str, Any]]:
     return [item for item in data.get(section) or [] if isinstance(item, dict) and item.get("active", True)]
+
+
+def _persona_item(item: dict[str, Any]) -> dict[str, str]:
+    return {
+        "id": str(item.get("id") or ""),
+        "text": str(item.get("text") or ""),
+        "created_at": str(item.get("created_at") or ""),
+    }
 
 
 def _format_items(items: list[dict[str, Any]]) -> list[str]:

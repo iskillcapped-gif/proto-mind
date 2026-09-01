@@ -79,7 +79,7 @@ See [`NATIVE_MACOS_ROADMAP.md`](NATIVE_MACOS_ROADMAP.md) for architecture, launc
 
 The curated [Personal Agent Evolution roadmap](PROTO_MIND_EVOLUTION_ROADMAP.md) separates delivered EV-01 recovery, the EV-02 desk, manual assessment, selected-image/PDF inputs and explicit Full Mac Computer Use from remaining visual-document/project-scope work, scoped tools, Native learning/skills, OCR and voice. Arbitrary plugins and automation remain disabled; the external blueprint does not authorize a rewrite or new permissions.
 
-The accepted [Persona Engine plan](PERSONA_ENGINE_PLAN.md) defines Brother as one continuous model-independent personality. It deliberately excludes user-selectable facets, personality modes and trait sliders from the foundation: adaptation follows the current task, evidence and risk, while existing identity, memory provenance and permission systems remain the sources of truth. This is a staged plan, not enabled runtime behavior or an authorization change.
+The delivered [Persona Engine 0.1 foundation](PERSONA_ENGINE_PLAN.md) defines Brother as one continuous model-independent personality. A strict checked-in kernel, immutable hashed snapshots, a read-only Identity projection, source-linked selected-memory references and an explicit non-authorizing self-model are implemented in `proto_mind/persona_engine.py`. It deliberately excludes user-selectable facets, personality modes and trait sliders: adaptation follows the current task, evidence and risk, while existing identity, memory provenance and permission systems remain the sources of truth. Persona 0.1 is not connected to the production prompt path yet and does not change runtime behavior, Context Injection or authority.
 
 ## OpenAI Build Week Disclosure
 
@@ -136,7 +136,7 @@ scripts/run_pyside_mock.sh
 
 Open the `DEMO RUNWAY` tab and follow buttons `01` through `12`. Exact consent and runner controls remain locked until their preceding preview generates the correct process-bound command.
 
-Current development verification baseline: Python 3.11, 1517 unit tests plus 355 native checks, 387 registered command prefixes across 41 categories, Context Injection disabled, no persistent live Experience capture, and a four-command fixed read-only core runner allowlist. The separately granted Native Full Mac + Internet + Computer Use adapter is not that core runner. Post-contest native work is separate from the submitted provenance baseline.
+Current development verification baseline: Python 3.11, 1533 unit tests plus 355 native checks and 7/7 Persona invariant evals, 387 registered command prefixes across 41 categories, Context Injection disabled, no persistent live Experience capture, and a four-command fixed read-only core runner allowlist. The separately granted Native Full Mac + Internet + Computer Use adapter is not that core runner. Post-contest native work is separate from the submitted provenance baseline.
 
 ### Codex And GPT-5.6 Collaboration
 

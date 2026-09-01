@@ -4,7 +4,7 @@ Reviewed: 2026-09-01. Status: curated roadmap; EV-01 is delivered in Native 0.7.
 
 Direction: make the current native app a dependable personal work environment, not another collection of slash commands. Preserve the Python cognitive core, the operator's Codex-like UI preference, offline access to local information, and explicit cloud/tool choices. Deliver useful end-to-end workflows instead of a long sequence of design-only command families.
 
-The accepted [Persona Engine plan](PERSONA_ENGINE_PLAN.md) adds one model-independent operator-facing personality, Brother, above the existing identity, provenance-memory and permission sources. It explicitly avoids selectable facets, personality modes and trait controls: contextual adaptation comes from the task, evidence, risk and direct operator request while identity remains continuous. The plan is staged foundation work, not current runtime behavior, automatic memory, Context Injection or new authority.
+The [Persona Engine plan](PERSONA_ENGINE_PLAN.md) now has its 0.1 model-independent foundation: one strict Brother kernel, immutable non-authorizing snapshots, read-only Identity projection, explicitly supplied provenanced memory and deterministic invariant evals. It explicitly avoids selectable facets, personality modes and trait controls: contextual adaptation comes from the task, evidence, risk and direct operator request while identity remains continuous. Persona 0.2/0.3 preview and controlled prompt activation remain staged work; 0.1 alone does not change current responses, automatic memory, Context Injection or authority.
 
 ## Source And Authority
 

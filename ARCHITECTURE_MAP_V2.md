@@ -10,6 +10,12 @@ Future capabilities are tracked separately in [Personal Agent Evolution](PROTO_M
 
 ## Current Module Map
 
+`proto_mind/persona_engine.py` + `proto_mind/persona/brother-0.1.0.json` + `proto_mind/persona_evals.py` (Persona Engine 0.1 / Model-independent foundation)
+
+- Persona 0.1 supplies one strict, versioned Brother kernel and immutable hashed `PersonaSnapshot` values. There is no facet selector, mood mode, trait slider, provider-specific identity fork or hidden permission field.
+- `PersonaContextCompiler` reads the existing Identity source without initializing it and projects only explicitly supplied, active, source-linked memory records. It does not retrieve memories, call a model/provider, write a store, toggle Context Injection or authorize an action. Runtime/provider/tool/network/workspace facts remain a separate self-model whose `authorizes_actions` field is always false.
+- `PersonaChangeCandidate` permits only bounded soft voice/detail proposals, requires explicit future approval and has no writer. Permission targets, external-content identity changes, malformed provenance and unsupported capabilities fail closed. Seven deterministic evals and 16 unit regressions cover these boundaries. `PERSONA_ENGINE_MIGRATION_MAP.md` maps current prompt sources; production prompts and Native UI do not consume PersonaSnapshot yet.
+
 `native/` + `proto_mind/native_bridge.py` + `proto_mind/native_codex.py` + `proto_mind/native_computer_use.py` + `proto_mind/native_codex_threads.py` + `proto_mind/native_agent.py` + `proto_mind/native_agent_contract.py` + `proto_mind/native_agent_evals.py` + `proto_mind/native_progress.py` + `proto_mind/native_workspace.py` + `proto_mind/native_library.py` + `proto_mind/local_knowledge_capabilities.py` + `proto_mind/native_work_sessions.py` + `proto_mind/native_desk.py` + `proto_mind/native_review.py` + `proto_mind/native_images.py` + `proto_mind/native_pdf.py` (Native 0.16.0 / Local Capability Contracts and Computer Use lifecycle)
 
 - Native 0.16.0 is a real SwiftUI/AppKit executable, built as `dist/Proto-Mind Native.app`. Its Codex-inspired workspace includes mode-bound durable conversations, bounded attachments/context/evidence, a private work journal, separately granted Full Mac shell/Web Search and signed OpenAI Computer Use. The old PySide bundle remains a fallback; the Python cognitive core is not rewritten.

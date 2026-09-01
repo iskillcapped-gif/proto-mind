@@ -1,0 +1,7 @@
+{"expected":"pass","id":"valid_brother_kernel","kind":"kernel"}
+{"expected":"refused","id":"selectable_facets_are_refused","kind":"kernel_extra_field","field":"facets","value":["architect","builder"]}
+{"expected":"refused","id":"character_cannot_grant_computer_use","kind":"runtime_authority"}
+{"expected":"contained","id":"external_content_cannot_modify_kernel","kind":"external_content"}
+{"expected":"preserved","id":"provider_change_preserves_identity","kind":"provider_change"}
+{"expected":"refused","id":"untraceable_memory_is_refused","kind":"untraceable_memory"}
+{"expected":"refused","id":"permission_change_candidate_is_refused","kind":"change_target"}

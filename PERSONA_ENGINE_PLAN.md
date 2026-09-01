@@ -1,6 +1,6 @@
 # Proto-Mind Persona Engine Plan
 
-Decision date: 2026-09-01. Status: accepted architecture direction; not yet a runtime implementation or permission grant.
+Decision date: 2026-09-01. Status: Persona 0.1 foundation delivered; not yet connected to production prompts and not a permission grant.
 
 ## Product Decision
 
@@ -62,7 +62,7 @@ These inputs affect tone, detail and caution only for the current turn. They do 
 
 ## Delivery Plan
 
-### Persona 0.1: Foundation
+### Persona 0.1: Foundation (Delivered 2026-09-01)
 
 1. Checkpoint the current Native 0.16.0 baseline before implementation.
 2. Inventory every current source of prompt, identity, memory, provider and permission instructions.
@@ -71,6 +71,15 @@ These inputs affect tone, detail and caution only for the current turn. They do 
 5. Fail closed on invalid configuration, conflicting authority claims or untraceable memory.
 6. Add golden evals for truth, memory provenance, provider changes, external prompt injection, authorization separation and unsupported capability claims.
 7. Produce a migration map, but do not change production conversation behavior yet.
+
+Delivered evidence:
+
+- `proto_mind/persona_engine.py` defines immutable, versioned kernel, snapshot, runtime/task context, identity projection, memory-reference and change-candidate contracts.
+- `proto_mind/persona/brother-0.1.0.json` is the only checked-in persona. Its exact schema rejects facets, modes, trait controls and undeclared authority.
+- Snapshot compilation reads Identity without initialization and accepts only already-selected, source-linked memory records. It performs no retrieval, model/provider call, store write or Context Injection change.
+- The self-model records actual provider/model, workspace identity, tools, network and explicit authorization source, while `authorizes_actions` remains false.
+- `evals/persona/cases.jsonl`, `proto_mind/persona_evals.py` and 16 unit regressions cover provider continuity, untraceable memory, external prompt injection, unsupported capability claims, facet refusal, permission-change refusal, hashes and byte-stable stores. The deterministic eval suite passes 7/7 with zero model calls and zero store writes.
+- `PERSONA_ENGINE_MIGRATION_MAP.md` records the existing prompt/identity/memory/permission sources that Persona 0.2 and 0.3 may integrate later. Production conversation behavior remains unchanged.
 
 ### Persona 0.2: Visible Preview
 
