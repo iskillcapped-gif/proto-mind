@@ -1,6 +1,6 @@
 # Persona Engine Prompt Migration Map
 
-Date: 2026-09-01. Status: Persona 0.1 foundation inventory; no production prompt migration is active.
+Date: 2026-09-01. Status: Persona 0.2 provider-readiness contracts delivered; no production prompt migration is active.
 
 ## Current Sources
 
@@ -50,3 +50,16 @@ Persona 0.3 may feed a validated snapshot into both Codex and Ollama only after:
 6. Context Injection remains an independent operator setting.
 
 Activation is a separate milestone. This map does not authorize a production prompt change.
+
+## Verified Adapter Readiness
+
+Native 0.18.0 now checks the planned boundary without crossing it:
+
+- Codex placement is `baseInstructions` on every `thread/start` or `thread/resume`; the existing chat-only or Full Mac `developerInstructions` remain separate and cannot be replaced by Persona context.
+- Ollama placement is the first system message rebuilt for every request; loopback-only transport remains a separate runtime control.
+- Mock is parity/control evidence only and has no production prompt placement.
+- The future prompt context is bounded, canonical and hash-linked to one validated `PersonaSnapshot`; selected memory remains quoted data with visible provenance, never instruction authority.
+- Provider parity compares kernel, Identity, selected memory and task invariants while preserving truthful provider/model/access differences in separate runtime hashes.
+- Context Injection must be independently disabled for readiness. No setting is changed automatically.
+
+These are validated plans, not active adapters. `SubscriptionReasoner`, `NativeOllamaReasoner` and `MockReasoner` still behave exactly as before until Persona 0.3 is implemented and explicitly enabled.

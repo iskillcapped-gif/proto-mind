@@ -1,0 +1,7 @@
+{"id":"provider_invariant_parity","kind":"provider_parity","expected":"pass"}
+{"id":"provider_prompt_placement","kind":"prompt_placement","expected":"pass"}
+{"id":"selected_memory_provenance","kind":"memory_provenance","expected":"pass"}
+{"id":"mock_control_only","kind":"mock_control","expected":"pass"}
+{"id":"context_injection_gate","kind":"context_gate","expected":"blocked"}
+{"id":"provider_identity_drift","kind":"identity_drift","expected":"blocked"}
+{"id":"projection_tampering","kind":"projection_tamper","expected":"refused"}

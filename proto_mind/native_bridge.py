@@ -38,7 +38,9 @@ from proto_mind.native_library import NativeLibrary
 from proto_mind.native_workspace import WorkspaceReader, file_context_message
 from proto_mind.native_images import ImageReader, image_specifications, MAX_IMAGES, MAX_IMAGE_BYTES, MAX_TOTAL_IMAGE_BYTES
 from proto_mind.native_pdf import PDFReader, SelectedPDF, pdf_context_message
+from proto_mind.persona_activation_readiness import build_persona_activation_readiness
 from proto_mind.native_persona import NativePersonaRequest, build_native_persona_preview
+from proto_mind.persona_engine import validate_persona_snapshot
 from proto_mind.native_work_sessions import WorkSessionStore, WorkSessionError, workspace_identity
 from proto_mind.native_desk import context_manifest, context_preview, capture_artifacts, artifact_page, artifact_preview, review_observations
 from proto_mind.native_review import CONFIRM_REVIEW, criteria_context_message, validate_criteria, review_preview
@@ -264,9 +266,8 @@ class NativeBackend:
     def pdf_reader(self) -> PDFReader:
         return PDFReader(protected_roots=self.protected_input_roots, helper=self.pdf_helper)
 
-    def preview_persona(self, params: dict) -> dict:
-        request = NativePersonaRequest.parse(params)
-        workspace = self.workspace(params).root if request.workspace_root is not None else None
+    def _persona_runtime_evidence(self, request: NativePersonaRequest) -> tuple[Path | None, bool, bool]:
+        workspace = self.workspace({"workspace_root": request.workspace_root}).root if request.workspace_root is not None else None
         grant_verified = False
         computer_use_available = False
         if request.access_mode == "full_access":
@@ -282,6 +283,11 @@ class NativeBackend:
                 self._last_bootstrap_computer_use
                 and self._last_bootstrap_computer_use.get("available") is True
             )
+        return workspace, grant_verified, computer_use_available
+
+    def preview_persona(self, params: dict) -> dict:
+        request = NativePersonaRequest.parse(params)
+        workspace, grant_verified, computer_use_available = self._persona_runtime_evidence(request)
         config = ProtoMindConfig.from_env(self.root / "proto_mind")
         return build_native_persona_preview(
             self.root,
@@ -290,6 +296,59 @@ class NativeBackend:
             full_access_grant_verified=grant_verified,
             computer_use_available=computer_use_available,
             ollama_model=config.ollama_model,
+        )
+
+    def preview_persona_readiness(self, params: dict) -> dict:
+        request = NativePersonaRequest.parse(params)
+        workspace, grant_verified, computer_use_available = self._persona_runtime_evidence(request)
+        config = ProtoMindConfig.from_env(self.root / "proto_mind")
+
+        def companion(provider: str) -> NativePersonaRequest:
+            if request.provider == provider:
+                return request
+            model = {
+                "codex": "account_default_unresolved",
+                "ollama": config.ollama_model,
+                "mock": "deterministic_mock",
+            }[provider]
+            return NativePersonaRequest(
+                conversation_id=request.conversation_id,
+                provider=provider,
+                model=model,
+                cloud_consent=False,
+                access_mode="chat",
+                workspace_root=request.workspace_root,
+                access_token=None,
+            )
+
+        previews = {}
+        for provider in ("codex", "ollama", "mock"):
+            candidate = companion(provider)
+            candidate_grant = grant_verified if candidate is request else False
+            preview = build_native_persona_preview(
+                self.root,
+                candidate,
+                workspace=workspace,
+                full_access_grant_verified=candidate_grant,
+                computer_use_available=computer_use_available if candidate_grant else False,
+                ollama_model=config.ollama_model,
+            )
+            previews[{"codex": "codex_subscription", "ollama": "ollama", "mock": "mock"}[provider]] = (
+                validate_persona_snapshot(preview["snapshot"])
+            )
+        selected = {"codex": "codex_subscription", "ollama": "ollama", "mock": "mock"}[request.provider]
+        current_preview = build_native_persona_preview(
+            self.root,
+            request,
+            workspace=workspace,
+            full_access_grant_verified=grant_verified,
+            computer_use_available=computer_use_available,
+            ollama_model=config.ollama_model,
+        )
+        return build_persona_activation_readiness(
+            previews,
+            selected_provider=selected,
+            context_injection_state=current_preview["context_injection_state"],
         )
 
     def process(self, params: dict, emit: Callable[[dict], None], request_id: str) -> dict:
@@ -551,6 +610,8 @@ class NativeBackend:
             return self.preview_context(params)
         if method == "persona_preview":
             return self.preview_persona(params)
+        if method == "persona_readiness":
+            return self.preview_persona_readiness(params)
         if method == "image_preview":
             return self.image_reader().preview(params.get("path"), params.get("expected_sha256"))
         if method == "pdf_preview":

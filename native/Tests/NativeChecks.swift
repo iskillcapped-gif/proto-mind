@@ -427,9 +427,12 @@ struct NativeChecks {
         let coreBefore = try fileBytes(fixture.appendingPathComponent("proto_mind/data"))
         let stateBefore = try fileBytes(state)
         let messagesBefore = app.messages, draftBefore = app.composer, providerBefore = app.selected?.provider
-        await app.refreshPersonaPreview()
+        await app.refreshPersonaInspector()
         guard let preview = app.personaPreview else {
             throw NativeError.message(app.personaPreviewError ?? "Missing Persona preview")
+        }
+        guard let readiness = app.personaReadiness else {
+            throw NativeError.message(app.personaReadinessError ?? "Missing Persona readiness")
         }
         try check(preview.kernel["persona_id"].text == "brother"
                   && preview.kernel["voice"]["adaptation"].text == "contextual_without_modes",
@@ -447,6 +450,19 @@ struct NativeChecks {
         try check(preview.runtime["workspace_id"].text.hasPrefix("workspace_")
                   && !preview.value.pretty.contains(fixture.path),
                   "Persona Inspector uses an opaque workspace reference instead of an absolute path")
+        try check(readiness.status == "WARN" && !readiness.value["selected_adapter_ready"].flag
+                  && readiness.value["activation_performed"] == .bool(false),
+                  "Persona readiness keeps the selected Mock provider control-only and performs no activation")
+        try check(readiness.parity["checked_providers"].items.map(\.text) == ["codex_subscription", "ollama", "mock"]
+                  && readiness.parity["activation_providers"].items.map(\.text) == ["codex_subscription", "ollama"]
+                  && readiness.parity["kernel_equal"].flag && readiness.parity["identity_equal"].flag,
+                  "Persona readiness shows provider parity without treating Mock as a production adapter")
+        try check(readiness.gates.count == 9 && readiness.gates.allSatisfy { $0["status"].text != "FAIL" }
+                  && readiness.value["no_model_call"].flag && readiness.value["no_retrieval"].flag
+                  && readiness.value["no_store_write"].flag,
+                  "Persona readiness publishes bounded gates with no model, retrieval, or store work")
+        try check(!readiness.value.pretty.contains(fixture.path),
+                  "Persona readiness does not expose the absolute workspace path")
         let controller = NSHostingController(rootView: PersonaInspectorView(model: app))
         let size = controller.sizeThatFits(in: CGSize(width: 800, height: 800))
         try check(size.width >= 680 && size.height >= 620, "Persona Inspector has a usable bounded sheet layout")
@@ -472,6 +488,23 @@ struct NativeChecks {
         var retrievalWideningRefused = false
         do { _ = try NativePersonaPreview(.object(changed)) } catch { retrievalWideningRefused = true }
         try check(retrievalWideningRefused, "Persona Inspector rejects a widened memory source")
+
+        guard case .object(var readinessChanged) = readiness.value else { throw NativeError.message("Expected readiness object") }
+        readinessChanged["activation_performed"] = .bool(true)
+        var readinessActivationRefused = false
+        do { _ = try NativePersonaReadiness(.object(readinessChanged)) } catch { readinessActivationRefused = true }
+        try check(readinessActivationRefused, "Persona readiness rejects an activation claim")
+
+        guard case .object(var readinessAdapters) = readiness.value,
+              case .array(var adapterRows) = readinessAdapters["adapters"],
+              case .object(var codexAdapter) = adapterRows.first else {
+            throw NativeError.message("Expected readiness adapters")
+        }
+        codexAdapter["provider_safety_boundary"] = .string("replaceable")
+        adapterRows[0] = .object(codexAdapter); readinessAdapters["adapters"] = .array(adapterRows)
+        var readinessSafetyRefused = false
+        do { _ = try NativePersonaReadiness(.object(readinessAdapters)) } catch { readinessSafetyRefused = true }
+        try check(readinessSafetyRefused, "Persona readiness rejects a replaceable provider safety boundary")
 
         try check(try fileBytes(fixture.appendingPathComponent("proto_mind/data")) == coreBefore
                   && fileBytes(state) == stateBefore && app.messages == messagesBefore

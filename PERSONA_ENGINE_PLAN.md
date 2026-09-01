@@ -1,6 +1,6 @@
 # Proto-Mind Persona Engine Plan
 
-Decision date: 2026-09-01. Status: Persona 0.1 foundation delivered; not yet connected to production prompts and not a permission grant.
+Decision date: 2026-09-01. Status: Persona 0.2 visible preview and provider-readiness gates delivered; not yet connected to production prompts and not a permission grant.
 
 ## Product Decision
 
@@ -86,6 +86,14 @@ Delivered evidence:
 The Native **Persona Inspector** shows the one checked-in Brother kernel, read-only Identity projection, current provider/model/workspace/access self-model, Context Injection state, source boundaries, notices and snapshot hash. It uses the current conversation and selected workspace, but exposes only an opaque workspace reference. Full Mac facts require the existing in-memory conversation/workspace token; the inspector never creates or uses that grant.
 
 The exact preview contract declares `read_only`, `no_execution`, `no_model_call`, `no_network_call`, `no_retrieval`, `no_store_write`, `production_prompt_active=false`, `private_reasoning_included=false` and `context_injection_changed=false`. Python validates the snapshot before transport and Swift independently fails closed on widened fields, memory sources, personality modes, unsafe runtime claims or inconsistent evidence. No memory is selected in Persona 0.2, and the snapshot is not routed to any provider prompt.
+
+### Persona 0.2 Readiness: Provider Parity And Provenance (Delivered 2026-09-01)
+
+`persona_activation_readiness.py` renders the exact bounded context a later activation may place, but returns only an in-memory read-only projection and never passes it to a reasoner. Codex uses a declared future `baseInstructions` placement refreshed at thread start/resume; Ollama uses the per-request system message; Mock is a deterministic control and explicitly cannot activate. Provider safety/developer instructions remain separate and non-replaceable.
+
+The projection records hashes and provenance for the checked-in kernel, private Identity projection, task/runtime contracts and every already-selected memory reference. Kernel, Identity, selected memory and task must yield one provider-independent invariant hash; provider/model/access facts deliberately retain different runtime hashes. Nine gates verify exact snapshots, Codex/Ollama coverage, invariant parity, provenance, bounded prompt rendering, safety separation, no added authority/side effects and independently disabled Context Injection. The Native Inspector validates and displays this report. A second deterministic 7-case eval covers parity, placement, provenance, Mock control-only behavior, the Context gate, provider drift and tamper refusal with zero model/network/retrieval/store calls and zero activation.
+
+This readiness milestone introduces no activation switch, persistent setting, provider call or prompt change. Its only purpose is to make Persona 0.3 mechanically reviewable before the first real turn uses Brother context.
 
 ### Persona 0.3: Controlled Activation
 

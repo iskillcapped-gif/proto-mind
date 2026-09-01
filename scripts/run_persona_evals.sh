@@ -8,4 +8,5 @@ PYTHON_BIN="$(select_proto_mind_python "${PROJECT_DIR}")" || {
   echo "Proto-Mind Persona evals require Python 3.11+." >&2
   exit 1
 }
-exec "${PYTHON_BIN}" -m proto_mind.persona_evals
+"${PYTHON_BIN}" -m proto_mind.persona_evals
+exec "${PYTHON_BIN}" -m proto_mind.persona_activation_evals

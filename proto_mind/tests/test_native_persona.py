@@ -14,6 +14,7 @@ from proto_mind.config import ProtoMindConfig
 from proto_mind.identity import IdentityStore
 from proto_mind.native_agent import FULL_ACCESS_CONFIRMATION
 from proto_mind.native_persona import validate_native_persona_preview
+from proto_mind.persona_activation_readiness import validate_persona_activation_readiness
 from proto_mind.persona_engine import PersonaValidationError
 from proto_mind.tests.test_native import FakeSubscription
 
@@ -191,6 +192,52 @@ class NativePersonaPreviewTests(unittest.TestCase):
         for changed in changes:
             with self.subTest(change=changed), self.assertRaises(PersonaValidationError):
                 validate_native_persona_preview(changed)
+
+    def test_provider_readiness_is_visible_read_only_and_runs_no_engine(self):
+        before = self.files()
+        params = self.params(provider="codex", model="gpt-5.6-sol", cloud_consent=True)
+        with patch.object(self.backend, "_coordinator", side_effect=AssertionError("No cognitive turn")):
+            result = self.backend.dispatch("persona_readiness", params, lambda _: self.fail("event"), "readiness")
+        self.assertEqual(validate_persona_activation_readiness(result), result)
+        self.assertEqual(result["status"], "READY")
+        self.assertEqual(result["selected_provider"], "codex_subscription")
+        self.assertTrue(result["selected_adapter_ready"])
+        self.assertEqual(result["parity"]["activation_providers"], ["codex_subscription", "ollama"])
+        self.assertTrue(result["parity"]["mock_control_only"])
+        self.assertTrue(result["read_only"] and result["no_model_call"] and result["no_retrieval"])
+        self.assertFalse(result["activation_performed"] or result["context_injection_changed"])
+        self.assertEqual(before, self.files())
+        self.assertEqual(self.backend.subscription.calls, [])
+
+    def test_readiness_blocks_existing_context_injection_without_changing_it(self):
+        path = self.root / "proto_mind/data/context_injection.json"
+        path.parent.mkdir(parents=True)
+        path.write_text(json.dumps({"enabled": True}), encoding="utf-8")
+        before = path.read_bytes()
+        result = self.backend.preview_persona_readiness(self.params(provider="ollama", model="qwen-fixture"))
+        self.assertEqual(result["status"], "NOT_READY")
+        self.assertEqual(result["context_injection_state"], "enabled")
+        self.assertTrue(result["blockers"])
+        self.assertEqual(path.read_bytes(), before)
+        self.assertEqual(self.backend.subscription.calls, [])
+
+    def test_readiness_never_exposes_full_access_token_or_workspace_path(self):
+        grant = self.backend.agent_grants.enable(self.conversation, self.workspace, FULL_ACCESS_CONFIRMATION)
+        self.backend._last_bootstrap_computer_use = {"available": True}
+        result = self.backend.preview_persona_readiness(self.params(
+            provider="codex",
+            model="gpt-5.6-sol",
+            cloud_consent=True,
+            access_mode="full_access",
+            access_token=grant["token"],
+        ))
+        serialized = json.dumps(result, ensure_ascii=False)
+        self.assertEqual(result["status"], "READY")
+        self.assertNotIn(grant["token"], serialized)
+        self.assertNotIn(str(self.workspace), serialized)
+        codex = result["adapters"][0]
+        self.assertEqual(codex["access_mode"], "full_access")
+        self.assertEqual(codex["provider_safety_boundary"], "developer_instructions_separate")
 
 
 if __name__ == "__main__":

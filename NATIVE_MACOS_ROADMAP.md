@@ -379,6 +379,18 @@ Native 0.17.0 delivers Persona 0.2 as a visible but inactive preview:
 
 Rule 0: `backups/proto_mind_backup_2026-09-01_21-07-05.tar.gz`. Seven new Python regressions bring the full suite to 1,540; all 368 Native checks pass. Persona evals pass 7/7 with `model_calls=0` and `store_writes=0`, Agent evals pass 6/6, and compileall/imports pass under Python 3.11.15. Release 0.17.0 build 21, plist, ad-hoc signature and personal-app relaunch pass. All 48 project `data`/`exports` files retain their checkpoint SHA-256; Registry remains 387 commands / 41 categories and Context Injection remains disabled. No dependency, slash command, core/session-log schema, memory selection, Context Injection behavior or authority is added.
 
+## Persona Provider Readiness / Native 0.18.0
+
+Native 0.18.0 makes the pre-activation gates inspectable without activating Persona:
+
+- `persona_activation_readiness.py` validates an already compiled snapshot and renders a bounded future prompt projection entirely in memory. Codex declares `baseInstructions` refreshed on thread start/resume; Ollama declares its per-request system message; Mock remains a control-only adapter with no model prompt.
+- Every projection binds the snapshot, invariant, runtime and prompt hashes plus exact provenance for kernel, Identity, task/runtime and each already-selected memory record. Memory content remains quoted untrusted data and cannot become authority.
+- Codex and Ollama must preserve one kernel/Identity/memory/task invariant while reporting their real provider/model/access differences separately. Provider safety instructions are non-replaceable; prompt bounds, no added authority and no side effects are explicit gates.
+- `persona_readiness` compiles Codex/Ollama/Mock evidence through private stdio without a coordinator, provider connection, model/network call, retrieval or write. Enabled or unknown Context Injection makes the report `NOT_READY`; Mock selection is a visible control-only `WARN`.
+- `NativePersonaReadiness` independently validates the exact summary and displays adapter placement, parity SHA, nine gates, blockers and warnings inside Persona Inspector. There is no activation control and the existing conversation reasoners receive no new text.
+
+Rule 0: `backups/proto_mind_backup_2026-09-01_21-33-08.tar.gz`. Twelve new regressions bring the full suite to 1,552; all 374 Native checks pass. Foundation and readiness Persona evals each pass 7/7; readiness reports zero model/network/retrieval/store calls and zero activation. Agent evals remain 6/6. Release 0.18.0 build 22, compileall/imports, plist, ad-hoc signature and personal-app relaunch pass. All 48 project `data`/`exports` files retain their checkpoint SHA-256; Registry remains 387 commands / 41 categories and Context Injection remains disabled. No dependency, slash command, core/session-log schema, persistent preference, prompt activation, permission or provider behavior is added.
+
 ## Storage And Launch
 
 ```bash

@@ -161,6 +161,134 @@ struct NativePersonaPreview: Equatable {
     }
 }
 
+struct NativePersonaReadiness: Equatable {
+    static let fields: Set<String> = [
+        "schema", "status", "selected_provider", "selected_adapter_ready", "read_only",
+        "activation_performed", "no_model_call", "no_network_call", "no_retrieval",
+        "no_store_write", "context_injection_changed", "context_injection_state",
+        "adapters", "parity", "gates", "blockers", "warnings", "report_hash"
+    ]
+    static let adapterFields: Set<String> = [
+        "provider", "model", "access_mode", "adapter", "placement", "refresh_scope",
+        "provider_safety_boundary", "activation_supported", "snapshot_hash",
+        "persona_invariant_hash", "runtime_hash", "prompt_context_hash",
+        "prompt_context_chars", "provenance_complete"
+    ]
+    static let parityFields: Set<String> = [
+        "checked_providers", "activation_providers", "persona_invariant_hash",
+        "kernel_equal", "identity_equal", "memory_equal", "task_equal",
+        "runtime_differences_expected", "mock_control_only"
+    ]
+    static let gateFields: Set<String> = ["id", "status", "detail"]
+    static let providers = ["codex_subscription", "ollama", "mock"]
+
+    let value: JSONValue
+    var status: String { value["status"].text }
+    var adapters: [JSONValue] { value["adapters"].items }
+    var gates: [JSONValue] { value["gates"].items }
+    var blockers: [JSONValue] { value["blockers"].items }
+    var warnings: [JSONValue] { value["warnings"].items }
+    var parity: JSONValue { value["parity"] }
+
+    init(_ value: JSONValue) throws {
+        guard case .object(let root) = value, Set(root.keys) == Self.fields,
+              value["schema"] == .string("proto_mind.persona_activation_readiness.v1"),
+              ["READY", "WARN", "NOT_READY"].contains(value["status"].text),
+              Self.providers.contains(value["selected_provider"].text),
+              value["read_only"] == .bool(true), value["activation_performed"] == .bool(false),
+              value["no_model_call"] == .bool(true), value["no_network_call"] == .bool(true),
+              value["no_retrieval"] == .bool(true), value["no_store_write"] == .bool(true),
+              value["context_injection_changed"] == .bool(false),
+              ["enabled", "disabled", "default_disabled", "unknown"].contains(value["context_injection_state"].text),
+              Self.isHash(value["report_hash"].text),
+              case .array(let adapters) = value["adapters"], adapters.count == Self.providers.count else {
+            throw NativeError.message("Persona readiness не прошёл локальную проверку. Ничего не активировано.")
+        }
+        for (provider, adapter) in zip(Self.providers, adapters) {
+            let contract: (adapter: String, placement: String, refresh: String, safety: String, access: Set<String>) = {
+                switch provider {
+                case "codex_subscription":
+                    return ("codex_base_instructions", "base_instructions", "thread_start_or_resume",
+                            "developer_instructions_separate", ["chat", "full_access"])
+                case "ollama":
+                    return ("ollama_system_message", "system_message", "every_request",
+                            "loopback_transport_separate", ["local"])
+                default:
+                    return ("mock_control_only", "no_model_prompt", "not_applicable",
+                            "deterministic_control_no_activation", ["mock"])
+                }
+            }()
+            guard case .object(let object) = adapter, Set(object.keys) == Self.adapterFields,
+                  adapter["provider"] == .string(provider),
+                  Self.validText(adapter["model"].text, maximum: 160),
+                  contract.access.contains(adapter["access_mode"].text),
+                  adapter["adapter"] == .string(contract.adapter),
+                  adapter["placement"] == .string(contract.placement),
+                  adapter["refresh_scope"] == .string(contract.refresh),
+                  adapter["provider_safety_boundary"] == .string(contract.safety),
+                  Self.isHash(adapter["snapshot_hash"].text),
+                  Self.isHash(adapter["persona_invariant_hash"].text),
+                  Self.isHash(adapter["runtime_hash"].text),
+                  Self.isHash(adapter["prompt_context_hash"].text),
+                  (1...16_000).contains(adapter["prompt_context_chars"].integer),
+                  adapter["provenance_complete"] == .bool(true) else {
+                throw NativeError.message("Persona adapter evidence имеет неожиданный формат. Ничего не активировано.")
+            }
+            if provider == "mock" {
+                guard adapter["activation_supported"] == .bool(false),
+                      adapter["placement"] == .string("no_model_prompt") else {
+                    throw NativeError.message("Mock не может стать production Persona adapter.")
+                }
+            } else {
+                guard adapter["activation_supported"] == .bool(true) else {
+                    throw NativeError.message("Production Persona adapter не подтвердил готовность.")
+                }
+            }
+        }
+        let selected = value["selected_provider"].text
+        guard value["selected_adapter_ready"] == .bool(selected != "mock"),
+              case .object(let parity) = value["parity"], Set(parity.keys) == Self.parityFields,
+              value["parity"]["checked_providers"].items.map(\.text) == Self.providers,
+              value["parity"]["activation_providers"].items.map(\.text) == ["codex_subscription", "ollama"],
+              value["parity"]["runtime_differences_expected"] == .bool(true),
+              value["parity"]["mock_control_only"] == .bool(true),
+              value["parity"]["persona_invariant_hash"].text.isEmpty
+                || Self.isHash(value["parity"]["persona_invariant_hash"].text),
+              case .array(let gates) = value["gates"], gates.count == 9 else {
+            throw NativeError.message("Provider parity evidence имеет неожиданный формат. Ничего не активировано.")
+        }
+        var gateIDs = Set<String>()
+        for gate in gates {
+            guard case .object(let object) = gate, Set(object.keys) == Self.gateFields,
+                  Self.validText(gate["id"].text, maximum: 80),
+                  Self.validText(gate["detail"].text, maximum: 400),
+                  ["PASS", "WARN", "FAIL"].contains(gate["status"].text),
+                  gateIDs.insert(gate["id"].text).inserted else {
+                throw NativeError.message("Persona activation gate имеет неожиданный формат. Ничего не активировано.")
+            }
+        }
+        guard case .array(let blockers) = value["blockers"], blockers.count <= 16,
+              blockers.allSatisfy({ Self.validText($0.text, maximum: 400) }),
+              case .array(let warnings) = value["warnings"], warnings.count <= 16,
+              warnings.allSatisfy({ Self.validText($0.text, maximum: 400) }) else {
+            throw NativeError.message("Persona readiness findings имеют неожиданный формат. Ничего не активировано.")
+        }
+        let expectedStatus = blockers.isEmpty ? (warnings.isEmpty ? "READY" : "WARN") : "NOT_READY"
+        guard value["status"] == .string(expectedStatus) else {
+            throw NativeError.message("Persona readiness status не совпадает с gates. Ничего не активировано.")
+        }
+        self.value = value
+    }
+
+    private static func validText(_ value: String, maximum: Int) -> Bool {
+        !value.isEmpty && value.unicodeScalars.count <= maximum && !value.contains("\0")
+    }
+
+    private static func isHash(_ value: String) -> Bool {
+        value.count == 64 && value.allSatisfy { "0123456789abcdef".contains($0) }
+    }
+}
+
 struct PersonaInspectorView: View {
     @ObservedObject var model: AppModel
 
@@ -170,9 +298,10 @@ struct PersonaInspectorView: View {
                 Label("Persona Inspector", systemImage: "person.crop.circle.badge.checkmark")
                     .font(.title3.weight(.semibold))
                 Spacer()
-                if model.loadingPersonaPreview { ProgressView().controlSize(.small) }
-                Button { Task { await model.refreshPersonaPreview() } } label: { Image(systemName: "arrow.clockwise") }
-                    .disabled(model.busy || model.loadingPersonaPreview).help("Пересобрать read-only snapshot")
+                if model.loadingPersonaPreview || model.loadingPersonaReadiness { ProgressView().controlSize(.small) }
+                Button { Task { await model.refreshPersonaInspector() } } label: { Image(systemName: "arrow.clockwise") }
+                    .disabled(model.busy || model.loadingPersonaPreview || model.loadingPersonaReadiness)
+                    .help("Пересобрать read-only snapshot и readiness evidence")
                 Button { model.showPersonaInspector = false } label: { Image(systemName: "xmark") }
                     .keyboardShortcut(.cancelAction)
             }.padding(20)
@@ -180,6 +309,9 @@ struct PersonaInspectorView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     if let error = model.personaPreviewError {
+                        Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
+                    }
+                    if let error = model.personaReadinessError {
                         Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
                     }
                     if let preview = model.personaPreview {
@@ -228,17 +360,58 @@ struct PersonaInspectorView: View {
                                 Text(notice.text).font(.caption).foregroundStyle(.secondary)
                             }
                         }
+                        if let readiness = model.personaReadiness {
+                            PersonaSection("Activation readiness", icon: "checklist.checked") {
+                                HStack(spacing: 8) {
+                                    Circle().fill(readinessColor(readiness.status)).frame(width: 8, height: 8)
+                                    headline(readinessLabel(readiness.status))
+                                    Spacer()
+                                    Text("только проверка").font(.caption).foregroundStyle(.secondary)
+                                }
+                                fact("Выбран", readiness.value["selected_provider"].text)
+                                fact("Parity SHA", readiness.parity["persona_invariant_hash"].text.isEmpty
+                                     ? "не совпал" : String(readiness.parity["persona_invariant_hash"].text.prefix(16)))
+                                ForEach(Array(readiness.adapters.enumerated()), id: \.offset) { _, adapter in
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text("\(adapter["provider"].text) · \(adapter["placement"].text)")
+                                            .font(.callout.weight(.medium))
+                                        Text("\(adapter["refresh_scope"].text) · provenance \(adapter["provenance_complete"].flag ? "OK" : "FAIL")")
+                                            .font(.caption).foregroundStyle(.secondary)
+                                    }
+                                }
+                                Divider()
+                                ForEach(Array(readiness.gates.enumerated()), id: \.offset) { _, gate in
+                                    Label {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(gate["id"].text).font(.callout.weight(.medium))
+                                            Text(gate["detail"].text).font(.caption).foregroundStyle(.secondary)
+                                        }
+                                    } icon: {
+                                        Image(systemName: gateIcon(gate["status"].text))
+                                            .foregroundStyle(gateColor(gate["status"].text))
+                                    }
+                                }
+                                ForEach(Array(readiness.blockers.enumerated()), id: \.offset) { _, finding in
+                                    Label(finding.text, systemImage: "xmark.octagon.fill").font(.caption).foregroundStyle(.red)
+                                }
+                                ForEach(Array(readiness.warnings.enumerated()), id: \.offset) { _, finding in
+                                    Label(finding.text, systemImage: "exclamationmark.triangle.fill").font(.caption).foregroundStyle(.orange)
+                                }
+                                Text("Readiness не включает Persona, не вызывает модель и не меняет provider safety instructions.")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
                     } else if model.personaPreviewError == nil && !model.loadingPersonaPreview {
                         Text("Откройте инспектор повторно или обновите snapshot.").foregroundStyle(.secondary)
                     }
                 }.padding(22).frame(maxWidth: 760, alignment: .leading).frame(maxWidth: .infinity)
             }
             Divider()
-            Label("Не активен в prompt · нет model call, retrieval, execution или записи", systemImage: "eye")
+            Label("Preview/readiness only · Persona не активна в prompt · нет model call, retrieval, execution или записи", systemImage: "eye")
                 .font(.caption).foregroundStyle(.secondary).padding(14)
         }
         .frame(minWidth: 680, idealWidth: 760, minHeight: 620, idealHeight: 740)
-        .task { await model.refreshPersonaPreview() }
+        .task { await model.refreshPersonaInspector() }
     }
 
     private func headline(_ text: String) -> some View {
@@ -268,6 +441,23 @@ struct PersonaInspectorView: View {
     private func contextLabel(_ value: String) -> String {
         ["enabled": "включён ранее, snapshot его не применяет", "disabled": "выключен",
          "default_disabled": "выключен по умолчанию", "unknown": "не удалось проверить"][value] ?? value
+    }
+
+    private func readinessLabel(_ value: String) -> String {
+        ["READY": "READY к отдельному activation milestone", "WARN": "WARN · control-only выбор",
+         "NOT_READY": "NOT READY · activation заблокирована"][value] ?? value
+    }
+
+    private func readinessColor(_ value: String) -> Color {
+        value == "READY" ? .green : (value == "WARN" ? .orange : .red)
+    }
+
+    private func gateIcon(_ value: String) -> String {
+        value == "PASS" ? "checkmark.circle.fill" : (value == "WARN" ? "exclamationmark.triangle.fill" : "xmark.octagon.fill")
+    }
+
+    private func gateColor(_ value: String) -> Color {
+        value == "PASS" ? .green : (value == "WARN" ? .orange : .red)
     }
 }
 

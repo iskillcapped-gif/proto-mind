@@ -77,6 +77,9 @@ final class AppModel: ObservableObject {
     @Published private(set) var personaPreview: NativePersonaPreview?
     @Published private(set) var personaPreviewError: String?
     @Published private(set) var loadingPersonaPreview = false
+    @Published private(set) var personaReadiness: NativePersonaReadiness?
+    @Published private(set) var personaReadinessError: String?
+    @Published private(set) var loadingPersonaReadiness = false
     @Published private(set) var workSessions: [NativeWorkSession] = []
     @Published private(set) var workSessionsPath = ""
     @Published private(set) var workSessionsWarning: String?
@@ -114,6 +117,7 @@ final class AppModel: ObservableObject {
     private var workSessionsRequest = UUID()
     private var contextPreviewRequest = UUID()
     private var personaPreviewRequest = UUID()
+    private var personaReadinessRequest = UUID()
 
     init(configuration: LaunchConfiguration = .load()) {
         client = BridgeClient(configuration: configuration)
@@ -247,6 +251,31 @@ final class AppModel: ObservableObject {
                 personaPreviewError = error.localizedDescription
             }
         }
+    }
+
+    func refreshPersonaReadiness() async {
+        guard !busy, let conversationID = selectedID, let params = personaRequestParameters else { return }
+        let request = UUID()
+        personaReadinessRequest = request
+        personaReadiness = nil; personaReadinessError = nil; loadingPersonaReadiness = true
+        defer { if personaReadinessRequest == request { loadingPersonaReadiness = false } }
+        do {
+            let value = try await client.request("persona_readiness", params)
+            guard personaReadinessRequest == request, selectedID == conversationID else { return }
+            guard params == personaRequestParameters else {
+                throw NativeError.message("Провайдер, модель или доступ изменились. Обновите readiness evidence.")
+            }
+            personaReadiness = try NativePersonaReadiness(value)
+        } catch {
+            if personaReadinessRequest == request && selectedID == conversationID {
+                personaReadinessError = error.localizedDescription
+            }
+        }
+    }
+
+    func refreshPersonaInspector() async {
+        await refreshPersonaPreview()
+        await refreshPersonaReadiness()
     }
 
     func inspectArtifacts(_ run: NativeWorkSession) async throws -> NativeArtifactDesk {
