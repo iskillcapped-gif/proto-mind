@@ -154,6 +154,18 @@ struct OverviewView: View {
                             .font(.callout).foregroundStyle(.secondary)
                     }.padding(8).frame(maxWidth: .infinity, alignment: .leading)
                 }
+                Button { model.showPersonaInspector = true } label: {
+                    HStack(spacing: 13) {
+                        Image(systemName: "person.crop.circle.badge.checkmark").font(.title3)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Persona Inspector").font(.headline)
+                            Text("Brother Kernel, Identity и текущий self-model · только read-only preview")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right").foregroundStyle(.tertiary)
+                    }.padding(15).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
+                }.buttonStyle(.nativeHover).disabled(model.busy)
                 Text("РУЧНЫЕ ПРОВЕРКИ").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
                 ForEach(["/proto status", "/proto doctor", "/memory doctor", "/skills list", "/context injection status"], id: \.self) { command in
                     Button { Task { await model.submit(command) } } label: {

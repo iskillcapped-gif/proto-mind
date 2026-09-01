@@ -61,6 +61,7 @@ final class AppModel: ObservableObject {
     @Published var showWorkSessions = false
     @Published var inspectedWorkSessionID: String?
     @Published var showContextDesk = false
+    @Published var showPersonaInspector = false
     @Published var showTaskCriteria = false
     @Published var imagePreview: NativeImagePreview?
     @Published var pdfPreview: NativePDFPreview?
@@ -73,6 +74,9 @@ final class AppModel: ObservableObject {
     @Published private(set) var contextPreview: NativeContextPreview?
     @Published private(set) var contextPreviewError: String?
     @Published private(set) var loadingContextPreview = false
+    @Published private(set) var personaPreview: NativePersonaPreview?
+    @Published private(set) var personaPreviewError: String?
+    @Published private(set) var loadingPersonaPreview = false
     @Published private(set) var workSessions: [NativeWorkSession] = []
     @Published private(set) var workSessionsPath = ""
     @Published private(set) var workSessionsWarning: String?
@@ -109,6 +113,7 @@ final class AppModel: ObservableObject {
     private var libraryDetailRequest = UUID()
     private var workSessionsRequest = UUID()
     private var contextPreviewRequest = UUID()
+    private var personaPreviewRequest = UUID()
 
     init(configuration: LaunchConfiguration = .load()) {
         client = BridgeClient(configuration: configuration)
@@ -190,6 +195,22 @@ final class AppModel: ObservableObject {
         return params
     }
 
+    var personaRequestParameters: [String: JSONValue]? {
+        guard let conversation = selected else { return nil }
+        var params: [String: JSONValue] = [
+            "conversation_id": .string(conversation.id.uuidString),
+            "provider": .string(conversation.provider),
+            "model": .string(conversation.model),
+            "cloud_consent": .bool(cloudConsent),
+            "access_mode": .string(fullAccessEnabled ? "full_access" : "chat")
+        ]
+        if let path = conversation.workspacePath { params["workspace_root"] = .string(path) }
+        if fullAccessEnabled, let grant = agentGrants[conversation.id] {
+            params["access_token"] = .string(grant.token)
+        }
+        return params
+    }
+
     func refreshContextPreview() async {
         guard !busy, let conversationID = selectedID, let params = contextRequestParameters else { return }
         let request = UUID()
@@ -205,6 +226,26 @@ final class AppModel: ObservableObject {
             contextPreview = try NativeContextPreview(value)
         } catch {
             if contextPreviewRequest == request && selectedID == conversationID { contextPreviewError = error.localizedDescription }
+        }
+    }
+
+    func refreshPersonaPreview() async {
+        guard !busy, let conversationID = selectedID, let params = personaRequestParameters else { return }
+        let request = UUID()
+        personaPreviewRequest = request
+        personaPreview = nil; personaPreviewError = nil; loadingPersonaPreview = true
+        defer { if personaPreviewRequest == request { loadingPersonaPreview = false } }
+        do {
+            let value = try await client.request("persona_preview", params)
+            guard personaPreviewRequest == request, selectedID == conversationID else { return }
+            guard params == personaRequestParameters else {
+                throw NativeError.message("Провайдер, модель или доступ изменились. Обновите PersonaSnapshot.")
+            }
+            personaPreview = try NativePersonaPreview(value)
+        } catch {
+            if personaPreviewRequest == request && selectedID == conversationID {
+                personaPreviewError = error.localizedDescription
+            }
         }
     }
 

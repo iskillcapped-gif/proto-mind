@@ -81,9 +81,11 @@ Delivered evidence:
 - `evals/persona/cases.jsonl`, `proto_mind/persona_evals.py` and 16 unit regressions cover provider continuity, untraceable memory, external prompt injection, unsupported capability claims, facet refusal, permission-change refusal, hashes and byte-stable stores. The deterministic eval suite passes 7/7 with zero model calls and zero store writes.
 - `PERSONA_ENGINE_MIGRATION_MAP.md` records the existing prompt/identity/memory/permission sources that Persona 0.2 and 0.3 may integrate later. Production conversation behavior remains unchanged.
 
-### Persona 0.2: Visible Preview
+### Persona 0.2: Visible Preview (Delivered 2026-09-01)
 
-Show a bounded Native inspector for the snapshot that would be used: identity version, relevant sources, actual model/tools/permissions, omitted-context notices and evidence limits. This remains read-only and must not expose private chain-of-thought.
+The Native **Persona Inspector** shows the one checked-in Brother kernel, read-only Identity projection, current provider/model/workspace/access self-model, Context Injection state, source boundaries, notices and snapshot hash. It uses the current conversation and selected workspace, but exposes only an opaque workspace reference. Full Mac facts require the existing in-memory conversation/workspace token; the inspector never creates or uses that grant.
+
+The exact preview contract declares `read_only`, `no_execution`, `no_model_call`, `no_network_call`, `no_retrieval`, `no_store_write`, `production_prompt_active=false`, `private_reasoning_included=false` and `context_injection_changed=false`. Python validates the snapshot before transport and Swift independently fails closed on widened fields, memory sources, personality modes, unsafe runtime claims or inconsistent evidence. No memory is selected in Persona 0.2, and the snapshot is not routed to any provider prompt.
 
 ### Persona 0.3: Controlled Activation
 

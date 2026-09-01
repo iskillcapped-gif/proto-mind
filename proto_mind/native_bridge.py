@@ -38,6 +38,7 @@ from proto_mind.native_library import NativeLibrary
 from proto_mind.native_workspace import WorkspaceReader, file_context_message
 from proto_mind.native_images import ImageReader, image_specifications, MAX_IMAGES, MAX_IMAGE_BYTES, MAX_TOTAL_IMAGE_BYTES
 from proto_mind.native_pdf import PDFReader, SelectedPDF, pdf_context_message
+from proto_mind.native_persona import NativePersonaRequest, build_native_persona_preview
 from proto_mind.native_work_sessions import WorkSessionStore, WorkSessionError, workspace_identity
 from proto_mind.native_desk import context_manifest, context_preview, capture_artifacts, artifact_page, artifact_preview, review_observations
 from proto_mind.native_review import CONFIRM_REVIEW, criteria_context_message, validate_criteria, review_preview
@@ -183,6 +184,7 @@ class NativeBackend:
         self.active_provider: str | None = None
         self.busy = threading.Lock()
         self.agent_grants = AgentGrants()
+        self._last_bootstrap_computer_use: dict | None = None
         self.work_sessions = WorkSessionStore(self.state_dir, self.root)
         self.closing = threading.Event()
 
@@ -209,6 +211,8 @@ class NativeBackend:
         settings = read_json("context_injection.json", {"enabled": False})
         enabled = settings.get("enabled") if isinstance(settings, dict) else None
         config = ProtoMindConfig.from_env(self.root / "proto_mind")
+        computer_use = public_computer_use_capability()
+        self._last_bootstrap_computer_use = computer_use
         return {
             "protocol_version": BRIDGE_VERSION, "project_root": str(self.root),
             "name": profile.get("name", "Proto-Mind"), "operator_name": profile.get("operator_name", ""),
@@ -224,7 +228,7 @@ class NativeBackend:
             "agent": {"default_mode": "chat", "available_modes": ["chat", "full_access"],
                       "confirmation": FULL_ACCESS_CONFIRMATION, "persistent_grants": False,
                       "web_search": "live_full_access_only",
-                      "computer_use": public_computer_use_capability()},
+                      "computer_use": computer_use},
             "local_knowledge_capabilities": {
                 "transport": "private_stdio",
                 "contracts": local_knowledge_descriptors(),
@@ -259,6 +263,34 @@ class NativeBackend:
 
     def pdf_reader(self) -> PDFReader:
         return PDFReader(protected_roots=self.protected_input_roots, helper=self.pdf_helper)
+
+    def preview_persona(self, params: dict) -> dict:
+        request = NativePersonaRequest.parse(params)
+        workspace = self.workspace(params).root if request.workspace_root is not None else None
+        grant_verified = False
+        computer_use_available = False
+        if request.access_mode == "full_access":
+            if request.provider != "codex" or request.cloud_consent is not True or workspace is None:
+                raise ValueError("Full Mac Persona preview requires Codex, cloud consent, and a selected workspace.")
+            self.agent_grants.validate(
+                request.conversation_id,
+                workspace,
+                request.access_token,
+            )
+            grant_verified = True
+            computer_use_available = bool(
+                self._last_bootstrap_computer_use
+                and self._last_bootstrap_computer_use.get("available") is True
+            )
+        config = ProtoMindConfig.from_env(self.root / "proto_mind")
+        return build_native_persona_preview(
+            self.root,
+            request,
+            workspace=workspace,
+            full_access_grant_verified=grant_verified,
+            computer_use_available=computer_use_available,
+            ollama_model=config.ollama_model,
+        )
 
     def process(self, params: dict, emit: Callable[[dict], None], request_id: str) -> dict:
         if self.closing.is_set():
@@ -517,6 +549,8 @@ class NativeBackend:
             return self.work_sessions.page(params.get("conversation_id", ""))
         if method == "context_preview":
             return self.preview_context(params)
+        if method == "persona_preview":
+            return self.preview_persona(params)
         if method == "image_preview":
             return self.image_reader().preview(params.get("path"), params.get("expected_sha256"))
         if method == "pdf_preview":

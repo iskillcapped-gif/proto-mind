@@ -368,6 +368,17 @@ Native 0.16.0 adopts the useful local interface discipline from the inspected Ch
 
 Rule 0: `backups/proto_mind_backup_2026-09-01_18-32-25.tar.gz`. Targeted Python checks pass 119 tests, the full suite passes 1,517 tests, all 355 Native checks pass and the local agent eval remains 6/6. The release build, plist, ad-hoc signature and personal-app relaunch pass as 0.16.0 build 20. The already-stale shared service from the prior build remained near 20% CPU; one operator-side TERM reset removed it without stopping ChatGPT or Proto-Mind, and no such kill path exists in the app. All 48 project `data`/`exports` files retain their checkpoint SHA-256, Registry remains 387 commands / 41 categories and Context Injection remains disabled. No slash command, core/session-log schema, dependency, public endpoint, Platform/API-key integration, additional Computer Use tool or persistent grant is added.
 
+## Persona Snapshot Inspector / Native 0.17.0
+
+Native 0.17.0 delivers Persona 0.2 as a visible but inactive preview:
+
+- `native_persona.py` accepts one exact private-stdio request for the selected conversation's provider, model, workspace and access controls. Workspace paths pass through the existing protected reader and become only an opaque device/inode-bound reference. A Full Mac self-model is possible only after validating the current in-memory conversation/workspace grant; the token and absolute path never enter the response.
+- The compiler reads the existing Identity projection without initialization, selects no memory and emits the same hashed, non-authorizing Brother snapshot from Persona 0.1. Context Injection is read as enabled/disabled/unknown but neither its payload nor setting is changed.
+- `PersonaInspector.swift` independently validates the exact envelope, kernel/voice invariants, bounded Identity items, empty memory projection, workspace linkage, runtime/tool coherence, source summary and safety flags. The sheet is opened explicitly from **Обзор ядра** and shows Kernel, Identity, self-model, boundaries, evidence and omissions.
+- The preview performs no provider/network/model call, retrieval, command execution, core/private/export write, permission change or background work. It displays no private chain-of-thought and is not consumed by Codex, Ollama or Mock prompts. Activation remains Persona 0.3 and requires separate parity/readiness/rollback gates.
+
+Rule 0: `backups/proto_mind_backup_2026-09-01_21-07-05.tar.gz`. Seven new Python regressions bring the full suite to 1,540; all 368 Native checks pass. Persona evals pass 7/7 with `model_calls=0` and `store_writes=0`, Agent evals pass 6/6, and compileall/imports pass under Python 3.11.15. Release 0.17.0 build 21, plist, ad-hoc signature and personal-app relaunch pass. All 48 project `data`/`exports` files retain their checkpoint SHA-256; Registry remains 387 commands / 41 categories and Context Injection remains disabled. No dependency, slash command, core/session-log schema, memory selection, Context Injection behavior or authority is added.
+
 ## Storage And Launch
 
 ```bash

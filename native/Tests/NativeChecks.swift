@@ -395,6 +395,7 @@ struct NativeChecks {
         await app.bindWorkspace(fixture.path)
         let bound = URL(fileURLWithPath: app.selected?.workspacePath ?? "/").resolvingSymlinksInPath()
         try check(bound == fixture.resolvingSymlinksInPath() && app.workspaceStatus["read_only"].flag, "Explicit binding uses the same folder without a copy")
+        try await personaInspector(app: app, fixture: fixture, state: root.appendingPathComponent("integration-state"))
         await app.openWorkspaceEntry(.object(["path": .string("proto_mind/native_workspace.py"), "directory": .bool(false)]))
         try check(app.filePreview["preview"].text.contains("WorkspaceReader"), "Native file preview reads actual source through the bridge")
         app.attachPreview()
@@ -419,6 +420,63 @@ struct NativeChecks {
         await app.submit("retry draft")
         try check(app.messages.last?.isError == true && app.composer == "retry draft", "Unsent cloud turn remains a draft without silent fallback")
         try check(!app.selected!.history.contains { $0["content"].text == "retry draft" }, "Failed send is excluded from subsequent model history")
+    }
+
+    @MainActor
+    static func personaInspector(app: AppModel, fixture: URL, state: URL) async throws {
+        let coreBefore = try fileBytes(fixture.appendingPathComponent("proto_mind/data"))
+        let stateBefore = try fileBytes(state)
+        let messagesBefore = app.messages, draftBefore = app.composer, providerBefore = app.selected?.provider
+        await app.refreshPersonaPreview()
+        guard let preview = app.personaPreview else {
+            throw NativeError.message(app.personaPreviewError ?? "Missing Persona preview")
+        }
+        try check(preview.kernel["persona_id"].text == "brother"
+                  && preview.kernel["voice"]["adaptation"].text == "contextual_without_modes",
+                  "Persona Inspector shows one versioned Brother kernel without personality modes")
+        try check(preview.snapshot["read_only"].flag && preview.snapshot["authorizes_actions"] == .bool(false)
+                  && preview.value["production_prompt_active"] == .bool(false),
+                  "Persona Inspector remains non-authorizing and outside the provider prompt")
+        try check(preview.snapshot["communication_preferences"].items.isEmpty
+                  && preview.snapshot["relevant_memories"].items.isEmpty
+                  && preview.value["no_retrieval"].flag && preview.value["no_model_call"].flag,
+                  "Persona Inspector performs no memory retrieval or model call")
+        try check(preview.runtime["provider"].text == "mock" && preview.runtime["access_mode"].text == "mock"
+                  && preview.runtime["tools"].items.isEmpty && !preview.runtime["can_write_workspace"].flag,
+                  "Persona self-model reflects current Mock isolation without invented tools")
+        try check(preview.runtime["workspace_id"].text.hasPrefix("workspace_")
+                  && !preview.value.pretty.contains(fixture.path),
+                  "Persona Inspector uses an opaque workspace reference instead of an absolute path")
+        let controller = NSHostingController(rootView: PersonaInspectorView(model: app))
+        let size = controller.sizeThatFits(in: CGSize(width: 800, height: 800))
+        try check(size.width >= 680 && size.height >= 620, "Persona Inspector has a usable bounded sheet layout")
+
+        guard case .object(let valid) = preview.value else { throw NativeError.message("Expected Persona object") }
+        for (field, invalid) in [("read_only", JSONValue.bool(false)), ("no_model_call", .bool(false)),
+                                 ("production_prompt_active", .bool(true)), ("private_reasoning_included", .bool(true))] {
+            var changed = valid; changed[field] = invalid
+            var refused = false
+            do { _ = try NativePersonaPreview(.object(changed)) } catch { refused = true }
+            try check(refused, "Persona Inspector rejects unsafe \(field)")
+        }
+        var changed = valid
+        guard case .object(var snapshot) = changed["snapshot"] else { throw NativeError.message("Expected snapshot") }
+        snapshot["snapshot_hash"] = .string(String(repeating: "0", count: 64)); changed["snapshot"] = .object(snapshot)
+        var badHashRefused = false
+        do { _ = try NativePersonaPreview(.object(changed)) } catch { badHashRefused = true }
+        try check(badHashRefused, "Persona Inspector rejects a snapshot hash that disagrees with its rendered evidence")
+
+        changed = valid
+        guard case .object(var sources) = changed["source_summary"] else { throw NativeError.message("Expected sources") }
+        sources["memory"] = .string("all_memory"); changed["source_summary"] = .object(sources)
+        var retrievalWideningRefused = false
+        do { _ = try NativePersonaPreview(.object(changed)) } catch { retrievalWideningRefused = true }
+        try check(retrievalWideningRefused, "Persona Inspector rejects a widened memory source")
+
+        try check(try fileBytes(fixture.appendingPathComponent("proto_mind/data")) == coreBefore
+                  && fileBytes(state) == stateBefore && app.messages == messagesBefore
+                  && app.composer == draftBefore && app.selected?.provider == providerBefore,
+                  "Persona inspection changes no core/private files, chat, draft, provider, or permission")
     }
 
     @MainActor
