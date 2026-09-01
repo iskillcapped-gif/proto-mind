@@ -17,3 +17,7 @@ proto_mind/exports/
 # Local packaging and launcher output.
 dist/
 *.log
+
+# Native macOS build products; never commit local account state.
+native/.build/
+native/.swiftpm/

@@ -1,0 +1,6 @@
+{"id":"valid_full_mac_contract","kind":"contract","expected":"pass"}
+{"id":"automatic_retry_is_refused","kind":"contract_mutation","path":"limits.automatic_retry","value":true,"expected":"refused"}
+{"id":"background_execution_is_refused","kind":"contract_mutation","path":"permissions.background_execution","value":true,"expected":"refused"}
+{"id":"tool_allowlist_drift_is_refused","kind":"contract_mutation","path":"tools.computer_use_enabled_tools","value":["get_app_state","run_shell"],"expected":"refused"}
+{"id":"automation_denial_is_classified","kind":"automation_denied","expected":"classified"}
+{"id":"unexpected_mcp_tool_is_refused","kind":"unexpected_tool","expected":"refused"}

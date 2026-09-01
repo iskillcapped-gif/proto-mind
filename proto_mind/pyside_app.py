@@ -24,6 +24,12 @@ from proto_mind.desktop_app import (
     save_transcript,
 )
 from proto_mind.desktop_view_model import build_local_capability_card_html
+from proto_mind.cognitive_turn_envelope import InteractiveResponse
+from proto_mind.cognitive_turn_view_model import (
+    CARD_UNAVAILABLE_NOTICE,
+    CognitiveTurnCardViewModel,
+    project_cognitive_turn_card,
+)
 
 try:
     from PySide6.QtCore import QByteArray, QObject, Qt, QThread, QTimer, Signal, Slot
@@ -76,7 +82,7 @@ except ImportError as exc:  # pragma: no cover - depends on optional dependency.
     PYSIDE_IMPORT_ERROR = exc
 
 
-PYSIDE_APP_VERSION = "v2.2.0"
+PYSIDE_APP_VERSION = "v2.3.0"
 PYSIDE_APP_TITLE = f"Proto-Mind Cognitive Control Room {PYSIDE_APP_VERSION}"
 PYSIDE_COMMAND_COUNT = len(COMMAND_REGISTRY)
 PYSIDE_CATEGORY_COUNT = len({entry.category for entry in COMMAND_REGISTRY})
@@ -533,6 +539,82 @@ def pyside_message_reset_html() -> str:
     return "<div class='message-reset'>&nbsp;</div>"
 
 
+def render_cognitive_turn_card_html(card: CognitiveTurnCardViewModel) -> str:
+    """Render typed turn facts without interpreting the raw debug report."""
+    for count in (card.memory_count, card.omitted_memories, card.omitted_warnings,
+                  card.omitted_previous_hints, card.omitted_next_hints):
+        if type(count) is not int or count < 0:
+            raise ValueError("Invalid card count.")
+    tone = card.grounding_tone if card.grounding_tone in {"neutral", "warn", "unknown"} else "unknown"
+    parts = [
+        "<div class='message-block'><div class='turn-card'>",
+        "<p class='turn-kicker'>PROTO-MIND / COGNITIVE TURN</p>",
+        f"<p class='turn-meta'>Backend: {escape(card.backend)} | Intent: {escape(card.intent)}</p>",
+        f"<div class='turn-answer'>{render_markdown_lite(card.answer)}</div>",
+    ]
+    if card.notices:
+        parts.append("<p class='turn-section'>TURN NOTICES</p>")
+        for notice in card.notices:
+            parts.append(f"<p class='turn-notice'>{escape(notice).replace(chr(10), '<br>')}</p>")
+    parts.extend([
+        "<p class='turn-section'>EVIDENCE / NOT A GUARANTEE</p>",
+        f"<p class='turn-check-{tone}'><strong>Grounding: {escape(card.grounding_status)}</strong></p>",
+        f"<p class='turn-detail'>{escape(card.grounding_detail)}</p>",
+        f"<p class='turn-detail'>Reflection: {escape(card.reflection_summary)}</p>",
+        f"<p class='turn-detail'>Memory decision: {escape(card.memory_decision)}</p>",
+        f"<p class='turn-detail'>Context Injection: {escape(card.context_state)}</p>",
+        f"<p class='turn-section'>RETRIEVED MEMORY / {card.memory_count} RETURNED</p>",
+        f"<p class='turn-detail'>Recall mode: {escape(card.retrieval_mode)}</p>",
+    ])
+    if not card.memories:
+        parts.append("<p class='turn-detail'>No memory records were returned for this turn.</p>")
+    for memory in card.memories:
+        state = "active" if memory.active else "inactive / historical"
+        parts.extend([
+            f"<p class='turn-memory-id'>{escape(memory.record_id)} | {escape(memory.memory_type)} | "
+            f"{state} | source: {escape(memory.source)}</p>",
+            f"<p class='turn-memory'>{escape(memory.content_preview)}</p>",
+        ])
+    if card.omitted_memories:
+        parts.append(f"<p class='turn-detail'>{card.omitted_memories} more returned records not shown in this compact card.</p>")
+    parts.append("<p class='turn-footnote'>Returned to the reasoner does not prove actual use or correctness.</p>")
+    for title, items, omitted in (
+        ("WARNINGS", card.warnings, card.omitted_warnings),
+        ("PREVIOUS-TURN HINTS", card.previous_hints, card.omitted_previous_hints),
+        ("SUGGESTED NEXT-TURN ADJUSTMENTS", card.next_hints, card.omitted_next_hints),
+    ):
+        if not items and not omitted:
+            continue
+        parts.append(f"<p class='turn-section'>{title}</p><ul>")
+        parts.extend(f"<li>{escape(item)}</li>" for item in items)
+        parts.append("</ul>")
+        if omitted:
+            parts.append(f"<p class='turn-detail'>{omitted} more items not shown in this compact card.</p>")
+    parts.extend([
+        "<p class='turn-footnote'>Presentation only: this card adds no model call or store write. "
+        "Checks are deterministic signals, not authorization or proof of correctness. "
+        "Enable Debug output before a turn for its full original trace.</p>",
+        "</div></div>",
+    ])
+    return "".join(parts)
+
+
+def build_cognitive_turn_card_html(
+    user_input: str,
+    response: InteractiveResponse,
+    *,
+    debug: bool = False,
+) -> str | None:
+    if debug:
+        return None
+    try:
+        card = project_cognitive_turn_card(user_input, response)
+        return render_cognitive_turn_card_html(card) if card is not None else None
+    except Exception:
+        # Only presentation falls back; never repeat the completed runtime call.
+        return None
+
+
 def pyside_dark_stylesheet() -> str:
     return """
     QMainWindow, QWidget {
@@ -825,6 +907,19 @@ def pyside_chat_document_css() -> str:
         margin: 10px 0 8px 0;
     }
     .capability-footnote { color: #738091; font-size: 10px; }
+    .turn-card { background: #101923; border: 1px solid #31505a; padding: 14px; }
+    .turn-kicker { color: #7fd8c4; font-weight: 700; font-size: 10px; margin: 6px 0; }
+    .turn-meta { color: #8e9bad; font-size: 11px; margin: 4px 0 12px 0; }
+    .turn-answer { color: #eee9df; margin-bottom: 12px; }
+    .turn-section { color: #d7a75b; font-weight: 700; font-size: 10px; margin: 14px 0 6px 0; }
+    .turn-detail { color: #a7b5c4; font-size: 11px; margin: 4px 0; }
+    .turn-notice { color: #ffd18a; background: #221e17; padding: 6px; font-size: 11px; }
+    .turn-check-neutral { color: #7fd8c4; }
+    .turn-check-warn { color: #ffd18a; }
+    .turn-check-unknown { color: #9ca7b5; }
+    .turn-memory-id { color: #7fd8c4; font-family: Menlo, Monaco, monospace; font-size: 10px; margin: 9px 0 3px 0; }
+    .turn-memory { color: #cad3dd; font-size: 12px; margin: 3px 0 8px 0; }
+    .turn-footnote { color: #8e9bad; font-size: 10px; margin: 8px 0; }
     """
 
 
@@ -861,9 +956,14 @@ if PYSIDE_AVAILABLE:
             if self.is_cancel_requested():
                 self.finished.emit({"input": self.text, "response": None, "cancelled": True})
                 return
+            interaction = None
             try:
-                response = self.runtime.process(self.text)
+                interaction = self.runtime.process_with_envelope(self.text)
+                if not isinstance(interaction, InteractiveResponse):
+                    raise TypeError("Runtime returned an invalid interactive response.")
+                response = interaction.text
             except Exception as exc:  # pragma: no cover - defensive worker boundary.
+                interaction = None
                 if getenv("PROTO_MIND_DESKTOP_DEBUG") == "1":
                     print_exc()
                 response = format_worker_error(exc)
@@ -872,6 +972,7 @@ if PYSIDE_AVAILABLE:
                 {
                     "input": self.text,
                     "response": response,
+                    "interaction": interaction,
                     "cancel_requested": self.is_cancel_requested(),
                 }
             )
@@ -1295,7 +1396,8 @@ if PYSIDE_AVAILABLE:
             user_input = str(result.get("input", "")) if isinstance(result, dict) else ""
             response = result.get("response") if isinstance(result, dict) else None
             cancel_requested = bool(result.get("cancel_requested")) if isinstance(result, dict) else False
-            self._finish_response(response, user_input=user_input, cancel_requested=cancel_requested)
+            interaction = result.get("interaction") if isinstance(result, dict) else None
+            self._finish_response(response, user_input=user_input, cancel_requested=cancel_requested, interaction=interaction)
 
         def _finish_response(
             self,
@@ -1303,6 +1405,7 @@ if PYSIDE_AVAILABLE:
             *,
             user_input: str = "",
             cancel_requested: bool = False,
+            interaction: InteractiveResponse | None = None,
         ) -> None:
             was_cancel_requested = cancel_requested or self.cancel_requested_for_current_worker
             self.last_raw_response = response or ""
@@ -1318,11 +1421,20 @@ if PYSIDE_AVAILABLE:
                     self.append_system_message("Operation finished after stop request.")
                     self.cancel_requested_for_current_worker = False
                 return
-            typed_card = build_local_capability_card_html(user_input, response)
+            debug = self.debug_checkbox.isChecked()
+            card_expected = interaction is not None and (
+                not isinstance(interaction, InteractiveResponse)
+                or interaction.cognitive_turn is not None
+                or interaction.envelope_warning is not None
+            )
+            cognitive_card = None
+            if isinstance(interaction, InteractiveResponse) and interaction.text == response:
+                cognitive_card = build_cognitive_turn_card_html(user_input, interaction, debug=debug)
+            typed_card = cognitive_card or build_local_capability_card_html(user_input, response)
             if typed_card is not None:
-                self.append_local_capability_card(typed_card)
+                self._append_typed_card(typed_card)
             else:
-                display = format_desktop_response(response, debug=self.debug_checkbox.isChecked())
+                display = format_desktop_response(response, debug=debug)
                 kind = classify_desktop_output(response)
                 if kind == "system":
                     self.append_system_message(display)
@@ -1330,6 +1442,10 @@ if PYSIDE_AVAILABLE:
                     self.append_report_message(display)
                 else:
                     self.append_assistant_message(display)
+            if card_expected and cognitive_card is None and not debug:
+                self.append_system_message(CARD_UNAVAILABLE_NOTICE)
+            elif isinstance(interaction, InteractiveResponse) and interaction.envelope_warning is not None:
+                self.append_system_message(CARD_UNAVAILABLE_NOTICE)
             self._update_panel_from_output(response)
             if response.startswith("System error:"):
                 self.runtime_state = "error"
@@ -1490,6 +1606,9 @@ if PYSIDE_AVAILABLE:
             self._append("Proto-Mind / System report", text, report=True)
 
         def append_local_capability_card(self, card_html: str) -> None:
+            self._append_typed_card(card_html)
+
+        def _append_typed_card(self, card_html: str) -> None:
             cursor = self.chat.textCursor()
             cursor.movePosition(QTextCursor.MoveOperation.End)
             cursor.insertHtml(card_html)

@@ -8,7 +8,8 @@ from os import getenv
 from pathlib import Path
 from re import IGNORECASE, MULTILINE, search
 
-from proto_mind.main import build_coordinator, process_interactive_input
+from proto_mind.main import build_coordinator, process_interactive_input, process_interactive_input_with_envelope
+from proto_mind.cognitive_turn_envelope import InteractiveResponse
 from proto_mind.memory_hygiene import MemoryHygiene
 from proto_mind.session_log import SessionOperatorLogger
 
@@ -78,6 +79,16 @@ class DesktopRuntime:
 
     def process(self, user_input: str) -> str | None:
         return process_interactive_input(
+            user_input,
+            coordinator=self.coordinator,
+            session_logger=self.session_logger,
+            project_root=self.project_root,
+            hygiene=self.hygiene,
+        )
+
+    def process_with_envelope(self, user_input: str) -> InteractiveResponse:
+        """Alternative to process(), not a follow-up call for the same input."""
+        return process_interactive_input_with_envelope(
             user_input,
             coordinator=self.coordinator,
             session_logger=self.session_logger,

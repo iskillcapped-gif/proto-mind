@@ -296,7 +296,7 @@ def _default_identity() -> dict[str, Any]:
         "profile": {
             "name": "Proto-Mind",
             "role": "local-first cognitive assistant",
-            "style": "clear, careful, transparent, operator-guided",
+            "style": "adaptive to the operator and current conversation",
             "operator_name": "",
             "mission": "Help maintain continuity across memory, reflection, goals, tasks, experiments, skills, and operating loop.",
         },
@@ -316,17 +316,13 @@ def _default_identity() -> dict[str, Any]:
     for text in [
         "Create checkpoint before modifying code or memory structure.",
         "Prefer deterministic diagnostics before auto-fixes.",
-        "Suggest commands rather than silently mutating state.",
         "Keep CLI, Desktop UI, and tests stable.",
         "Record lessons as experiments/skills before relying on them.",
     ]:
         data["principles"].append(_new_default_item("principles", text, now))
     for text in [
-        "No autonomous shell execution.",
         "No hidden memory edits.",
         "No destructive actions without explicit operator approval.",
-        "No external-world actions without explicit operator approval.",
-        "No self-modification without checkpoint and operator approval.",
     ]:
         data["boundaries"].append(_new_default_item("boundaries", text, now))
     _append_history(data, action="init", field="", old="", new="default identity v1")

@@ -17,6 +17,7 @@ from proto_mind.agenda_layer import format_agenda_command
 from proto_mind.backup_utils import format_backup_command
 from proto_mind.baseline_layer import format_baseline_command
 from proto_mind.capability_map import format_capability_command
+from proto_mind.cognitive_turn_envelope import InteractiveResponse, project_interactive_response
 from proto_mind.command_registry import format_commands_command
 from proto_mind.closure_layer import format_closure_command
 from proto_mind.confirmation_layer import format_confirmation_command
@@ -125,6 +126,46 @@ def process_interactive_input(
     project_root: Path,
     hygiene: MemoryHygiene | None = None,
 ) -> str | None:
+    output = _process_interactive_input(
+        user_input,
+        coordinator=coordinator,
+        session_logger=session_logger,
+        project_root=project_root,
+        hygiene=hygiene,
+        include_cognitive_envelope=False,
+    )
+    return output.text if isinstance(output, InteractiveResponse) else output
+
+
+def process_interactive_input_with_envelope(
+    user_input: str,
+    *,
+    coordinator: Coordinator,
+    session_logger: SessionOperatorLogger,
+    project_root: Path,
+    hygiene: MemoryHygiene | None = None,
+) -> InteractiveResponse:
+    """Process one input once, with an optional detached normal-turn projection."""
+    output = _process_interactive_input(
+        user_input,
+        coordinator=coordinator,
+        session_logger=session_logger,
+        project_root=project_root,
+        hygiene=hygiene,
+        include_cognitive_envelope=True,
+    )
+    return output if isinstance(output, InteractiveResponse) else InteractiveResponse(text=output)
+
+
+def _process_interactive_input(
+    user_input: str,
+    *,
+    coordinator: Coordinator,
+    session_logger: SessionOperatorLogger,
+    project_root: Path,
+    hygiene: MemoryHygiene | None,
+    include_cognitive_envelope: bool,
+) -> str | None | InteractiveResponse:
     user_input = user_input.strip()
     if is_exit_command(user_input):
         return None
@@ -452,11 +493,14 @@ def process_interactive_input(
         result,
         context_injection_applied=bool(injection.get("applied")),
     )
-    return _format_interaction_result(
-        result,
+    notices = _format_turn_notices(
         context_injection=injection,
         experience_pilot=pilot_observation,
     )
+    text = _format_interaction_result(result, notices=notices)
+    if include_cognitive_envelope and user_input and not user_input.startswith("/"):
+        return project_interactive_response(text, result, context_injection=injection, notices=notices)
+    return text
 
 
 def _record_context_skip(project_root: Path, user_input: str, reason: str) -> None:
@@ -560,13 +604,12 @@ def _format_reference_repairs(repairs: object) -> str:
     return _capture_print(_print_reference_repairs, repairs)
 
 
-def _format_interaction_result(
-    result: object,
+def _format_turn_notices(
     *,
     context_injection: dict[str, object] | None = None,
     experience_pilot: object | None = None,
-) -> str:
-    lines = [f"Proto-Mind: {result.response}"]
+) -> tuple[str, ...]:
+    lines: list[str] = []
     if context_injection:
         if context_injection.get("applied"):
             lines.append(
@@ -578,6 +621,19 @@ def _format_interaction_result(
             lines.append(f"Context injection: skipped ({context_injection.get('warning')})")
     if experience_pilot is not None:
         lines.append(format_experience_pilot_observation(experience_pilot))
+    return tuple(lines)
+
+
+def _format_interaction_result(
+    result: object,
+    *,
+    context_injection: dict[str, object] | None = None,
+    experience_pilot: object | None = None,
+    notices: tuple[str, ...] | None = None,
+) -> str:
+    if notices is None:
+        notices = _format_turn_notices(context_injection=context_injection, experience_pilot=experience_pilot)
+    lines = [f"Proto-Mind: {result.response}", *notices]
     if result.previous_correction_hints:
         lines.append("Using previous correction hints:")
         for hint in result.previous_correction_hints:

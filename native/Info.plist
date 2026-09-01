@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key><string>Proto-Mind Native</string>
+  <key>CFBundleDisplayName</key><string>Proto-Mind Native</string>
+  <key>CFBundleExecutable</key><string>ProtoMindNative</string>
+  <key>CFBundleIdentifier</key><string>local.proto-mind.native</string>
+  <key>CFBundleVersion</key><string>20</string>
+  <key>CFBundleShortVersionString</key><string>0.16.0</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleIconFile</key><string>ProtoMind</string>
+  <key>LSMinimumSystemVersion</key><string>14.0</string>
+  <key>NSHighResolutionCapable</key><true/>
+  <key>NSPrincipalClass</key><string>NSApplication</string>
+  <key>NSAppleEventsUsageDescription</key><string>Proto-Mind uses the signed OpenAI Computer Use service to inspect and operate applications only after you explicitly enable Full Mac access.</string>
+  <key>LSApplicationCategoryType</key><string>public.app-category.productivity</string>
+</dict>
+</plist>
