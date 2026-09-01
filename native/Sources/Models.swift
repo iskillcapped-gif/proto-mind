@@ -204,8 +204,28 @@ final class ChatStore {
 }
 
 struct NativePreferences: Codable, Equatable {
-    var version = 1
-    var cloudProcessingAllowed = false
+    var version: Int
+    var cloudProcessingAllowed: Bool
+    var personaEnabled: Bool
+
+    init(version: Int = 2, cloudProcessingAllowed: Bool = false, personaEnabled: Bool = false) {
+        self.version = version
+        self.cloudProcessingAllowed = cloudProcessingAllowed
+        self.personaEnabled = personaEnabled
+    }
+
+    enum CodingKeys: String, CodingKey { case version, cloudProcessingAllowed, personaEnabled }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        version = try values.decode(Int.self, forKey: .version)
+        cloudProcessingAllowed = try values.decode(Bool.self, forKey: .cloudProcessingAllowed)
+        if version >= 2 {
+            personaEnabled = try values.decodeIfPresent(Bool.self, forKey: .personaEnabled) ?? false
+        } else {
+            personaEnabled = false
+        }
+    }
 }
 
 final class PreferenceStore {
@@ -221,16 +241,19 @@ final class PreferenceStore {
             let data = try Data(contentsOf: url)
             guard data.count <= 65_536 else { throw NativeError.message("Настройки слишком велики.") }
             let value = try JSONDecoder().decode(NativePreferences.self, from: data)
-            guard value.version == 1 else { throw NativeError.message("Неизвестная версия настроек.") }
+            guard [1, 2].contains(value.version), value.version != 1 || !value.personaEnabled else {
+                throw NativeError.message("Неизвестная версия настроек.")
+            }
             return value
         } catch {
             writeBlocked = true
-            throw NativeError.message("Настройки не прочитаны. Облачное разрешение выключено; исходный файл не перезаписывается: \(url.path)")
+            throw NativeError.message("Настройки не прочитаны. Облачное разрешение и Brother Persona выключены; исходный файл не перезаписывается: \(url.path)")
         }
     }
 
     func save(_ preferences: NativePreferences) throws {
         guard !writeBlocked else { throw NativeError.message("Запись настроек заблокирована до ручной проверки файла.") }
+        guard preferences.version == 2 else { throw NativeError.message("Записывать можно только текущую версию настроек.") }
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         try JSONEncoder().encode(preferences).write(to: url, options: .atomic)
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)

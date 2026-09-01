@@ -1,0 +1,8 @@
+{"id":"codex_active_receipt","kind":"provider_activation","provider":"codex_subscription","expected":"pass"}
+{"id":"ollama_active_receipt","kind":"provider_activation","provider":"ollama","expected":"pass"}
+{"id":"provider_invariant_preserved","kind":"provider_invariant","expected":"preserved"}
+{"id":"selected_memory_provenance","kind":"memory_provenance","expected":"pass"}
+{"id":"mock_activation_refused","kind":"mock_refusal","expected":"refused"}
+{"id":"context_drift_blocks_turn","kind":"context_drift","expected":"blocked"}
+{"id":"receipt_tamper_refused","kind":"receipt_tamper","expected":"refused"}
+{"id":"legacy_rollback_exact","kind":"legacy_rollback","expected":"preserved"}

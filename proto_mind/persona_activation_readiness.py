@@ -129,6 +129,7 @@ _READINESS_FIELDS = {
     "gates",
     "blockers",
     "warnings",
+    "activation_fingerprint",
     "report_hash",
 }
 _ADAPTER_SUMMARY_FIELDS = {
@@ -410,6 +411,33 @@ def _adapter_summary(projection: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _activation_fingerprint(value: Mapping[str, Any]) -> str:
+    adapters = [
+        {
+            key: adapter[key]
+            for key in (
+                "provider", "model", "access_mode", "adapter", "placement", "refresh_scope",
+                "provider_safety_boundary", "activation_supported", "persona_invariant_hash",
+                "runtime_hash", "provenance_complete",
+            )
+        }
+        for adapter in value["adapters"]
+    ]
+    material = {
+        "schema": value["schema"],
+        "status": value["status"],
+        "selected_provider": value["selected_provider"],
+        "selected_adapter_ready": value["selected_adapter_ready"],
+        "context_injection_state": value["context_injection_state"],
+        "adapters": adapters,
+        "parity": value["parity"],
+        "gates": value["gates"],
+        "blockers": value["blockers"],
+        "warnings": value["warnings"],
+    }
+    return _hash(material)
+
+
 def build_persona_activation_readiness(
     snapshots: Mapping[str, PersonaSnapshot],
     *,
@@ -492,6 +520,7 @@ def build_persona_activation_readiness(
         "blockers": blockers,
         "warnings": warnings,
     }
+    material["activation_fingerprint"] = _activation_fingerprint(material)
     result = {**material, "report_hash": _hash(material)}
     return validate_persona_activation_readiness(result)
 
@@ -549,6 +578,12 @@ def validate_persona_activation_readiness(value: object) -> dict[str, Any]:
     expected_status = "NOT_READY" if row["blockers"] else ("WARN" if row["warnings"] else "READY")
     if row["status"] != expected_status:
         raise PersonaValidationError("Persona activation readiness status and findings disagree.")
+    if (
+        not isinstance(row["activation_fingerprint"], str)
+        or not _SHA256_RE.fullmatch(row["activation_fingerprint"])
+        or row["activation_fingerprint"] != _activation_fingerprint(row)
+    ):
+        raise PersonaValidationError("Persona activation fingerprint does not verify.")
     material = {key: row[key] for key in row if key != "report_hash"}
     if not isinstance(row["report_hash"], str) or row["report_hash"] != _hash(material):
         raise PersonaValidationError("Persona activation readiness hash does not verify.")

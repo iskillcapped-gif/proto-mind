@@ -3,6 +3,7 @@ import SwiftUI
 struct NativeSettingsView: View {
     @ObservedObject var model: AppModel
     @State private var confirmCodexThreadReset = false
+    @State private var confirmPersonaActivation = false
 
     private var codexThreadTaskID: String {
         [model.selectedID?.uuidString ?? "", model.selected?.provider ?? "", model.selected?.workspacePath ?? ""].joined(separator: "|")
@@ -62,6 +63,40 @@ struct NativeSettingsView: View {
                         Text(note).font(.caption).foregroundStyle(.orange)
                     }
                 }
+            }
+            Section("Brother Persona") {
+                HStack {
+                    Label(model.personaEnabled ? "Включена" : "Выключена",
+                          systemImage: model.personaEnabled ? "person.crop.circle.badge.checkmark" : "person.crop.circle.badge.xmark")
+                    Spacer()
+                    Text(model.personaEnabled ? "opt-in" : "legacy prompt")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                if model.personaEnabled {
+                    Button("Вернуться к legacy prompt") { model.disablePersona() }
+                        .disabled(model.busy)
+                    Text("Отключение действует со следующего хода и меняет только локальную настройку. Уже существующая история durable Codex thread не стирается.")
+                        .font(.caption).foregroundStyle(.secondary)
+                } else {
+                    Button("Проверить и включить…") {
+                        Task {
+                            if await model.preparePersonaActivation() { confirmPersonaActivation = true }
+                        }
+                    }
+                    .disabled(model.busy || model.loadingPersonaReadiness || !["codex", "ollama"].contains(model.selected?.provider ?? ""))
+                    Text("Сначала собирается свежий read-only readiness report. Включение потребует отдельного подтверждения; Mock не поддерживается.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                if let readiness = model.personaReadiness {
+                    Text("Последняя проверка: \(readiness.status) · activation \(String(readiness.value["activation_fingerprint"].text.prefix(12)))")
+                        .font(.caption.monospaced()).foregroundStyle(readiness.status == "READY" ? Color.secondary : .orange)
+                }
+                if let receipt = model.lastPersonaTurnReceipt {
+                    Text("Последний активный ход: \(String(receipt.snapshotHash.prefix(12))) · память \(receipt.selectedMemoryCount) · receipt \(String(receipt.receiptHash.prefix(12)))")
+                        .font(.caption.monospaced()).foregroundStyle(.secondary).textSelection(.enabled)
+                }
+                Text("Один проверенный Brother snapshot использует уже выбранную ядром память в существующем model call. Persona не выдаёт инструменты, не меняет Context Injection и не добавляет скрытых записей.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             Section("Подписка ChatGPT / Codex") {
                 HStack {
@@ -150,6 +185,12 @@ struct NativeSettingsView: View {
             Button("Отмена", role: .cancel) {}
         } message: {
             Text("Будет удалена только локальная связь этого диалога с thread Codex. История Proto-Mind и прежний rollout Codex не удаляются. Следующее сообщение создаст новый thread; полный доступ к Mac останется выключенным.")
+        }
+        .confirmationDialog("Включить Brother Persona?", isPresented: $confirmPersonaActivation, titleVisibility: .visible) {
+            Button("Включить после повторной проверки") { Task { await model.confirmPersonaActivation() } }
+            Button("Отмена", role: .cancel) { model.cancelPersonaActivation() }
+        } message: {
+            Text("Readiness будет проверена ещё раз по тому же SHA. После включения каждый Send заново проверяет provider, модель, доступ и выключенный Context Injection. Новых полномочий это не даёт.")
         }
     }
 }

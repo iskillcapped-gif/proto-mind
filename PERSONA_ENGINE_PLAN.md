@@ -1,6 +1,6 @@
 # Proto-Mind Persona Engine Plan
 
-Decision date: 2026-09-01. Status: Persona 0.2 visible preview and provider-readiness gates delivered; not yet connected to production prompts and not a permission grant.
+Decision date: 2026-09-01. Status: Persona 0.3 controlled Native activation delivered for Codex/Ollama behind explicit opt-in and rollback; it is not a permission grant.
 
 ## Product Decision
 
@@ -95,9 +95,13 @@ The projection records hashes and provenance for the checked-in kernel, private 
 
 This readiness milestone introduces no activation switch, persistent setting, provider call or prompt change. Its only purpose is to make Persona 0.3 mechanically reviewable before the first real turn uses Brother context.
 
-### Persona 0.3: Controlled Activation
+### Persona 0.3: Controlled Activation (Delivered 2026-09-01)
 
-Route the same validated snapshot through provider adapters, with parity tests across supported models and a visible rollback to the previous prompt path. Activation must not enable Context Injection, add permissions, create a second model call or silently write memory.
+The same validated snapshot is now routed through the existing supported Native reasoners only after two explicit operator steps: fresh readiness preview, then confirmation of an unchanged stable activation fingerprint. The opt-in is one global private Native preference rather than a facet or mode selector. Each normal Send independently rebuilds readiness for the selected Codex/Ollama provider and current model/workspace/access controls, then rechecks Context Injection immediately before compiling one turn snapshot from memory already selected by the coordinator.
+
+Codex receives the exact active context as its existing `baseInstructions`; Ollama receives it as its existing per-request system message. A strict `persona_turn_activation.v1` receipt binds the snapshot, invariant/runtime/prompt/readiness hashes, memory IDs/provenance, final prompt bytes, unchanged safety/authority/Context state and zero additional model/retrieval/write counters. Mock, slash/natural operator commands, an unresolved Codex model, unsafe or changed Context state, stale readiness and malformed receipts fail closed.
+
+The **Return to legacy prompt** action changes only private preferences and applies on the next turn. The disabled Codex path is byte-compatible with the pre-Persona instruction envelope. Rollback does not delete already persisted Native conversation or durable Codex provider-thread history. Activation adds no tools, permissions, writer, retrieval, provider call, session schema or background work. Runtime acceptance covers both providers, invariant/provenance preservation, Mock/Context/tamper refusal and exact legacy rollback.
 
 ## Deferred Until Evidence Exists
 

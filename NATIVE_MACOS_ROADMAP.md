@@ -391,6 +391,18 @@ Native 0.18.0 makes the pre-activation gates inspectable without activating Pers
 
 Rule 0: `backups/proto_mind_backup_2026-09-01_21-33-08.tar.gz`. Twelve new regressions bring the full suite to 1,552; all 374 Native checks pass. Foundation and readiness Persona evals each pass 7/7; readiness reports zero model/network/retrieval/store calls and zero activation. Agent evals remain 6/6. Release 0.18.0 build 22, compileall/imports, plist, ad-hoc signature and personal-app relaunch pass. All 48 project `data`/`exports` files retain their checkpoint SHA-256; Registry remains 387 commands / 41 categories and Context Injection remains disabled. No dependency, slash command, core/session-log schema, persistent preference, prompt activation, permission or provider behavior is added.
 
+## Controlled Brother Persona / Native 0.19.0
+
+Native 0.19.0 crosses the prompt boundary narrowly, visibly and reversibly:
+
+- Model Settings offers **Проверить и включить…**, not a trait slider. A first read-only READY report creates a pending confirmation bound to the current conversation/provider/model/access/workspace and a timestamp-independent activation fingerprint. Confirmation fetches readiness again and refuses any drift before writing one private preferences-v2 boolean.
+- Each later normal Codex/Ollama Send recomputes readiness and validates current provider, explicit Codex model, workspace/full-access evidence and independently disabled Context Injection before provider dispatch. Mock and operator commands cannot activate Persona. Context is checked again immediately before compiling the turn snapshot.
+- The compiler uses only memories already selected by the existing coordinator. One bounded Brother projection replaces the legacy identity/memory system context for that turn while provider/developer safety instructions remain separate. It adds no retrieval, model call, network call, writer, permission or tool.
+- `persona_turn_activation.v1` binds the exact final active/legacy prompt hashes, snapshot/invariant/runtime/readiness hashes, memory IDs/provenance and explicit zero additional-call/write counters. Native validates the closed receipt and shows a bounded summary; Python remains the canonical receipt-hash verifier.
+- **Вернуться к legacy prompt** changes only the private preference and restores the exact previous prompt path for the next turn. It does not erase already persisted Native or durable Codex thread history. Persona remains one Brother identity with contextual adaptation; no facets, modes, provider forks or automatic evolution exist.
+
+Rule 0: `backups/proto_mind_backup_2026-09-01_21-51-33.tar.gz`. Twelve Python regressions bring the full suite to 1,564 and 13 Native checks bring the Native suite to 387. Foundation/readiness/runtime Persona evals pass 7/7 + 7/7 + 8/8 with zero real model/network/retrieval/store calls; Agent evals remain 6/6. Release 0.19.0 build 23, compileall/imports, plist, ad-hoc signature and personal-app relaunch are acceptance gates. All project `data`/`exports` files must retain their checkpoint SHA-256; Registry must remain 387/41 and Context Injection disabled.
+
 ## Storage And Launch
 
 ```bash

@@ -166,7 +166,7 @@ struct NativePersonaReadiness: Equatable {
         "schema", "status", "selected_provider", "selected_adapter_ready", "read_only",
         "activation_performed", "no_model_call", "no_network_call", "no_retrieval",
         "no_store_write", "context_injection_changed", "context_injection_state",
-        "adapters", "parity", "gates", "blockers", "warnings", "report_hash"
+        "adapters", "parity", "gates", "blockers", "warnings", "activation_fingerprint", "report_hash"
     ]
     static let adapterFields: Set<String> = [
         "provider", "model", "access_mode", "adapter", "placement", "refresh_scope",
@@ -200,7 +200,7 @@ struct NativePersonaReadiness: Equatable {
               value["no_retrieval"] == .bool(true), value["no_store_write"] == .bool(true),
               value["context_injection_changed"] == .bool(false),
               ["enabled", "disabled", "default_disabled", "unknown"].contains(value["context_injection_state"].text),
-              Self.isHash(value["report_hash"].text),
+              Self.isHash(value["activation_fingerprint"].text), Self.isHash(value["report_hash"].text),
               case .array(let adapters) = value["adapters"], adapters.count == Self.providers.count else {
             throw NativeError.message("Persona readiness не прошёл локальную проверку. Ничего не активировано.")
         }
@@ -289,6 +289,90 @@ struct NativePersonaReadiness: Equatable {
     }
 }
 
+struct NativePersonaTurnReceipt: Equatable {
+    static let fields: Set<String> = [
+        "schema", "active", "activated_at", "persona_id", "persona_version",
+        "provider", "model", "access_mode", "adapter", "placement",
+        "snapshot_hash", "persona_invariant_hash", "runtime_hash", "prompt_context_hash",
+        "legacy_prompt_hash", "active_prompt_hash", "readiness_hash",
+        "selected_memory_count", "selected_memory_ids", "memory_provenance",
+        "provider_safety_preserved", "no_added_authority", "context_injection_state",
+        "context_injection_changed", "additional_model_calls", "additional_retrieval_calls",
+        "store_writes_by_activation", "rollback_path", "private_reasoning_included", "receipt_hash"
+    ]
+    static let memoryFields: Set<String> = [
+        "record_id", "provenance_id", "provenance_status", "source", "content_hash"
+    ]
+
+    let value: JSONValue
+    var snapshotHash: String { value["snapshot_hash"].text }
+    var receiptHash: String { value["receipt_hash"].text }
+    var selectedMemoryCount: Int { value["selected_memory_count"].integer }
+
+    init(_ value: JSONValue) throws {
+        guard case .object(let root) = value, Set(root.keys) == Self.fields,
+              value["schema"] == .string("proto_mind.persona_turn_activation.v1"),
+              value["active"] == .bool(true), value["persona_id"] == .string("brother"),
+              Self.validText(value["activated_at"].text, maximum: 80),
+              Self.validText(value["persona_version"].text, maximum: 32),
+              ["codex_subscription", "ollama"].contains(value["provider"].text),
+              Self.validText(value["model"].text, maximum: 160),
+              ["chat", "full_access", "local"].contains(value["access_mode"].text),
+              ["disabled", "default_disabled"].contains(value["context_injection_state"].text),
+              value["provider_safety_preserved"] == .bool(true),
+              value["no_added_authority"] == .bool(true),
+              value["context_injection_changed"] == .bool(false),
+              value["private_reasoning_included"] == .bool(false),
+              value["additional_model_calls"] == .number(0),
+              value["additional_retrieval_calls"] == .number(0),
+              value["store_writes_by_activation"] == .number(0),
+              value["rollback_path"] == .string("legacy_prompt_next_turn") else {
+            throw NativeError.message("Persona turn receipt имеет неожиданный или небезопасный формат.")
+        }
+        let adapter = value["provider"].text == "codex_subscription"
+            ? ("codex_base_instructions", "base_instructions")
+            : ("ollama_system_message", "system_message")
+        guard value["adapter"] == .string(adapter.0), value["placement"] == .string(adapter.1),
+              value["provider"].text != "codex_subscription" || ["chat", "full_access"].contains(value["access_mode"].text),
+              value["provider"].text != "ollama" || value["access_mode"] == .string("local") else {
+            throw NativeError.message("Persona receipt не совпадает с выбранным provider adapter.")
+        }
+        for field in [
+            "snapshot_hash", "persona_invariant_hash", "runtime_hash", "prompt_context_hash",
+            "legacy_prompt_hash", "active_prompt_hash", "readiness_hash", "receipt_hash"
+        ] where !Self.isHash(value[field].text) {
+            throw NativeError.message("Persona receipt содержит неверный SHA-256.")
+        }
+        let ids = value["selected_memory_ids"].items
+        let provenance = value["memory_provenance"].items
+        guard value["selected_memory_count"].integer == ids.count,
+              ids.count == provenance.count, ids.count <= 8,
+              Set(ids.map(\.text)).count == ids.count,
+              ids.allSatisfy({ Self.validText($0.text, maximum: 160) }) else {
+            throw NativeError.message("Persona receipt содержит неверную сводку выбранной памяти.")
+        }
+        for (identifier, item) in zip(ids, provenance) {
+            guard case .object(let record) = item, Set(record.keys) == Self.memoryFields,
+                  item["record_id"] == identifier,
+                  Self.validText(item["provenance_id"].text, maximum: 160),
+                  Self.validText(item["source"].text, maximum: 160),
+                  ["verified", "record_source_only"].contains(item["provenance_status"].text),
+                  Self.isHash(item["content_hash"].text) else {
+                throw NativeError.message("Persona receipt memory provenance не прошёл локальную проверку.")
+            }
+        }
+        self.value = value
+    }
+
+    private static func validText(_ value: String, maximum: Int) -> Bool {
+        !value.isEmpty && value.unicodeScalars.count <= maximum && !value.contains("\0")
+    }
+
+    private static func isHash(_ value: String) -> Bool {
+        value.count == 64 && value.allSatisfy { "0123456789abcdef".contains($0) }
+    }
+}
+
 struct PersonaInspectorView: View {
     @ObservedObject var model: AppModel
 
@@ -308,6 +392,25 @@ struct PersonaInspectorView: View {
             Divider()
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
+                    PersonaSection("Production state", icon: "switch.2") {
+                        HStack(spacing: 8) {
+                            Circle().fill(model.personaEnabled ? Color.green : Color.secondary).frame(width: 8, height: 8)
+                            headline(model.personaEnabled ? "Brother Persona включена" : "Legacy prompt активен")
+                            Spacer()
+                            if model.personaEnabled {
+                                Button("Rollback") { model.disablePersona() }.disabled(model.busy)
+                            }
+                        }
+                        Text(model.personaEnabled
+                             ? "Каждый Send повторно проверяет readiness. Rollback возвращает точный legacy prompt на следующем ходе и не стирает историю provider thread."
+                             : "Snapshot/readiness доступны для проверки, но production prompt не меняется без явного opt-in в настройках моделей.")
+                            .font(.caption).foregroundStyle(.secondary)
+                        if let receipt = model.lastPersonaTurnReceipt {
+                            fact("Последний snapshot", String(receipt.snapshotHash.prefix(16)))
+                            fact("Память", "\(receipt.selectedMemoryCount) выбранных записей")
+                            fact("Receipt SHA", String(receipt.receiptHash.prefix(16)))
+                        }
+                    }
                     if let error = model.personaPreviewError {
                         Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
                     }
@@ -369,6 +472,7 @@ struct PersonaInspectorView: View {
                                     Text("только проверка").font(.caption).foregroundStyle(.secondary)
                                 }
                                 fact("Выбран", readiness.value["selected_provider"].text)
+                                fact("Activation SHA", String(readiness.value["activation_fingerprint"].text.prefix(16)))
                                 fact("Parity SHA", readiness.parity["persona_invariant_hash"].text.isEmpty
                                      ? "не совпал" : String(readiness.parity["persona_invariant_hash"].text.prefix(16)))
                                 ForEach(Array(readiness.adapters.enumerated()), id: \.offset) { _, adapter in
@@ -407,7 +511,10 @@ struct PersonaInspectorView: View {
                 }.padding(22).frame(maxWidth: 760, alignment: .leading).frame(maxWidth: .infinity)
             }
             Divider()
-            Label("Preview/readiness only · Persona не активна в prompt · нет model call, retrieval, execution или записи", systemImage: "eye")
+            Label(model.personaEnabled
+                  ? "Opt-in активен · один snapshot на ход · provider safety сохранена · rollback доступен"
+                  : "Preview/readiness only · Persona не активна в prompt · нет model call, retrieval, execution или записи",
+                  systemImage: model.personaEnabled ? "person.crop.circle.badge.checkmark" : "eye")
                 .font(.caption).foregroundStyle(.secondary).padding(14)
         }
         .frame(minWidth: 680, idealWidth: 760, minHeight: 620, idealHeight: 740)

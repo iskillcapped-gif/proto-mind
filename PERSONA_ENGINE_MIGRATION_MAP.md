@@ -1,6 +1,6 @@
 # Persona Engine Prompt Migration Map
 
-Date: 2026-09-01. Status: Persona 0.2 provider-readiness contracts delivered; no production prompt migration is active.
+Date: 2026-09-01. Status: Persona 0.3 controlled Native prompt activation is available for Codex/Ollama only after explicit local opt-in; legacy rollback remains visible.
 
 ## Current Sources
 
@@ -8,7 +8,7 @@ Date: 2026-09-01. Status: Persona 0.2 provider-readiness contracts delivered; no
 | --- | --- | --- | --- |
 | Observer state | `observer.py` -> `Coordinator.handle` | Deterministically classifies the user turn and whether memory is needed. | Remains unchanged. A future adapter may map its factual query/task classification into `PersonaTaskContext`; it cannot select another personality. |
 | Retrieved memory | `MemoryKeeper.retrieve` -> reasoner | Supplies already-selected `MemoryRecord` objects. Retrieval is pure by default. | The compiler accepts only this selected list, never scans the full store, and preserves record/provenance identity. Memory content is quoted data, not instruction authority. |
-| Existing reasoner prompt | `OllamaReasoner._build_system_prompt` | Defines Proto-Mind identity, memory-use rules, observer context and correction hints. Native Codex currently reuses it as `baseInstructions`. | Remains the production source in Persona 0.1. Later activation may replace only the identity/memory projection after parity tests; observer and correction semantics need an explicit compatibility map. |
+| Existing reasoner prompt | `OllamaReasoner._build_system_prompt` | Defines Proto-Mind identity, memory-use rules, observer context and correction hints. Native Codex reuses its bounded form as legacy `baseInstructions`. | Remains exact when Persona is off. When explicitly active, one validated snapshot replaces its identity/memory projection while preserving observer/correction semantics and provider safety boundaries. |
 | Native Chat developer instruction | `CodexSubscription._chat_answer` | Permanently keeps the provider thread chat-only and refuses tool claims. | Remains a provider safety boundary. Persona text cannot weaken or replace it. |
 | Native Full Mac developer instruction | `native_agent.AGENT_INSTRUCTIONS` via `CodexSubscription.agent_answer` | Describes broad operator-granted foreground authority, limits, evidence and stop behavior. | Remains an execution boundary. `PersonaRuntimeContext` may report its facts but never grants or reconstructs the permission. |
 | Native agent contract | `native_agent_contract.py` | Freezes model, workspace, tools, limits and verification semantics before a Full Mac turn. | Canonical source for future self-model projection. Unsupported or contradictory claims fail closed. |
@@ -38,9 +38,9 @@ hashed PersonaSnapshot v1
 
 The output is inspectable preview data. `authorizes_actions=false`, `context_injection_changed=false`, and no model/provider method consumes it in Persona 0.1.
 
-## Later Activation Boundary
+## Activation Boundary
 
-Persona 0.3 may feed a validated snapshot into both Codex and Ollama only after:
+Persona 0.3 feeds a validated snapshot into Codex or Ollama only when:
 
 1. golden invariants pass for every supported provider path;
 2. the old and new prompt projections are compared on continuity and grounding fixtures;
@@ -49,7 +49,7 @@ Persona 0.3 may feed a validated snapshot into both Codex and Ollama only after:
 5. no unrelated memory, absolute local path, private chain-of-thought or authority token enters the snapshot;
 6. Context Injection remains an independent operator setting.
 
-Activation is a separate milestone. This map does not authorize a production prompt change.
+The implementation now enforces these conditions per Send. This map documents the boundary; it does not grant tools, permissions or authority.
 
 ## Verified Adapter Readiness
 
@@ -62,4 +62,13 @@ Native 0.18.0 now checks the planned boundary without crossing it:
 - Provider parity compares kernel, Identity, selected memory and task invariants while preserving truthful provider/model/access differences in separate runtime hashes.
 - Context Injection must be independently disabled for readiness. No setting is changed automatically.
 
-These are validated plans, not active adapters. `SubscriptionReasoner`, `NativeOllamaReasoner` and `MockReasoner` still behave exactly as before until Persona 0.3 is implemented and explicitly enabled.
+These readiness contracts remain read-only. `SubscriptionReasoner` and `NativeOllamaReasoner` consume a projection only when the separate confirmed private opt-in is active and the same gates pass again; `MockReasoner` never consumes one.
+
+## Controlled Activation And Rollback
+
+- Native preferences v2 stores only `personaEnabled`; v1 reads without rewrite and defaults Persona off. Corrupt/unknown preferences fail closed for both cloud and Persona settings.
+- Enabling is two-phase: a fresh READY report creates a pending confirmation bound to conversation/provider/model/access/workspace and stable activation fingerprint; confirmation fetches and matches readiness again before saving the preference.
+- Every enabled normal turn recomputes current readiness before any provider dispatch or core/session writer. The turn compiler then rechecks Context Injection immediately before prompt construction.
+- Exactly one existing memory selection and one existing provider call are used. The activation layer performs no retrieval, network/model call or store write of its own.
+- The receipt hash binds the exact final active prompt and the hash of the exact legacy rollback prompt. The receipt is visible in memory for the current app process and is not added to core/session schemas.
+- Disable returns subsequent turns to the pre-Persona legacy prompt. Existing durable provider-thread text cannot be erased by this preference and remains a disclosed rollback limitation.

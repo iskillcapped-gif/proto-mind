@@ -73,7 +73,8 @@ def runtime(provider: str) -> PersonaRuntimeContext:
     )
 
 
-def snapshots(*, identity_source: dict | None = None, memory: list[MemoryRecord] | None = None) -> dict:
+def snapshots(*, identity_source: dict | None = None, memory: list[MemoryRecord] | None = None,
+              generated_at: str = FIXED_TIME) -> dict:
     compiler = PersonaContextCompiler()
     task = PersonaTaskContext(kind="conversation", risk="low", workspace_id=WORKSPACE_ID)
     return {
@@ -82,7 +83,7 @@ def snapshots(*, identity_source: dict | None = None, memory: list[MemoryRecord]
             retrieved_memory=memory or [],
             task=task,
             runtime=runtime(provider),
-            generated_at=FIXED_TIME,
+            generated_at=generated_at,
         )
         for provider in ("codex_subscription", "ollama", "mock")
     }
@@ -130,6 +131,18 @@ class PersonaActivationReadinessTests(unittest.TestCase):
         )))
         self.assertEqual([row["provider"] for row in result["adapters"]], ["codex_subscription", "ollama", "mock"])
         self.assertTrue(all(gate["status"] == "PASS" for gate in result["gates"]))
+
+    def test_activation_fingerprint_is_stable_across_fresh_report_timestamps(self):
+        first = build_persona_activation_readiness(
+            snapshots(generated_at="2026-09-01T21:40:00+00:00"),
+            selected_provider="codex_subscription", context_injection_state="disabled",
+        )
+        second = build_persona_activation_readiness(
+            snapshots(generated_at="2026-09-01T21:41:00+00:00"),
+            selected_provider="codex_subscription", context_injection_state="disabled",
+        )
+        self.assertNotEqual(first["report_hash"], second["report_hash"])
+        self.assertEqual(first["activation_fingerprint"], second["activation_fingerprint"])
 
     def test_selected_memory_provenance_is_preserved_without_retrieval(self):
         memory = [MemoryRecord(

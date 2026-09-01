@@ -9,6 +9,7 @@ import argparse
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack, redirect_stdout
 from dataclasses import asdict, replace
+import hashlib
 import json
 from pathlib import Path
 import sys
@@ -39,7 +40,12 @@ from proto_mind.native_workspace import WorkspaceReader, file_context_message
 from proto_mind.native_images import ImageReader, image_specifications, MAX_IMAGES, MAX_IMAGE_BYTES, MAX_TOTAL_IMAGE_BYTES
 from proto_mind.native_pdf import PDFReader, SelectedPDF, pdf_context_message
 from proto_mind.persona_activation_readiness import build_persona_activation_readiness
-from proto_mind.native_persona import NativePersonaRequest, build_native_persona_preview
+from proto_mind.persona_activation import PersonaTurnActivation, prepare_persona_turn
+from proto_mind.native_persona import (
+    NativePersonaRequest,
+    build_native_persona_preview,
+    build_native_persona_runtime,
+)
 from proto_mind.persona_engine import validate_persona_snapshot
 from proto_mind.native_work_sessions import WorkSessionStore, WorkSessionError, workspace_identity
 from proto_mind.native_desk import context_manifest, context_preview, capture_artifacts, artifact_page, artifact_preview, review_observations
@@ -56,6 +62,13 @@ MAX_INPUT_CHARS = 32_000
 MAX_REQUEST_BYTES = 512 * 1024
 MAX_LIVE_SESSIONS = 32
 RESET_CODEX_THREAD_CONFIRMATION = "START NEW CODEX SESSION"
+
+
+def _canonical_hash(value: object) -> str:
+    encoded = json.dumps(
+        value, ensure_ascii=False, allow_nan=False, sort_keys=True, separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 class _NoLocalRedirect(request.HTTPRedirectHandler):
@@ -99,22 +112,39 @@ class NativeMemoryStore(MemoryStore):
 
 class NativeOllamaReasoner(OllamaReasoner):
     def __init__(self, config: ProtoMindConfig, history: list[dict], files: list[dict] | None = None,
-                 criteria: list[str] | None = None, pdfs: list[SelectedPDF] | None = None) -> None:
+                 criteria: list[str] | None = None, pdfs: list[SelectedPDF] | None = None,
+                 persona_activation: PersonaTurnActivation | None = None) -> None:
         super().__init__(config)
         self.history = history
         self.files = files or []
         self.pdfs = pdfs or []
         self.criteria = validate_criteria([] if criteria is None else criteria)
+        self.persona_activation = persona_activation
+        self.last_persona_receipt: dict | None = None
 
     def _post(self, path: str, payload: dict) -> dict:
         messages = payload["messages"]
         return local_ollama_request(self.config, path, {**payload, "messages": [messages[0], *self.history, messages[-1]]})
 
     def respond(self, user_input, retrieved_memory, observer_state, correction_hints=None) -> str:
+        legacy_instructions = self._build_system_prompt(observer_state, retrieved_memory, correction_hints or [])
+        if self.persona_activation is None:
+            instructions = legacy_instructions
+            self.last_persona_receipt = None
+        else:
+            prepared = prepare_persona_turn(
+                self.persona_activation,
+                retrieved_memory=retrieved_memory,
+                observer_state=observer_state,
+                correction_hints=correction_hints or [],
+                legacy_prompt=legacy_instructions,
+            )
+            instructions = prepared.instructions
+            self.last_persona_receipt = prepared.receipt
         payload = {
             "model": self.config.ollama_model,
             "messages": [
-                {"role": "system", "content": self._build_system_prompt(observer_state, retrieved_memory, correction_hints or [])},
+                {"role": "system", "content": instructions},
                 {"role": "user", "content": criteria_context_message(self.criteria) + file_context_message(self.files)
                  + pdf_context_message(self.pdfs) + user_input.strip()},
             ],
@@ -351,12 +381,71 @@ class NativeBackend:
             context_injection_state=current_preview["context_injection_state"],
         )
 
+    def _prepare_persona_activation(
+        self,
+        params: dict,
+        *,
+        session_id: str,
+        provider: str,
+        model: str,
+        mode: str,
+    ) -> PersonaTurnActivation:
+        if provider == "mock":
+            raise ValueError("Brother Persona is not available for Mock. Disable Persona or select Codex/Ollama.")
+        if provider == "codex" and not model:
+            raise ValueError("Select an explicit Codex model before enabling Brother Persona.")
+        request_value = {
+            "conversation_id": session_id,
+            "provider": provider,
+            "model": model,
+            "cloud_consent": params.get("cloud_consent", False),
+            "access_mode": mode,
+        }
+        if params.get("workspace_root") is not None:
+            request_value["workspace_root"] = params["workspace_root"]
+        if mode == "full_access":
+            request_value["access_token"] = params.get("access_token")
+        request = NativePersonaRequest.parse(request_value)
+        readiness = self.preview_persona_readiness(request_value)
+        expected_provider = {"codex": "codex_subscription", "ollama": "ollama"}[provider]
+        if (
+            readiness["status"] != "READY"
+            or readiness["selected_provider"] != expected_provider
+            or readiness["selected_adapter_ready"] is not True
+        ):
+            blockers = "; ".join(readiness["blockers"][:3]) or "selected adapter is not ready"
+            raise ValueError(f"Brother Persona activation refused: {blockers}.")
+        workspace, grant_verified, computer_use_available = self._persona_runtime_evidence(request)
+        config = ProtoMindConfig.from_env(self.root / "proto_mind")
+        runtime = build_native_persona_runtime(
+            request,
+            workspace=workspace,
+            full_access_grant_verified=grant_verified,
+            computer_use_available=computer_use_available,
+            ollama_model=config.ollama_model,
+        )
+        selected_adapter = next(
+            (item for item in readiness["adapters"] if item["provider"] == expected_provider),
+            None,
+        )
+        if selected_adapter is None or selected_adapter["runtime_hash"] != _canonical_hash(runtime.to_dict()):
+            raise ValueError("Brother Persona runtime changed after readiness. No provider turn was started.")
+        return PersonaTurnActivation(
+            project_root=self.root,
+            runtime=runtime,
+            context_injection_state=readiness["context_injection_state"],
+            readiness_hash=readiness["activation_fingerprint"],
+        )
+
     def process(self, params: dict, emit: Callable[[dict], None], request_id: str) -> dict:
         if self.closing.is_set():
             raise ValueError("The Native window disconnected. No new turn will start.")
         text = input_text(params)
         session_id = str(UUID(str(params.get("conversation_id", ""))))
         description = describe_input(text)
+        persona_enabled = params.get("persona_enabled", False)
+        if type(persona_enabled) is not bool:
+            raise ValueError("Invalid Brother Persona activation state.")
         if description["blocked"]:
             raise ValueError(description["notice"])
         if description["requires_confirmation"] and params.get("confirmed_text") != text:
@@ -372,7 +461,10 @@ class NativeBackend:
         criteria = [] if description["operator"] else validate_criteria(params.get("criteria", []))
         if provider == "codex" and not description["operator"] and params.get("cloud_consent") is not True:
             raise ValueError("Select and approve cloud processing before sending messages or recalled memories to Codex.")
+        if description["operator"] and persona_enabled:
+            raise ValueError("Brother Persona is not applied to operator commands. No command was executed.")
         agent_workspace = None
+        mode = "chat"
         if not description["operator"]:
             mode = params.get("access_mode", "chat")
             if mode not in {"chat", "full_access"}:
@@ -382,6 +474,15 @@ class NativeBackend:
                     raise ValueError("Full Mac tools currently require the explicitly selected Codex provider.")
                 agent_workspace = self.workspace(params).root
                 self.agent_grants.validate(session_id, agent_workspace, params.get("access_token"))
+        persona_activation = None
+        if persona_enabled:
+            persona_activation = self._prepare_persona_activation(
+                params,
+                session_id=session_id,
+                provider=provider,
+                model=model,
+                mode=mode,
+            )
         files = []
         if not description["operator"] and "files" in params:
             files = self.workspace(params).context_files(params["files"])
@@ -456,12 +557,20 @@ class NativeBackend:
                         criteria=criteria,
                         images=images,
                         pdfs=pdfs,
+                        persona_activation=persona_activation,
                     )
                 elif provider == "ollama":
                     url = urlparse(config.ollama_url)
                     if url.scheme != "http" or url.hostname not in {"localhost", "127.0.0.1", "::1"}:
                         raise ValueError("Native local mode accepts loopback Ollama only.")
-                    coordinator.reasoner = NativeOllamaReasoner(replace(config, ollama_model=model or config.ollama_model), history, files, criteria, pdfs)
+                    coordinator.reasoner = NativeOllamaReasoner(
+                        replace(config, ollama_model=model or config.ollama_model),
+                        history,
+                        files,
+                        criteria,
+                        pdfs,
+                        persona_activation=persona_activation,
+                    )
                 else:
                     coordinator.reasoner = MockReasoner()
             if work_session is not None:
@@ -476,6 +585,14 @@ class NativeBackend:
             if output.text is None:
                 self.sessions.pop(session_id, None)
             serialized = output.to_dict()
+            persona_receipt = getattr(coordinator.reasoner, "last_persona_receipt", None)
+            if persona_activation is not None:
+                if not isinstance(persona_receipt, dict):
+                    raise ValueError("Brother Persona did not produce a validated turn receipt.")
+                serialized["notices"].append(
+                    "Brother Persona active for this turn · snapshot "
+                    f"{persona_receipt['snapshot_hash'][:12]} · rollback is available in Model Settings."
+                )
             if files and provider == "mock":
                 serialized["notices"].append("Mock is a deterministic UI test backend, not a file-understanding model. No file analysis was performed.")
             if criteria and provider == "mock":
@@ -490,6 +607,7 @@ class NativeBackend:
             return {**serialized, "operator": description["operator"],
                     "conversation_id": session_id, "exit_requested": output.text is None,
                     "agent_run": agent_receipt,
+                    "persona_activation": persona_receipt,
                     "work_log": work_log,
                     "provider_thread": self.subscription.last_thread_info if provider == "codex" and not description["operator"] else None,
                     "work_session": saved_session,

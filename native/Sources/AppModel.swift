@@ -14,6 +14,16 @@ struct PendingOperatorAction: Identifiable {
     let summary: String
 }
 
+struct PendingPersonaActivation: Identifiable {
+    let id = UUID()
+    let conversationID: UUID
+    let provider: String
+    let model: String
+    let accessMode: String
+    let workspaceRoot: String?
+    let readinessHash: String
+}
+
 @MainActor
 final class AppModel: ObservableObject {
     @Published var conversations: [Conversation] = []
@@ -31,15 +41,27 @@ final class AppModel: ObservableObject {
     @Published var connecting = false
     @Published var cloudConsent = false {
         didSet {
-            guard !initializing, !restoringCloudConsent else { return }
+            guard !initializing, !restoringPreferences else { return }
             do {
-                try preferences.save(NativePreferences(cloudProcessingAllowed: cloudConsent))
+                try savePreferences()
                 if !cloudConsent { discardAgentGrants() }
             }
             catch {
-                restoringCloudConsent = true
+                restoringPreferences = true
                 cloudConsent = oldValue
-                restoringCloudConsent = false
+                restoringPreferences = false
+                report(error)
+            }
+        }
+    }
+    @Published var personaEnabled = false {
+        didSet {
+            guard !initializing, !restoringPreferences else { return }
+            do { try savePreferences() }
+            catch {
+                restoringPreferences = true
+                personaEnabled = oldValue
+                restoringPreferences = false
                 report(error)
             }
         }
@@ -51,6 +73,7 @@ final class AppModel: ObservableObject {
     @Published var showInspector = false
     @Published var inspectedMessageID: UUID?
     @Published var pendingAction: PendingOperatorAction?
+    @Published private(set) var pendingPersonaActivation: PendingPersonaActivation?
     @Published var pendingAgentAccess: PendingAgentAccess?
     @Published private(set) var agentGrants: [UUID: AgentAccessGrant] = [:]
     @Published private(set) var agentItems: [JSONValue] = []
@@ -80,6 +103,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var personaReadiness: NativePersonaReadiness?
     @Published private(set) var personaReadinessError: String?
     @Published private(set) var loadingPersonaReadiness = false
+    @Published private(set) var lastPersonaTurnReceipt: NativePersonaTurnReceipt?
     @Published private(set) var workSessions: [NativeWorkSession] = []
     @Published private(set) var workSessionsPath = ""
     @Published private(set) var workSessionsWarning: String?
@@ -108,7 +132,7 @@ final class AppModel: ObservableObject {
     private var activeRequest: String?
     private var started = false
     private var initializing = true
-    private var restoringCloudConsent = false
+    private var restoringPreferences = false
     private var restoringDraft = false
     private var dirtyDraft = false
     private var draftSave: Task<Void, Never>?
@@ -128,7 +152,11 @@ final class AppModel: ObservableObject {
             conversations = archive.conversations
             selectedID = conversations.first { $0.id == archive.selectedID }?.id ?? conversations.first?.id
         } catch { self.error = error.localizedDescription }
-        do { cloudConsent = try preferences.load().cloudProcessingAllowed }
+        do {
+            let saved = try preferences.load()
+            cloudConsent = saved.cloudProcessingAllowed
+            personaEnabled = saved.personaEnabled
+        }
         catch { self.error = error.localizedDescription }
         if conversations.isEmpty {
             let chat = Conversation()
@@ -165,6 +193,13 @@ final class AppModel: ObservableObject {
             }
         }
         initializing = false
+    }
+
+    private func savePreferences() throws {
+        try preferences.save(NativePreferences(
+            cloudProcessingAllowed: cloudConsent,
+            personaEnabled: personaEnabled
+        ))
     }
 
     var selected: Conversation? { conversations.first { $0.id == selectedID } }
@@ -276,6 +311,91 @@ final class AppModel: ObservableObject {
     func refreshPersonaInspector() async {
         await refreshPersonaPreview()
         await refreshPersonaReadiness()
+    }
+
+    func preparePersonaActivation() async -> Bool {
+        guard !busy, !personaEnabled, let conversation = selected,
+              ["codex", "ollama"].contains(conversation.provider),
+              let params = personaRequestParameters else {
+            report(NativeError.message("Brother Persona доступна только для выбранного Codex или Ollama диалога."))
+            return false
+        }
+        if conversation.provider == "codex" && conversation.model.isEmpty {
+            report(NativeError.message("Сначала явно выберите модель Codex; значение аккаунта по умолчанию не создаёт проверяемый self-model."))
+            return false
+        }
+        let conversationID = conversation.id
+        loadingPersonaReadiness = true
+        defer { loadingPersonaReadiness = false }
+        do {
+            let readiness = try NativePersonaReadiness(await client.request("persona_readiness", params))
+            guard selectedID == conversationID, params == personaRequestParameters else {
+                throw NativeError.message("Провайдер, модель или доступ изменились. Проверьте readiness заново.")
+            }
+            guard readiness.status == "READY", readiness.value["selected_adapter_ready"] == .bool(true) else {
+                let reason = readiness.blockers.first?.text ?? "выбранный adapter не готов"
+                throw NativeError.message("Brother Persona не готова к включению: \(reason)")
+            }
+            personaReadiness = readiness
+            personaReadinessError = nil
+            pendingPersonaActivation = PendingPersonaActivation(
+                conversationID: conversationID,
+                provider: conversation.provider,
+                model: conversation.model,
+                accessMode: fullAccessEnabled ? "full_access" : "chat",
+                workspaceRoot: conversation.workspacePath,
+                readinessHash: readiness.value["activation_fingerprint"].text
+            )
+            return true
+        } catch {
+            pendingPersonaActivation = nil
+            report(error)
+            return false
+        }
+    }
+
+    func confirmPersonaActivation() async {
+        guard !busy, !personaEnabled, let pending = pendingPersonaActivation,
+              pending.conversationID == selectedID, let conversation = selected,
+              pending.provider == conversation.provider,
+              pending.model == conversation.model,
+              pending.accessMode == (fullAccessEnabled ? "full_access" : "chat"),
+              pending.workspaceRoot == conversation.workspacePath,
+              let params = personaRequestParameters else {
+            pendingPersonaActivation = nil
+            report(NativeError.message("Условия Persona activation изменились. Начните проверку заново."))
+            return
+        }
+        loadingPersonaReadiness = true
+        defer { loadingPersonaReadiness = false }
+        do {
+            let readiness = try NativePersonaReadiness(await client.request("persona_readiness", params))
+            guard selectedID == pending.conversationID, params == personaRequestParameters,
+                  readiness.status == "READY", readiness.value["selected_adapter_ready"] == .bool(true),
+                  readiness.value["activation_fingerprint"].text == pending.readinessHash else {
+                throw NativeError.message("Readiness evidence изменилось. Ничего не включено; проверьте заново.")
+            }
+            pendingPersonaActivation = nil
+            personaReadiness = readiness
+            personaEnabled = true
+            guard personaEnabled else { return }
+            error = nil
+            status = "Brother Persona включена · gates будут повторно проверены при Send"
+        } catch {
+            pendingPersonaActivation = nil
+            report(error)
+        }
+    }
+
+    func cancelPersonaActivation() { pendingPersonaActivation = nil }
+
+    func disablePersona() {
+        pendingPersonaActivation = nil
+        personaEnabled = false
+        if !personaEnabled {
+            error = nil
+            status = "Brother Persona выключена · следующий ход использует legacy prompt"
+        }
     }
 
     func inspectArtifacts(_ run: NativeWorkSession) async throws -> NativeArtifactDesk {
@@ -565,6 +685,7 @@ final class AppModel: ObservableObject {
         guard !busy, ["ollama", "codex", "mock"].contains(value), selected?.provider != value,
               let index = conversations.firstIndex(where: { $0.id == selectedID }) else { return }
         discardAgentGrants(for: selectedID)
+        pendingPersonaActivation = nil
         conversations[index].provider = value
         conversations[index].model = ""
         conversations[index].reasoningEffort = ""
@@ -577,6 +698,7 @@ final class AppModel: ObservableObject {
         guard !busy, let index = conversations.firstIndex(where: { $0.id == selectedID }) else { return }
         if selected?.provider == "codex", !value.isEmpty, !codexModels.contains(where: { $0.id == value }) { return }
         conversations[index].model = value
+        pendingPersonaActivation = nil
         modelSelectionNotice = nil
         if selected?.provider == "codex", !conversations[index].reasoningEffort.isEmpty,
            !availableReasoningEfforts.contains(where: { $0.rawValue == conversations[index].reasoningEffort }) {
@@ -791,6 +913,7 @@ final class AppModel: ObservableObject {
                 "provider": .string(conversation.provider), "model": .string(conversation.model),
                 "reasoning_effort": .string(conversation.provider == "codex" ? conversation.reasoningEffort : ""),
                 "cloud_consent": .bool(cloudConsent), "history": .array(history),
+                "persona_enabled": .bool(!operatorInput && personaEnabled),
             ]
             if confirmed { params["confirmed_text"] = .string(text) }
             if !operatorInput {
@@ -811,6 +934,11 @@ final class AppModel: ObservableObject {
                 params["files"] = .array(files)
             }
             let result = try await client.request("process", params, onID: { self.activeRequest = $0 })
+            if !operatorInput && personaEnabled {
+                lastPersonaTurnReceipt = try NativePersonaTurnReceipt(result["persona_activation"])
+            } else if !result["persona_activation"].isNull {
+                throw NativeError.message("Ядро вернуло Persona receipt без активированного opt-in.")
+            }
             let evidence = result["cognitive_turn"]
             let raw = result["text"].text
             let body = result["exit_requested"].flag ? "Сессия ядра завершена. История диалога сохранена локально." : evidence.isNull ? raw : evidence["response"].text

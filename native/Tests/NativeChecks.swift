@@ -58,6 +58,7 @@ struct NativeChecks {
         try check(app.composerRevision == 1 && app.composer == "prepared command", "Explicit composer replacement has a revision")
 
         try preferencesAndLegacyHistory(root: root)
+        try personaActivationContracts(root: root)
         try conversationManagement(root: root)
         try modelSelection(root: root)
         try modelMenuLayout(root: root)
@@ -86,6 +87,47 @@ struct NativeChecks {
         try check(abs(narrow.width - size.width) < 1 && abs(narrow.height - size.height) < 1,
                   "Model menu highlight keeps intrinsic geometry when composer width changes")
         try check(!FileManager.default.fileExists(atPath: state.path), "Measuring model menu never writes state or connects a provider")
+    }
+
+    @MainActor
+    static func personaActivationContracts(root: URL) throws {
+        let hash = String(repeating: "a", count: 64)
+        let receipt: JSONValue = .object([
+            "schema": .string("proto_mind.persona_turn_activation.v1"), "active": .bool(true),
+            "activated_at": .string("2026-09-01T00:00:00.000000Z"), "persona_id": .string("brother"),
+            "persona_version": .string("0.1.0"), "provider": .string("codex_subscription"),
+            "model": .string("fixture-model"), "access_mode": .string("chat"),
+            "adapter": .string("codex_base_instructions"), "placement": .string("base_instructions"),
+            "snapshot_hash": .string(hash), "persona_invariant_hash": .string(hash),
+            "runtime_hash": .string(hash), "prompt_context_hash": .string(hash),
+            "legacy_prompt_hash": .string(hash), "active_prompt_hash": .string(hash),
+            "readiness_hash": .string(hash), "selected_memory_count": .number(0),
+            "selected_memory_ids": .array([]), "memory_provenance": .array([]),
+            "provider_safety_preserved": .bool(true), "no_added_authority": .bool(true),
+            "context_injection_state": .string("disabled"), "context_injection_changed": .bool(false),
+            "additional_model_calls": .number(0), "additional_retrieval_calls": .number(0),
+            "store_writes_by_activation": .number(0), "rollback_path": .string("legacy_prompt_next_turn"),
+            "private_reasoning_included": .bool(false), "receipt_hash": .string(hash)
+        ])
+        let decoded = try NativePersonaTurnReceipt(receipt)
+        try check(decoded.snapshotHash == hash && decoded.selectedMemoryCount == 0,
+                  "Native validates a bounded provider-safe Persona turn receipt")
+        if case .object(var object) = receipt {
+            object["provider_safety_preserved"] = .bool(false)
+            var rejected = false
+            do { _ = try NativePersonaTurnReceipt(.object(object)) } catch { rejected = true }
+            try check(rejected, "Native rejects a Persona receipt that weakens provider safety")
+        }
+
+        let state = root.appendingPathComponent("persona-preference")
+        let app = AppModel(configuration: LaunchConfiguration(projectRoot: root, python: root, stateDirectory: state))
+        app.personaEnabled = true
+        try check(app.personaEnabled && (try PreferenceStore(directory: state).load()).personaEnabled,
+                  "Explicit Persona opt-in changes only private preferences")
+        app.disablePersona()
+        let rolledBack = try PreferenceStore(directory: state).load()
+        try check(!app.personaEnabled && !rolledBack.personaEnabled && !app.fullAccessEnabled,
+                  "Persona rollback returns the next turn to legacy without granting tools")
     }
 
     @MainActor
@@ -135,19 +177,30 @@ struct NativeChecks {
     static func preferencesAndLegacyHistory(root: URL) throws {
         let directory = root.appendingPathComponent("preferences")
         let preferences = PreferenceStore(directory: directory)
-        try check(try !preferences.load().cloudProcessingAllowed && !FileManager.default.fileExists(atPath: directory.path), "Cloud preferences default off without creating files")
-        try preferences.save(NativePreferences(cloudProcessingAllowed: true))
-        try check(try PreferenceStore(directory: directory).load().cloudProcessingAllowed, "Explicit cloud consent survives restart")
+        let defaults = try preferences.load()
+        try check(!defaults.cloudProcessingAllowed && !defaults.personaEnabled && !FileManager.default.fileExists(atPath: directory.path), "Cloud and Persona preferences default off without creating files")
+        try preferences.save(NativePreferences(cloudProcessingAllowed: true, personaEnabled: true))
+        let current = try PreferenceStore(directory: directory).load()
+        try check(current.version == 2 && current.cloudProcessingAllowed && current.personaEnabled, "Explicit cloud consent and Persona opt-in survive restart in preferences v2")
         try check(try FileManager.default.attributesOfItem(atPath: preferences.url.path)[.posixPermissions] as? Int == 0o600, "Private consent settings permissions")
+        let legacyPreferences = Data("{\"cloudProcessingAllowed\":true,\"version\":1}".utf8)
+        try legacyPreferences.write(to: preferences.url)
+        let legacySettings = try PreferenceStore(directory: directory).load()
+        try check(legacySettings.version == 1 && legacySettings.cloudProcessingAllowed && !legacySettings.personaEnabled,
+                  "Preferences v1 load with Persona disabled")
+        try check(try Data(contentsOf: preferences.url) == legacyPreferences,
+                  "Reading preferences v1 does not rewrite or activate Persona")
+        try preferences.save(NativePreferences(cloudProcessingAllowed: true, personaEnabled: false))
         let brokenData = Data("broken preferences".utf8)
         try brokenData.write(to: preferences.url)
         let broken = PreferenceStore(directory: directory)
         do { _ = try broken.load() } catch { }
-        do { try broken.save(NativePreferences(cloudProcessingAllowed: true)) } catch { }
-        try check(broken.writeBlocked && (try Data(contentsOf: broken.url)) == brokenData, "Corrupt preferences cannot be overwritten or authorize cloud")
+        do { try broken.save(NativePreferences(cloudProcessingAllowed: true, personaEnabled: true)) } catch { }
+        try check(broken.writeBlocked && (try Data(contentsOf: broken.url)) == brokenData, "Corrupt preferences cannot be overwritten or authorize cloud/Persona")
         let app = AppModel(configuration: LaunchConfiguration(projectRoot: root, python: root, stateDirectory: directory))
         app.cloudConsent = true
-        try check(!app.cloudConsent && app.error != nil, "Failed consent save remains fail-closed")
+        app.personaEnabled = true
+        try check(!app.cloudConsent && !app.personaEnabled && app.error != nil, "Failed preference saves remain fail-closed")
 
         var chat = Conversation()
         chat.messages = [ChatMessage(role: "user", text: "legacy message")]
@@ -396,6 +449,7 @@ struct NativeChecks {
         let bound = URL(fileURLWithPath: app.selected?.workspacePath ?? "/").resolvingSymlinksInPath()
         try check(bound == fixture.resolvingSymlinksInPath() && app.workspaceStatus["read_only"].flag, "Explicit binding uses the same folder without a copy")
         try await personaInspector(app: app, fixture: fixture, state: root.appendingPathComponent("integration-state"))
+        try await personaOptIn(app: app, fixture: fixture, state: root.appendingPathComponent("integration-state"))
         await app.openWorkspaceEntry(.object(["path": .string("proto_mind/native_workspace.py"), "directory": .bool(false)]))
         try check(app.filePreview["preview"].text.contains("WorkspaceReader"), "Native file preview reads actual source through the bridge")
         app.attachPreview()
@@ -510,6 +564,39 @@ struct NativeChecks {
                   && fileBytes(state) == stateBefore && app.messages == messagesBefore
                   && app.composer == draftBefore && app.selected?.provider == providerBefore,
                   "Persona inspection changes no core/private files, chat, draft, provider, or permission")
+    }
+
+    @MainActor
+    static func personaOptIn(app: AppModel, fixture: URL, state: URL) async throws {
+        app.setProvider("ollama")
+        let coreBefore = try fileBytes(fixture.appendingPathComponent("proto_mind/data"))
+        let stateBefore = try fileBytes(state)
+        let messagesBefore = app.messages
+        let prepared = await app.preparePersonaActivation()
+        try check(prepared && app.pendingPersonaActivation != nil && !app.personaEnabled,
+                  "Persona opt-in first produces a fresh READY confirmation without activation")
+        try check(try fileBytes(fixture.appendingPathComponent("proto_mind/data")) == coreBefore
+                  && fileBytes(state) == stateBefore && app.messages == messagesBefore,
+                  "Persona readiness confirmation preview performs no writes or model turn")
+        await app.confirmPersonaActivation()
+        let enabledPreferences = try PreferenceStore(directory: state).load()
+        try check(app.personaEnabled && enabledPreferences.version == 2 && enabledPreferences.personaEnabled,
+                  "Fresh matching readiness evidence enables one persistent local opt-in")
+        let stateAfterEnable = try fileBytes(state)
+        let changedAfterEnable = Set(stateAfterEnable.keys.filter { stateBefore[$0] != stateAfterEnable[$0] })
+            .union(stateBefore.keys.filter { stateAfterEnable[$0] == nil })
+        let preferencePath = state.appendingPathComponent("preferences.json").standardizedFileURL.resolvingSymlinksInPath().path
+        try check(changedAfterEnable.count == 1 && changedAfterEnable.first.map { URL(fileURLWithPath: $0).standardizedFileURL.resolvingSymlinksInPath().path == preferencePath } == true,
+                  "Persona activation changes only the private preferences file; expected \(preferencePath), observed \(changedAfterEnable.sorted())")
+        try check((try fileBytes(fixture.appendingPathComponent("proto_mind/data"))) == coreBefore,
+                  "Persona activation leaves core stores byte-identical")
+        try check(app.messages == messagesBefore && !app.fullAccessEnabled,
+                  "Persona activation sends no model turn and grants no authority")
+        app.disablePersona()
+        try check(!app.personaEnabled && !(try PreferenceStore(directory: state).load()).personaEnabled
+                  && (try fileBytes(fixture.appendingPathComponent("proto_mind/data"))) == coreBefore,
+                  "Persona rollback returns to legacy without changing core stores")
+        app.setProvider("mock")
     }
 
     @MainActor

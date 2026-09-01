@@ -137,6 +137,72 @@ def build_native_persona_preview(
     computer_use_available: bool,
     ollama_model: str,
 ) -> dict[str, Any]:
+    runtime = build_native_persona_runtime(
+        request,
+        workspace=workspace,
+        full_access_grant_verified=full_access_grant_verified,
+        computer_use_available=computer_use_available,
+        ollama_model=ollama_model,
+    )
+
+    generated_at = datetime.now(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
+    snapshot = PersonaContextCompiler().compile_from_project(
+        Path(project_root),
+        retrieved_memory=[],
+        task=PersonaTaskContext(kind="unknown", risk="unknown", workspace_id=runtime.workspace_id),
+        runtime=runtime,
+        generated_at=generated_at,
+    )
+    context = injection_state(Path(project_root))
+    state = context.get("state") if isinstance(context, dict) else "unknown"
+    if state not in {"enabled", "disabled", "default_disabled", "unknown"}:
+        state = "unknown"
+    notices = [
+        "Read-only preview only; this PersonaSnapshot is not active in any provider prompt.",
+        "No model call, network call, memory retrieval, store write, command execution, or permission change occurred.",
+        "Runtime facts describe existing controls and do not grant authority.",
+        "No memory was selected; retrieval was not run.",
+    ]
+    if state == "enabled":
+        notices.append("Context Injection is already enabled; this preview did not read or apply its payload.")
+    if full_access_grant_verified:
+        notices.append("The current per-conversation Full Mac grant was verified but not used.")
+    result = {
+        "schema": PERSONA_PREVIEW_SCHEMA,
+        "read_only": True,
+        "no_execution": True,
+        "no_model_call": True,
+        "no_network_call": True,
+        "no_retrieval": True,
+        "no_store_write": True,
+        "production_prompt_active": False,
+        "private_reasoning_included": False,
+        "context_injection_changed": False,
+        "context_injection_state": state,
+        "snapshot": snapshot.to_dict(),
+        "rendered_preview": render_persona_snapshot(snapshot),
+        "source_summary": {
+            "kernel": "checked_in_versioned",
+            "identity": "private_read_only",
+            "memory": "none_selected_no_retrieval",
+            "runtime": "current_native_controls",
+            "workspace": "opaque_reference_only",
+            "full_access_grant_verified": full_access_grant_verified,
+        },
+        "notices": notices,
+    }
+    return validate_native_persona_preview(result)
+
+
+def build_native_persona_runtime(
+    request: NativePersonaRequest,
+    *,
+    workspace: Path | None,
+    full_access_grant_verified: bool,
+    computer_use_available: bool,
+    ollama_model: str,
+) -> PersonaRuntimeContext:
+    """Validate current Native controls and project them without granting authority."""
     if type(full_access_grant_verified) is not bool or type(computer_use_available) is not bool:
         raise ValueError("Persona preview runtime evidence is invalid.")
     if request.workspace_root is None and workspace is not None:
@@ -210,53 +276,7 @@ def build_native_persona_preview(
             network_state="disabled",
         )
 
-    generated_at = datetime.now(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
-    snapshot = PersonaContextCompiler().compile_from_project(
-        Path(project_root),
-        retrieved_memory=[],
-        task=PersonaTaskContext(kind="unknown", risk="unknown", workspace_id=workspace_id),
-        runtime=runtime,
-        generated_at=generated_at,
-    )
-    context = injection_state(Path(project_root))
-    state = context.get("state") if isinstance(context, dict) else "unknown"
-    if state not in {"enabled", "disabled", "default_disabled", "unknown"}:
-        state = "unknown"
-    notices = [
-        "Read-only preview only; this PersonaSnapshot is not active in any provider prompt.",
-        "No model call, network call, memory retrieval, store write, command execution, or permission change occurred.",
-        "Runtime facts describe existing controls and do not grant authority.",
-        "No memory was selected; retrieval was not run.",
-    ]
-    if state == "enabled":
-        notices.append("Context Injection is already enabled; this preview did not read or apply its payload.")
-    if full_access_grant_verified:
-        notices.append("The current per-conversation Full Mac grant was verified but not used.")
-    result = {
-        "schema": PERSONA_PREVIEW_SCHEMA,
-        "read_only": True,
-        "no_execution": True,
-        "no_model_call": True,
-        "no_network_call": True,
-        "no_retrieval": True,
-        "no_store_write": True,
-        "production_prompt_active": False,
-        "private_reasoning_included": False,
-        "context_injection_changed": False,
-        "context_injection_state": state,
-        "snapshot": snapshot.to_dict(),
-        "rendered_preview": render_persona_snapshot(snapshot),
-        "source_summary": {
-            "kernel": "checked_in_versioned",
-            "identity": "private_read_only",
-            "memory": "none_selected_no_retrieval",
-            "runtime": "current_native_controls",
-            "workspace": "opaque_reference_only",
-            "full_access_grant_verified": full_access_grant_verified,
-        },
-        "notices": notices,
-    }
-    return validate_native_persona_preview(result)
+    return runtime
 
 
 def validate_native_persona_preview(value: object) -> dict[str, Any]:

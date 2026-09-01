@@ -9,4 +9,5 @@ PYTHON_BIN="$(select_proto_mind_python "${PROJECT_DIR}")" || {
   exit 1
 }
 "${PYTHON_BIN}" -m proto_mind.persona_evals
-exec "${PYTHON_BIN}" -m proto_mind.persona_activation_evals
+"${PYTHON_BIN}" -m proto_mind.persona_activation_evals
+exec "${PYTHON_BIN}" -m proto_mind.persona_runtime_evals
