@@ -85,6 +85,7 @@ final class AppModel: ObservableObject {
     @Published var inspectedWorkSessionID: String?
     @Published var showContextDesk = false
     @Published var showPersonaInspector = false
+    @Published var showMemoryWorkshop = false
     @Published var showTaskCriteria = false
     @Published var imagePreview: NativeImagePreview?
     @Published var pdfPreview: NativePDFPreview?
@@ -126,6 +127,9 @@ final class AppModel: ObservableObject {
     @Published private(set) var loadingLibraryDetail = false
     @Published private(set) var libraryError: String?
     @Published private(set) var libraryDetailError: String?
+    @Published private(set) var memoryWorkshop: NativeMemoryWorkshop?
+    @Published private(set) var loadingMemoryWorkshop = false
+    @Published private(set) var memoryWorkshopError: String?
     let client: BridgeClient
     let store: ChatStore
     let preferences: PreferenceStore
@@ -138,6 +142,7 @@ final class AppModel: ObservableObject {
     private var draftSave: Task<Void, Never>?
     private var libraryRequest = UUID()
     private var libraryDetailRequest = UUID()
+    private var memoryWorkshopRequest = UUID()
     private var workSessionsRequest = UUID()
     private var contextPreviewRequest = UUID()
     private var personaPreviewRequest = UUID()
@@ -1440,6 +1445,63 @@ final class AppModel: ObservableObject {
             guard libraryDetailRequest == request, section.libraryCollection == collection else { return }
             libraryDetailError = error.localizedDescription
         }
+    }
+
+    func openMemoryEvidence(recordID: String) async {
+        guard !busy, !recordID.isEmpty, recordID.count <= 200 else { return }
+        showInspector = false
+        section = .memory
+        libraryQuery = recordID
+        libraryFilter = .all
+        await loadLibraryPage()
+        guard let page = libraryPage, page.collection == .memory else { return }
+        let exact = page.items.filter { $0.recordId == recordID }
+        guard exact.count == 1 else {
+            libraryError = exact.isEmpty
+                ? "Запись \(recordID) больше не найдена в локальной памяти."
+                : "ID \(recordID) неоднозначен между слоями памяти; выберите запись вручную."
+            return
+        }
+        await inspectLibrary(exact[0])
+    }
+
+    func openMemoryWorkshop() {
+        guard !busy, selectedID != nil else { return }
+        memoryWorkshop = nil
+        memoryWorkshopError = nil
+        showMemoryWorkshop = true
+    }
+
+    func refreshMemoryWorkshop() async {
+        guard !busy, let conversation = selected else { return }
+        let request = UUID()
+        memoryWorkshopRequest = request
+        loadingMemoryWorkshop = true
+        memoryWorkshopError = nil
+        defer { if memoryWorkshopRequest == request { loadingMemoryWorkshop = false } }
+        do {
+            var params: [String: JSONValue] = [
+                "conversation_id": .string(conversation.id.uuidString),
+            ]
+            if let workspace = conversation.workspacePath {
+                params["workspace_root"] = .string(workspace)
+            }
+            let value = try await client.request("memory_workshop", params)
+            let report = try NativeMemoryWorkshop.decode(value, conversationId: conversation.id.uuidString)
+            guard memoryWorkshopRequest == request, selectedID == conversation.id else { return }
+            memoryWorkshop = report
+        } catch {
+            guard memoryWorkshopRequest == request, selectedID == conversation.id else { return }
+            memoryWorkshop = nil
+            memoryWorkshopError = error.localizedDescription
+        }
+    }
+
+    func prepareMemoryWorkshopCommand(_ command: String) {
+        guard !command.isEmpty, !busy else { return }
+        setComposer(command)
+        showMemoryWorkshop = false
+        section = .chat
     }
 
     private func localKnowledgeResult(capability: String, method: String, legacyMethod: String,

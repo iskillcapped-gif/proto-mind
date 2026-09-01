@@ -12,6 +12,16 @@ from unittest.mock import patch
 from proto_mind import local_knowledge_capabilities as capabilities
 from proto_mind import native_bridge as bridge
 from proto_mind import native_library as library
+from proto_mind.experience_pilot import get_experience_pilot
+from proto_mind.memory_provenance import build_learning_lesson_provenance
+from proto_mind.models import (
+    GroundingAuditResult,
+    InteractionResult,
+    InteractionSummary,
+    ObserverState,
+    SelfReflectionResult,
+)
+from proto_mind.native_memory_workshop import build_native_memory_workshop
 from proto_mind.tests.test_native import FakeSubscription
 
 
@@ -73,6 +83,70 @@ class NativeLibraryTests(unittest.TestCase):
         detail = self.reader.inspect("memory", "persistent:shared")
         self.assertEqual(next(field["value"] for field in detail["fields"] if field["key"] == "usage_count"), "7")
         self.assertEqual(self.files(), before)
+
+    def test_memory_detail_verifies_embedded_learning_provenance(self):
+        payload = {
+            "schema": "memory.lesson.v1",
+            "content": "Use targeted tests before the full suite.",
+            "type": "lesson",
+            "importance": 0.9,
+            "source": "experience_learning_proposal",
+            "tags": ["testing", "lesson"],
+            "confidence": 0.95,
+        }
+        provenance = build_learning_lesson_provenance(
+            memory_id="mem-verified",
+            applied_at="2026-09-01T00:00:00+00:00",
+            proposal_id="learnprop_" + "a" * 16,
+            proposal_hash="a" * 64,
+            candidate_id="candidate-1",
+            candidate_hash="b" * 64,
+            decision_id="decision-1",
+            eligibility_receipt_id="eligibility-1",
+            selected_scope_hash="c" * 64,
+            proposed_payload=payload,
+            evidence_event_ids=["event-1"],
+            source_kinds=["correction_guidance"],
+        )
+        self.write("persistent_memory.json", [{
+            "id": "mem-verified", "content": payload["content"], "type": "lesson",
+            "importance": 0.9, "source": "experience_learning_proposal",
+            "tags": payload["tags"], "confidence": 0.95, "provenance": provenance,
+        }])
+        self.write("working_memory.json", [])
+        before = self.files()
+
+        detail = self.reader.inspect("memory", "persistent:mem-verified")
+        evidence = detail["memory_evidence"]
+
+        self.assertEqual(evidence["status"], "VERIFIED")
+        self.assertTrue(evidence["verified"])
+        self.assertEqual(evidence["evidence_event_ids"], ["event-1"])
+        self.assertEqual(evidence["source_kinds"], ["correction_guidance"])
+        self.assertTrue(evidence["operator_confirmation_recorded"])
+        self.assertFalse(evidence["automatic_promotion"])
+        self.assertTrue(evidence["read_only"])
+        self.assertEqual(self.files(), before)
+
+    def test_memory_detail_never_invents_legacy_provenance_and_detects_tampering(self):
+        self.write("persistent_memory.json", [
+            {"id": "legacy", "content": "Operator fact", "type": "project_fact",
+             "importance": 0.8, "source": "operator"},
+        ])
+        self.write("working_memory.json", [])
+        legacy = self.reader.inspect("memory", "persistent:legacy")["memory_evidence"]
+        self.assertEqual(legacy["status"], "UNAVAILABLE")
+        self.assertFalse(legacy["verified"])
+        self.assertIn("will not invent", legacy["explanation"])
+
+        path = self.data / "persistent_memory.json"
+        record = json.loads(path.read_text())[0]
+        record["provenance"] = {"schema": "memory.lesson.provenance.v1", "provenance_hash": "0" * 64}
+        path.write_text(json.dumps([record]), encoding="utf-8")
+        tampered = self.reader.inspect("memory", "persistent:legacy")["memory_evidence"]
+        self.assertEqual(tampered["status"], "ERROR")
+        self.assertFalse(tampered["verified"])
+        self.assertTrue(tampered["issues"])
 
     def test_literal_unicode_search_matches_content_tags_and_ids(self):
         self.write("persistent_memory.json", [
@@ -363,6 +437,67 @@ class NativeLibraryTests(unittest.TestCase):
         self.assertEqual(local["transport"], "private_stdio")
         self.assertEqual([item["name"] for item in local["contracts"]], ["search", "fetch"])
         self.assertNotIn("url", json.dumps(local).lower())
+
+    def test_memory_workshop_is_empty_read_only_and_does_not_create_a_session(self):
+        before = self.files()
+        result = self.backend.dispatch("memory_workshop", {
+            "conversation_id": "00000000-0000-0000-0000-000000000001",
+        }, lambda _: None, "fixture")
+        self.assertEqual(result["status"], "EMPTY")
+        self.assertFalse(result["pilot_present"])
+        self.assertFalse(result["scope"]["project_isolation_enforced"])
+        self.assertTrue(result["read_only"])
+        self.assertFalse(result["command_execution_performed"])
+        self.assertEqual(self.backend.sessions, {})
+        self.assertEqual(self.files(), before)
+        with self.assertRaisesRegex(ValueError, "Unexpected Memory Workshop"):
+            self.backend.dispatch("memory_workshop", {
+                "conversation_id": "00000000-0000-0000-0000-000000000001",
+                "execute": True,
+            }, lambda _: None, "fixture")
+        self.assertEqual(self.files(), before)
+
+    def test_memory_workshop_projects_existing_candidate_without_promotion(self):
+        class Owner:
+            pass
+
+        owner = Owner()
+        pilot = get_experience_pilot(owner, project_root=self.root)
+        pilot.preview()
+        pilot.consent(pilot.expected_consent_phrase)
+        result = InteractionResult(
+            response="Use the current decision.",
+            observer_state=ObserverState("continuity_followup", True, 0.8, ["project"]),
+            retrieved_memory=[],
+            retrieval_trace=None,
+            memory_summary=InteractionSummary("none", "", 0.0, [], False),
+            working_memory_snapshot=[],
+            persistent_memory_snapshot=[],
+            reasoner_backend="fixture",
+            self_reflection=SelfReflectionResult(False, "ok", "ok", "ok", "low", "low", "high"),
+            grounding_audit=GroundingAuditResult(False, "not_needed", "not_needed", "not_needed", "not_needed"),
+            previous_correction_hints=["Use the active decision as current state."],
+        )
+        observation = pilot.observe_normal_turn(
+            "Продолжим Proto-Mind.", result,
+        )
+        self.assertTrue(observation.capture_performed)
+        before = self.files()
+
+        workshop = build_native_memory_workshop(
+            owner,
+            conversation_id="00000000-0000-0000-0000-000000000001",
+            workspace={"path": str(self.root), "device": 1, "inode": 2},
+        )
+
+        self.assertEqual(workshop["status"], "REVIEW")
+        self.assertEqual(workshop["candidate_count"], 1)
+        self.assertEqual(workshop["candidates"][0]["decision"], "undecided")
+        self.assertFalse(workshop["candidates"][0]["auto_apply_allowed"])
+        self.assertFalse(workshop["automatic_promotion"])
+        self.assertFalse(workshop["scope"]["project_isolation_enforced"])
+        self.assertEqual(workshop["scope"]["memory_store_scope"], "global_legacy_stores")
+        self.assertEqual(self.files(), before)
 
 
 if __name__ == "__main__":

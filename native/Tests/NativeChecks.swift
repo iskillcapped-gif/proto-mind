@@ -1354,6 +1354,25 @@ struct NativeChecks {
         let memory = app.libraryPage!.items.first!
         await app.inspectLibrary(memory)
         try check(app.libraryDetail?.item?.recordId == memory.recordId && app.libraryDetail?.blocks.first?.key == "content", "Memory card decodes source identity and content")
+        try check(app.libraryDetail?.memoryEvidence?.status == "UNAVAILABLE" && app.libraryDetail?.memoryEvidence?.isSafe == true,
+                  "Memory card refuses to invent provenance for a legacy record")
+        app.openMemoryWorkshop()
+        await app.refreshMemoryWorkshop()
+        try check(app.memoryWorkshop?.status == "EMPTY" && app.memoryWorkshop?.readOnly == true &&
+                  app.memoryWorkshop?.scope.projectIsolationEnforced == false,
+                  "Memory Workshop opens without creating pilot state or claiming project isolation")
+        let workshopValue = try await app.client.request("memory_workshop", [
+            "conversation_id": .string(app.selected!.id.uuidString),
+        ])
+        _ = try NativeMemoryWorkshop.decode(workshopValue, conversationId: app.selected!.id.uuidString)
+        if case .object(var unsafeWorkshop) = workshopValue {
+            unsafeWorkshop["automatic_promotion"] = .bool(true)
+            var rejected = false
+            do { _ = try NativeMemoryWorkshop.decode(.object(unsafeWorkshop), conversationId: app.selected!.id.uuidString) }
+            catch { rejected = true }
+            try check(rejected, "Memory Workshop rejects an automatic-promotion claim")
+        }
+        app.showMemoryWorkshop = false
 
         await app.showLibrary(.goals)
         try check(app.libraryPage?.items.first?.focused == true && app.libraryPage?.items.first?.priority == "high", "Goal screen shows stored focus and priority")

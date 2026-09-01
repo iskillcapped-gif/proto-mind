@@ -36,6 +36,7 @@ from proto_mind.local_knowledge_capabilities import (
 )
 from proto_mind.native_agent import AgentGrants, FULL_ACCESS_CONFIRMATION
 from proto_mind.native_library import NativeLibrary
+from proto_mind.native_memory_workshop import build_native_memory_workshop
 from proto_mind.native_workspace import WorkspaceReader, file_context_message
 from proto_mind.native_images import ImageReader, image_specifications, MAX_IMAGES, MAX_IMAGE_BYTES, MAX_TOTAL_IMAGE_BYTES
 from proto_mind.native_pdf import PDFReader, SelectedPDF, pdf_context_message
@@ -799,6 +800,20 @@ class NativeBackend:
             return self.workspace(params).list_directory(params.get("path", ""))
         if method == "workspace_read":
             return self.workspace(params).read_file(params.get("path", ""))
+        if method == "memory_workshop":
+            if set(params) - {"conversation_id", "workspace_root"}:
+                raise ValueError("Unexpected Memory Workshop parameter. Nothing was executed.")
+            conversation = str(UUID(str(params.get("conversation_id", ""))))
+            workspace = (
+                workspace_identity(self.workspace(params).root)
+                if params.get("workspace_root")
+                else None
+            )
+            return build_native_memory_workshop(
+                self.sessions.get(conversation),
+                conversation_id=conversation,
+                workspace=workspace,
+            )
         if method == "library_list":
             return NativeLibrary(self.root).page(params.get("collection"), query=params.get("query", ""),
                                                  filter=params.get("filter", "current"), offset=params.get("offset", 0))

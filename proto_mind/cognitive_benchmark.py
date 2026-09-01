@@ -115,6 +115,14 @@ CASES = (
         True,
         ("continuity", "project", "proto-mind"),
     ),
+    CognitiveBenchmarkCase(
+        "ru_current_decision_negative_constraint",
+        "ru",
+        "Не используй старое решение JSON. Какое решение активно сейчас?",
+        "memory_inventory",
+        True,
+        ("decision", "json", "storage", "current"),
+    ),
 )
 
 
@@ -179,6 +187,18 @@ RESPONSE_CASES = (
         "grounded",
         expected_active_decision_status="aligned",
         expected_superseded_memory_status="historical_only",
+        expected_reflection_superseded_risk="low",
+    ),
+    CognitiveResponseBenchmarkCase(
+        "ru_current_decision_with_negative_constraint",
+        "ru",
+        "Не используй старое решение JSON. Какое решение активно сейчас?",
+        "Активное решение — SQLite для хранения памяти.",
+        "sqlite_with_old_json",
+        "grounded",
+        expected_active_decision_status="aligned",
+        expected_superseded_memory_status="not_applicable",
+        expected_reflection_decision_alignment="ok",
         expected_reflection_superseded_risk="low",
     ),
     CognitiveResponseBenchmarkCase(

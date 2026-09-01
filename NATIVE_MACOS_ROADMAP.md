@@ -403,6 +403,18 @@ Native 0.19.0 crosses the prompt boundary narrowly, visibly and reversibly:
 
 Rule 0: `backups/proto_mind_backup_2026-09-01_21-51-33.tar.gz`. Twelve Python regressions bring the full suite to 1,564 and 13 Native checks bring the Native suite to 387. Foundation/readiness/runtime Persona evals pass 7/7 + 7/7 + 8/8 with zero real model/network/retrieval/store calls; Agent evals remain 6/6. Release 0.19.0 build 23, compileall/imports, plist, ad-hoc signature and personal-app relaunch are acceptance gates. All project `data`/`exports` files must retain their checkpoint SHA-256; Registry must remain 387/41 and Context Injection disabled.
 
+## EV-04 Cognitive Memory Loop v1 / Native 0.20.0
+
+Native 0.20.0 starts the Memory And Skill Workshop roadmap with two narrow read-only surfaces:
+
+- Memory cards call the existing durable learning-provenance verifier after rereading the fixed source. `VERIFIED` means the embedded schema, record payload and deterministic hashes agree. `UNAVAILABLE` means an operator/legacy record has no such chain and Proto-Mind does not invent one. `ERROR` means the stored metadata failed the contract. None of these labels proves that arbitrary memory content is true.
+- The completed-turn inspector can search the fixed memory sources for its selected bare record ID and open it only when exactly one layer matches. Missing or cross-layer duplicate IDs fail visibly.
+- **Кандидаты опыта** reads only the already-existing process-memory Experience pilot for the selected conversation. It does not create a Coordinator/pilot, request consent, capture a turn, run a command, accept/reject a candidate, build a proposal, promote a lesson or write memory/skills. Buttons place exact existing `/experience` inspection commands into the composer for later operator review.
+- The report binds the selected workspace identity as context but labels canonical memory scope `global_legacy_stores` and `project_isolation_enforced=false`. A real scoped-memory schema/migration remains a separate milestone.
+- Persona 0.3.1 adds an exact same-thread next-turn rollback test for Codex `baseInstructions`. Russian benchmark coverage now includes a current-decision query that explicitly rejects the superseded JSON choice.
+
+Rule 0: `backups/proto_mind_backup_2026-09-01_22-58-40.tar.gz`. The full Python suite passes 1,569 and Native checks pass 390. Release 0.20.0 build 24, plist, deep strict signature, personal-app relaunch and a model-free read-only memory/Workshop smoke pass. All 48 project `data`/`exports` files retain the checkpoint SHA-256 manifest `7f682153ecf38b20c03ce8556985d5ff327f67299ec9e30e1d5b580c4d361ab3`. No new dependency, slash command, Registry entry, session/core-store schema, permission, Context Injection behavior or background worker is introduced.
+
 ## Storage And Launch
 
 ```bash
@@ -455,7 +467,7 @@ Conversation history can contain private messages, answer evidence, raw core rep
 1. EV-01, narrow manual assessment and durable provider-thread resume are delivered with the limits above. Run a personal two-turn/restart smoke, then gather ordinary-use feedback before expanding retention or automated verification. Keep the private child bridge, without a daemon or automatic retry.
 2. EV-02's desk, operator criteria/assessment, selected PNG/JPEG Codex input and bounded PDF page text are delivered; next close visual/scanned-document and local-provider vision work plus project-memory scope as bounded follow-ups, without claiming the current global core is project-isolated. Model/effort selection and the 0.151.0 Sol compatibility update are verified; future Desktop parity is not assumed.
 3. Computer Use is now available only inside explicit broad Full Mac. Add a genuinely enforced project-scoped tool mode and finer approval/revocation broker before arbitrary plugins/MCP or sensitive automation; preserve Full Mac for trusted operator-directed work without describing prompt guidance as enforcement.
-4. Bring the existing memory/learning/skill gates into Native UI one workflow at a time, without generic writes, implicit promotion, automatic procedure execution or activation of pending post-restore writers.
+4. EV-04 now exposes verified memory provenance and process-memory candidate review. Next bring the existing durable lesson decision/proposal/apply receipts and then skill lifecycle gates into Native UI one workflow at a time, without generic writes, implicit promotion, automatic procedure execution or activation of pending post-restore writers.
 5. Build OCR/visual-document handling, non-destructive image preparation and push-to-talk on explicit input/privacy boundaries. Full Mac Computer Use can observe the live screen but does not convert screen/PDF content into a durable local OCR corpus. Browser cookies/logged-in web flows and later parallel/background work need separate tested scope.
 6. Package runtime discovery and private-state backup/restore for the personal Mac. Keep the PySide fallback, existing cognitive follow-up work and core store formats; defer commercial/distribution and cross-project integration plans unless separately chosen.
 

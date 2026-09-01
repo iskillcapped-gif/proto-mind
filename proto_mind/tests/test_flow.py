@@ -6739,7 +6739,7 @@ class ProtoMindFlowTests(unittest.TestCase):
 
         self.assertEqual(report["status"], "OK")
         expected_count = len(COGNITIVE_BENCHMARK_CASES) + len(COGNITIVE_RESPONSE_BENCHMARK_CASES)
-        self.assertEqual(report["case_count"], 20)
+        self.assertEqual(report["case_count"], expected_count)
         self.assertEqual(report["passed_count"], expected_count)
         self.assertEqual(report["failed_count"], 0)
         self.assertIn("Status: OK", output)

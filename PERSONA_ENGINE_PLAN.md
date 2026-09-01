@@ -103,6 +103,10 @@ Codex receives the exact active context as its existing `baseInstructions`; Olla
 
 The **Return to legacy prompt** action changes only private preferences and applies on the next turn. The disabled Codex path is byte-compatible with the pre-Persona instruction envelope. Rollback does not delete already persisted Native conversation or durable Codex provider-thread history. Activation adds no tools, permissions, writer, retrieval, provider call, session schema or background work. Runtime acceptance covers both providers, invariant/provenance preservation, Mock/Context/tamper refusal and exact legacy rollback.
 
+### Persona 0.3.1: Immediate Rollback Hardening (Delivered 2026-09-01)
+
+The durable Codex adapter now has a dedicated same-conversation regression proving that no app restart or provider-thread reset is required. One turn starts with the active Persona instruction bytes; the immediately following turn resumes that exact thread with the exact legacy bytes and no `Persona Context` residue in `thread/resume.baseInstructions`. This is an adapter-boundary guarantee for future turns, not deletion of text already present in the provider's durable history.
+
 ## Deferred Until Evidence Exists
 
 - proactive initiative and background triggers;

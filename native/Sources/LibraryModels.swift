@@ -172,6 +172,43 @@ struct LibraryField: Decodable, Identifiable {
     }
 }
 
+struct NativeMemoryEvidence: Decodable {
+    var schema: String
+    var readOnly: Bool
+    var recordId: String
+    var store: String
+    var memoryType: String
+    var recordSource: String
+    var active: Bool
+    var status: String
+    var verified: Bool
+    var provenanceId: String
+    var provenanceSchema: String
+    var provenanceHash: String
+    var evidenceEventIds: [String]
+    var sourceKinds: [String]
+    var confirmationMethod: String
+    var operatorConfirmationRecorded: Bool
+    var automaticPromotion: Bool
+    var selectedScopeHash: String
+    var issues: [String]
+    var warnings: [String]
+    var explanation: String
+    var noRetrieval: Bool
+    var noModelCall: Bool
+    var noNetworkCall: Bool
+    var storeMutation: Bool
+
+    var isSafe: Bool {
+        schema == "proto_mind.native_memory_evidence.v1" && readOnly &&
+        !recordId.isEmpty && ["persistent", "working"].contains(store) &&
+        ["VERIFIED", "UNAVAILABLE", "ERROR"].contains(status) &&
+        noRetrieval && noModelCall && noNetworkCall && !storeMutation && !automaticPromotion &&
+        evidenceEventIds.count <= 64 && sourceKinds.count <= 64 &&
+        (!verified || (status == "VERIFIED" && operatorConfirmationRecorded && !provenanceId.isEmpty))
+    }
+}
+
 struct LibraryDetail: Decodable {
     var schema: String
     var readOnly: Bool
@@ -179,6 +216,7 @@ struct LibraryDetail: Decodable {
     var item: LibraryItem?
     var blocks: [LibraryBlock]
     var fields: [LibraryField]
+    var memoryEvidence: NativeMemoryEvidence?
     var sources: [LibrarySource]
     var warnings: [String]
     var changedSinceList: Bool
@@ -188,11 +226,128 @@ struct LibraryDetail: Decodable {
         let detail = try decodeLibrary(Self.self, value)
         guard detail.schema == "proto_mind.native_library.detail.v1", detail.readOnly, detail.collection == collection,
               detail.item == nil || detail.item?.id == recordKey,
+              (collection == .memory && detail.item != nil) == (detail.memoryEvidence != nil),
+              detail.memoryEvidence?.isSafe != false,
+              detail.memoryEvidence == nil || (detail.memoryEvidence?.recordId == detail.item?.recordId && detail.memoryEvidence?.store == detail.item?.store),
               detail.blocks.count <= 3, detail.blocks.allSatisfy({ $0.text.count <= 24_000 }),
               Set(detail.fields.map(\.id)).count == detail.fields.count,
               Set(detail.blocks.map(\.id)).count == detail.blocks.count else {
             throw NativeError.message("Неожиданный контракт карточки. Данные не изменены.")
         }
         return detail
+    }
+}
+
+struct NativeMemoryWorkshopScope: Decodable {
+    var workspaceSelected: Bool
+    var workspacePath: String
+    var workspaceIdentityHash: String
+    var memoryStoreScope: String
+    var projectIsolationEnforced: Bool
+    var explanation: String
+}
+
+struct NativeMemoryWorkshopCandidate: Decodable, Identifiable {
+    var id: String
+    var sessionId: String
+    var turnId: String
+    var text: String
+    var sourceKinds: [String]
+    var evidenceEventIds: [String]
+    var confidence: String
+    var reviewStatus: String
+    var suggestedTarget: String
+    var rationale: String
+    var operatorConfirmationRequired: Bool
+    var promotionReady: Bool
+    var autoApplyAllowed: Bool
+    var persistencePerformed: Bool
+    var episodeStatus: String
+    var createdAt: String
+    var decision: String
+    var reviewCommand: String
+    var previewCommand: String
+}
+
+struct NativeMemoryWorkshopCommands: Decodable {
+    var startPreview: String
+    var status: String
+    var episodes: String
+    var learningStatus: String
+    var learningDoctor: String
+}
+
+struct NativeMemoryWorkshopDoctor: Decodable {
+    var status: String
+    var episodeCount: Int
+    var candidateCount: Int
+    var reviewRequiredCount: Int
+    var needsEvidenceCount: Int
+    var blockedCount: Int
+    var issues: [String]
+    var warnings: [String]
+}
+
+struct NativeMemoryWorkshop: Decodable {
+    var schema: String
+    var readOnly: Bool
+    var conversationId: String
+    var status: String
+    var pilotPresent: Bool
+    var pilotState: String
+    var processMemoryOnly: Bool
+    var capturedTurns: Int
+    var eventCount: Int
+    var episodeCount: Int
+    var candidateCount: Int
+    var omittedCandidateCount: Int
+    var candidates: [NativeMemoryWorkshopCandidate]
+    var doctor: NativeMemoryWorkshopDoctor
+    var scope: NativeMemoryWorkshopScope
+    var warnings: [String]
+    var issues: [String]
+    var commands: NativeMemoryWorkshopCommands
+    var operatorReviewRequired: Bool
+    var automaticPromotion: Bool
+    var commandExecutionPerformed: Bool
+    var consentStateChanged: Bool
+    var retrievalPerformed: Bool
+    var modelCallPerformed: Bool
+    var networkCallPerformed: Bool
+    var storeMutationPerformed: Bool
+    var notice: String
+
+    static func decode(_ value: JSONValue, conversationId: String) throws -> NativeMemoryWorkshop {
+        let report = try decodeLibrary(Self.self, value)
+        guard report.schema == "proto_mind.native_memory_workshop.v1", report.readOnly,
+              report.conversationId.caseInsensitiveCompare(conversationId) == .orderedSame,
+              ["EMPTY", "REVIEW", "ERROR"].contains(report.status), report.processMemoryOnly,
+              report.capturedTurns >= 0, report.eventCount >= 0, report.episodeCount >= 0,
+              report.candidateCount >= 0, report.omittedCandidateCount >= 0,
+              report.candidates.count <= 64, Set(report.candidates.map(\.id)).count == report.candidates.count,
+              report.candidateCount == report.candidates.count + report.omittedCandidateCount,
+              report.candidates.allSatisfy({ candidate in
+                  !candidate.id.isEmpty && candidate.text.count <= 160 &&
+                  ["operator_review_required", "needs_more_evidence", "blocked"].contains(candidate.reviewStatus) &&
+                  ["undecided", "accepted", "rejected"].contains(candidate.decision) &&
+                  candidate.operatorConfirmationRequired && !candidate.promotionReady &&
+                  !candidate.autoApplyAllowed && !candidate.persistencePerformed &&
+                  candidate.reviewCommand == "/experience learning decision \(candidate.id)" &&
+                  candidate.previewCommand == "/experience learning preview \(candidate.turnId)"
+              }),
+              report.operatorReviewRequired, !report.automaticPromotion,
+              !report.commandExecutionPerformed, !report.consentStateChanged,
+              !report.retrievalPerformed, !report.modelCallPerformed,
+              !report.networkCallPerformed, !report.storeMutationPerformed,
+              report.scope.memoryStoreScope == "global_legacy_stores",
+              !report.scope.projectIsolationEnforced,
+              report.commands.startPreview == "/experience preview",
+              report.commands.status == "/experience status",
+              report.commands.episodes == "/experience episodes",
+              report.commands.learningStatus == "/experience learning status",
+              report.commands.learningDoctor == "/experience learning doctor" else {
+            throw NativeError.message("Неожиданный контракт Memory Workshop. Ничего не выполнено.")
+        }
+        return report
     }
 }

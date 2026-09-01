@@ -615,6 +615,22 @@ class CodexAdapterTests(unittest.TestCase):
         self.assertEqual(second_input, "second")
         self.assertEqual(self.client.last_thread_info["state"], "resumed")
 
+    def test_durable_thread_uses_exact_legacy_instructions_on_immediate_persona_rollback(self):
+        persona = "Proto-Mind Persona Context v1\npersona-active-fixture"
+        legacy = "legacy prompt bytes: unchanged"
+        self.answer(prompt="persona turn", instructions=persona)
+        rpc = self.client.rpc
+        rpc.reset_events()
+
+        self.answer(prompt="next turn", instructions=legacy)
+
+        start = next(params for method, params in rpc.calls if method == "thread/start")
+        resume = next(params for method, params in rpc.calls if method == "thread/resume")
+        self.assertEqual(start["baseInstructions"], persona)
+        self.assertEqual(resume["baseInstructions"], legacy)
+        self.assertNotIn("Persona Context", resume["baseInstructions"])
+        self.assertEqual(sum(method == "turn/start" for method, _ in rpc.calls), 2)
+
     def test_durable_binding_survives_subscription_restart(self):
         self.answer(prompt="first")
         self.client.close()

@@ -24,6 +24,11 @@ struct EvidenceInspectorView: View {
                                 Text(item["record_id"].text).font(.system(size: 9, design: .monospaced)).foregroundStyle(.secondary)
                                 Text(item["content_preview"].text).textSelection(.enabled)
                                 Text(item["memory_type"].text).foregroundStyle(.tertiary)
+                                Button("Открыть источник и доказательства") {
+                                    Task { await model.openMemoryEvidence(recordID: item["record_id"].text) }
+                                }
+                                .buttonStyle(.nativeHover)
+                                .disabled(model.busy || item["record_id"].text.isEmpty)
                             }.padding(.vertical, 4)
                         }
                         Text("Передача записи модели не доказывает, что она использована в ответе.")

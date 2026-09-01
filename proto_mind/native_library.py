@@ -16,6 +16,8 @@ from pathlib import Path
 import stat
 
 from proto_mind.goal_stack import VALID_GOAL_PRIORITIES, VALID_GOAL_STATUSES
+from proto_mind.memory_provenance import verify_memory_provenance
+from proto_mind.models import MemoryRecord
 from proto_mind.skill_library import VALID_SKILL_STATUSES
 
 
@@ -152,6 +154,83 @@ class NativeLibrary:
                 and isinstance(title, str))
 
     @staticmethod
+    def _memory_evidence(store: str, raw: dict) -> dict:
+        """Verify embedded learning provenance without inventing legacy evidence."""
+        base = {
+            "schema": "proto_mind.native_memory_evidence.v1",
+            "read_only": True,
+            "record_id": _text(raw.get("id"), 200),
+            "store": store,
+            "memory_type": _text(raw.get("type"), 80) or "unknown",
+            "record_source": _text(raw.get("source"), 120) or "unknown",
+            "active": raw.get("active", True) is True,
+            "status": "UNAVAILABLE",
+            "verified": False,
+            "provenance_id": "",
+            "provenance_schema": "",
+            "provenance_hash": "",
+            "evidence_event_ids": [],
+            "source_kinds": [],
+            "confirmation_method": "",
+            "operator_confirmation_recorded": False,
+            "automatic_promotion": False,
+            "selected_scope_hash": "",
+            "issues": [],
+            "warnings": ["This memory has no embedded durable learning provenance."],
+            "explanation": (
+                "This is an operator or legacy memory. Proto-Mind will not invent "
+                "an evidence chain for it."
+            ),
+            "no_retrieval": True,
+            "no_model_call": True,
+            "no_network_call": True,
+            "store_mutation": False,
+        }
+        if "provenance" not in raw:
+            return base
+        try:
+            record = MemoryRecord.from_dict(raw)
+            check = verify_memory_provenance(record)
+        except (TypeError, ValueError, OverflowError):
+            return {
+                **base,
+                "status": "ERROR",
+                "issues": ["Memory fields cannot be validated against the durable provenance contract."],
+                "warnings": [],
+                "explanation": "Stored provenance is present, but the memory record is malformed.",
+            }
+        provenance = raw.get("provenance")
+        material = provenance if isinstance(provenance, dict) else {}
+
+        def texts(key: str, limit: int = 64) -> list[str]:
+            value = material.get(key)
+            if not isinstance(value, list):
+                return []
+            return [_text(item, 200) for item in value[:limit] if isinstance(item, str)]
+
+        return {
+            **base,
+            "status": check.status,
+            "verified": check.verified,
+            "provenance_id": _text(check.provenance_id, 200),
+            "provenance_schema": _text(check.schema, 200),
+            "provenance_hash": _text(material.get("provenance_hash"), 64),
+            "evidence_event_ids": texts("evidence_event_ids"),
+            "source_kinds": texts("source_kinds"),
+            "confirmation_method": _text(material.get("confirmation_method"), 120),
+            "operator_confirmation_recorded": material.get("operator_confirmation_recorded") is True,
+            "automatic_promotion": material.get("automatic_promotion") is True,
+            "selected_scope_hash": _text(material.get("selected_scope_hash"), 64),
+            "issues": [_text(item, 500) for item in check.issues[:32]],
+            "warnings": [_text(item, 500) for item in check.warnings[:32]],
+            "explanation": (
+                "Embedded supervised-learning provenance passed its deterministic hash and contract checks."
+                if check.verified else
+                "Embedded provenance did not pass every deterministic contract and hash check."
+            ),
+        }
+
+    @staticmethod
     def _item(collection: str, store: str, raw: dict, source: dict) -> dict:
         state = raw.get("status", "active")
         active, focused, priority = False, False, ""
@@ -241,6 +320,7 @@ class NativeLibrary:
         sources, entries = self._snapshot(collection)
         result = {"schema": "proto_mind.native_library.detail.v1", "read_only": True,
                   "collection": collection, "item": None, "blocks": [], "fields": [],
+                  "memory_evidence": None,
                   "sources": sources, "warnings": self._warnings(sources, entries),
                   "changed_since_list": False, "message": "Record unavailable, removed, or ambiguous. Refresh the list; no repair attempted."}
         found = next(((item, raw) for item, raw in entries if item["id"] == record_key), None)
@@ -248,6 +328,8 @@ class NativeLibrary:
             return result
         item, raw = found
         result.update(item=item, message="", changed_since_list=bool(expected_sha256 and expected_sha256 != item["store_sha256"]))
+        if collection == "memory":
+            result["memory_evidence"] = self._memory_evidence(item["store"], raw)
         if result["changed_since_list"]:
             result["warnings"].append("Store changed since the list was loaded. Details show the freshly read record.")
         blocks = {"memory": ("content",), "goals": ("title", "description"), "skills": ("name", "summary", "body")}[collection]
@@ -268,5 +350,6 @@ class NativeLibrary:
                 value = raw[key]
                 schema = _text(value.get("schema"), 160) if isinstance(value, dict) else "invalid"
                 result["fields"].append({"key": key, "value": schema or "present"})
-                result["warnings"].append(f"{key}: stored metadata only; this view does not re-verify provenance or authorize execution.")
+                if key != "provenance" or collection != "memory":
+                    result["warnings"].append(f"{key}: stored metadata only; this view does not re-verify provenance or authorize execution.")
         return result

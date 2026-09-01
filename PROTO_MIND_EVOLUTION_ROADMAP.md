@@ -117,6 +117,8 @@ Acceptance: tests cover escaped paths, symlinks, expired/replayed grants, change
 
 Delivered local-contract slice, Native 0.16.0: the existing Native Library is now exposed to its Swift renderer through two exact private-stdio capabilities, `search` and `fetch`, with narrow input schemas, safe read-only annotations, structured result envelopes and strict local/no-network/no-model/no-write metadata. This is an internal interface discipline, not public MCP/plugin activation or a model tool. Legacy direct-read RPCs remain only for rolling local app/bridge compatibility.
 
+Delivered first cognitive loop slice, Native 0.20.0: memory detail now reuses the durable lesson-provenance verifier and exposes verified, unavailable-legacy or invalid/tampered evidence without retrieval or mutation. The response inspector can navigate from a selected memory ID to its exact record. A separate Memory Workshop projects only an already-running, explicitly consented process-memory Experience pilot, displays existing correction/reflection/grounding candidates and prepares current review commands without executing them. It neither starts capture nor changes consent, decisions, proposals, memory or skills. Selected workspace identity is shown, while the global legacy store scope and absent project isolation remain explicit blockers rather than inferred guarantees. Russian negative-constraint/current-decision coverage joins the deterministic benchmark.
+
 User outcome: inspect why Proto-Mind knows something, review a proposed lesson, and maintain a personal skill without memorizing CLI sequences.
 
 - Surface existing candidate, provenance, apply/readiness, lifecycle and restore contracts as Native cards and exact confirmation flows, not an alternate writer.
@@ -125,7 +127,7 @@ User outcome: inspect why Proto-Mind knows something, review a proposed lesson, 
 - Distinguish the existing non-executable procedural record from a future runnable skill package. `SKILL.md` imports and generalized drafts require provenance, declared inputs/permissions, review and isolated replay tests. Explicit invocation comes before implicit activation.
 - Preserve the pending v3.5w/post-restore follow-up boundary. Native UX does not authorize that writer or turn one episode into an automatically accepted procedure.
 
-Acceptance: a user can trace and manually review one lesson/skill through the existing gates; all rejected/stale/token-mismatch paths still refuse, and a plain library view remains read-only.
+Acceptance: the first half is delivered: a user can verify or identify missing provenance and inspect one process-memory lesson candidate before manually entering an existing gate. Durable candidate-to-lesson and skill lifecycle controls still remain CLI-only. All rejected/stale/token-mismatch paths must continue to refuse, and a plain library view remains read-only.
 
 ### EV-05: Small Local Tool / MCP Extension Surface
 
