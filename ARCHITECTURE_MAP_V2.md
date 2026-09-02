@@ -10,6 +10,12 @@ Future capabilities are tracked separately in [Personal Agent Evolution](PROTO_M
 
 ## Current Module Map
 
+`proto_mind/native_starter_skills.py` + `starter_skills.json` + `native/Sources/StarterSkillsView.swift` (EV-04 Built-in Starter Skills / Native 0.32.0)
+
+- Four fixed, versioned application-authored contracts supply project orientation, verified change, failure diagnosis and handoff guidance. Bounded no-follow reads, closed schema and canonical hashes protect the catalog boundary. A fixed parameter-free `starter_skills` RPC only inspects the pack; it is not a model tool or command dispatcher.
+- Auto reserves four of its 32 catalog slots for built-ins and offers the first 28 eligible learned records in stable ID order. Both origins are visible. Core records cannot impersonate `builtin.*` IDs. Existing source/config gates, selected-contract guidance, tool-free selector, main-turn permissions and source revalidation remain in place; pack bytes are rechecked too.
+- Optional v2 `auto_skills` metadata identifies bundled pack/version/contract hashes separately from learned lesson/provenance/lifecycle references. v1 history stays readable without rewriting. No fabricated learned experience, core/exports write, automatic promotion, skill interpreter, new slash command or Context Injection change. Eleven opt-in live synthetic cases test selection and four bounded tasks; they do not prove general skill quality.
+
 `proto_mind/native_auto_skills.py` + `native_codex.py` + `native/Sources/AutoSkills.swift` (EV-04 Automatic Skill Guidance / Native 0.31.0)
 
 - Normal Codex Send optionally reads a bounded shared-skill catalog, reusing exactly the manual-task source/lifecycle/contract eligibility boundary. One isolated ephemeral structured-output selector chooses zero to two IDs; no tools, thread-binding changes, credentials copying or Platform API are involved. Manual selection wins; operator routes and local providers bypass it.

@@ -112,18 +112,21 @@ def main() -> int:
         subscription = subscription_factory(base / "selector-state")
         try:
             cases = [
-                ("ru_csv", "В ledger.csv список сумм. Посчитай точный итог и количество строк, результат запиши в report.json.", [ids["CSV amount total"]]),
-                ("en_csv", "Reconcile the amount column in ledger.csv and put the precise sum and number of entries in report.json.", [ids["CSV amount total"]]),
-                ("ru_python", "В этом Python-проекте снова падает один и тот же тест. Разберись по коду, пока ничего не меняй.", [ids["Python project inspection"]]),
-                ("casual", "Привет, брат, как настроение? Просто поболтаем.", []),
-                ("unrelated", "Переведи на английский: Сегодня мы идём гулять в парк.", []),
+                ("ru_csv", "В ledger.csv список сумм. Посчитай точный итог и количество строк, результат запиши в report.json.", [[ids["CSV amount total"]]]),
+                ("en_csv", "Reconcile the amount column in ledger.csv and put the precise sum and number of entries in report.json.", [[ids["CSV amount total"]]]),
+                # Both contracts now explicitly cover read-only test-failure diagnosis; unrelated or redundant selections still fail.
+                ("ru_python", "В этом Python-проекте снова падает один и тот же тест. Разберись по коду, пока ничего не меняй.",
+                 [[ids["Python project inspection"]], ["builtin.failure_diagnosis"]]),
+                ("casual", "Привет, брат, как настроение? Просто поболтаем.", [[]]),
+                ("unrelated", "Переведи на английский: Сегодня мы идём гулять в парк.", [[]]),
             ]
-            for name, text, expected in cases:
+            for name, text, accepted_selections in cases:
                 subscription.prepare_turn()
                 auto = AutoSkills(root, conversation=str(uuid4()), workspace=workspace_identity(root), text=text, mode="chat")
                 auto.select(subscription, text=text, history=[], model=args.model, emit=lambda _: None)
                 actual = [row["skill_id"] for row in auto.report["selected"]]
-                result = {"case": name, "passed": actual == expected, "state": auto.report["state"],
+                result = {"case": name, "passed": actual in accepted_selections, "state": auto.report["state"],
+                          "accepted_selections": accepted_selections,
                           "selected_names": [row["skill_name"] for row in auto.report["selected"]],
                           "selector_model": auto.report["selector_model"], "selector_effort": auto.report["selector_effort"]}
                 results.append(result); print(json.dumps(result, ensure_ascii=False), flush=True)

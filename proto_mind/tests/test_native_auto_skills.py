@@ -32,7 +32,9 @@ class AutoSubscription(FakeAgentSubscription):
         self.selection_hook()
         if self.selection_error:
             raise self.selection_error
-        data = self.selection_result or json.dumps({"skill_ids": [json.loads(prompt)["catalog"][0]["skill_id"]],
+        catalog = json.loads(prompt)["catalog"]
+        selected = next((row for row in catalog if row.get("origin") == "learned"), catalog[0])
+        data = self.selection_result or json.dumps({"skill_ids": [selected["skill_id"]],
                                                    "reason": "The procedure fits this task.", "checks": ["Observe the actual result."]})
         return {"text": data, "model": model or "fixture-model", "effort": "low"}
 
@@ -70,7 +72,8 @@ class AutoSkillTests(TestCase):
         with patch("subprocess.Popen", side_effect=AssertionError("No process during preview")):
             auto = self.auto()
             report = self.backend.preview_context(self.params())
-        self.assertEqual(auto.report["catalog_count"], 1)
+        self.assertEqual(auto.report["catalog_count"], 5)
+        self.assertEqual(auto.report["learned_count"], 1)
         self.assertEqual(report["auto_skills"]["state"], "ready")
         self.assertFalse(report["auto_skills"]["selector_attempted"])
         self.assertEqual(report["auto_skills"]["catalog_hash"], auto.report["catalog_hash"])
@@ -172,7 +175,8 @@ class AutoSkillTests(TestCase):
     def test_archived_legacy_tampered_and_missing_stores_do_not_supply_guidance(self):
         original = self.core()
         self.seed("archived")
-        self.assertEqual(self.auto().report["state"], "empty")
+        self.assertEqual(self.auto().report["learned_count"], 0)
+        self.assertEqual(self.auto().report["bundled_count"], 4)
         for name, payload in original.items(): (self.data / name).write_bytes(payload)
         self.record = json.loads(original["skills.jsonl"].splitlines()[0])
         for row in ({"id": self.record["id"], "name": "legacy", "status": "active"}, {**self.record, "executable": True}):
@@ -188,14 +192,14 @@ class AutoSkillTests(TestCase):
         self.assertEqual(result["auto_skills"]["selected"][0]["lifecycle_state"], "active_restored_verified")
         self.assertEqual(result["auto_skills"]["quality_verification"], "not_assessed")
 
-    def test_empty_or_unavailable_catalog_continues_ordinary_turn_without_selector(self):
+    def test_empty_learned_catalog_uses_starters_but_unavailable_sources_skip_selection(self):
         for payload in ("", "malformed jsonl"):
             self.skills.write_text(payload); before = self.skills.read_bytes()
             result = self.send()
-            self.assertIn(result["auto_skills"]["state"], {"empty", "unavailable"})
+            self.assertEqual(result["auto_skills"]["state"], "selected" if not payload else "unavailable")
             self.assertEqual(before, self.skills.read_bytes())
         self.assertEqual(len(self.backend.subscription.calls), 2)
-        self.assertEqual(self.backend.subscription.selections, [])
+        self.assertEqual(len(self.backend.subscription.selections), 1)
 
     def test_context_enabled_unknown_or_malformed_is_not_silently_changed(self):
         path = self.data / "context_injection.json"
@@ -273,7 +277,8 @@ class AutoSkillTests(TestCase):
             from types import SimpleNamespace
             source.verified_guidance.return_value = (original["provenance"]["authored_contract"], SimpleNamespace(state="active_verified"))
             auto = self.auto()
-        self.assertEqual(auto.report["eligible_count"], MAX_CATALOG + 2)
+        self.assertEqual(auto.report["eligible_count"], MAX_CATALOG + 6)
+        self.assertEqual(sum(row["origin"] == "bundled" for row in auto.catalog), 4)
         self.assertEqual(auto.report["catalog_count"], MAX_CATALOG)
         self.assertTrue(auto.report["catalog_truncated"])
         self.assertEqual([row["skill_id"] for row in auto.catalog], sorted(row["skill_id"] for row in auto.catalog))

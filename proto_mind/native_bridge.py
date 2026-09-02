@@ -48,6 +48,7 @@ from proto_mind.native_learning_history import NativeLearningHistory, parse_hist
 from proto_mind.native_project_memory import NativeProjectMemory, parse_project_memory_request, METHODS as PROJECT_MEMORY_METHODS
 from proto_mind.native_skill_tasks import NativeSkillTask, parse_task_request, SELECT_FIELDS as SKILL_TASK_SELECT_FIELDS
 from proto_mind.native_auto_skills import AutoSkills, HISTORY_BOUNDARY as AUTO_SKILL_HISTORY_BOUNDARY
+from proto_mind.native_starter_skills import StarterSkills
 from proto_mind.native_knowledge import knowledge_metadata, knowledge_context_message
 from proto_mind.native_private_records import encoded
 from proto_mind.skill_lifecycle_restore_apply import procedural_skill_restore_apply_receipts_snapshot
@@ -968,6 +969,10 @@ class NativeBackend:
             self.busy.release()
 
     def dispatch(self, method: str, params: dict, emit: Callable[[dict], None], request_id: str) -> Any:
+        if method == "starter_skills":
+            if params or self.closing.is_set():
+                raise ValueError("Starter skills inspection accepts no paths, inputs or actions.")
+            return StarterSkills().snapshot()
         if method == "skill_task_preview":
             if self.closing.is_set() or not self.busy.acquire(blocking=False):
                 raise ValueError("Wait for the current turn before preparing a skill task.")

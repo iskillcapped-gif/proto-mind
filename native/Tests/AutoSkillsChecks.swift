@@ -84,6 +84,7 @@ extension NativeChecks {
                   "Automatic catalog preview writes neither personal stores nor private run/history files")
         try check(!app.cloudConsent && !app.fullAccessEnabled && !app.bootstrap["context_injection"].flag,
                   "Automatic availability is not cloud consent, Full Mac authorization or Context Injection")
+        try await starterSkills(app: app, project: project, state: privateState)
         app.setAutoSkillsEnabled(false)
         await app.refreshContextPreview()
         try check(app.contextPreview?.value["auto_skills"].isNull == true, "Turning Auto off removes the automatic selector from the next context")
