@@ -22,6 +22,9 @@ struct NativeChecks {
             print("Native learning checks: \(passed) OK")
             return
         }
+        if let icon = LaunchConfiguration.argument("--icon-source") {
+            try appIcon(source: URL(fileURLWithPath: icon))
+        }
         let value: JSONValue = .object(["enabled": .bool(false), "count": .number(387), "items": .array([.string("memory"), .null])])
         let decoded = try JSONDecoder().decode(JSONValue.self, from: JSONEncoder().encode(value))
         try check(decoded == value && decoded["count"].integer == 387 && !decoded["enabled"].flag, "JSON/evidence round trip")

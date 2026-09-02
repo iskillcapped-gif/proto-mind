@@ -6,7 +6,7 @@ For compact architectural handoff context, see `PROTO_MIND_ARCHITECT_LEDGER.md`.
 
 ## Native macOS Direction
 
-Post-contest personal development now targets a real SwiftUI/AppKit application with a Codex-inspired conversation workspace, while preserving the existing Python cognitive core and operator commands. The current native workspace is **Native 0.21.0 / Supervised Lesson Review**, extending mode-bound Codex continuity, Full Mac Computer Use, durable sessions, selected PDF/image/text inputs, live Web Search, attachment recovery/drop, run notices, the Context And Artifact Desk, manual acceptance, EV-01 reliable work sessions, an inspectable Brother self-model and explicit Native candidate-to-lesson review; it does not replace the submitted contest build.
+Post-contest personal development now targets a real SwiftUI/AppKit application with a Codex-inspired conversation workspace, while preserving the existing Python cognitive core and operator commands. The current native workspace is **Native 0.21.1 / Supervised Lesson Review + Cube Icon**, extending mode-bound Codex continuity, Full Mac Computer Use, durable sessions, selected PDF/image/text inputs, live Web Search, attachment recovery/drop, run notices, the Context And Artifact Desk, manual acceptance, EV-01 reliable work sessions, an inspectable Brother self-model and explicit Native candidate-to-lesson review; it does not replace the submitted contest build.
 
 ```bash
 scripts/build_native_app.sh
@@ -14,6 +14,8 @@ scripts/run_native.sh
 ```
 
 The separate `dist/Proto-Mind Native.app` provides searchable/renameable/archiveable conversations grouped by their bound folder, per-chat drafts, Markdown/code blocks, a memory/evidence inspector, the existing command catalog, and native model settings. The quieter layout has right-aligned user bubbles, unboxed answers, and model/access controls inside the composer. The old PySide `.app`, CLI, and tkinter fallback remain available.
+
+**Native Cube Icon (0.21.1):** the app now has its own dimensional silver/teal cube mark with real transparent corners. The versioned PNG master builds locally into all ten standard ICNS representations, without depending on the old PySide app or generating images at runtime. See [artwork, generation prompts and packaging](assets/NATIVE_ICON.md).
 
 **Native appearance and model controls:** the sidebar uses macOS behind-window material with a Reduce Transparency fallback. System text uses a 14-point base, code uses 12 points. The composer has separate Model and Effort submenus with checked choices and reset; settings share the same per-conversation selection. Models and supported reasoning levels come from the official Codex catalog and are revalidated before generation in both chat and Full Mac modes. Unsupported/stale choices fail without a silent fallback. Model availability can differ from Codex Desktop; entries and speed promises are never fabricated. Selecting effort never grants tools or enables Context Injection.
 
@@ -142,7 +144,7 @@ scripts/run_pyside_mock.sh
 
 Open the `DEMO RUNWAY` tab and follow buttons `01` through `12`. Exact consent and runner controls remain locked until their preceding preview generates the correct process-bound command.
 
-Current development verification baseline: Python 3.11, 1595 unit tests plus 424 native checks and 7/7 + 7/7 + 8/8 Persona foundation/readiness/runtime evals, 387 registered command prefixes across 41 categories, Context Injection disabled, no persistent live Experience capture, and a four-command fixed read-only core runner allowlist. The separately granted Native Full Mac + Internet + Computer Use adapter is not that core runner. Post-contest native work is separate from the submitted provenance baseline.
+Current development verification baseline: Python 3.11, 1595 unit tests plus 429 native checks and 7/7 + 7/7 + 8/8 Persona foundation/readiness/runtime evals, 387 registered command prefixes across 41 categories, Context Injection disabled, no persistent live Experience capture, and a four-command fixed read-only core runner allowlist. The separately granted Native Full Mac + Internet + Computer Use adapter is not that core runner. Post-contest native work is separate from the submitted provenance baseline.
 
 ### Codex And GPT-5.6 Collaboration
 

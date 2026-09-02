@@ -435,6 +435,16 @@ Release build 25, strict deep signature verification, Python compileall and Prot
 
 Rule 0: `backups/proto_mind_backup_2026-09-02_06-13-52.tar.gz`, plus a separate private Native history/settings/work-session archive excluding credentials. All actual writes during apply verification use disposable synthetic stores. No dependency, slash command, registry category, session/core-store schema, Context Injection behavior, cloud opt-in or permission change is introduced.
 
+## Native Cube Icon / 0.21.1
+
+The Native bundle now has its own silver, petrol-teal and turquoise dimensional cube icon inspired by the operator-supplied emblem, without its wordmark. `assets/proto_mind_native_icon.png` is the versioned 1024 x 1024 RGBA master. `scripts/build_native_icon.sh` uses only local macOS `sips`/`iconutil` to create ten standard 1x/2x representations from 16 to 1024 pixels. The normal Native build installs `ProtoMindCube.icns`, keeps the same bundle identity, signs it and refreshes only this app's timestamp and Launch Services registration to avoid the stale legacy icon cache. The old PySide app and icon are untouched.
+
+Artwork generation used the built-in image tool. Its opaque checkerboard was removed once with macOS Vision/Core Image after explicit operator approval; neither runtime nor packaging invokes an image model or Vision. [Design prompts and asset preparation](assets/NATIVE_ICON.md) are kept alongside the finished master.
+
+Verification: 1595 Python tests and 429 Native checks, including five master-image assertions, pass. ICNS round-trip preserves all ten dimensions and their alpha channels; small-size preview and the real About window show the cube in Native 0.21.1 build 26. All 48 core/export and 28 Proto-Mind-owned history/preferences/work-session files retain their hashes and inventory; official Codex profile caches are excluded. Context Injection remains disabled. This is a branding/packaging patch, not a cognitive feature, new dependency, permission or persistent-state change.
+
+Rule 0: `backups/proto_mind_backup_2026-09-02_07-17-27.tar.gz`.
+
 ## Storage And Launch
 
 ```bash

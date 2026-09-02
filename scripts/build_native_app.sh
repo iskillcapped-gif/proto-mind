@@ -19,9 +19,7 @@ mkdir -p "${CONTENTS}/MacOS" "${CONTENTS}/Resources"
 cp "${BIN_DIR}/ProtoMindNative" "${CONTENTS}/MacOS/ProtoMindNative"
 cp "${BIN_DIR}/ProtoMindPDF" "${CONTENTS}/MacOS/ProtoMindPDF"
 cp native/Info.plist "${CONTENTS}/Info.plist"
-if [ -f "${PROJECT_DIR}/dist/Proto-Mind.app/Contents/Resources/ProtoMind.icns" ]; then
-  cp "${PROJECT_DIR}/dist/Proto-Mind.app/Contents/Resources/ProtoMind.icns" "${CONTENTS}/Resources/ProtoMind.icns"
-fi
+scripts/build_native_icon.sh "${CONTENTS}/Resources/ProtoMindCube.icns"
 
 # Machine-local build metadata, not credentials or a public distributable config.
 "${PYTHON_BIN}" -c 'import json, pathlib, sys; pathlib.Path(sys.argv[1]).write_text(json.dumps({"project_root": sys.argv[2], "python": sys.argv[3]}, indent=2) + "\n", encoding="utf-8")' \
@@ -32,4 +30,10 @@ plutil -lint "${CONTENTS}/Info.plist"
 codesign --force --sign - "${CONTENTS}/MacOS/ProtoMindPDF"
 codesign --force --sign - "${APP_DIR}"
 codesign --verify --strict "${APP_DIR}"
+# Refresh this bundle's icon registration without resetting Dock or global caches.
+touch "${APP_DIR}"
+LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
+if [ -x "${LSREGISTER}" ]; then
+  "${LSREGISTER}" -f "${APP_DIR}" || echo "App built; local icon registration refresh was unavailable." >&2
+fi
 printf 'Native app: %s\nLegacy PySide app was not modified.\n' "${APP_DIR}"
