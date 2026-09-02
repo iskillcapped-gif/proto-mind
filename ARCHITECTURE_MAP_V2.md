@@ -10,6 +10,13 @@ Future capabilities are tracked separately in [Personal Agent Evolution](PROTO_M
 
 ## Current Module Map
 
+`proto_mind/native_skill_outcome.py` + `native/Sources/SkillOutcomeModels.swift` + `SkillOutcomeModel.swift` + `SkillOutcomeView.swift` (EV-04 Manual Skill Outcomes / Native 0.24.0)
+
+- Fixed private-stdio `skill_outcome_review`, `skill_outcome_preview` and `skill_outcome_confirm` reuse the existing `ProceduralSkillOutcomeCaptureBuilder` and the selected conversation pilot's capture session. They do not dispatch slash commands, construct stores/coordinators, start a pilot or change consent. The Workshop link only opens existing consent help; the operator must perform that separate existing flow.
+- Source snapshots use bounded no-follow reads of `skills.jsonl`, `persistent_memory.json` and `context_injection.json`, rejecting malformed, duplicate, non-finite, missing and over-limit sources. Confirmation binds exact form/conversation/workspace, store SHA-256, existing pilot session/state/events/receipts and the original core blueprint token, plus a manual-result acknowledgement. Source readback detects observed changes; it is not a cross-process filesystem lock.
+- Only explicit confirmation may append the core's four-event operator-reported batch and one receipt in bounded process memory. No procedure, model, network call, disk write, usage-counter update, permission grant, learning promotion or lifecycle mutation occurs. The core's 16-receipt/event/byte limits and exact duplicate refusal remain in force. Buffer refusal may stop the pilot fail-closed, never enable it. Restore-bound capture remains undelivered.
+- Swift validates the closed response/scope, mutation boundaries, token/blueprint and receipt linkage. Edited or stale forms lose confirmation, closed selections ignore late responses and lost responses are not automatically retried. Existing receipts remain inspectable until process exit; a restart clears this consent/evidence, not the durable skill. Results navigate to the existing read-only inspector, with operator-reported versus independently verified evidence explicitly distinguished.
+
 `proto_mind/native_skill_inspection.py` + `native/Sources/SkillInspectionModels.swift` + `SkillInspectionModel.swift` + `SkillInspectionView.swift` (EV-04 Skill Evidence And Lifecycle / Native 0.23.0)
 
 - One fixed private-stdio `skill_inspection` RPC selects an exact Skill Library ID and, optionally, an existing Native conversation. This is not a Registry command, model tool, capture entry or generic dispatcher. It shares the foreground lock, rejects arbitrary parameters and never creates a coordinator or Experience pilot.

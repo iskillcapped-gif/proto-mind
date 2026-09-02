@@ -142,6 +142,11 @@ struct LibraryView: View {
                                 }.buttonStyle(.bordered).nativeHoverSurface()
                                     .disabled(model.busy || model.client.turnOutstanding)
                                     .help("Проверить происхождение, ручные результаты и сохранённые переходы без действий")
+                                Button { Task { await model.openSkillOutcome(item) } } label: {
+                                    Label("Отметить ручной результат…", systemImage: "square.and.pencil")
+                                }.buttonStyle(.bordered).nativeHoverSurface()
+                                    .disabled(model.busy || model.client.turnOutstanding || model.selected == nil || model.selected?.archived == true)
+                                    .help("Отдельная форма оператора: после точного подтверждения только запись опыта до перезапуска ядра")
                             }
                         }
                         if detail.changedSinceList { Label("Источник изменился. Ниже свежая версия записи.", systemImage: "arrow.clockwise").font(.callout).foregroundStyle(.orange) }

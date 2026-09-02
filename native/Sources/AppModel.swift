@@ -88,6 +88,7 @@ final class AppModel: ObservableObject {
     @Published var showMemoryWorkshop = false
     @Published var skillAuthoring: SkillAuthoringModel?
     @Published var skillInspection: SkillInspectionModel?
+    @Published var skillOutcome: SkillOutcomeModel?
     @Published var showTaskCriteria = false
     @Published var imagePreview: NativeImagePreview?
     @Published var pdfPreview: NativePDFPreview?
@@ -674,6 +675,7 @@ final class AppModel: ObservableObject {
         memoryWorkshop = nil; showMemoryWorkshop = false
         skillAuthoring = nil
         skillInspection?.close()
+        skillOutcome?.close()
         flushDraft()
         let chat = Conversation()
         conversations.insert(chat, at: 0)
@@ -696,6 +698,7 @@ final class AppModel: ObservableObject {
         memoryWorkshop = nil; showMemoryWorkshop = false
         skillAuthoring = nil
         skillInspection?.close()
+        skillOutcome?.close()
         flushDraft()
         selectedID = id; section = .chat; inspectedMessageID = nil
         modelSelectionNotice = nil
