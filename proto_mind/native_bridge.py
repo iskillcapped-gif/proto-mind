@@ -41,6 +41,7 @@ from proto_mind.native_learning_review import NativeLearningReview, parse_learni
 from proto_mind.native_skill_authoring import NativeSkillAuthoring, NativeSkillSession, parse_skill_request
 from proto_mind.native_skill_inspection import NativeSkillInspection, parse_skill_inspection_request
 from proto_mind.native_skill_outcome import NativeSkillOutcome, parse_skill_outcome_request
+from proto_mind.native_skill_decision import NativeSkillDecision, parse_skill_decision_request
 from proto_mind.experience_pilot import peek_experience_pilot
 from proto_mind.native_workspace import WorkspaceReader, file_context_message
 from proto_mind.native_images import ImageReader, image_specifications, MAX_IMAGES, MAX_IMAGE_BYTES, MAX_TOTAL_IMAGE_BYTES
@@ -795,6 +796,20 @@ class NativeBackend:
             return self.learning_review(method, params)
         if method in {"skill_authoring_review", "skill_authoring_preview", "skill_authoring_confirm"}:
             return self.skill_authoring(method, params)
+        if method in {"skill_decision_review", "skill_decision_preview", "skill_decision_confirm"}:
+            parsed = parse_skill_decision_request(params, method=method)
+            if self.closing.is_set() or not self.busy.acquire(blocking=False):
+                raise ValueError("Wait until the active turn finishes before reviewing skill decisions.")
+            try:
+                workspace = workspace_identity(self.workspace(params).root) if params.get("workspace_root") else None
+                review = NativeSkillDecision(self.root, self.sessions.get(parsed["conversation_id"]), parsed, workspace=workspace)
+                if method == "skill_decision_review":
+                    return review.report()
+                if method == "skill_decision_preview":
+                    return review.preview()
+                return review.confirm(params)
+            finally:
+                self.busy.release()
         if method in {"skill_outcome_review", "skill_outcome_preview", "skill_outcome_confirm"}:
             parsed = parse_skill_outcome_request(params, method=method)
             if self.closing.is_set() or not self.busy.acquire(blocking=False):

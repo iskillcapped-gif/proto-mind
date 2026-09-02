@@ -89,6 +89,7 @@ final class AppModel: ObservableObject {
     @Published var skillAuthoring: SkillAuthoringModel?
     @Published var skillInspection: SkillInspectionModel?
     @Published var skillOutcome: SkillOutcomeModel?
+    @Published var skillDecision: SkillDecisionModel?
     @Published var showTaskCriteria = false
     @Published var imagePreview: NativeImagePreview?
     @Published var pdfPreview: NativePDFPreview?
@@ -676,6 +677,7 @@ final class AppModel: ObservableObject {
         skillAuthoring = nil
         skillInspection?.close()
         skillOutcome?.close()
+        skillDecision?.close()
         flushDraft()
         let chat = Conversation()
         conversations.insert(chat, at: 0)
@@ -699,6 +701,7 @@ final class AppModel: ObservableObject {
         skillAuthoring = nil
         skillInspection?.close()
         skillOutcome?.close()
+        skillDecision?.close()
         flushDraft()
         selectedID = id; section = .chat; inspectedMessageID = nil
         modelSelectionNotice = nil

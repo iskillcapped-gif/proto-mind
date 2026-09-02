@@ -94,6 +94,7 @@ struct WorkspaceView: View {
         .sheet(item: $model.skillAuthoring) { SkillAuthoringView(model: $0) }
         .sheet(item: $model.skillInspection) { SkillInspectionView(model: $0) }
         .sheet(item: $model.skillOutcome) { SkillOutcomeView(model: $0) }
+        .sheet(item: $model.skillDecision) { SkillDecisionView(model: $0) }
         .sheet(isPresented: $model.showTaskCriteria) { TaskCriteriaView(model: model) }
         .sheet(item: $model.imagePreview) { ImageAttachmentPreviewView(model: model, preview: $0) }
         .sheet(item: $model.pdfPreview) { PDFAttachmentPreviewView(model: model, preview: $0) }

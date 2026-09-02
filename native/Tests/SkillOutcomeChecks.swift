@@ -134,6 +134,7 @@ extension NativeChecks {
         try check(app.skillInspection?.report?.outcome?.status == "MIXED_EVIDENCE" && app.skillInspection?.report?.outcome?.automaticDecisionAllowed == false,
                   "Conflicting manual results stay mixed without automatic learning or lifecycle decisions")
         app.skillInspection?.close()
+        try await skillDecision(app: app, item: item, project: project, state: state)
         app.busy = true; await app.openSkillOutcome(item)
         try check(app.skillOutcome == nil, "Manual outcome form does not compete with a foreground turn")
         app.busy = false

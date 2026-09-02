@@ -40,6 +40,13 @@ final class SkillInspectionModel: ObservableObject, Identifiable {
         close()
         await app.openMemoryEvidence(recordID: source)
     }
+
+    var canOpenDecision: Bool { !locked && app.selected != nil && app.selected?.archived == false }
+    func openDecision() async {
+        guard canOpenDecision else { return }
+        close()
+        await app.openSkillDecision(selection)
+    }
 }
 
 extension AppModel {

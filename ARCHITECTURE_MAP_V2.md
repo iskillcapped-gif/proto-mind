@@ -10,6 +10,13 @@ Future capabilities are tracked separately in [Personal Agent Evolution](PROTO_M
 
 ## Current Module Map
 
+`proto_mind/native_skill_decision.py` + `native/Sources/SkillDecisionModels.swift` + `SkillDecisionModel.swift` + `SkillDecisionView.swift` (EV-04 Skill Outcome Decisions / Native 0.25.0)
+
+- Three fixed private-stdio RPCs (`skill_decision_review`, `skill_decision_preview`, `skill_decision_confirm`) reuse the bounded Native outcome source reader and existing core outcome decision builder/session/doctor. They never dispatch commands, construct a coordinator/pilot, start capture or change consent. Only the selected conversation's existing events and exact capture receipts may support a decision.
+- The core's success-to-keep and failure/mixed-to-revise/archive rules remain unchanged. Preview binds choice, exact source/config hashes, workspace/conversation, pilot state, events, captures and decisions. Confirmation requires the current core token and decision-only acknowledgement; stale sources/evidence/scope, unsafe settings, unavailable provenance, restored skills, replay and replacement are refused. Final source/process readback is not a filesystem transaction lock.
+- Confirmation appends one terminal process-only decision receipt, with zero new Experience events and no memory/skill/lifecycle/private-file writes. A prior stop does not prevent a new explicitly confirmed decision over retained evidence, but changing pilot state invalidates an older preview and never resumes capture. The core's one-decision-per-skill-per-pilot and 16-decision limits remain unchanged.
+- Swift validates the closed envelopes, allowed choices, exact token/blueprint/receipt and no-apply flags. Refresh/edit invalidates confirmation; no choice is automatic. The existing doctor distinguishes receipt integrity from current versus historical evidence. The UI links back to the source inspector and explains that archive/revise are decisions, not applied changes. No persistent schema, Registry growth, permission, model/network/tool call or pending post-restore writer is added.
+
 `proto_mind/native_skill_outcome.py` + `native/Sources/SkillOutcomeModels.swift` + `SkillOutcomeModel.swift` + `SkillOutcomeView.swift` (EV-04 Manual Skill Outcomes / Native 0.24.0)
 
 - Fixed private-stdio `skill_outcome_review`, `skill_outcome_preview` and `skill_outcome_confirm` reuse the existing `ProceduralSkillOutcomeCaptureBuilder` and the selected conversation pilot's capture session. They do not dispatch slash commands, construct stores/coordinators, start a pilot or change consent. The Workshop link only opens existing consent help; the operator must perform that separate existing flow.

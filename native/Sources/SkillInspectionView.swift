@@ -29,6 +29,10 @@ struct SkillInspectionView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Label("Что дальше", systemImage: "arrow.right.circle").font(.headline)
                             Text(report.nextAdvice).font(.callout).foregroundStyle(.secondary)
+                            Button("Решение по результатам…") { Task { await model.openDecision() } }
+                                .buttonStyle(.bordered).nativeHoverSurface().disabled(!model.canOpenDecision)
+                            Text("Откроется отдельный разбор. Просмотр не записывает решение и не меняет навык.")
+                                .font(.caption).foregroundStyle(.secondary)
                         }.inspectionCard()
                         sources(report)
                     } else if model.loading {
