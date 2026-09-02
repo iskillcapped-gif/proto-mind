@@ -46,7 +46,9 @@ from proto_mind.native_skill_lifecycle import NativeSkillLifecycle, parse_skill_
 from proto_mind.native_skill_restore import NativeSkillRestore, parse_skill_restore_request
 from proto_mind.native_learning_history import NativeLearningHistory, parse_history_request
 from proto_mind.native_project_memory import NativeProjectMemory, parse_project_memory_request, METHODS as PROJECT_MEMORY_METHODS
+from proto_mind.native_skill_tasks import NativeSkillTask, parse_task_request, SELECT_FIELDS as SKILL_TASK_SELECT_FIELDS
 from proto_mind.native_knowledge import knowledge_metadata, knowledge_context_message
+from proto_mind.native_private_records import encoded
 from proto_mind.skill_lifecycle_restore_apply import procedural_skill_restore_apply_receipts_snapshot
 from proto_mind.experience_pilot import peek_experience_pilot
 from proto_mind.native_workspace import WorkspaceReader, file_context_message
@@ -126,7 +128,8 @@ class NativeMemoryStore(MemoryStore):
 class NativeOllamaReasoner(OllamaReasoner):
     def __init__(self, config: ProtoMindConfig, history: list[dict], files: list[dict] | None = None,
                  criteria: list[str] | None = None, pdfs: list[SelectedPDF] | None = None,
-                 persona_activation: PersonaTurnActivation | None = None, project_notes: list[dict] | None = None) -> None:
+                 persona_activation: PersonaTurnActivation | None = None, project_notes: list[dict] | None = None,
+                 skill_task: dict | None = None, before_provider_call=None) -> None:
         super().__init__(config)
         self.history = history
         self.files = files or []
@@ -135,12 +138,15 @@ class NativeOllamaReasoner(OllamaReasoner):
         self.persona_activation = persona_activation
         self.last_persona_receipt: dict | None = None
         self.project_notes = project_notes or []
+        self.skill_task, self.before_provider_call = skill_task, before_provider_call
 
     def _post(self, path: str, payload: dict) -> dict:
         messages = payload["messages"]
         return local_ollama_request(self.config, path, {**payload, "messages": [messages[0], *self.history, messages[-1]]})
 
     def respond(self, user_input, retrieved_memory, observer_state, correction_hints=None) -> str:
+        if self.before_provider_call:
+            self.before_provider_call()
         legacy_instructions = self._build_system_prompt(observer_state, retrieved_memory, correction_hints or [])
         if self.persona_activation is None:
             instructions = legacy_instructions
@@ -160,7 +166,7 @@ class NativeOllamaReasoner(OllamaReasoner):
             "messages": [
                 {"role": "system", "content": instructions},
                 {"role": "user", "content": criteria_context_message(self.criteria) + file_context_message(self.files)
-                 + pdf_context_message(self.pdfs) + knowledge_context_message(self.project_notes) + user_input.strip()},
+                 + pdf_context_message(self.pdfs) + knowledge_context_message(self.project_notes, self.skill_task) + user_input.strip()},
             ],
             "stream": False,
         }
@@ -513,6 +519,12 @@ class NativeBackend:
             images = self.image_reader().selected(params["images"])
         pdfs = [] if description["operator"] else self.pdf_reader().selected(params.get("pdfs", []))
         project_notes = [] if description["operator"] else self._selected_project_notes(params, session_id)
+        skill_task = None if description["operator"] else self._selected_skill_task(params, session_id, text=text, criteria=criteria)
+        def revalidate_knowledge():
+            if project_notes and self._selected_project_notes(params, session_id) != project_notes:
+                raise WorkSessionError("Project notes changed before the provider call. Review them again; no fallback.")
+            if skill_task and self._selected_skill_task(params, session_id, text=text, criteria=criteria) != skill_task:
+                raise WorkSessionError("Skill task changed before the provider call. Review it again; no fallback.")
         logical_workspace = (workspace_identity(self.workspace(params).root)
                              if not description["operator"] and params.get("workspace_root") else None)
         provider_thread = (self.subscription.thread_status(session_id, logical_workspace, mode=mode)
@@ -547,7 +559,7 @@ class NativeBackend:
                         provider=provider, model=model, effort=reasoning_effort, mode=mode,
                         workspace=workspace["path"] if workspace else None, criteria=criteria,
                         images=[image.metadata for image in images], pdfs=[pdf.metadata for pdf in pdfs],
-                        provider_thread=provider_thread, knowledge_context=knowledge_metadata(project_notes))))
+                        provider_thread=provider_thread, knowledge_context=knowledge_metadata(project_notes, skill_task))))
             if provider == "codex" and not description["operator"]:
                 self.subscription.prepare_turn()
             self.active_request, self.active_provider = request_id, provider if not description["operator"] else "operator"
@@ -588,6 +600,7 @@ class NativeBackend:
                         pdfs=pdfs,
                         persona_activation=persona_activation,
                         project_notes=project_notes,
+                        skill_task=skill_task, before_provider_call=revalidate_knowledge,
                     )
                 elif provider == "ollama":
                     url = urlparse(config.ollama_url)
@@ -601,6 +614,7 @@ class NativeBackend:
                         pdfs,
                         persona_activation=persona_activation,
                         project_notes=project_notes,
+                        skill_task=skill_task, before_provider_call=revalidate_knowledge,
                     )
                 else:
                     coordinator.reasoner = MockReasoner()
@@ -608,8 +622,7 @@ class NativeBackend:
                 saved_workspace = work_session.record["workspace"]
                 if saved_workspace and workspace_identity(Path(saved_workspace["path"])) != saved_workspace:
                     raise WorkSessionError("Workspace changed before dispatch. Choose and inspect the folder again.")
-                if project_notes and self._selected_project_notes(params, session_id) != project_notes:
-                    raise WorkSessionError("Project notes changed before dispatch. Review the current notes; no fallback.")
+                revalidate_knowledge()
                 work_session.dispatch()
             output = process_interactive_input_with_envelope(
                 text, coordinator=coordinator, session_logger=self.logger, project_root=self.root,
@@ -642,6 +655,10 @@ class NativeBackend:
             if project_notes:
                 serialized["notices"].append("Explicit project notes: operator assertions, not independently verified facts. No automatic recall or permission change. "
                                              + ("Mock does not analyze these notes." if provider == "mock" else "Previously sent notes can remain in provider-side conversation history."))
+            if skill_task:
+                serialized["notices"].append("Operator-selected skill guidance: " + skill_task["skill_id"]
+                                             + ". Provenance checked, task outcome not automatically verified or accepted. Review the journal and each criterion; no automatic skill learning."
+                                             + (" Mock does not execute or understand this procedure." if provider == "mock" else ""))
             saved_session = None
             if work_session is not None:
                 reader = self._artifact_workspace(params, work_session.record)
@@ -656,7 +673,7 @@ class NativeBackend:
                     "work_session": saved_session,
                     "image_context": [image.metadata for image in images],
                     "pdf_context": [pdf.metadata for pdf in pdfs],
-                    "knowledge_context": knowledge_metadata(project_notes),
+                    "knowledge_context": knowledge_metadata(project_notes, skill_task),
                     "workspace_context": [{key: value for key, value in item.items() if key != "content"} for item in files]}
         except BaseException:
             if work_session is not None and work_session.failed_write and provider == "codex":
@@ -728,6 +745,12 @@ class NativeBackend:
             result["manifest"]["knowledge_context"] = knowledge_metadata(project_notes)
             result["project_memory_sources"] = project_notes
             result["notes"].append("Only explicitly selected current project notes will be sent. They are operator assertions, not verified facts. Legacy core recall remains shared; provider history may retain previously sent context.")
+        if params.get("skill_task") is not None and not operator:
+            skill_task = self._selected_skill_task(params, str(UUID(params.get("conversation_id", ""))), text=text, criteria=validate_criteria(params.get("criteria", [])))
+            result["manifest"]["knowledge_context"] = knowledge_metadata(project_notes, skill_task)
+            result["skill_task_source"] = skill_task
+            result["skill_task_hash_material"] = encoded({key: value for key, value in skill_task.items() if key != "preview_fingerprint"}).decode()
+            result["notes"].append("The chosen procedure is non-executable reference guidance for the ordinary manually sent task. Preconditions and outcome criteria still require verification; this preview grants no tool authority.")
         if provider_thread:
             result["provider_thread"] = provider_thread
             if provider_thread["linked"]:
@@ -824,6 +847,23 @@ class NativeBackend:
     def _skill_restore_slot_used(self) -> bool:
         return self._native_skill_restore_used or bool(procedural_skill_restore_apply_receipts_snapshot())
 
+    def _skill_task_preview(self, params: dict) -> dict:
+        request = parse_task_request(params)
+        workspace = workspace_identity(self.workspace(params).root)
+        return NativeSkillTask(self.root, request, workspace=workspace, is_operator=lambda text: describe_input(text)["operator"]).preview()
+
+    def _selected_skill_task(self, params: dict, conversation: str, *, text: str, criteria: list[str]) -> dict | None:
+        selected = params.get("skill_task")
+        if selected is None:
+            return None
+        if not isinstance(selected, dict) or set(selected) != SKILL_TASK_SELECT_FIELDS:
+            raise ValueError("Only the exact prepared skill-task reference may be attached.")
+        request = parse_task_request({"conversation_id": conversation, "workspace_root": params.get("workspace_root"),
+                                      "provider": params.get("provider", "mock"), "access_mode": params.get("access_mode", "chat"),
+                                      **{key: selected[key] for key in ("skill_id", "goal", "criteria")}})
+        workspace = workspace_identity(self.workspace(params).root)
+        return NativeSkillTask(self.root, request, workspace=workspace, is_operator=lambda goal: describe_input(goal)["operator"]).selected(selected, text=text, criteria=criteria)
+
     def _project_memory(self, params: dict, conversation: str) -> NativeProjectMemory:
         if not params.get("workspace_root"):
             raise ValueError("Select the project folder before using its explicit notes.")
@@ -908,6 +948,13 @@ class NativeBackend:
             self.busy.release()
 
     def dispatch(self, method: str, params: dict, emit: Callable[[dict], None], request_id: str) -> Any:
+        if method == "skill_task_preview":
+            if self.closing.is_set() or not self.busy.acquire(blocking=False):
+                raise ValueError("Wait for the current turn before preparing a skill task.")
+            try:
+                return self._skill_task_preview(params)
+            finally:
+                self.busy.release()
         if method in PROJECT_MEMORY_METHODS:
             return self.project_memory(method, params)
         if method in {"skill_history_list", "skill_history_preview", "skill_history_save", "skill_history_inspect"}:

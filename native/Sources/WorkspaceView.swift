@@ -99,6 +99,7 @@ struct WorkspaceView: View {
         .sheet(item: $model.skillRestore) { SkillRestoreView(model: $0) }
         .sheet(item: $model.skillHistory) { SkillHistoryView(model: $0) }
         .sheet(item: $model.projectMemory) { ProjectMemoryView(model: $0) }
+        .sheet(item: $model.skillTask) { SkillTaskView(model: $0) }
         .sheet(isPresented: $model.showTaskCriteria) { TaskCriteriaView(model: model) }
         .sheet(item: $model.imagePreview) { ImageAttachmentPreviewView(model: model, preview: $0) }
         .sheet(item: $model.pdfPreview) { PDFAttachmentPreviewView(model: model, preview: $0) }
@@ -468,6 +469,7 @@ struct ComposerView: View {
             }
             VStack(spacing: 0) {
                 if !model.pendingProjectNotes.isEmpty { PendingProjectNotesView(model: model) }
+                if model.pendingSkillTask != nil { PendingSkillTaskView(model: model) }
                 if model.selected?.pendingImages.isEmpty == false { PendingImageAttachmentsView(model: model) }
                 if model.selected?.pendingPDFs.isEmpty == false { PendingPDFAttachmentsView(model: model) }
                 if let files = model.selected?.pendingFiles, !files.isEmpty {

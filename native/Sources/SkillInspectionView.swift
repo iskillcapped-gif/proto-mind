@@ -31,6 +31,8 @@ struct SkillInspectionView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Label("Что дальше", systemImage: "arrow.right.circle").font(.headline)
                             Text(report.nextAdvice).font(.callout).foregroundStyle(.secondary)
+                            Button("Подготовить задачу с навыком…") { Task { await model.openTask() } }
+                                .buttonStyle(.bordered).nativeHoverSurface().disabled(!model.canOpenDecision)
                             Button("Решение по результатам…") { Task { await model.openDecision() } }
                                 .buttonStyle(.bordered).nativeHoverSurface().disabled(!model.canOpenDecision)
                             Text("Откроется отдельный разбор. Просмотр не записывает решение и не меняет навык.")

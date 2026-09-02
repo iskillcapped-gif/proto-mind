@@ -89,10 +89,13 @@ private func checkProjectNoteBody(_ body: JSONValue, scope: ProjectMemoryScope) 
 
 func checkKnowledgeMetadata(_ value: JSONValue) throws {
     if value.isNull { return }
-    guard case .object(let fields) = value, Set(fields.keys) == ["schema", "selection", "permission_granted", "automatic_recall", "automatic_skill_execution", "project_memory"],
+    let required: Set<String> = ["schema", "selection", "permission_granted", "automatic_recall", "automatic_skill_execution", "project_memory"]
+    guard case .object(let fields) = value, required.isSubset(of: Set(fields.keys)), Set(fields.keys).subtracting(required).isSubset(of: ["skill_task"]),
           value["schema"] == .string("proto_mind.native_knowledge_context.v1"), value["selection"] == .string("operator_explicit"),
           ["permission_granted", "automatic_recall", "automatic_skill_execution"].allSatisfy({ value[$0] == .bool(false) }),
-          case .array(let notes) = value["project_memory"], (1...5).contains(notes.count), Set(notes.map { $0["id"].text }).count == notes.count else { throw projectMemoryError() }
+          case .array(let notes) = value["project_memory"], notes.count <= 5, !notes.isEmpty || fields["skill_task"] != nil,
+          Set(notes.map { $0["id"].text }).count == notes.count else { throw projectMemoryError() }
+    if let skill = fields["skill_task"] { try checkSkillTaskReference(skill) }
     for note in notes {
         guard case .object(let fields) = note, Set(fields.keys) == ["id", "record_hash", "kind", "workspace", "characters", "content_sha256", "verification"],
               ["id", "record_hash", "content_sha256"].allSatisfy({ decisionHashValue(note[$0].text) }), ProjectNote.kinds.contains(note["kind"].text),

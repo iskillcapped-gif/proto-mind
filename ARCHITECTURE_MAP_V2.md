@@ -10,6 +10,12 @@ Future capabilities are tracked separately in [Personal Agent Evolution](PROTO_M
 
 ## Current Module Map
 
+`proto_mind/native_skill_tasks.py` + `native_knowledge.py` + `native/Sources/SkillTask*.swift` (EV-04 Operator-Guided Skill Tasks / Native 0.30.0)
+
+- One fixed read-only `skill_task_preview` RPC checks the current active authored procedure and its source lesson, including verified restored skills. The exact task goal, declared criteria, conversation/folder identity, provider/access mode and source hashes bind a non-authorizing preview. Unknown, historical, archived, executable or drifted records cannot prepare a task.
+- Explicit draft preparation is ephemeral selection plus the existing private goal/criteria draft, never Send. The ordinary process path revalidates before dispatch and immediately before the existing Codex/Ollama call. Only selected procedure text is quoted as untrusted user guidance; no script interpreter, model-to-slash dispatch, new tool, automatic retry or permission is added.
+- Optional content-free `knowledge_context.skill_task` provenance in the existing private run manifest binds the original task/criteria/workspace to its source/version. Existing observations, artifacts and separately confirmed per-criterion operator review stay distinct from automatic verification (`not_assessed`). No automatic skill outcome capture, uses update, memory promotion, lifecycle mutation or post-restore writer is installed. Full Mac remains broad existing authority, not a new project sandbox.
+
 `proto_mind/native_project_memory.py` + `native_knowledge.py` + `native/Sources/ProjectMemory*.swift` (EV-04 Explicit Project Memory / Native 0.29.0)
 
 - Fixed private list/recall/inspect/preview/save RPCs bind operator-authored notes to the selected folder's path/device/inode and launch project. Save appends to private `project_memory/`; explicit supersession does not rewrite older bytes. Read-only pagination and deterministic lexical recall never initialize stores or call a model.

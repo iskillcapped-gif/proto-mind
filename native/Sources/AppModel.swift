@@ -95,6 +95,8 @@ final class AppModel: ObservableObject {
     @Published var skillHistory: SkillHistoryModel?
     @Published var projectMemory: ProjectMemoryModel?
     @Published var projectNoteSelections: [UUID: [ProjectNote]] = [:]
+    @Published var skillTask: SkillTaskModel?
+    @Published var preparedSkillTasks: [UUID: PreparedSkillTask] = [:]
     @Published var showTaskCriteria = false
     @Published var imagePreview: NativeImagePreview?
     @Published var pdfPreview: NativePDFPreview?
@@ -258,6 +260,7 @@ final class AppModel: ObservableObject {
             "cloud_consent": .bool(cloudConsent), "access_mode": .string(fullAccessEnabled ? "full_access" : "chat")
         ]
         if let path = conversation.workspacePath { params["workspace_root"] = .string(path) }
+        if let pendingSkillTask { params["skill_task"] = pendingSkillTask.selection }
         return params
     }
 
@@ -690,6 +693,7 @@ final class AppModel: ObservableObject {
         skillRestore?.close()
         skillHistory?.close()
         projectMemory?.close()
+        skillTask?.close()
         flushDraft()
         let chat = Conversation()
         conversations.insert(chat, at: 0)
@@ -718,6 +722,7 @@ final class AppModel: ObservableObject {
         skillRestore?.close()
         skillHistory?.close()
         projectMemory?.close()
+        skillTask?.close()
         flushDraft()
         selectedID = id; section = .chat; inspectedMessageID = nil
         modelSelectionNotice = nil
@@ -945,6 +950,7 @@ final class AppModel: ObservableObject {
         let pdfs = operatorInput ? [] : conversation.pendingPDFs
         let criteria = operatorInput ? [] : conversation.pendingCriteria
         let projectNotes = operatorInput ? [] : projectNoteSelections[conversationID] ?? []
+        let skillTask = operatorInput ? nil : preparedSkillTasks[conversationID]
         let grant = !operatorInput && fullAccessEnabled ? agentGrants[conversationID] : nil
         let continuation = operatorInput ? nil : conversation.draftContinuation
         let userMessage = ChatMessage(role: "user", text: text, operatorInput: operatorInput, fileContext: files, imageContext: images, pdfContext: pdfs)
@@ -972,6 +978,7 @@ final class AppModel: ObservableObject {
                 params["images"] = .array(images)
                 params["pdfs"] = .array(pdfs)
                 params["project_memory"] = .array(projectNotes.map(\.selection))
+                if let skillTask { params["skill_task"] = skillTask.selection }
                 if let root = conversation.workspacePath { params["workspace_root"] = .string(root) }
                 if let continuation { params["continuation"] = continuation }
             }
@@ -996,6 +1003,7 @@ final class AppModel: ObservableObject {
             guard returnedNotes.count == projectNotes.count, zip(returnedNotes, projectNotes).allSatisfy({ row, note in
                 row["id"] == note.raw["id"] && row["record_hash"] == note.raw["record_hash"]
             }) else { throw projectMemoryError() }
+            guard result["knowledge_context"]["skill_task"] == (skillTask?.reference ?? .null) else { throw skillTaskError() }
             let raw = result["text"].text
             let body = result["exit_requested"].flag ? "Сессия ядра завершена. История диалога сохранена локально." : evidence.isNull ? raw : evidence["response"].text
             var notices = result["notices"].items.map(\.text)
@@ -1022,6 +1030,7 @@ final class AppModel: ObservableObject {
                 conversations[current].pendingPDFs = []
                 conversations[current].pendingCriteria = []
                 projectNoteSelections[conversationID] = nil
+                preparedSkillTasks[conversationID] = nil
             }
             inspectedMessageID = message.id
             if !result["provider_thread"].isNull { codexThreadStatus = .null }
@@ -1116,6 +1125,7 @@ final class AppModel: ObservableObject {
             guard let index = conversations.firstIndex(where: { $0.id == id }) else { return }
             conversations[index].workspacePath = value["root"].text
             projectNoteSelections[id] = nil; projectMemory = nil; invalidateContextPreview()
+            preparedSkillTasks[id] = nil; skillTask = nil
             closeLearningReview()
             memoryWorkshop = nil
             discardAgentGrants(for: id)

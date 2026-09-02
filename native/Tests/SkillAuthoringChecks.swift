@@ -130,6 +130,7 @@ extension NativeChecks {
             try await skillHistory(app: restart, item: item, project: project, state: state, minimumReceipts: 2)
             try await skillLifecycleApply(configuration: restart.client.configuration, item: item, project: project, state: state)
             try await skillRestore(configuration: restart.client.configuration, item: item, project: project, state: state)
+            try await skillTasks(configuration: restart.client.configuration, item: item, project: project, state: state)
         } else { throw NativeError.message("Missing saved skill for inspection checks") }
     }
 

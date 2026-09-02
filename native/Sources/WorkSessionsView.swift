@@ -29,6 +29,13 @@ struct NativeWorkSession: Identifiable, Equatable {
         }
         try NativePDFAttachment.validate(value["context_manifest"]["pdfs"].items)
         try checkKnowledgeMetadata(value["context_manifest"]["knowledge_context"])
+        let skill = value["context_manifest"]["knowledge_context"]["skill_task"]
+        if !skill.isNull {
+            guard skill["workspace"] == value["workspace"], skill["conversation_id"] == value["conversation_id"],
+                  skill["provider"] == value["provider"], skill["access_mode"] == value["access_mode"],
+                  skill["goal_sha256"] == value["context_manifest"]["input"]["sha256"],
+                  skill["criteria_sha256"] == value["success_criteria"]["sha256"] else { throw skillTaskError() }
+        }
         if !value["agent_contract"].isNull {
             guard value["agent_contract"]["schema"].text == "proto_mind.native_agent_contract.v1",
                   value["agent_contract_hash"].text.count == 64,
@@ -165,6 +172,19 @@ struct WorkSessionsView: View {
                         Text("\(index + 1). \(item["text"].text)").textSelection(.enabled)
                     }
                 }
+            }
+            if !run.value["context_manifest"]["knowledge_context"]["skill_task"].isNull {
+                let skill = run.value["context_manifest"]["knowledge_context"]["skill_task"]
+                VStack(alignment: .leading, spacing: 9) {
+                    Label("Ориентир: \(skill["skill_name"].text)", systemImage: "list.bullet.clipboard").font(.headline)
+                    metadata("Skill ID", skill["skill_id"].text)
+                    metadata("Проверенная версия", String(skill["contract_hash"].text.prefix(12)))
+                    Text("Навык был выбран оператором, не запускался интерпретатором. Происхождение проверялось перед запросом. Откройте «Приёмку», сопоставьте каждый критерий с результатами; ответ сам по себе не означает успех навыка.").font(.callout).foregroundStyle(.secondary)
+                    Button("Открыть текущий навык") {
+                        Task { model.showWorkSessions = false; await model.openSkillInspection(skillID: skill["skill_id"].text) }
+                    }
+                    Text("Исторические SHA не заменяются текущей версией. Ручная приёмка не меняет uses, память или жизненный цикл.").font(.caption).foregroundStyle(.secondary)
+                }.padding(14).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
             }
             if !run.value["work_log"]["entries"].items.isEmpty {
                 DisclosureGroup("Публичный ход работы") {

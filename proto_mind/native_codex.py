@@ -757,7 +757,8 @@ class SubscriptionReasoner(BaseReasoner):
                  agent_workspace: Path | None = None, on_activity=None, on_progress=None, reasoning_effort: str = "",
                  criteria: list[str] | None = None, images: list[SelectedImage] | None = None,
                  pdfs: list[SelectedPDF] | None = None,
-                 persona_activation: PersonaTurnActivation | None = None, project_notes: list[dict] | None = None) -> None:
+                 persona_activation: PersonaTurnActivation | None = None, project_notes: list[dict] | None = None,
+                 skill_task: dict | None = None, before_provider_call=None) -> None:
         self.subscription, self.model, self.history, self.on_delta = subscription, model, history, on_delta
         self.conversation, self.logical_workspace = conversation, logical_workspace
         self.files = files or []
@@ -770,9 +771,12 @@ class SubscriptionReasoner(BaseReasoner):
         self.persona_activation = persona_activation
         self.last_persona_receipt: dict | None = None
         self.project_notes = project_notes or []
+        self.skill_task, self.before_provider_call = skill_task, before_provider_call
 
     def respond(self, user_input: str, retrieved_memory: list[MemoryRecord], observer_state: ObserverState,
                 correction_hints: list[str] | None = None) -> str:
+        if self.before_provider_call:
+            self.before_provider_call()
         legacy_instructions = _legacy_subscription_instructions(
             OllamaReasoner(ProtoMindConfig())._build_system_prompt(
                 observer_state, retrieved_memory, correction_hints or [],
@@ -792,7 +796,7 @@ class SubscriptionReasoner(BaseReasoner):
             instructions = prepared.instructions
             self.last_persona_receipt = prepared.receipt
         prompt = user_input
-        prompt = criteria_context_message(self.criteria) + file_context_message(self.files) + image_context_message(self.images) + pdf_context_message(self.pdfs) + knowledge_context_message(self.project_notes) + prompt
+        prompt = criteria_context_message(self.criteria) + file_context_message(self.files) + image_context_message(self.images) + pdf_context_message(self.pdfs) + knowledge_context_message(self.project_notes, self.skill_task) + prompt
         image_options = {"images": self.images} if self.images else {}
         if self.agent_workspace is not None:
             return self.subscription.agent_answer(prompt, instructions, self.model, self.on_delta,

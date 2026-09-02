@@ -141,6 +141,11 @@ struct LibraryView: View {
                             }
                             if !item.tags.isEmpty { Text(item.tags.joined(separator: " · ")).font(.caption).foregroundStyle(.secondary) }
                             if item.store == "skills" {
+                                Button { Task { await model.openSkillTask(skillID: item.recordId) } } label: {
+                                    Label("Подготовить задачу с навыком…", systemImage: "list.bullet.clipboard")
+                                }.buttonStyle(.bordered).nativeHoverSurface()
+                                    .disabled(model.busy || model.client.turnOutstanding || model.selected?.archived != false)
+                                    .help("Проверить процедуру, задать цель и критерии. Только подготовка, без выполнения")
                                 Button { Task { await model.openSkillInspection(item) } } label: {
                                     Label("Результаты и жизненный цикл…", systemImage: "clock.arrow.circlepath")
                                 }.buttonStyle(.bordered).nativeHoverSurface()

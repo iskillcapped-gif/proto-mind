@@ -201,6 +201,12 @@ class WorkSessionStore:
                 validate_knowledge_metadata(manifest.get("knowledge_context"))
                 if any(row["workspace"] != record.get("workspace") for row in (manifest.get("knowledge_context") or {}).get("project_memory", [])):
                     raise ValueError()
+                skill = (manifest.get("knowledge_context") or {}).get("skill_task")
+                if skill is not None and (skill["workspace"] != record.get("workspace") or skill["conversation_id"] != record["conversation_id"]
+                        or skill["provider"] != record["provider"] or skill["access_mode"] != record["access_mode"]
+                        or skill["goal_sha256"] != manifest.get("input", {}).get("sha256")
+                        or skill["criteria_sha256"] != (record.get("success_criteria") or {}).get("sha256")):
+                    raise ValueError()
             contract = record.get("agent_contract")
             if contract is not None:
                 validate_agent_contract(contract)

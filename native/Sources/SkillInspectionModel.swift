@@ -49,6 +49,10 @@ final class SkillInspectionModel: ObservableObject, Identifiable {
     }
 
     var canOpenRestore: Bool { canOpenDecision && report?.lifecycle?.status == "archived" }
+    func openTask() async {
+        guard canOpenDecision else { return }
+        close(); await app.openSkillTask(skillID: selection.skillID)
+    }
     func openHistory() async {
         guard !locked, selection.conversationID != nil else { return }
         close(); await app.openSkillHistory(selection)
@@ -60,6 +64,12 @@ final class SkillInspectionModel: ObservableObject, Identifiable {
 }
 
 extension AppModel {
+    func openSkillInspection(skillID: String) async {
+        guard !busy, !client.turnOutstanding else { return }
+        let selection = NativeSkillInspectionSelection(conversationID: selectedID, skillID: skillID, workspace: selected?.workspacePath, expectedSHA256: "")
+        let panel = SkillInspectionModel(app: self, selection: selection)
+        skillInspection = panel; await panel.refresh()
+    }
     func openSkillInspection(_ item: LibraryItem) async {
         guard !busy, !client.turnOutstanding, item.store == "skills" else { return }
         let selection = NativeSkillInspectionSelection(conversationID: selectedID, skillID: item.recordId,

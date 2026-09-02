@@ -6,8 +6,8 @@
   <key>CFBundleDisplayName</key><string>Proto-Mind Native</string>
   <key>CFBundleExecutable</key><string>ProtoMindNative</string>
   <key>CFBundleIdentifier</key><string>local.proto-mind.native</string>
-  <key>CFBundleVersion</key><string>34</string>
-  <key>CFBundleShortVersionString</key><string>0.29.0</string>
+  <key>CFBundleVersion</key><string>35</string>
+  <key>CFBundleShortVersionString</key><string>0.30.0</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleIconFile</key><string>ProtoMindCube</string>
   <key>LSMinimumSystemVersion</key><string>14.0</string>

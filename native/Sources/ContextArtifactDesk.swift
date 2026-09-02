@@ -55,6 +55,18 @@ struct NativeContextPreview: Equatable {
                   notes.count == value["manifest"]["knowledge_context"]["project_memory"].items.count,
                   notes.allSatisfy({ (1...4000).contains($0["content"].text.unicodeScalars.count) && (1...1000).contains($0["basis"].text.unicodeScalars.count) }) else { throw projectMemoryError() }
         }
+        let reference = value["manifest"]["knowledge_context"]["skill_task"]
+        if !reference.isNull {
+            guard case .object(let selected) = value["skill_task_source"],
+                  let conversation = UUID(uuidString: reference["conversation_id"].text),
+                  selected["preview_fingerprint"] == reference["preview_fingerprint"] else { throw skillTaskError() }
+            let body = JSONValue.object(selected.filter { $0.key != "preview_fingerprint" })
+            let scope = ProjectMemoryScope(conversationID: conversation, workspace: reference["workspace"]["path"].text)
+            try checkSkillTaskBody(body, scope: scope)
+            let hash = try verifyCanonicalMaterial(value["skill_task_hash_material"], expected: body)
+            guard reference == skillTaskReference(body: body, fingerprint: hash), body["success_criteria"] == value["manifest"]["success_criteria"],
+                  reference["goal_sha256"] == value["manifest"]["input"]["sha256"] else { throw skillTaskError() }
+        } else if !value["skill_task_source"].isNull || !value["skill_task_hash_material"].isNull { throw skillTaskError() }
         self.value = value
     }
 }
@@ -173,7 +185,13 @@ struct ContextDeskView: View {
                             Text("Критерии пропущены для операторской команды: \(preview.value["excluded_criterion_count"].integer). Они остаются в черновике.")
                                 .foregroundStyle(.secondary)
                         }
-                        DeskSection("Текстовые вложения · \(preview.sources.count)/3", icon: "paperclip") {
+                        if !preview.value["skill_task_source"].isNull {
+                            DeskSection("Явно выбранный навык", icon: "list.bullet.clipboard") {
+                                SkillTaskContractView(value: preview.value["skill_task_source"])
+                                Text("Это ориентир для следующего ручного Send. Проверка происхождения не оценивает качество выполнения и не выдаёт разрешений.").font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                        DeskSection("Заметки проекта", icon: "brain") {
                             if !preview.value["project_memory_sources"].items.isEmpty {
                                 Text("Явно выбранная память проекта").font(.headline)
                                 ForEach(Array(preview.value["project_memory_sources"].items.enumerated()), id: \.offset) { _, note in
@@ -184,6 +202,9 @@ struct ContextDeskView: View {
                                 Text("Утверждения оператора, не независимые факты. Этот выбор попадёт в следующий запрос; Send проверит источники заново. Старый контекст может оставаться в истории провайдера.").font(.caption).foregroundStyle(.secondary)
                                 Divider()
                             }
+                            if preview.value["project_memory_sources"].items.isEmpty { Text("Заметки не выбраны или пропущены для операторской команды.").foregroundStyle(.secondary) }
+                        }
+                        DeskSection("Текстовые вложения · \(preview.sources.count)/3", icon: "paperclip") {
                             if preview.sources.isEmpty {
                                 Text(manifest["operator"].flag ? "Вложения пропущены: \(preview.value["excluded_attachment_count"].integer)." : "Файлы не выбраны. Папка целиком, экран и буфер обмена не прикладываются.").foregroundStyle(.secondary)
                             }
