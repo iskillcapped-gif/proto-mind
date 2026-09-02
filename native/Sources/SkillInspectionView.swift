@@ -23,6 +23,8 @@ struct SkillInspectionView: View {
                     if let error = model.error { Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.orange).inspectionCard() }
                     if let report = model.report {
                         overview(report)
+                        Button("История обучения…") { Task { await model.openHistory() } }
+                            .buttonStyle(.bordered).nativeHoverSurface().disabled(model.locked || model.selection.conversationID == nil)
                         if let outcome = report.outcome { outcomes(outcome, uses: report.usesDisplay) }
                         transitions(report)
                         if let restore = report.restore { restoreEvidence(restore) }

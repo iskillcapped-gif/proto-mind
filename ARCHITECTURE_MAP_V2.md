@@ -10,6 +10,12 @@ Future capabilities are tracked separately in [Personal Agent Evolution](PROTO_M
 
 ## Current Module Map
 
+`proto_mind/native_learning_history.py` + `native_private_records.py` + `native/Sources/SkillHistory*.swift` (EV-04 Saved Learning History / Native 0.28.0)
+
+- Fixed list/preview/save/inspect RPCs archive only an exact selected skill/conversation/workspace snapshot, original manual-outcome/decision/lifecycle/restore receipts and their linked manual events. An explicit fresh hash-bound Save creates immutable private evidence, not a new live pilot or token.
+- Closed archive/receipt contracts, SHA-256 and reference checks are repeated on reads. Canonical hash material lets Swift verify original Python event numbers without reserializing them. Integrity/current-state/quality are separate; no old missing receipt or success is invented.
+- Fixed-namespace bounded private storage creates nothing on read and never overwrites a prior snapshot. Cooperative lock, exclusive temporary bytes, atomic no-overwrite publication and readback fail closed on corruption/collision/limits. Only explicit Save writes `learning_history/`; no core/export changes, repair, rehydration, capture, model/tool invocation or new permission.
+
 `proto_mind/native_skill_restore.py` + `native/Sources/SkillRestoreModels.swift` + `SkillRestoreModel.swift` + `SkillRestoreView.swift` (EV-04 Skill Restore / Native 0.27.0)
 
 - Three fixed private RPCs reuse the existing process-wide durable restore session. Strict detached source/config/workspace checks and Swift's independently recomputed token bind one archived skill and its prior evidence. No coordinator, consent, outcome capture, command dispatch or model call is created by the screen.

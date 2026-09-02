@@ -49,6 +49,10 @@ final class SkillInspectionModel: ObservableObject, Identifiable {
     }
 
     var canOpenRestore: Bool { canOpenDecision && report?.lifecycle?.status == "archived" }
+    func openHistory() async {
+        guard !locked, selection.conversationID != nil else { return }
+        close(); await app.openSkillHistory(selection)
+    }
     func openRestore() async {
         guard canOpenRestore else { return }
         close(); await app.openSkillRestore(selection)

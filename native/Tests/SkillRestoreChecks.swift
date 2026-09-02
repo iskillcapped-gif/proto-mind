@@ -60,5 +60,6 @@ extension NativeChecks {
         try check(restart.skillInspection?.report?.outcome?.status == "NEEDS_POST_RESTORE_EVIDENCE", "Restoration is not invented fresh successful use")
         restart.skillInspection?.close()
         try check(try fileBytes(project) == after && fileBytes(state) == privateBefore, "Restoration inspection and restart reads preserve exact bytes")
+        try await skillHistory(app: app, item: item, project: project, state: state, minimumReceipts: 1)
     }
 }

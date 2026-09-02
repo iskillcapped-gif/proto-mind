@@ -44,6 +44,7 @@ from proto_mind.native_skill_outcome import NativeSkillOutcome, parse_skill_outc
 from proto_mind.native_skill_decision import NativeSkillDecision, parse_skill_decision_request
 from proto_mind.native_skill_lifecycle import NativeSkillLifecycle, parse_skill_lifecycle_request
 from proto_mind.native_skill_restore import NativeSkillRestore, parse_skill_restore_request
+from proto_mind.native_learning_history import NativeLearningHistory, parse_history_request
 from proto_mind.skill_lifecycle_restore_apply import procedural_skill_restore_apply_receipts_snapshot
 from proto_mind.experience_pilot import peek_experience_pilot
 from proto_mind.native_workspace import WorkspaceReader, file_context_message
@@ -806,6 +807,23 @@ class NativeBackend:
     def _skill_restore_slot_used(self) -> bool:
         return self._native_skill_restore_used or bool(procedural_skill_restore_apply_receipts_snapshot())
 
+    def skill_history(self, method: str, params: dict) -> dict:
+        parsed = parse_history_request(method, params)
+        if self.closing.is_set() or not self.busy.acquire(blocking=False):
+            raise ValueError("Wait for the active turn before saving or inspecting learning history.")
+        try:
+            workspace = workspace_identity(self.workspace(params).root) if params.get("workspace_root") else None
+            history = NativeLearningHistory(self.root, self.state_dir, self.sessions.get(parsed["conversation_id"]), parsed, workspace=workspace)
+            if method == "skill_history_list":
+                return history.listing()
+            if method == "skill_history_preview":
+                return history.preview()
+            if method == "skill_history_inspect":
+                return history.inspect(params.get("record_id"))
+            return history.save(params)
+        finally:
+            self.busy.release()
+
     def skill_restore(self, method: str, params: dict) -> dict:
         parsed = parse_skill_restore_request(params, method=method)
         if self.closing.is_set() or not self.busy.acquire(blocking=False):
@@ -843,6 +861,8 @@ class NativeBackend:
             self.busy.release()
 
     def dispatch(self, method: str, params: dict, emit: Callable[[dict], None], request_id: str) -> Any:
+        if method in {"skill_history_list", "skill_history_preview", "skill_history_save", "skill_history_inspect"}:
+            return self.skill_history(method, params)
         if method == "bootstrap":
             return self.bootstrap()
         if method == "describe":

@@ -551,6 +551,18 @@ The detailed receipt remains process-memory-only in this milestone; durable rest
 
 Rule 0 checkpoints: `backups/proto_mind_backup_2026-09-02_22-16-51.tar.gz` and `backups/proto_mind_native_history_2026-09-02_22-16-51_cognitive_cycle.tar.gz` (Native-owned history/preferences/binding/work sessions; credentials excluded). Verification results are recorded in the Architect Ledger after acceptance.
 
+## EV-04 Saved Learning History / Native 0.28.0
+
+**Skills > Results and lifecycle > Learning history** separates durable historical evidence from restart-expiring live authority. Four fixed private RPCs list, preview, explicitly save and inspect immutable snapshots. A current snapshot-bound token plus historical-only acknowledgement copies only the selected skill/current source inspection and available manual-outcome, decision, keep/archive and restore original receipts. Manual outcome receipts retain the exact four linked events; unrelated conversation text/events are excluded. Full old authoring/lesson receipts are outside this first selected-skill archive; their compact durable provenance remains in the saved skill. No expired receipt is invented.
+
+Original receipts keep their original process-only/persistence flags unchanged. The outer `proto_mind.native_learning_history.v1` archive explains that it is a later explicit historical copy, not the live object or authority. Every read checks the private envelope/body SHA-256, original known receipt schemas/hashes and manual-event linkage. The UI independently checks the exact canonical hash material, preserving Python numeric representations rather than round-tripping event confidence through Swift. Hashes prove consistency, not authorship or independent procedure quality. Current skill drift is displayed separately.
+
+The shared fixed-namespace private record primitive reads without creating files, uses no-follow descriptor traversal and bounded regular files, and saves only under explicit foreground request. Exclusive temporary files, cooperative writer lock, atomic no-overwrite link, fsync and readback preserve prior snapshots; identical content returns the original record without rewriting. Corrupt records, symlinks, unknown files, size/count bounds and write failures fail closed with inspection advice, not repair. Crash leftovers are not silently removed. Limits: 200 snapshots, 512 KiB per record, 40 receipts and 64 manual events per snapshot; no deletion/rotation/import/rehydration or background save.
+
+History is bound to the exact launch project, conversation, workspace identity and skill ID. It does not make the legacy shared Skill Library project-isolated. Core stores, exports, private conversations/preferences and live pilot state stay unchanged; only explicit Save writes `learning_history/`. Add that directory to private-state backups; `/memory backup` remains the separate project backup. Context Injection, provider choice, Full Mac grant and Registry 387/41 are unchanged.
+
+The current goal's Rule 0 project/private checkpoints cover the pre-feature state; acceptance fixtures are disposable, with no personal skill or model invocation. Verification results are recorded in the Architect Ledger.
+
 ## Storage And Launch
 
 ```bash
@@ -567,6 +579,7 @@ Private UI state lives outside core stores:
     conversations.json       atomic history, file permissions 0600
     preferences.json         atomic explicit cloud opt-in, permissions 0600
     work_sessions/           per-run public evidence, private 0700 directory
+    learning_history/        explicitly saved immutable skill evidence, private 0700/0600
         <uuid>.json          atomic bounded run records, permissions 0600
         .writer.lock         cooperative normal-turn/manual-review writer lease
     codex_threads.json       Native conversation/provider thread bindings, 0600
