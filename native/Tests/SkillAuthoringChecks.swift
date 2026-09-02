@@ -127,6 +127,7 @@ extension NativeChecks {
         if let item = restart.libraryDetail?.item {
             try await skillInspection(app: restart, item: item, project: project, state: state)
             try await skillOutcome(app: restart, item: item, project: project, state: state)
+            try await skillLifecycleApply(configuration: restart.client.configuration, item: item, project: project, state: state)
         } else { throw NativeError.message("Missing saved skill for inspection checks") }
     }
 

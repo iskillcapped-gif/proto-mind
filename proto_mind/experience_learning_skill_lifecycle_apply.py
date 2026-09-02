@@ -7,10 +7,13 @@ import hashlib
 import json
 from pathlib import Path
 from threading import RLock
-from typing import Any
+from typing import Any, Callable
 from uuid import uuid4
 
 from proto_mind.command_registry import COMMAND_REGISTRY
+from proto_mind.experience_learning_skill_apply import (
+    ProceduralSkillApplyError, _parse_jsonl_records, _read_original_bytes,
+)
 from proto_mind.experience_learning_skill_lifecycle_readiness import (
     ProceduralSkillLifecycleApplyReadiness,
     ProceduralSkillLifecycleReadinessReport,
@@ -151,6 +154,7 @@ class OperatorReviewedProceduralSkillLifecycleApplySession:
         *,
         token: str,
         reviewer: ProceduralSkillLifecycleApplyReadiness,
+        validate_dependencies: Callable[[], None] | None = None,
     ) -> ProceduralSkillLifecycleApplyReceipt:
         with self._lock:
             review = self._review_locked(receipt, reviewer=reviewer)
@@ -179,6 +183,11 @@ class OperatorReviewedProceduralSkillLifecycleApplySession:
                 )
             memory_path = reviewer.builder.memory_store.persistent_path
             memory_before = _hash_file(memory_path)
+            expected_memory = getattr(reviewer.builder.memory_store, "expected_persistent_sha256", memory_before)
+            if memory_before == "unavailable" or memory_before != expected_memory:
+                raise ProceduralSkillLifecycleApplyError("Source memory changed after the fixed-store review.")
+            if validate_dependencies is not None:
+                validate_dependencies()
             applied_at = utc_now_iso()
 
             if receipt.decision == "keep":
@@ -247,6 +256,10 @@ class OperatorReviewedProceduralSkillLifecycleApplySession:
                 )
 
             after_store_hash = _hash_bytes(after_bytes)
+            if validate_dependencies is not None:
+                validate_dependencies()
+            if receipt.decision == "keep" and _read_bytes(path) != before_bytes:
+                raise ProceduralSkillLifecycleApplyError("Skill Library changed during keep verification; no receipt recorded.")
             after_record_hash = _hash_json(verified_record)
             material = {
                 "applied_at": applied_at,
@@ -794,34 +807,20 @@ def _apply_identity_material(value: dict[str, Any]) -> dict[str, Any]:
 
 def _read_bytes(path: Path) -> bytes:
     try:
-        return path.read_bytes()
-    except OSError as exc:
+        if not path.exists() and not path.is_symlink():
+            raise FileNotFoundError(path)
+        return _read_original_bytes(path)
+    except (OSError, ProceduralSkillApplyError) as exc:
         raise ProceduralSkillLifecycleApplyError(
             f"Skill Library is unreadable: {exc}"
         ) from exc
 
 
 def _parse_jsonl(payload: bytes) -> list[dict[str, Any]]:
-    records: list[dict[str, Any]] = []
     try:
-        text = payload.decode("utf-8")
-    except UnicodeDecodeError as exc:
-        raise ProceduralSkillLifecycleApplyError("Skill Library is not UTF-8.") from exc
-    for line_number, line in enumerate(text.splitlines(), start=1):
-        if not line.strip():
-            continue
-        try:
-            parsed = json.loads(line)
-        except json.JSONDecodeError as exc:
-            raise ProceduralSkillLifecycleApplyError(
-                f"Skill Library line {line_number} is malformed JSON."
-            ) from exc
-        if not isinstance(parsed, dict):
-            raise ProceduralSkillLifecycleApplyError(
-                f"Skill Library line {line_number} is not a JSON object."
-            )
-        records.append(parsed)
-    return records
+        return _parse_jsonl_records(payload)
+    except (ValueError, ProceduralSkillApplyError) as exc:
+        raise ProceduralSkillLifecycleApplyError(f"Skill Library is not strict UTF-8 JSONL: {exc}") from exc
 
 
 def _serialize_jsonl(records: list[dict[str, Any]]) -> bytes:
@@ -854,8 +853,8 @@ def _restore_bytes(path: Path, payload: bytes) -> None:
 
 def _hash_file(path: Path) -> str:
     try:
-        return _hash_bytes(path.read_bytes())
-    except OSError:
+        return _hash_bytes(_read_bytes(path))
+    except (OSError, ProceduralSkillLifecycleApplyError):
         return "unavailable"
 
 

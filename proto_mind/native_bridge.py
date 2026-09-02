@@ -42,6 +42,7 @@ from proto_mind.native_skill_authoring import NativeSkillAuthoring, NativeSkillS
 from proto_mind.native_skill_inspection import NativeSkillInspection, parse_skill_inspection_request
 from proto_mind.native_skill_outcome import NativeSkillOutcome, parse_skill_outcome_request
 from proto_mind.native_skill_decision import NativeSkillDecision, parse_skill_decision_request
+from proto_mind.native_skill_lifecycle import NativeSkillLifecycle, parse_skill_lifecycle_request
 from proto_mind.experience_pilot import peek_experience_pilot
 from proto_mind.native_workspace import WorkspaceReader, file_context_message
 from proto_mind.native_images import ImageReader, image_specifications, MAX_IMAGES, MAX_IMAGE_BYTES, MAX_TOTAL_IMAGE_BYTES
@@ -220,6 +221,7 @@ class NativeBackend:
         self.sessions: dict[str, Coordinator] = {}
         self._native_learning_apply_used = False
         self._native_skill_apply_used = False
+        self._native_skill_lifecycle_apply_used = False
         self._native_skill_session = NativeSkillSession()
         self.logger = SessionOperatorLogger.from_project_root(self.root)
         self.active_request: str | None = None
@@ -517,6 +519,9 @@ class NativeBackend:
             normalized = " ".join(text.casefold().split())
             if description["operator"] and (normalized == skill_apply_prefix or normalized.startswith(skill_apply_prefix + " ")) and self._skill_apply_slot_used():
                 raise ValueError("This Native bridge has already used its single skill apply slot. Inspect the saved skill; no command was executed.")
+            lifecycle_prefix = "/experience learning apply skill-outcome-lifecycle"
+            if description["operator"] and (normalized == lifecycle_prefix or normalized.startswith(lifecycle_prefix + " ")) and self._skill_lifecycle_slot_used():
+                raise ValueError("This Native bridge has already used its single lifecycle apply attempt. Inspect the skill and receipts; no command was executed.")
             if not description["operator"]:
                 workspace = logical_workspace
                 continuation = params.get("continuation")
@@ -601,6 +606,8 @@ class NativeBackend:
                 self._native_learning_apply_used = True
             if pilot is not None and pilot.skill_applies.snapshot():
                 self._native_skill_apply_used = True
+            if pilot is not None and (pilot.skill_lifecycle_applies.snapshot() or pilot.skill_lifecycle_metadata_applies.snapshot()):
+                self._native_skill_lifecycle_apply_used = True
             if output.text is None:
                 self.sessions.pop(session_id, None)
             serialized = output.to_dict()
@@ -785,6 +792,31 @@ class NativeBackend:
             self._native_skill_apply_used = self._native_skill_apply_used or bool(self._native_skill_session.applies.snapshot())
             self.busy.release()
 
+    def _skill_lifecycle_slot_used(self) -> bool:
+        return self._native_skill_lifecycle_apply_used or any(
+            pilot.skill_lifecycle_applies.snapshot() or pilot.skill_lifecycle_metadata_applies.snapshot()
+            for owner in self.sessions.values() if (pilot := peek_experience_pilot(owner)) is not None
+        )
+
+    def skill_lifecycle(self, method: str, params: dict) -> dict:
+        parsed = parse_skill_lifecycle_request(params, method=method)
+        if self.closing.is_set() or not self.busy.acquire(blocking=False):
+            raise ValueError("Wait until the active turn finishes before reviewing lifecycle application.")
+        review = None
+        try:
+            workspace = workspace_identity(self.workspace(params).root) if params.get("workspace_root") else None
+            review = NativeSkillLifecycle(self.root, self.sessions.get(parsed["conversation_id"]), parsed,
+                                          workspace=workspace, native_apply_used=self._skill_lifecycle_slot_used())
+            if method == "skill_lifecycle_review":
+                return review.report()
+            if method == "skill_lifecycle_preview":
+                return review.preview()
+            return review.confirm(params)
+        finally:
+            # A lost response, failed verification or closed conversation cannot renew a write attempt.
+            self._native_skill_lifecycle_apply_used = self._skill_lifecycle_slot_used() or bool(review and review.apply_attempted)
+            self.busy.release()
+
     def dispatch(self, method: str, params: dict, emit: Callable[[dict], None], request_id: str) -> Any:
         if method == "bootstrap":
             return self.bootstrap()
@@ -796,6 +828,8 @@ class NativeBackend:
             return self.learning_review(method, params)
         if method in {"skill_authoring_review", "skill_authoring_preview", "skill_authoring_confirm"}:
             return self.skill_authoring(method, params)
+        if method in {"skill_lifecycle_review", "skill_lifecycle_preview", "skill_lifecycle_confirm"}:
+            return self.skill_lifecycle(method, params)
         if method in {"skill_decision_review", "skill_decision_preview", "skill_decision_confirm"}:
             parsed = parse_skill_decision_request(params, method=method)
             if self.closing.is_set() or not self.busy.acquire(blocking=False):

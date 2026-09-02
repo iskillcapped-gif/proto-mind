@@ -151,6 +151,10 @@ struct SkillDecisionView: View {
                     .font(.callout).foregroundStyle(.secondary)
             }
             Text(receipt.evidence.decision.nextStep).font(.callout).foregroundStyle(.secondary)
+            Button("Проверить применение решения…") { Task { await model.openLifecycleApply() } }
+                .buttonStyle(.bordered).nativeHoverSurface().disabled(model.locked)
+            Text("Откроется отдельный экран. Сам переход требует новой точной фразы и подтверждения общей библиотеки.")
+                .font(.caption).foregroundStyle(.secondary)
             DisclosureGroup("Квитанция и точная связь с результатами") {
                 VStack(alignment: .leading, spacing: 7) {
                     detail("Decision receipt", receipt.id)

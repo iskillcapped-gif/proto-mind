@@ -224,10 +224,10 @@ private func decisionFlags(_ value: JSONValue, fields: Set<String>, trueFlags: S
           trueFlags.allSatisfy({ value[$0] == .bool(true) }), falseFlags.allSatisfy({ value[$0] == .bool(false) }) else { throw decisionContractError() }
 }
 private func decisionContractError() -> NativeError { .message("Не удалось проверить точный контракт решения. Автоповтора и дополнительных действий нет; обновите квитанции.") }
-private func decisionID(_ value: String) -> Bool { value.range(of: "^[A-Za-z0-9_.:-]{1,200}$", options: .regularExpression) != nil }
-private func decisionHashValue(_ value: String) -> Bool { value.range(of: "^[a-f0-9]{64}$", options: .regularExpression) != nil }
-private func decisionFindings(_ values: [String]) -> Bool { values.count <= 33 && values.allSatisfy { $0.count <= 1000 } }
-private func decisionStores(_ values: [String: String]) -> Bool {
+func decisionID(_ value: String) -> Bool { value.range(of: "^[A-Za-z0-9_.:-]{1,200}$", options: .regularExpression) != nil }
+func decisionHashValue(_ value: String) -> Bool { value.range(of: "^[a-f0-9]{64}$", options: .regularExpression) != nil }
+func decisionFindings(_ values: [String]) -> Bool { values.count <= 33 && values.allSatisfy { $0.count <= 1000 } }
+func decisionStores(_ values: [String: String]) -> Bool {
     values.allSatisfy { ["skills.jsonl", "persistent_memory.json", "context_injection.json"].contains($0.key) && decisionHashValue($0.value) }
 }
 private func decisionAllowed(_ decision: NativeSkillDecision, for status: String) -> Bool {

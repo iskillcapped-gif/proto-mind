@@ -92,6 +92,13 @@ final class SkillDecisionModel: ObservableObject, Identifiable {
         app.skillInspection = inspector
         await inspector.refresh()
     }
+
+    func openLifecycleApply() async {
+        guard !locked, let receipt = report?.receipt else { return }
+        let selection = NativeSkillLifecycleSelection(scope: scope, decisionReceiptID: receipt.id, decision: receipt.evidence.decision)
+        close()
+        await app.openSkillLifecycleApply(selection)
+    }
 }
 
 extension AppModel {

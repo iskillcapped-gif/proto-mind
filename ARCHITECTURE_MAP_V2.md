@@ -10,6 +10,13 @@ Future capabilities are tracked separately in [Personal Agent Evolution](PROTO_M
 
 ## Current Module Map
 
+`proto_mind/native_skill_lifecycle.py` + `native/Sources/SkillLifecycleApplyModels.swift` + `SkillLifecycleApplyModel.swift` + `SkillLifecycleApplyView.swift` (EV-04 Skill Lifecycle Apply / Native 0.26.0)
+
+- Fixed private-stdio `skill_lifecycle_review`, `skill_lifecycle_preview` and `skill_lifecycle_confirm` extend an exact existing decision receipt, not arbitrary commands or model tools. Detached bounded no-follow source readers feed the existing lifecycle readiness and keep/durable-archive sessions. Viewing never constructs a pilot, starts capture or changes consent.
+- A new exact token and shared-store acknowledgement bind the decision, conversation/workspace identity, skill/memory/config SHA-256 and current process evidence. Swift independently checks the closed envelopes and recomputes the core token. Keep is receipt-only; archive changes one existing record's `lifecycle/status/updated_at`. Revision, restore, pending post-restore capture, procedure execution and new permissions are not exposed.
+- The existing durable writer now preserves neighboring JSONL bytes/unknown fields, verifies actual post-write bytes and unchanged source dependencies, and reuses the exclusive-temp/expected-byte atomic replacement primitive. Failure restores original bytes only while the current bytes still match its own payload; concurrent/unreadable changes are preserved for manual review. These guards are not a transaction lock against all external processes.
+- The bridge reserves one Native lifecycle attempt, including post-start failure/lost-response paths, across conversations. Existing successful operator lifecycle applies also consume that slot. No automatic retries, receipt persistence, memory/private-file writes or Experience events are added. The exact process receipt links to independently readable durable archive cause; restart expires decisions/authority, not the saved envelope. Registry remains 387/41.
+
 `proto_mind/native_skill_decision.py` + `native/Sources/SkillDecisionModels.swift` + `SkillDecisionModel.swift` + `SkillDecisionView.swift` (EV-04 Skill Outcome Decisions / Native 0.25.0)
 
 - Three fixed private-stdio RPCs (`skill_decision_review`, `skill_decision_preview`, `skill_decision_confirm`) reuse the bounded Native outcome source reader and existing core outcome decision builder/session/doctor. They never dispatch commands, construct a coordinator/pilot, start capture or change consent. Only the selected conversation's existing events and exact capture receipts may support a decision.

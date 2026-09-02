@@ -8,10 +8,16 @@ import json
 import os
 from pathlib import Path
 from threading import RLock
-from typing import Any
-from uuid import uuid4
+from typing import Any, Callable
 
 from proto_mind.command_registry import COMMAND_REGISTRY
+from proto_mind.experience_learning_skill_apply import (
+    ProceduralSkillApplyError,
+    _atomic_replace as _replace_skill_bytes,
+    _current_bytes,
+    _parse_jsonl_records,
+    _read_original_bytes,
+)
 from proto_mind.experience_learning_skill_lifecycle_metadata_readiness import (
     PROCEDURAL_SKILL_LIFECYCLE_CURRENT_WRITER_SUPPORTS_METADATA,
     PROCEDURAL_SKILL_LIFECYCLE_METADATA_EXPECTED_CHANGED_FIELDS,
@@ -161,6 +167,7 @@ class OperatorReviewedProceduralSkillLifecycleMetadataApplySession:
         *,
         token: str,
         reviewer: ProceduralSkillLifecycleApplyReadiness,
+        validate_dependencies: Callable[[], None] | None = None,
     ) -> ProceduralSkillLifecycleMetadataApplyReceipt:
         with self._lock:
             review = self._review_locked(receipt, reviewer=reviewer)
@@ -192,6 +199,9 @@ class OperatorReviewedProceduralSkillLifecycleMetadataApplySession:
 
             memory_path = reviewer.builder.memory_store.persistent_path
             memory_before = _hash_file(memory_path)
+            expected_memory = getattr(reviewer.builder.memory_store, "expected_persistent_sha256", memory_before)
+            if memory_before == "unavailable" or memory_before != expected_memory:
+                raise ProceduralSkillLifecycleMetadataApplyError("Source memory changed after the fixed-store review.")
             applied_at = utc_now_iso()
             token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
             metadata = build_procedural_skill_lifecycle_metadata_preview(
@@ -219,8 +229,11 @@ class OperatorReviewedProceduralSkillLifecycleMetadataApplySession:
             updated_records[target_index]["lifecycle"] = metadata
             updated_records[target_index]["status"] = "archived"
             updated_records[target_index]["updated_at"] = applied_at
+            payload = _replace_record_bytes(before_bytes, target_index, updated_records[target_index])
             try:
-                _atomic_replace(path, _serialize_jsonl(updated_records))
+                if validate_dependencies is not None:
+                    validate_dependencies()
+                _atomic_replace(path, payload, expected=before_bytes)
                 verified_record, changed_fields = _verify_durable_archive(
                     reviewer,
                     original_records=original_records,
@@ -244,14 +257,26 @@ class OperatorReviewedProceduralSkillLifecycleMetadataApplySession:
                     raise ProceduralSkillLifecycleMetadataApplyError(
                         "Durable lifecycle apply did not preserve exact verified skill provenance."
                     )
+                if validate_dependencies is not None:
+                    validate_dependencies()
+                after_bytes = _read_bytes(path)
+                if after_bytes != payload:
+                    raise ProceduralSkillLifecycleMetadataApplyError("Skill Library changed during post-write verification.")
             except (
                 OSError,
                 TypeError,
                 ValueError,
                 ProceduralSkillLifecycleMetadataApplyError,
             ) as exc:
-                _restore_bytes(path, before_bytes)
-                if _read_bytes(path) != before_bytes:
+                current = _current_bytes(path)
+                if current == payload:
+                    _atomic_replace(path, before_bytes, expected=payload)
+                elif current != before_bytes or path.is_symlink():
+                    raise ProceduralSkillLifecycleMetadataApplyError(
+                        "Durable archive failed; concurrent or unreadable bytes were preserved. "
+                        "No automatic rollback; inspect the store before another action."
+                    ) from exc
+                if _current_bytes(path) != before_bytes:
                     raise ProceduralSkillLifecycleMetadataApplyError(
                         "Durable archive verification failed and exact-byte rollback failed."
                     ) from exc
@@ -260,7 +285,6 @@ class OperatorReviewedProceduralSkillLifecycleMetadataApplySession:
                     f"{exc}"
                 ) from exc
 
-            after_bytes = _read_bytes(path)
             after_store_hash = _hash_bytes(after_bytes)
             after_record_hash = _hash_json(verified_record)
             material = {
@@ -748,12 +772,8 @@ def _verify_durable_archive(
     target_skill_id: str,
     expected_metadata: dict[str, Any],
 ) -> tuple[dict[str, Any], list[str]]:
-    snapshot = reviewer.skill_library.read_snapshot()
-    if snapshot["error"] or snapshot["malformed_count"]:
-        raise ProceduralSkillLifecycleMetadataApplyError(
-            f"Skill Library post-write read failed: {snapshot['error'] or 'malformed JSONL'}"
-        )
-    current_records = snapshot["records"]
+    # Verify disk bytes, not a detached preview or a normalizing legacy loader.
+    current_records = _parse_jsonl(_read_bytes(reviewer.skill_library.skills_path))
     if len(current_records) != len(original_records):
         raise ProceduralSkillLifecycleMetadataApplyError(
             "Skill record count changed unexpectedly."
@@ -871,8 +891,10 @@ def _receipt_identity_material(value: dict[str, Any]) -> dict[str, Any]:
 
 def _read_bytes(path: Path) -> bytes:
     try:
-        return path.read_bytes()
-    except OSError as exc:
+        if not path.exists() and not path.is_symlink():
+            raise FileNotFoundError(path)
+        return _read_original_bytes(path)
+    except (OSError, ProceduralSkillApplyError) as exc:
         raise ProceduralSkillLifecycleMetadataApplyError(
             f"Skill Library is unreadable: {exc}"
         ) from exc
@@ -880,68 +902,38 @@ def _read_bytes(path: Path) -> bytes:
 
 def _parse_jsonl(payload: bytes) -> list[dict[str, Any]]:
     try:
-        text = payload.decode("utf-8")
-    except UnicodeDecodeError as exc:
+        return _parse_jsonl_records(payload)
+    except (ValueError, ProceduralSkillApplyError) as exc:
         raise ProceduralSkillLifecycleMetadataApplyError(
-            "Skill Library is not UTF-8."
+            f"Skill Library is not strict UTF-8 JSONL: {exc}"
         ) from exc
-    records: list[dict[str, Any]] = []
-    for line_number, line in enumerate(text.splitlines(), start=1):
-        if not line.strip():
-            continue
-        try:
-            parsed = json.loads(line)
-        except json.JSONDecodeError as exc:
-            raise ProceduralSkillLifecycleMetadataApplyError(
-                f"Skill Library line {line_number} is malformed JSON."
-            ) from exc
-        if not isinstance(parsed, dict):
-            raise ProceduralSkillLifecycleMetadataApplyError(
-                f"Skill Library line {line_number} is not a JSON object."
-            )
-        records.append(parsed)
-    return records
 
 
-def _serialize_jsonl(records: list[dict[str, Any]]) -> bytes:
-    if not records:
-        return b""
-    return (
-        "\n".join(
-            json.dumps(record, ensure_ascii=False, sort_keys=True)
-            for record in records
-        )
-        + "\n"
-    ).encode("utf-8")
+def _replace_record_bytes(before: bytes, target_index: int, record: dict[str, Any]) -> bytes:
+    lines = before.splitlines(keepends=True)
+    nonempty = [index for index, line in enumerate(lines) if line.strip()]
+    index = nonempty[target_index]
+    ending = b"\r\n" if lines[index].endswith(b"\r\n") else b"\n" if lines[index].endswith(b"\n") else b""
+    lines[index] = json.dumps(record, ensure_ascii=False, sort_keys=True, allow_nan=False).encode("utf-8") + ending
+    return b"".join(lines)
 
 
-def _atomic_replace(path: Path, payload: bytes) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = path.with_name(f".{path.name}.{uuid4().hex}.tmp")
+def _atomic_replace(path: Path, payload: bytes, *, expected: bytes) -> None:
     try:
-        with temp_path.open("wb") as handle:
-            handle.write(payload)
-            handle.flush()
-            os.fsync(handle.fileno())
-        temp_path.replace(path)
-        directory_fd = os.open(path.parent, os.O_RDONLY)
+        _replace_skill_bytes(path, payload, expected=expected)
+        directory_fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
         try:
             os.fsync(directory_fd)
         finally:
             os.close(directory_fd)
-    finally:
-        if temp_path.exists():
-            temp_path.unlink()
-
-
-def _restore_bytes(path: Path, payload: bytes) -> None:
-    _atomic_replace(path, payload)
+    except ProceduralSkillApplyError as exc:
+        raise ProceduralSkillLifecycleMetadataApplyError(str(exc)) from exc
 
 
 def _hash_file(path: Path) -> str:
     try:
-        return _hash_bytes(path.read_bytes())
-    except OSError:
+        return _hash_bytes(_read_bytes(path))
+    except (OSError, ProceduralSkillLifecycleMetadataApplyError):
         return "unavailable"
 
 
