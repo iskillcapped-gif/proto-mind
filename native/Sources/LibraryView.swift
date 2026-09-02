@@ -136,6 +136,13 @@ struct LibraryView: View {
                                 Text("Приоритет: \(item.priorityLabel)\(item.focused ? " · В фокусе" : "")").font(.callout)
                             }
                             if !item.tags.isEmpty { Text(item.tags.joined(separator: " · ")).font(.caption).foregroundStyle(.secondary) }
+                            if item.store == "skills" {
+                                Button { Task { await model.openSkillInspection(item) } } label: {
+                                    Label("Результаты и жизненный цикл…", systemImage: "clock.arrow.circlepath")
+                                }.buttonStyle(.bordered).nativeHoverSurface()
+                                    .disabled(model.busy || model.client.turnOutstanding)
+                                    .help("Проверить происхождение, ручные результаты и сохранённые переходы без действий")
+                            }
                         }
                         if detail.changedSinceList { Label("Источник изменился. Ниже свежая версия записи.", systemImage: "arrow.clockwise").font(.callout).foregroundStyle(.orange) }
                         ForEach(detail.blocks) { block in

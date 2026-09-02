@@ -120,7 +120,7 @@ class ProceduralSkillLifecycleAudit:
         issues = ["Skill record is missing an id."] if any(not value for value in identifiers) else []
         issues.extend(f"Duplicate skill id: {identifier}." for identifier in duplicate_ids)
         entries = [
-            self._entry(
+            self.inspect_record(
                 record,
                 memories=memories,
                 memory_exists=memory_exists,
@@ -179,14 +179,15 @@ class ProceduralSkillLifecycleAudit:
         except (OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
             return [], True, str(exc)
 
-    def _entry(
-        self,
+    @staticmethod
+    def inspect_record(
         record: dict[str, Any],
         *,
         memories: list[Any],
         memory_exists: bool,
         memory_error: str,
     ) -> ProceduralSkillLifecycleAuditEntry:
+        """Audit supplied bytes' records without initializing or reopening stores."""
         skill_id = str(record.get("id") or "")
         source = str(record.get("source") or "")
         stored_status = str(record.get("status") or "")

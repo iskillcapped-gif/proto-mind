@@ -172,7 +172,7 @@ class ProceduralSkillRestoreReceiptAudit:
 
         lifecycle_by_id = {entry.skill_id: entry for entry in lifecycle.entries}
         entries = [
-            self._entry(record, lifecycle_by_id.get(str(record.get("id") or "")))
+            self.inspect_record(record, lifecycle_by_id.get(str(record.get("id") or "")))
             for record in snapshot["records"]
             if isinstance(record.get("lifecycle"), dict)
             and record["lifecycle"].get("schema")
@@ -241,11 +241,12 @@ class ProceduralSkillRestoreReceiptAudit:
             None,
         )
 
-    def _entry(
+    def inspect_record(
         self,
         record: dict[str, Any],
         lifecycle_entry: Any,
     ) -> ProceduralSkillRestoreReceiptAuditEntry:
+        """Verify supplied durable metadata and process receipts without file I/O."""
         skill_id = str(record.get("id") or "")
         metadata = record.get("lifecycle")
         metadata_check = verify_procedural_skill_lifecycle_restore_metadata(metadata)

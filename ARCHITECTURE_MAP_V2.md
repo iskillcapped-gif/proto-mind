@@ -10,6 +10,13 @@ Future capabilities are tracked separately in [Personal Agent Evolution](PROTO_M
 
 ## Current Module Map
 
+`proto_mind/native_skill_inspection.py` + `native/Sources/SkillInspectionModels.swift` + `SkillInspectionModel.swift` + `SkillInspectionView.swift` (EV-04 Skill Evidence And Lifecycle / Native 0.23.0)
+
+- One fixed private-stdio `skill_inspection` RPC selects an exact Skill Library ID and, optionally, an existing Native conversation. This is not a Registry command, model tool, capture entry or generic dispatcher. It shares the foreground lock, rejects arbitrary parameters and never creates a coordinator or Experience pilot.
+- Bounded no-follow reads use only `skills.jsonl` and `persistent_memory.json`; malformed/duplicate/non-finite/over-limit sources fail closed. The existing lifecycle and restore receipt auditors expose pure record inspection, and post-restore re-evaluation adds a snapshot-only entry. Existing CLI/writer paths retain their behavior. Readback detects observed source changes before publishing a verdict; this is not an atomic cross-process snapshot or filesystem lock.
+- The Native card separates verified durable apply/archive/restore facts, source lineage, optional exact process receipt matching, and already-existing process-memory manual-use outcomes from the selected conversation. It does not mine chat, increment `uses`, reconstruct lost receipts or treat pre-restore/unbound events as fresh evidence. Hashes prove consistency, not semantic truth or independently measured skill quality. A failure/mixed result remains advisory.
+- Swift checks the closed read-only response, selection, flags, state/count consistency and bounded values. Close or conversation changes invalidate pending UI responses. Refresh and source navigation do not save chat/drafts/preferences. Legacy/ambiguous/corrupt evidence remains visible as such. No lifecycle write controls, post-restore capture writer, project isolation, token, new permission, new persistent schema, Context Injection change or network/model call is introduced.
+
 `proto_mind/native_learning_review.py` + `native/Sources/LearningReviewModels.swift` + `native/Sources/LearningReviewView.swift` (EV-04 Supervised Lesson Review / Native 0.21.0)
 
 - Private `memory_learning_review`/`memory_learning_preview` inspect existing process-memory candidates, exact reference selections and detached fixed-store snapshots; they do not create a pilot, consent, model turn or file. `memory_learning_confirm` permits only fixed accept/reject/propose/apply operations through the existing core sessions, never a generic dispatcher.

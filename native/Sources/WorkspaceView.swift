@@ -92,6 +92,7 @@ struct WorkspaceView: View {
         .sheet(isPresented: $model.showPersonaInspector) { PersonaInspectorView(model: model) }
         .sheet(isPresented: $model.showMemoryWorkshop) { MemoryWorkshopView(model: model) }
         .sheet(item: $model.skillAuthoring) { SkillAuthoringView(model: $0) }
+        .sheet(item: $model.skillInspection) { SkillInspectionView(model: $0) }
         .sheet(isPresented: $model.showTaskCriteria) { TaskCriteriaView(model: model) }
         .sheet(item: $model.imagePreview) { ImageAttachmentPreviewView(model: model, preview: $0) }
         .sheet(item: $model.pdfPreview) { PDFAttachmentPreviewView(model: model, preview: $0) }

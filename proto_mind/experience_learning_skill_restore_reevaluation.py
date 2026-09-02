@@ -130,6 +130,13 @@ class ProceduralSkillRestoreReevaluationReviewer:
         self.malformed_skill_count = malformed_skill_count
 
     def review(self, skill_id: str) -> ProceduralSkillRestoreReevaluationReview:
+        return self._review(skill_id, snapshot_only=False)
+
+    def review_snapshot(self, skill_id: str) -> ProceduralSkillRestoreReevaluationReview:
+        """Read-only adapters can reuse the exact checks on their bounded snapshot."""
+        return self._review(skill_id, snapshot_only=True)
+
+    def _review(self, skill_id: str, *, snapshot_only: bool) -> ProceduralSkillRestoreReevaluationReview:
         identifier = skill_id.strip()
         base_checks = {
             "skill_found": False,
@@ -173,10 +180,15 @@ class ProceduralSkillRestoreReevaluationReviewer:
         metadata_check = verify_procedural_skill_lifecycle_restore_metadata(metadata)
         base_checks["restore_envelope_verified"] = metadata_check.verified
         try:
-            lifecycle_entry = ProceduralSkillLifecycleAudit(
-                skills_path=self.skills_path,
-                persistent_memory_path=self.persistent_memory_path,
-            ).get(identifier)
+            if snapshot_only:
+                lifecycle_entry = ProceduralSkillLifecycleAudit.inspect_record(
+                    record, memories=self.memories, memory_exists=True, memory_error="",
+                )
+            else:
+                lifecycle_entry = ProceduralSkillLifecycleAudit(
+                    skills_path=self.skills_path,
+                    persistent_memory_path=self.persistent_memory_path,
+                ).get(identifier)
         except ProceduralSkillLifecycleAuditError as exc:
             return self._result(
                 status="ERROR",

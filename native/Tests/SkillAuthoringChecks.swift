@@ -124,6 +124,9 @@ extension NativeChecks {
                   "Skill provenance remains independently inspectable after restart")
         try check(try fileBytes(project) == after && fileBytes(state) == privateBefore,
                   "Skill restart/readback performs no migration, automatic action or private-state write")
+        if let item = restart.libraryDetail?.item {
+            try await skillInspection(app: restart, item: item, project: project, state: state)
+        } else { throw NativeError.message("Missing saved skill for inspection checks") }
     }
 
     static func skillContractRefusals(_ value: JSONValue, selection: NativeSkillSelection) throws {
