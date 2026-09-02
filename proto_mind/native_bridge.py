@@ -37,6 +37,8 @@ from proto_mind.local_knowledge_capabilities import (
 from proto_mind.native_agent import AgentGrants, FULL_ACCESS_CONFIRMATION
 from proto_mind.native_library import NativeLibrary
 from proto_mind.native_memory_workshop import build_native_memory_workshop
+from proto_mind.native_learning_review import NativeLearningReview, parse_learning_request
+from proto_mind.experience_pilot import peek_experience_pilot
 from proto_mind.native_workspace import WorkspaceReader, file_context_message
 from proto_mind.native_images import ImageReader, image_specifications, MAX_IMAGES, MAX_IMAGE_BYTES, MAX_TOTAL_IMAGE_BYTES
 from proto_mind.native_pdf import PDFReader, SelectedPDF, pdf_context_message
@@ -212,6 +214,7 @@ class NativeBackend:
         self.pdf_helper = pdf_helper
         self.subscription = subscription_factory(self.state_dir)
         self.sessions: dict[str, Coordinator] = {}
+        self._native_learning_apply_used = False
         self.logger = SessionOperatorLogger.from_project_root(self.root)
         self.active_request: str | None = None
         self.active_provider: str | None = None
@@ -583,6 +586,9 @@ class NativeBackend:
                 text, coordinator=coordinator, session_logger=self.logger, project_root=self.root,
                 hygiene=MemoryHygiene(coordinator.memory_keeper.store),
             )
+            pilot = peek_experience_pilot(coordinator)
+            if pilot is not None and pilot.learning_applies.snapshot():
+                self._native_learning_apply_used = True
             if output.text is None:
                 self.sessions.pop(session_id, None)
             serialized = output.to_dict()
@@ -716,6 +722,32 @@ class NativeBackend:
         finally:
             self.busy.release()
 
+    def learning_review(self, method: str, params: dict) -> dict:
+        parsed = parse_learning_request(params, method=method)
+        if self.closing.is_set() or not self.busy.acquire(blocking=False):
+            raise ValueError("Wait until the active turn is finished before reviewing learning evidence.")
+        try:
+            workspace = workspace_identity(self.workspace(params).root) if params.get("workspace_root") else None
+            pilots = [peek_experience_pilot(owner) for owner in self.sessions.values()]
+            used = self._native_learning_apply_used or any(pilot.learning_applies.snapshot() for pilot in pilots if pilot is not None)
+            reviewer = NativeLearningReview(
+                self.root, self.sessions.get(parsed["conversation_id"]), parsed,
+                workspace=workspace, native_apply_used=used,
+            )
+            if method == "memory_learning_review":
+                return reviewer.report()
+            if method == "memory_learning_preview":
+                return reviewer.preview()
+            return reviewer.confirm(params)
+        finally:
+            # A dropped conversation or lost response must not renew the UI apply budget.
+            if method == "memory_learning_confirm":
+                self._native_learning_apply_used = self._native_learning_apply_used or any(
+                    pilot.learning_applies.snapshot() for owner in self.sessions.values()
+                    if (pilot := peek_experience_pilot(owner)) is not None
+                )
+            self.busy.release()
+
     def dispatch(self, method: str, params: dict, emit: Callable[[dict], None], request_id: str) -> Any:
         if method == "bootstrap":
             return self.bootstrap()
@@ -723,6 +755,8 @@ class NativeBackend:
             return describe_input(input_text(params))
         if method == "process":
             return self.process(params, emit, request_id)
+        if method in {"memory_learning_review", "memory_learning_preview", "memory_learning_confirm"}:
+            return self.learning_review(method, params)
         if method == "work_sessions":
             return self.work_sessions.page(params.get("conversation_id", ""))
         if method == "context_preview":

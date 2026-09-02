@@ -70,8 +70,9 @@ class NativeAgentContractTests(unittest.TestCase):
     def test_native_bundle_and_ui_expose_operator_controlled_automation_recovery(self):
         root = Path(__file__).resolve().parents[2]
         info = plistlib.loads((root / "native" / "Info.plist").read_bytes())
-        self.assertEqual(info["CFBundleShortVersionString"], "0.19.0")
-        self.assertEqual(info["CFBundleVersion"], "23")
+        self.assertRegex(info["CFBundleShortVersionString"], r"^\d+\.\d+\.\d+$")
+        self.assertGreater(int(info["CFBundleVersion"]), 0)
+        self.assertEqual(info["CFBundleIdentifier"], "local.proto-mind.native")
         self.assertIn("Computer Use", info["NSAppleEventsUsageDescription"])
         app = (root / "native" / "Sources" / "AppModel.swift").read_text(encoding="utf-8")
         workspace = (root / "native" / "Sources" / "WorkspaceView.swift").read_text(encoding="utf-8")

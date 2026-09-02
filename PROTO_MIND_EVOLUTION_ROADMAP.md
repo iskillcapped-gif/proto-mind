@@ -121,13 +121,15 @@ Delivered first cognitive loop slice, Native 0.20.0: memory detail now reuses th
 
 User outcome: inspect why Proto-Mind knows something, review a proposed lesson, and maintain a personal skill without memorizing CLI sequences.
 
+Delivered supervised lesson slice, Native 0.21.0: a candidate opens a three-stage Native review screen over the existing core decision/proposal/apply sessions. Read-only evidence and reference selection precede separate exact confirmations; only the final explicitly acknowledged shared-memory apply appends one verified lesson. Private bridge RPCs are not commands or model tools. The Native process-wide one-apply guard, 15-minute proposal window, current-source hashes, duplicate checks, byte-preserving legacy append and conditional exact-byte failure restoration remain explicit. Accepted candidates and detailed receipts are not made durable; applied provenance is. No skill lifecycle writer or new capture consent is added.
+
 - Surface existing candidate, provenance, apply/readiness, lifecycle and restore contracts as Native cards and exact confirmation flows, not an alternate writer.
 - Add Ukrainian and mixed-language benchmarks, project-scoped recall and temporal/negative-constraint cases. Keep lexical/deterministic baselines before evaluating local embeddings; an index must remain disposable and distinct from canonical memory.
 - Show explicit evidence limits: retrieved is not necessarily used; operator-reported is not tool-verified; a stored source/hash is not proof of truth. Review contradictions, scope, expiry and supersession without silent cleanup.
 - Distinguish the existing non-executable procedural record from a future runnable skill package. `SKILL.md` imports and generalized drafts require provenance, declared inputs/permissions, review and isolated replay tests. Explicit invocation comes before implicit activation.
 - Preserve the pending v3.5w/post-restore follow-up boundary. Native UX does not authorize that writer or turn one episode into an automatically accepted procedure.
 
-Acceptance: the first half is delivered: a user can verify or identify missing provenance and inspect one process-memory lesson candidate before manually entering an existing gate. Durable candidate-to-lesson and skill lifecycle controls still remain CLI-only. All rejected/stale/token-mismatch paths must continue to refuse, and a plain library view remains read-only.
+Acceptance: Native now covers provenance inspection and an explicitly confirmed candidate-to-lesson path, including receipt verification after apply and durable source inspection after restart. Skill authoring/lifecycle controls still remain CLI-only, and project-scoped memory remains undelivered. All rejected/stale/token-mismatch paths continue to refuse, and a plain library or Workshop view remains read-only.
 
 ### EV-05: Small Local Tool / MCP Extension Surface
 

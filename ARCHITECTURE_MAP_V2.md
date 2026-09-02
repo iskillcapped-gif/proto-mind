@@ -10,6 +10,13 @@ Future capabilities are tracked separately in [Personal Agent Evolution](PROTO_M
 
 ## Current Module Map
 
+`proto_mind/native_learning_review.py` + `native/Sources/LearningReviewModels.swift` + `native/Sources/LearningReviewView.swift` (EV-04 Supervised Lesson Review / Native 0.21.0)
+
+- Private `memory_learning_review`/`memory_learning_preview` inspect existing process-memory candidates, exact reference selections and detached fixed-store snapshots; they do not create a pilot, consent, model turn or file. `memory_learning_confirm` permits only fixed accept/reject/propose/apply operations through the existing core sessions, never a generic dispatcher.
+- Every confirmed step revalidates current evidence/store hashes, conversation/workspace identity, selection/reason, exact core token and operation scope. Swift discards stale previews and requires a separate shared-global-memory acknowledgement before apply. Accept/reject/propose remain process-memory-only; final apply appends one verified `memory.lesson.v1` record. One successful apply is allowed across the running Native bridge's conversations. No auto-step, batch, skill write, capture activation, grant, Context toggle, history or session-schema change exists.
+- The shared `experience_learning_apply.py` writer preserves raw original legacy JSON fields on append, uses bounded no-follow reads and a fsynced atomic replacement, verifies the resulting record/rows/hash, and conditionally restores exact original bytes after failure. Recovery refuses to overwrite a concurrent change or remove a pre-existing temporary file. Native serialization and repeated hash checks do not constitute a cross-process transaction lock.
+- Native receipt cards display current verification, before/after hashes, a non-executing rollback suggestion and the stored provenance link. Detailed receipts/decisions/proposals expire at restart; embedded applied provenance remains verifiable in Memory Library. Global legacy stores are not project-isolated, and lineage evidence does not establish semantic truth. Existing CLI/PySide/tkinter routes remain unchanged.
+
 `proto_mind/persona_engine.py` + `proto_mind/persona/brother-0.1.0.json` + `proto_mind/persona_evals.py` + `proto_mind/persona_activation_readiness.py` + `proto_mind/persona_activation_evals.py` + `proto_mind/persona_activation.py` + `proto_mind/persona_runtime_evals.py` + `proto_mind/native_persona.py` + `native/Sources/PersonaInspector.swift` + `native/Sources/NativeSettingsView.swift` (Persona Engine 0.3 / Native 0.19.0)
 
 - Persona 0.1 supplies one strict, versioned Brother kernel and immutable hashed `PersonaSnapshot` values. There is no facet selector, mood mode, trait slider, provider-specific identity fork or hidden permission field.

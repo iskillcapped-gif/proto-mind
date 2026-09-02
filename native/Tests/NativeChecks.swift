@@ -16,6 +16,12 @@ struct NativeChecks {
     static func main() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("proto-native-checks-" + UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
+        if CommandLine.arguments.contains("--learning-only"),
+           let fixture = LaunchConfiguration.argument("--fixture"), let python = LaunchConfiguration.argument("--python") {
+            try await learningReview(fixture: URL(fileURLWithPath: fixture), python: URL(fileURLWithPath: python), root: root)
+            print("Native learning checks: \(passed) OK")
+            return
+        }
         let value: JSONValue = .object(["enabled": .bool(false), "count": .number(387), "items": .array([.string("memory"), .null])])
         let decoded = try JSONDecoder().decode(JSONValue.self, from: JSONEncoder().encode(value))
         try check(decoded == value && decoded["count"].integer == 387 && !decoded["enabled"].flag, "JSON/evidence round trip")
@@ -465,6 +471,7 @@ struct NativeChecks {
         try await artifactDesk(app: app, fixture: fixture, state: root.appendingPathComponent("integration-state"))
         try await manualReview(app: app, fixture: fixture, state: root.appendingPathComponent("integration-state"), python: python)
         try await library(app: app, fixture: fixture, state: root.appendingPathComponent("integration-state"))
+        try await learningReview(fixture: fixture, python: python, root: root)
         try await agentAccess(app: app, fixture: fixture, state: root.appendingPathComponent("integration-state"), python: python)
         try await imageAttachments(fixture: fixture, python: python, root: root)
         try await attachmentDrops(fixture: fixture, python: python, root: root)

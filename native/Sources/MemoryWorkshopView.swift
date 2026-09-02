@@ -4,6 +4,19 @@ struct MemoryWorkshopView: View {
     @ObservedObject var model: AppModel
 
     var body: some View {
+        Group {
+            if model.learningCandidateID != nil {
+                LearningReviewView(model: model)
+            } else {
+                workshop
+            }
+        }
+        .frame(minWidth: 760, idealWidth: 860, minHeight: 580, idealHeight: 700)
+        .interactiveDismissDisabled(model.committingLearningReview)
+        .task { if model.memoryWorkshop == nil { await model.refreshMemoryWorkshop() } }
+    }
+
+    private var workshop: some View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
                 Image(systemName: "sparkles.rectangle.stack").font(.title2)
@@ -34,8 +47,6 @@ struct MemoryWorkshopView: View {
                 empty("Нет отчёта", "Обновите Workshop. Это не создаст pilot или consent.", icon: "tray")
             }
         }
-        .frame(minWidth: 760, idealWidth: 860, minHeight: 580, idealHeight: 700)
-        .task { if model.memoryWorkshop == nil { await model.refreshMemoryWorkshop() } }
     }
 
     private func reportView(_ report: NativeMemoryWorkshop) -> some View {
@@ -53,7 +64,7 @@ struct MemoryWorkshopView: View {
                     Text(report.notice).foregroundStyle(.secondary)
                     Label("Никакого автоматического promotion/apply", systemImage: "hand.raised")
                         .font(.callout.weight(.medium))
-                    Text("Нет model/network call, retrieval, command execution, consent change или store write.")
+                    Text("Просмотр не меняет память. Сохранение урока доступно только в отдельном разборе с явным подтверждением каждого шага.")
                         .font(.caption).foregroundStyle(.secondary)
                 }.card()
 
@@ -119,11 +130,11 @@ struct MemoryWorkshopView: View {
             value("Evidence", candidate.evidenceEventIds.joined(separator: " · "))
             value("Sources", candidate.sourceKinds.joined(separator: " · "))
             HStack {
+                Button("Разобрать урок") {
+                    Task { await model.openLearningReview(candidateID: candidate.id) }
+                }.buttonStyle(.borderedProminent).nativeHoverSurface()
                 Button("Подготовить evidence preview") {
                     model.prepareMemoryWorkshopCommand(candidate.previewCommand)
-                }
-                Button("Подготовить decision review") {
-                    model.prepareMemoryWorkshopCommand(candidate.reviewCommand)
                 }
                 Spacer()
                 Text("promotion_ready: false").font(.caption).foregroundStyle(.tertiary)

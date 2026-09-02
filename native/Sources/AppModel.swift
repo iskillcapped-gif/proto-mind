@@ -130,6 +130,16 @@ final class AppModel: ObservableObject {
     @Published private(set) var memoryWorkshop: NativeMemoryWorkshop?
     @Published private(set) var loadingMemoryWorkshop = false
     @Published private(set) var memoryWorkshopError: String?
+    @Published private(set) var learningCandidateID: String?
+    @Published private(set) var learningReview: NativeLearningReview?
+    @Published private(set) var learningPreview: NativeLearningPreview?
+    @Published private(set) var learningResult: NativeLearningResult?
+    @Published private(set) var learningReviewError: String?
+    @Published private(set) var loadingLearningReview = false
+    @Published private(set) var committingLearningReview = false
+    @Published private(set) var learningReferenceIDs: [String] = []
+    @Published var learningReferenceQuery = "" { didSet { invalidateLearningConfirmation() } }
+    @Published var learningReason = "" { didSet { invalidateLearningConfirmation() } }
     let client: BridgeClient
     let store: ChatStore
     let preferences: PreferenceStore
@@ -143,6 +153,8 @@ final class AppModel: ObservableObject {
     private var libraryRequest = UUID()
     private var libraryDetailRequest = UUID()
     private var memoryWorkshopRequest = UUID()
+    private var learningReviewRequest = UUID()
+    private var pendingLearningSelection: NativeLearningSelection?
     private var workSessionsRequest = UUID()
     private var contextPreviewRequest = UUID()
     private var personaPreviewRequest = UUID()
@@ -656,6 +668,8 @@ final class AppModel: ObservableObject {
 
     func newConversation() {
         guard !busy else { return }
+        closeLearningReview()
+        memoryWorkshop = nil; showMemoryWorkshop = false
         flushDraft()
         let chat = Conversation()
         conversations.insert(chat, at: 0)
@@ -674,6 +688,8 @@ final class AppModel: ObservableObject {
 
     func select(_ id: UUID) {
         guard !busy else { return }
+        closeLearningReview()
+        memoryWorkshop = nil; showMemoryWorkshop = false
         flushDraft()
         selectedID = id; section = .chat; inspectedMessageID = nil
         modelSelectionNotice = nil
@@ -1063,6 +1079,8 @@ final class AppModel: ObservableObject {
             let value = try await client.request("workspace_status", ["workspace_root": .string(path)])
             guard let index = conversations.firstIndex(where: { $0.id == id }) else { return }
             conversations[index].workspacePath = value["root"].text
+            closeLearningReview()
+            memoryWorkshop = nil
             discardAgentGrants(for: id)
             conversations[index].pendingFiles = []
             persist()
@@ -1467,6 +1485,7 @@ final class AppModel: ObservableObject {
 
     func openMemoryWorkshop() {
         guard !busy, selectedID != nil else { return }
+        closeLearningReview()
         memoryWorkshop = nil
         memoryWorkshopError = nil
         showMemoryWorkshop = true
@@ -1488,7 +1507,8 @@ final class AppModel: ObservableObject {
             }
             let value = try await client.request("memory_workshop", params)
             let report = try NativeMemoryWorkshop.decode(value, conversationId: conversation.id.uuidString)
-            guard memoryWorkshopRequest == request, selectedID == conversation.id else { return }
+            guard memoryWorkshopRequest == request, selectedID == conversation.id,
+                  selected?.workspacePath == conversation.workspacePath else { return }
             memoryWorkshop = report
         } catch {
             guard memoryWorkshopRequest == request, selectedID == conversation.id else { return }
@@ -1502,6 +1522,116 @@ final class AppModel: ObservableObject {
         setComposer(command)
         showMemoryWorkshop = false
         section = .chat
+    }
+
+    var learningSelection: NativeLearningSelection? {
+        guard let conversation = selected, !conversation.archived, let candidateID = learningCandidateID else { return nil }
+        return NativeLearningSelection(conversationID: conversation.id, candidateID: candidateID,
+            workspace: conversation.workspacePath, memoryIDs: learningReferenceIDs.sorted(),
+            query: learningReferenceQuery, reason: learningReason)
+    }
+
+    func closeLearningReview() {
+        guard !committingLearningReview else { return }
+        learningReviewRequest = UUID()
+        learningCandidateID = nil; learningReview = nil; learningResult = nil
+        learningReviewError = nil; loadingLearningReview = false
+        learningReferenceIDs = []; learningReferenceQuery = ""; learningReason = ""
+        invalidateLearningConfirmation()
+    }
+
+    func invalidateLearningConfirmation() {
+        learningPreview = nil
+        pendingLearningSelection = nil
+    }
+
+    func openLearningReview(candidateID: String) async {
+        guard !busy, !client.turnOutstanding, selected?.archived == false else { return }
+        closeLearningReview()
+        learningCandidateID = candidateID
+        await refreshLearningReview()
+    }
+
+    func setLearningReference(_ id: String, selected: Bool) {
+        guard !busy, !loadingLearningReview, learningReview?.proposal == nil,
+              learningReview?.references.contains(where: { $0.recordId == id && $0.selectable }) == true else { return }
+        var ids = Set(learningReferenceIDs)
+        if selected { guard ids.count < 20 else { return }; ids.insert(id) }
+        else { ids.remove(id) }
+        learningReferenceIDs = ids.sorted()
+        invalidateLearningConfirmation()
+    }
+
+    func refreshLearningReview(clearError: Bool = true) async {
+        guard !busy, !client.turnOutstanding, let selection = learningSelection else { return }
+        let request = UUID()
+        learningReviewRequest = request
+        loadingLearningReview = true
+        invalidateLearningConfirmation()
+        if clearError { learningReviewError = nil }
+        defer { if learningReviewRequest == request { loadingLearningReview = false } }
+        do {
+            let value = try await client.request("memory_learning_review", selection.parameters)
+            let review = try NativeLearningReview.decode(value, selection: selection)
+            guard learningReviewRequest == request, learningSelection == selection else { return }
+            learningReview = review
+            if review.proposal != nil { learningReferenceIDs = review.requestedMemoryIds.sorted() }
+        } catch {
+            guard learningReviewRequest == request, learningSelection == selection else { return }
+            learningReview = nil
+            learningReviewError = error.localizedDescription
+        }
+    }
+
+    func previewLearningOperation(_ operation: NativeLearningOperation) async {
+        guard !busy, !client.turnOutstanding, !loadingLearningReview, let selection = learningSelection else { return }
+        let request = UUID()
+        learningReviewRequest = request
+        loadingLearningReview = true
+        learningReviewError = nil
+        invalidateLearningConfirmation()
+        defer { if learningReviewRequest == request { loadingLearningReview = false } }
+        do {
+            var params = selection.parameters
+            params["operation"] = .string(operation.rawValue)
+            let value = try await client.request("memory_learning_preview", params)
+            let preview = try NativeLearningPreview.decode(value, selection: selection, operation: operation)
+            guard learningReviewRequest == request, learningSelection == selection else { return }
+            learningPreview = preview
+            pendingLearningSelection = selection
+        } catch {
+            guard learningReviewRequest == request, learningSelection == selection else { return }
+            learningReviewError = error.localizedDescription
+        }
+    }
+
+    func confirmLearningOperation(token: String, acknowledgeGlobal: Bool) async {
+        guard !busy, !client.turnOutstanding, !loadingLearningReview,
+              let selection = pendingLearningSelection, learningSelection == selection,
+              let preview = learningPreview, preview.accepts(token: token, acknowledgeGlobal: acknowledgeGlobal) else { return }
+        busy = true; committingLearningReview = true
+        learningReviewError = nil
+        invalidateLearningConfirmation()
+        do {
+            var params = selection.parameters
+            params["operation"] = .string(preview.operation.rawValue)
+            params["preview_fingerprint"] = .string(preview.previewFingerprint)
+            params["confirmation_token"] = .string(token)
+            params["acknowledge_global_memory"] = .bool(acknowledgeGlobal)
+            let value = try await client.request("memory_learning_confirm", params)
+            let result = try NativeLearningResult.decode(value, selection: selection, operation: preview.operation)
+            if learningSelection == selection {
+                learningResult = result
+                status = result.memoryMutationPerformed ? "Один урок сохранён и проверен" : "Решение сохранено только до закрытия ядра"
+            }
+        } catch {
+            if learningSelection == selection {
+                learningReviewError = "\(error.localizedDescription) Автоповтора нет. Проверьте текущую карточку и receipt перед новым действием."
+            }
+        }
+        busy = false; committingLearningReview = false
+        // After an uncertain result, inspect only. Never retry a confirmation.
+        if learningSelection == selection { await refreshLearningReview(clearError: false) }
     }
 
     private func localKnowledgeResult(capability: String, method: String, legacyMethod: String,

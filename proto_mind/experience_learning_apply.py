@@ -5,8 +5,12 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 import hashlib
 import json
+import os
+from pathlib import Path
+import stat
 from threading import RLock
 from typing import Any
+from uuid import uuid4
 
 from proto_mind.experience_learning_bridge import (
     CognitiveLearningBridgeError,
@@ -36,6 +40,7 @@ LEARNING_MEMORY_APPLY_MODE = "single_fresh_confirmed_memory_lesson"
 LEARNING_MEMORY_APPLY_MAX_RECEIPTS = 1
 LEARNING_MEMORY_APPLY_MAX_AGE_SECONDS = 15 * 60
 LEARNING_MEMORY_APPLY_ENGINE_INSTALLED = True
+LEARNING_MEMORY_APPLY_MAX_STORE_BYTES = 16 * 1024 * 1024
 
 
 @dataclass(frozen=True)
@@ -181,32 +186,45 @@ class OperatorReviewedLearningMemoryApplySession:
             if token != expected_token:
                 raise LearningMemoryApplyError("Apply confirmation token mismatch.")
 
+            path = memory_store.persistent_path
             try:
-                original_records = memory_store.load_persistent_memory()
+                original_bytes = _read_store_bytes(path)
+                original_records = _raw_memory_records(original_bytes)
             except (OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
                 raise LearningMemoryApplyError(f"Persistent memory store is unreadable: {exc}") from exc
-            if _hash_file(memory_store.persistent_path) != review.before_store_sha256:
+            if hashlib.sha256(original_bytes).hexdigest() != review.before_store_sha256:
                 raise LearningMemoryApplyError("Persistent memory changed after apply confirmation preview.")
 
             applied_at = datetime.now(UTC).isoformat()
             record = _record_from_proposal(proposal, review.created_record_id, applied_at)
-            updated_records = [*original_records, record]
+            # Append raw rows, not their dataclass projections: legacy fields must survive.
+            updated_records = [*original_records, record.to_dict()]
+            payload = json.dumps(updated_records, indent=2, allow_nan=False).encode("utf-8")
+            intended_hash = hashlib.sha256(payload).hexdigest()
             try:
-                memory_store.save_persistent_memory(updated_records)
+                _replace_store_bytes(path, payload, expected_sha256=review.before_store_sha256)
                 verified_record, after_store_sha256 = _verify_created_record(
                     memory_store,
                     record,
                     expected_count=len(updated_records),
                 )
+                if after_store_sha256 != intended_hash or _raw_memory_records(_read_store_bytes(path)) != updated_records:
+                    raise ValueError("One-record append changed existing memory fields or source bytes drifted.")
             except (OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
                 try:
-                    memory_store.save_persistent_memory(original_records)
+                    current_hash = _hash_file(path)
+                    if current_hash == intended_hash:
+                        _replace_store_bytes(path, original_bytes, expected_sha256=intended_hash)
+                    elif current_hash != review.before_store_sha256:
+                        raise ValueError("Concurrent store change detected; rollback must not overwrite it.")
+                    if _read_store_bytes(path) != original_bytes:
+                        raise ValueError("Original byte verification failed.")
                 except (OSError, TypeError, ValueError):
                     raise LearningMemoryApplyError(
-                        f"Post-write verification failed and rollback also failed: {exc}"
+                        f"Post-write verification failed and safe rollback could not be verified; inspect the store manually: {exc}"
                     ) from exc
                 raise LearningMemoryApplyError(
-                    f"Post-write verification failed; original memory records were restored: {exc}"
+                    f"Post-write verification failed; original memory records were restored byte-for-byte: {exc}"
                 ) from exc
 
             material = {
@@ -728,11 +746,63 @@ def _hash_json(value: object) -> str:
 
 
 def _hash_file(path: Any) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+    return hashlib.sha256(_read_store_bytes(Path(path))).hexdigest()
+
+
+def _read_store_bytes(path: Path) -> bytes:
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(descriptor, "rb") as source:
+        info = os.fstat(source.fileno())
+        if not stat.S_ISREG(info.st_mode) or info.st_size > LEARNING_MEMORY_APPLY_MAX_STORE_BYTES:
+            raise ValueError("Persistent memory must be a regular file within the 16 MiB apply limit.")
+        payload = source.read(LEARNING_MEMORY_APPLY_MAX_STORE_BYTES + 1)
+    if len(payload) > LEARNING_MEMORY_APPLY_MAX_STORE_BYTES:
+        raise ValueError("Persistent memory grew beyond the bounded apply limit.")
+    return payload
+
+
+def _raw_memory_records(payload: bytes) -> list[dict[str, Any]]:
+    def unique_object(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("Duplicate JSON key in persistent memory.")
+            result[key] = value
+        return result
+
+    def invalid_number(value):
+        raise ValueError(f"Non-finite JSON number {value} is not supported.")
+
+    records = json.loads(payload, object_pairs_hook=unique_object, parse_constant=invalid_number)
+    if not isinstance(records, list) or any(not isinstance(row, dict) for row in records):
+        raise ValueError("Persistent memory must contain an array of records.")
+    ids = [row.get("id") for row in records]
+    if any(not isinstance(value, str) or not value for value in ids) or len(set(ids)) != len(ids):
+        raise ValueError("Persistent memory IDs must be present and unique.")
+    return records
+
+
+def _replace_store_bytes(path: Path, payload: bytes, *, expected_sha256: str) -> None:
+    if len(payload) > LEARNING_MEMORY_APPLY_MAX_STORE_BYTES:
+        raise ValueError("One-record append would exceed the 16 MiB apply limit.")
+    if _hash_file(path) != expected_sha256:
+        raise ValueError("Persistent memory changed before atomic replacement.")
+    temporary = path.with_name(f".{path.name}.{uuid4().hex}.tmp")
+    created_temporary = False
+    try:
+        descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        created_temporary = True
+        with os.fdopen(descriptor, "wb") as destination:
+            os.fchmod(destination.fileno(), stat.S_IMODE(path.stat().st_mode))
+            destination.write(payload)
+            destination.flush()
+            os.fsync(destination.fileno())
+        if _hash_file(path) != expected_sha256:
+            raise ValueError("Persistent memory changed while preparing the atomic replacement.")
+        temporary.replace(path)
+    finally:
+        if created_temporary:
+            temporary.unlink(missing_ok=True)
 
 
 def _normalize_text(value: str) -> str:
