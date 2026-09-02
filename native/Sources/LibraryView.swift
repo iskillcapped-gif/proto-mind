@@ -148,6 +148,32 @@ struct LibraryView: View {
                         }
                         if let evidence = detail.memoryEvidence {
                             memoryEvidence(evidence)
+                            if item.store == "persistent", evidence.memoryType == "lesson", evidence.verified {
+                                Button {
+                                    Task { await model.openSkillAuthoring(lessonID: item.recordId) }
+                                } label: { Label("Создать навык из урока…", systemImage: "books.vertical") }
+                                .buttonStyle(.bordered).nativeHoverSurface()
+                                .disabled(model.busy || model.selected?.archived != false)
+                                .help("Открыть локальную форму. Сам просмотр ничего не сохраняет и не выполняет.")
+                            }
+                        }
+                        if let evidence = detail.skillEvidence {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Label("Происхождение навыка · \(evidence.status)", systemImage: evidence.status == "VERIFIED" ? "checkmark.seal" : "doc.text.magnifyingglass")
+                                    .font(.callout.weight(.semibold))
+                                Text("Проверяются сохранённый контракт, SHA и исходный урок. Это не запуск процедуры и не доказательство её эффективности.")
+                                    .font(.caption).foregroundStyle(.secondary)
+                                if !evidence.provenanceId.isEmpty { evidenceLine("Provenance", evidence.provenanceId) }
+                                if !evidence.sourceLessonId.isEmpty {
+                                    evidenceLine("Исходный урок", "\(evidence.sourceLessonId) · \(evidence.sourceStatus)")
+                                    Button("Открыть исходный урок") {
+                                        Task { await model.openMemoryEvidence(recordID: evidence.sourceLessonId) }
+                                    }.disabled(model.busy)
+                                }
+                                ForEach(Array((evidence.issues + evidence.warnings).enumerated()), id: \.offset) { _, finding in
+                                    Text(finding).font(.caption).foregroundStyle(evidence.status == "ERROR" ? .red : .orange)
+                                }
+                            }.padding(14).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 11))
                         }
                         Divider()
                         VStack(alignment: .leading, spacing: 11) {

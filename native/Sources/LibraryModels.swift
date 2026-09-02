@@ -217,6 +217,7 @@ struct LibraryDetail: Decodable {
     var blocks: [LibraryBlock]
     var fields: [LibraryField]
     var memoryEvidence: NativeMemoryEvidence?
+    var skillEvidence: NativeSkillEvidence?
     var sources: [LibrarySource]
     var warnings: [String]
     var changedSinceList: Bool
@@ -229,6 +230,7 @@ struct LibraryDetail: Decodable {
               (collection == .memory && detail.item != nil) == (detail.memoryEvidence != nil),
               detail.memoryEvidence?.isSafe != false,
               detail.memoryEvidence == nil || (detail.memoryEvidence?.recordId == detail.item?.recordId && detail.memoryEvidence?.store == detail.item?.store),
+              detail.skillEvidence == nil || (collection == .skills && detail.skillEvidence?.isSafe == true && detail.skillEvidence?.skillId == detail.item?.recordId),
               detail.blocks.count <= 3, detail.blocks.allSatisfy({ $0.text.count <= 24_000 }),
               Set(detail.fields.map(\.id)).count == detail.fields.count,
               Set(detail.blocks.map(\.id)).count == detail.blocks.count else {

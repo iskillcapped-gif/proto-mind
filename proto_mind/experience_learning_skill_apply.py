@@ -5,7 +5,9 @@ from copy import deepcopy
 from dataclasses import asdict, dataclass
 import hashlib
 import json
+import os
 from pathlib import Path
+import stat
 from threading import RLock
 from typing import Any
 from uuid import uuid4
@@ -30,6 +32,7 @@ PROCEDURAL_SKILL_APPLY_VERSION = 1
 PROCEDURAL_SKILL_APPLY_MODE = "single_exact_confirmed_atomic_skill_append"
 PROCEDURAL_SKILL_APPLY_MAX_RECEIPTS = 1
 PROCEDURAL_SKILL_EXECUTION_ENABLED = PROCEDURAL_SKILL_EXECUTION_INSTALLED
+PROCEDURAL_SKILL_APPLY_MAX_STORE_BYTES = 16 * 1024 * 1024
 
 
 @dataclass(frozen=True)
@@ -192,6 +195,9 @@ class OperatorReviewedProceduralSkillApplySession:
             original_records = _parse_jsonl_records(before_bytes)
             memory_path = reviewer.builder.memory_store.persistent_path
             memory_before = _hash_file(memory_path)
+            expected_memory = getattr(reviewer.builder.memory_store, "expected_persistent_sha256", memory_before)
+            if memory_before == "unavailable" or memory_before != expected_memory:
+                raise ProceduralSkillApplyError("Source memory changed after the fixed-store review.")
             apply_token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
             record = _build_skill_record(
                 receipt,
@@ -201,7 +207,7 @@ class OperatorReviewedProceduralSkillApplySession:
             payload = _append_record_bytes(before_bytes, record)
 
             try:
-                _atomic_replace(path, payload)
+                _atomic_replace(path, payload, expected=before_bytes if existed_before else None)
                 verified_record, exact_mutations = _verify_skill_write(
                     library,
                     original_records=original_records,
@@ -231,9 +237,9 @@ class OperatorReviewedProceduralSkillApplySession:
                         "Source lesson provenance failed post-write verification."
                     )
                 after_hash = _hash_file(path)
-                if len(after_hash) != 64:
+                if after_hash != hashlib.sha256(payload).hexdigest():
                     raise ProceduralSkillApplyError(
-                        "Post-write Skill Library SHA-256 is unavailable."
+                        "Post-write Skill Library bytes no longer match the exact intended append."
                     )
             except (
                 OSError,
@@ -243,8 +249,15 @@ class OperatorReviewedProceduralSkillApplySession:
                 TypeError,
                 ValueError,
             ) as exc:
-                _restore_original(path, before_bytes, existed_before=existed_before)
-                if _current_bytes(path) != (before_bytes if existed_before else None):
+                expected_before = before_bytes if existed_before else None
+                current = _current_bytes(path)
+                if current == payload:
+                    _restore_original(path, before_bytes, existed_before=existed_before, expected=payload)
+                elif current != expected_before or path.is_symlink():
+                    raise ProceduralSkillApplyError(
+                        "Skill apply failed; concurrent or unreadable bytes were preserved. No automatic rollback; inspect the store before another action."
+                    ) from exc
+                if _current_bytes(path) != expected_before:
                     raise ProceduralSkillApplyError(
                         "Skill apply failed and exact-byte rollback did not restore the original state."
                     ) from exc
@@ -585,7 +598,7 @@ def _verify_skill_write(
     original_records: list[dict[str, Any]],
     expected_record: dict[str, Any],
 ) -> tuple[dict[str, Any], int]:
-    after_bytes = library.skills_path.read_bytes()
+    after_bytes = _read_original_bytes(library.skills_path)
     records = _parse_jsonl_records(after_bytes)
     if len(records) != len(original_records) + 1:
         raise ProceduralSkillApplyError("Skill record count did not increase by exactly one.")
@@ -604,18 +617,39 @@ def _verify_skill_write(
 
 def _read_original_bytes(path: Path) -> bytes:
     try:
-        return path.read_bytes() if path.exists() else b""
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        with os.fdopen(descriptor, "rb") as source:
+            info = os.fstat(source.fileno())
+            if not stat.S_ISREG(info.st_mode) or info.st_size > PROCEDURAL_SKILL_APPLY_MAX_STORE_BYTES:
+                raise ProceduralSkillApplyError("Skill/source store must be a regular file within the 16 MiB apply limit.")
+            payload = source.read(PROCEDURAL_SKILL_APPLY_MAX_STORE_BYTES + 1)
+        if len(payload) > PROCEDURAL_SKILL_APPLY_MAX_STORE_BYTES:
+            raise ProceduralSkillApplyError("Skill/source store grew beyond the bounded apply limit.")
+        return payload
+    except FileNotFoundError:
+        return b""
     except OSError as exc:
         raise ProceduralSkillApplyError(f"Skill Library is unreadable: {exc}") from exc
 
 
 def _parse_jsonl_records(payload: bytes) -> list[dict[str, Any]]:
+    def unique_object(pairs):
+        value = {}
+        for key, item in pairs:
+            if key in value:
+                raise ProceduralSkillApplyError("Duplicate JSON key in Skill Library.")
+            value[key] = item
+        return value
+
+    def invalid_number(value):
+        raise ProceduralSkillApplyError(f"Non-finite JSON number {value} in Skill Library.")
+
     text = payload.decode("utf-8")
     records: list[dict[str, Any]] = []
     for line_number, raw in enumerate(text.splitlines(), 1):
         if not raw.strip():
             continue
-        parsed = json.loads(raw)
+        parsed = json.loads(raw, object_pairs_hook=unique_object, parse_constant=invalid_number)
         if not isinstance(parsed, dict):
             raise ProceduralSkillApplyError(
                 f"Skill Library line {line_number} is not a JSON object."
@@ -630,29 +664,54 @@ def _append_record_bytes(before: bytes, record: dict[str, Any]) -> bytes:
     return before + separator + encoded
 
 
-def _atomic_replace(path: Path, payload: bytes) -> None:
+def _atomic_replace(path: Path, payload: bytes, *, expected: bytes | None) -> None:
+    if len(payload) > PROCEDURAL_SKILL_APPLY_MAX_STORE_BYTES:
+        raise ProceduralSkillApplyError("Skill append would exceed the 16 MiB apply limit.")
+    if not _matches_current(path, expected):
+        raise ProceduralSkillApplyError("Skill Library changed before atomic replacement.")
     path.parent.mkdir(parents=True, exist_ok=True)
     temp_path = path.with_name(f".{path.name}.{uuid4().hex}.tmp")
+    created = False
     try:
-        temp_path.write_bytes(payload)
+        descriptor = os.open(temp_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        created = True
+        with os.fdopen(descriptor, "wb") as destination:
+            destination.write(payload)
+            destination.flush()
+            os.fsync(destination.fileno())
+        if not _matches_current(path, expected):
+            raise ProceduralSkillApplyError("Skill Library changed while preparing atomic replacement.")
         temp_path.replace(path)
     finally:
-        if temp_path.exists():
+        if created and temp_path.exists():
             temp_path.unlink()
 
 
-def _restore_original(path: Path, before: bytes, *, existed_before: bool) -> None:
+def _restore_original(path: Path, before: bytes, *, existed_before: bool, expected: bytes) -> None:
+    if not _matches_current(path, expected):
+        raise ProceduralSkillApplyError("Concurrent Skill Library changes prevent exact-byte rollback.")
     if existed_before:
-        _atomic_replace(path, before)
+        _atomic_replace(path, before, expected=expected)
     elif path.exists():
         path.unlink()
 
 
 def _current_bytes(path: Path) -> bytes | None:
     try:
-        return path.read_bytes() if path.exists() else None
-    except OSError:
+        return _read_original_bytes(path) if path.exists() or path.is_symlink() else None
+    except (OSError, ProceduralSkillApplyError):
         return None
+
+
+def _matches_current(path: Path, expected: bytes | None) -> bool:
+    try:
+        if path.is_symlink():
+            return False
+        if expected is None:
+            return not path.exists()
+        return path.exists() and _read_original_bytes(path) == expected
+    except (OSError, ProceduralSkillApplyError):
+        return False
 
 
 def _safe_library_records(
@@ -695,8 +754,8 @@ def _receipt_hash(item: dict[str, Any]) -> str:
 
 def _hash_file(path: Path) -> str:
     try:
-        payload = path.read_bytes() if path.exists() else b""
-    except OSError:
+        payload = _read_original_bytes(path)
+    except (OSError, ProceduralSkillApplyError):
         return "unavailable"
     return hashlib.sha256(payload).hexdigest()
 

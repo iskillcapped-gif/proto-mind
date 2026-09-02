@@ -7,6 +7,7 @@ Only the fixed stores below are addressable; records never become model context.
 from __future__ import annotations
 
 from collections import Counter
+from dataclasses import asdict
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -19,6 +20,7 @@ from proto_mind.goal_stack import VALID_GOAL_PRIORITIES, VALID_GOAL_STATUSES
 from proto_mind.memory_provenance import verify_memory_provenance
 from proto_mind.models import MemoryRecord
 from proto_mind.skill_library import VALID_SKILL_STATUSES
+from proto_mind.skill_provenance import verify_procedural_skill_provenance
 
 
 MAX_SOURCE_BYTES = 16 * 1024 * 1024
@@ -312,6 +314,30 @@ class NativeLibrary:
                 "items": matches[offset:offset + PAGE_SIZE], "sources": sources,
                 "warnings": self._warnings(sources, entries)}
 
+    def _skill_evidence(self, raw: dict) -> dict:
+        records, error, exists = None, "", True
+        try:
+            from proto_mind.experience_learning_apply import _raw_memory_records
+
+            payload, _ = self._read_bytes("persistent_memory.json")
+            rows = _raw_memory_records(payload)
+            if len(rows) > MAX_SOURCE_RECORDS:
+                raise ValueError("Source memory exceeds the bounded provenance inspection limit.")
+            records = [MemoryRecord.from_dict(row) for row in rows]
+        except FileNotFoundError:
+            exists = False
+        except (OSError, ValueError, TypeError, KeyError, RecursionError) as exc:
+            error = f"{type(exc).__name__}: {exc}"
+        try:
+            evidence = asdict(verify_procedural_skill_provenance(raw, memory_records=records,
+                                                               memory_error=error, memory_exists=exists))
+        except (ValueError, TypeError, KeyError, RecursionError):
+            evidence = {"status": "ERROR", "skill_id": _text(raw.get("id")), "provenance_id": "",
+                        "source_lesson_id": "", "source_status": "invalid", "current_payload_matches": False,
+                        "verified": False, "issues": ["Malformed skill provenance cannot be verified."], "warnings": []}
+        return {"schema": "proto_mind.native_skill_evidence.v1", "read_only": True, "no_execution": True,
+                "store_mutation_performed": False, **evidence}
+
     def inspect(self, collection: str, record_key: str, *, expected_sha256: str = "") -> dict:
         if not isinstance(record_key, str) or not record_key or len(record_key) > 220 or any(ord(char) < 32 or 0xD800 <= ord(char) <= 0xDFFF for char in record_key):
             raise ValueError("Choose a record from the library list.")
@@ -321,6 +347,7 @@ class NativeLibrary:
         result = {"schema": "proto_mind.native_library.detail.v1", "read_only": True,
                   "collection": collection, "item": None, "blocks": [], "fields": [],
                   "memory_evidence": None,
+                  "skill_evidence": None,
                   "sources": sources, "warnings": self._warnings(sources, entries),
                   "changed_since_list": False, "message": "Record unavailable, removed, or ambiguous. Refresh the list; no repair attempted."}
         found = next(((item, raw) for item, raw in entries if item["id"] == record_key), None)
@@ -330,6 +357,8 @@ class NativeLibrary:
         result.update(item=item, message="", changed_since_list=bool(expected_sha256 and expected_sha256 != item["store_sha256"]))
         if collection == "memory":
             result["memory_evidence"] = self._memory_evidence(item["store"], raw)
+        elif collection == "skills":
+            result["skill_evidence"] = self._skill_evidence(raw)
         if result["changed_since_list"]:
             result["warnings"].append("Store changed since the list was loaded. Details show the freshly read record.")
         blocks = {"memory": ("content",), "goals": ("title", "description"), "skills": ("name", "summary", "body")}[collection]
@@ -343,13 +372,14 @@ class NativeLibrary:
                 result["warnings"].append(f"{key}: unsupported control/Unicode characters were sanitized for display; the source is unchanged.")
             result["blocks"].append({"key": key, "text": rendered, "truncated": len(value) > MAX_DETAIL_CHARS})
         fields = ("id", "source", "type", "category", "importance", "confidence", "weight", "timestamp", "created_at", "updated_at",
-                  "last_used", "usage_count", "last_used_at", "uses", "superseded_by", "superseded_at", "superseded_reason")
+                  "last_used", "usage_count", "last_used_at", "uses", "superseded_by", "superseded_at", "superseded_reason",
+                  "source_lesson_id", "source_provenance_id", "source_record_hash", "executable")
         result["fields"] = [{"key": key, "value": _scalar(raw[key])} for key in fields if key in raw and raw[key] is not None]
         for key in ("provenance", "lifecycle"):
             if key in raw:
                 value = raw[key]
                 schema = _text(value.get("schema"), 160) if isinstance(value, dict) else "invalid"
                 result["fields"].append({"key": key, "value": schema or "present"})
-                if key != "provenance" or collection != "memory":
+                if key != "provenance" or collection not in {"memory", "skills"}:
                     result["warnings"].append(f"{key}: stored metadata only; this view does not re-verify provenance or authorize execution.")
         return result

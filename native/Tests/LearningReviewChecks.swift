@@ -141,6 +141,7 @@ extension NativeChecks {
                   "Restart loses process review but preserves the independently verified lesson source")
         try check(try fileBytes(project) == after && fileBytes(state) == privateBefore,
                   "Restart inspection performs no history migration, core write or auto-capture")
+        try await skillAuthoring(app: restart, lessonID: receipt.recordId, project: project, state: state)
     }
 
     static func learningContractRefusals(_ value: JSONValue, selection: NativeLearningSelection) throws {
