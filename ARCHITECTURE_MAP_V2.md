@@ -10,6 +10,12 @@ Future capabilities are tracked separately in [Personal Agent Evolution](PROTO_M
 
 ## Current Module Map
 
+`proto_mind/native_skill_restore.py` + `native/Sources/SkillRestoreModels.swift` + `SkillRestoreModel.swift` + `SkillRestoreView.swift` (EV-04 Skill Restore / Native 0.27.0)
+
+- Three fixed private RPCs reuse the existing process-wide durable restore session. Strict detached source/config/workspace checks and Swift's independently recomputed token bind one archived skill and its prior evidence. No coordinator, consent, outcome capture, command dispatch or model call is created by the screen.
+- Explicit confirmation changes only `lifecycle/status/updated_at` of one saved skill; immutable procedure/provenance and neighboring JSONL bytes remain intact. Expected-byte atomic replacement and conditional own-write rollback preserve concurrent edits. Reads no longer initialize missing working memory. This is not a global cross-process transaction lock.
+- The fixed hashed receipt is independently validated in Native and links to restart-safe lifecycle evidence. The detailed process receipt is not invented after restart. Restoration grants availability only; no fresh success, post-restore capture writer, task execution, permissions or migration. Registry unchanged at 387/41.
+
 `proto_mind/native_skill_lifecycle.py` + `native/Sources/SkillLifecycleApplyModels.swift` + `SkillLifecycleApplyModel.swift` + `SkillLifecycleApplyView.swift` (EV-04 Skill Lifecycle Apply / Native 0.26.0)
 
 - Fixed private-stdio `skill_lifecycle_review`, `skill_lifecycle_preview` and `skill_lifecycle_confirm` extend an exact existing decision receipt, not arbitrary commands or model tools. Detached bounded no-follow source readers feed the existing lifecycle readiness and keep/durable-archive sessions. Viewing never constructs a pilot, starts capture or changes consent.

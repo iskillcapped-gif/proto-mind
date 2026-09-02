@@ -70,7 +70,7 @@ class NativeSkillInspectionTests(unittest.TestCase):
         before = self.files()
         with patch.object(self.backend, "process", side_effect=AssertionError("No command dispatch")), \
                 patch("subprocess.Popen", side_effect=AssertionError("No shell/model")), \
-                patch("proto_mind.skill_lifecycle_audit.MemoryStore", side_effect=AssertionError("No initializing store")), \
+                patch("proto_mind.skill_lifecycle_audit.read_skill_source_memories", side_effect=AssertionError("No reopening source")), \
                 patch("proto_mind.skill_lifecycle_audit.SkillLibrary", side_effect=AssertionError("No initializing library")):
             report = self.call()
         self.assertEqual(report["lifecycle"]["state"], "active_verified")
@@ -165,7 +165,7 @@ class NativeSkillInspectionTests(unittest.TestCase):
     def test_restore_recovers_envelope_evidence_not_original_receipt(self):
         self.seed("restored")
         before = self.files()
-        with patch("proto_mind.skill_lifecycle_audit.MemoryStore", side_effect=AssertionError("No store init")), \
+        with patch("proto_mind.skill_lifecycle_audit.read_skill_source_memories", side_effect=AssertionError("No source reopen")), \
                 patch("proto_mind.skill_lifecycle_restore_receipt_audit.SkillLibrary", side_effect=AssertionError("No store init")):
             report = self.call()
         self.assertEqual(report["lifecycle"]["state"], "active_restored_verified", report)
@@ -182,7 +182,7 @@ class NativeSkillInspectionTests(unittest.TestCase):
             with self.subTest(values=values):
                 self.events(build_test_restored_skill_outcome_events(self.record, **values))
                 before = self.files()
-                with patch("proto_mind.skill_lifecycle_audit.MemoryStore", side_effect=AssertionError("No hidden store read")):
+                with patch("proto_mind.skill_lifecycle_audit.read_skill_source_memories", side_effect=AssertionError("No hidden store read")):
                     report = self.call()
                 self.assertEqual(report["outcome"]["status"], "NEEDS_POST_RESTORE_EVIDENCE", report)
                 self.assertEqual(report["outcome"][key], 1)

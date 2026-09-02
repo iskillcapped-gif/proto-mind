@@ -539,6 +539,18 @@ Real isolated UI smoke uses a synthetic skill and an explicitly consented synthe
 
 Personal-app About confirms 0.26.0 (31). All 48 personal core/export and 28 Proto-Mind-owned history/preferences/work-session files retain pre-change SHA-256 and inventory; official Codex profile caches are excluded. Context Injection remains disabled; Registry doctor stays OK at 387 commands/41 categories. No personal skill was archived during acceptance. Next: expose the existing separately confirmed restore gate in Native, not a generic revision editor or post-restore capture engine.
 
+## EV-04 Skill Restore / Native 0.27.0
+
+The archived skill inspector now opens **Restore from archive**. Only a currently verified, provenance-current archive can prepare confirmation. The app uses the existing durable restore session rather than a second status writer. A new exact token and explicit shared-library acknowledgement bind the current source bytes, archive envelope, one-record/three-field scope and conversation/workspace.
+
+Restoration changes only `lifecycle`, `status`, and `updated_at`, embeds the complete prior archive envelope and returns a fixed independently hashed/verified receipt. Procedure body, provenance, neighboring raw bytes and memory remain unchanged. One Native attempt per bridge process, including post-start failure, prevents silent retries; the existing core's successful operator restore also consumes that slot. There is no procedure/model/tool execution, consent/grant recovery or post-restore outcome capture. Old results are not fresh evidence of success.
+
+Source/audit reads are bounded and do not initialize missing stores. The existing writer now preserves neighboring JSONL bytes and uses expected-byte replacement; failed post-checks restore original bytes only while the store still contains this attempt's payload. Foreign/unreadable bytes are preserved with a visible error. Cooperative checks do not provide an external-process transaction lock.
+
+The detailed receipt remains process-memory-only in this milestone; durable restoration/provenance can still be independently inspected after restart. No historical receipt is reconstructed or relabelled as original. Context Injection stays disabled, permissions and core schemas stay unchanged, and Registry remains 387 commands/41 categories.
+
+Rule 0 checkpoints: `backups/proto_mind_backup_2026-09-02_22-16-51.tar.gz` and `backups/proto_mind_native_history_2026-09-02_22-16-51_cognitive_cycle.tar.gz` (Native-owned history/preferences/binding/work sessions; credentials excluded). Verification results are recorded in the Architect Ledger after acceptance.
+
 ## Storage And Launch
 
 ```bash

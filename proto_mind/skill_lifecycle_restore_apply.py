@@ -8,10 +8,13 @@ import json
 import os
 from pathlib import Path
 from threading import RLock
-from typing import Any
-from uuid import uuid4
+from typing import Any, Callable
 
 from proto_mind.command_registry import COMMAND_REGISTRY
+from proto_mind.experience_learning_skill_apply import (
+    ProceduralSkillApplyError, _atomic_replace as _replace_skill_bytes,
+    _current_bytes, _parse_jsonl_records, _read_original_bytes,
+)
 from proto_mind.experience_learning_skill_runtime import PROCEDURAL_SKILL_EXECUTION_INSTALLED
 from proto_mind.skill_library import SkillLibrary
 from proto_mind.skill_lifecycle_restore import (
@@ -161,6 +164,8 @@ class OperatorReviewedProceduralSkillRestoreApplySession:
         token: str,
         skills_path: Path,
         persistent_memory_path: Path,
+        expected_memory_sha256: str | None = None,
+        validate_dependencies: Callable[[], None] | None = None,
     ) -> ProceduralSkillRestoreApplyReceipt:
         with self._lock:
             review = self._review_locked(
@@ -193,6 +198,8 @@ class OperatorReviewedProceduralSkillRestoreApplySession:
                 )
 
             memory_before = _hash_file(persistent_memory_path)
+            if memory_before == "unavailable" or expected_memory_sha256 is not None and memory_before != expected_memory_sha256:
+                raise ProceduralSkillRestoreApplyError("Source memory changed after restore preview.")
             applied_at = datetime.now(UTC).isoformat()
             token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
             provenance = old_record.get("provenance")
@@ -220,8 +227,13 @@ class OperatorReviewedProceduralSkillRestoreApplySession:
             updated_records[target_index]["lifecycle"] = restore_metadata
             updated_records[target_index]["status"] = "active"
             updated_records[target_index]["updated_at"] = applied_at
+            from proto_mind.experience_learning_skill_lifecycle_metadata_apply import _replace_record_bytes
+
+            payload = _replace_record_bytes(before_bytes, target_index, updated_records[target_index])
             try:
-                _atomic_replace(path, _serialize_jsonl(updated_records))
+                if validate_dependencies is not None:
+                    validate_dependencies()
+                _atomic_replace(path, payload, expected=before_bytes)
                 verified_record, changed_fields = _verify_restore(
                     skills_path=path,
                     original_records=original_records,
@@ -260,6 +272,11 @@ class OperatorReviewedProceduralSkillRestoreApplySession:
                     raise ProceduralSkillRestoreApplyError(
                         "Post-write lifecycle audit did not recover active_restored_verified."
                     )
+                if validate_dependencies is not None:
+                    validate_dependencies()
+                after_bytes = _read_bytes(path)
+                if after_bytes != payload:
+                    raise ProceduralSkillRestoreApplyError("Skill Library changed during restore verification.")
             except (
                 OSError,
                 TypeError,
@@ -267,8 +284,14 @@ class OperatorReviewedProceduralSkillRestoreApplySession:
                 json.JSONDecodeError,
                 ProceduralSkillRestoreApplyError,
             ) as exc:
-                _restore_bytes(path, before_bytes)
-                if _read_bytes(path) != before_bytes:
+                current = _current_bytes(path)
+                if current == payload:
+                    _atomic_replace(path, before_bytes, expected=payload)
+                elif current != before_bytes or path.is_symlink():
+                    raise ProceduralSkillRestoreApplyError(
+                        "Restore failed; concurrent or unreadable bytes were preserved. Inspect the store; no automatic rollback."
+                    ) from exc
+                if _current_bytes(path) != before_bytes:
                     raise ProceduralSkillRestoreApplyError(
                         "Restore verification failed and exact-byte rollback failed."
                     ) from exc
@@ -277,7 +300,6 @@ class OperatorReviewedProceduralSkillRestoreApplySession:
                     f"{exc}"
                 ) from exc
 
-            after_bytes = _read_bytes(path)
             material = {
                 "applied_at": applied_at,
                 "skill_id": review.skill_id,
@@ -556,6 +578,11 @@ def procedural_skill_restore_apply_receipts_snapshot() -> tuple[dict[str, Any], 
     return _RESTORE_APPLY_SESSION.snapshot()
 
 
+def procedural_skill_restore_apply_session() -> OperatorReviewedProceduralSkillRestoreApplySession:
+    """Share the existing process gate with fixed Native entry points, not a new writer."""
+    return _RESTORE_APPLY_SESSION
+
+
 def procedural_skill_restore_apply_confirmation_token(
     review: ProceduralSkillRestoreApplyReview,
 ) -> str:
@@ -770,12 +797,7 @@ def _verify_restore(
     expected_metadata: dict[str, Any],
     immutable_record_fields: list[str],
 ) -> tuple[dict[str, Any], list[str]]:
-    snapshot = SkillLibrary(skills_path).read_snapshot()
-    if snapshot["error"] or snapshot["malformed_count"]:
-        raise ProceduralSkillRestoreApplyError(
-            f"Skill Library post-write read failed: {snapshot['error'] or 'malformed JSONL'}"
-        )
-    current_records = snapshot["records"]
+    current_records = _parse_jsonl(_read_bytes(skills_path))
     if len(current_records) != len(original_records):
         raise ProceduralSkillRestoreApplyError("Skill record count changed unexpectedly.")
     old_by_id = {str(record.get("id") or ""): record for record in original_records}
@@ -841,12 +863,9 @@ def _metadata_matches_blueprint(
 
 
 def _load_memory_records(path: Path) -> list[Any]:
-    from proto_mind.memory_store import MemoryStore
+    from proto_mind.skill_lifecycle_audit import read_skill_source_memories
 
-    return MemoryStore(
-        working_path=Path(path).parent / "working_memory.json",
-        persistent_path=Path(path),
-    ).load_persistent_memory()
+    return read_skill_source_memories(path)
 
 
 def _unique_record_index(records: list[dict[str, Any]], identifier: str) -> int:
@@ -861,48 +880,30 @@ def _unique_record_index(records: list[dict[str, Any]], identifier: str) -> int:
 
 
 def _parse_jsonl(payload: bytes) -> list[dict[str, Any]]:
-    records: list[dict[str, Any]] = []
-    for line_number, raw_line in enumerate(payload.decode("utf-8").splitlines(), 1):
-        if not raw_line.strip():
-            continue
-        parsed = json.loads(raw_line)
-        if not isinstance(parsed, dict):
-            raise ProceduralSkillRestoreApplyError(
-                f"Skill JSONL line {line_number} is not an object."
-            )
-        records.append(parsed)
-    return records
-
-
-def _serialize_jsonl(records: list[dict[str, Any]]) -> bytes:
-    return "".join(
-        json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n"
-        for record in records
-    ).encode("utf-8")
-
-
-def _atomic_replace(path: Path, payload: bytes) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = path.with_name(f".{path.name}.{uuid4().hex}.tmp")
     try:
-        with temp_path.open("wb") as handle:
-            handle.write(payload)
-            handle.flush()
-            os.fsync(handle.fileno())
-        temp_path.replace(path)
-    finally:
-        if temp_path.exists():
-            temp_path.unlink()
+        return _parse_jsonl_records(payload)
+    except (ValueError, ProceduralSkillApplyError) as exc:
+        raise ProceduralSkillRestoreApplyError(f"Skill Library is not strict UTF-8 JSONL: {exc}") from exc
 
 
-def _restore_bytes(path: Path, payload: bytes) -> None:
-    _atomic_replace(path, payload)
+def _atomic_replace(path: Path, payload: bytes, *, expected: bytes) -> None:
+    try:
+        _replace_skill_bytes(path, payload, expected=expected)
+        descriptor = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+    except ProceduralSkillApplyError as exc:
+        raise ProceduralSkillRestoreApplyError(str(exc)) from exc
 
 
 def _read_bytes(path: Path) -> bytes:
     try:
-        return Path(path).read_bytes()
-    except OSError as exc:
+        if not path.exists() and not path.is_symlink():
+            raise FileNotFoundError(path)
+        return _read_original_bytes(path)
+    except (OSError, ProceduralSkillApplyError) as exc:
         raise ProceduralSkillRestoreApplyError(
             f"Skill Library is unreadable: {exc}"
         ) from exc
@@ -910,8 +911,8 @@ def _read_bytes(path: Path) -> bytes:
 
 def _hash_file(path: Path) -> str:
     try:
-        return hashlib.sha256(Path(path).read_bytes()).hexdigest()
-    except OSError:
+        return hashlib.sha256(_read_bytes(Path(path))).hexdigest()
+    except (OSError, ProceduralSkillRestoreApplyError):
         return "unavailable"
 
 

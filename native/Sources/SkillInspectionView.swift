@@ -33,6 +33,11 @@ struct SkillInspectionView: View {
                                 .buttonStyle(.bordered).nativeHoverSurface().disabled(!model.canOpenDecision)
                             Text("Откроется отдельный разбор. Просмотр не записывает решение и не меняет навык.")
                                 .font(.caption).foregroundStyle(.secondary)
+                            if report.lifecycle?.status == "archived" {
+                                Button("Восстановление из архива…") { Task { await model.openRestore() } }
+                                    .buttonStyle(.bordered).nativeHoverSurface().disabled(!model.canOpenRestore)
+                                Text("Отдельная проверка и новое подтверждение. Простое открытие не возвращает навык в активные.").font(.caption).foregroundStyle(.secondary)
+                            }
                         }.inspectionCard()
                         sources(report)
                     } else if model.loading {

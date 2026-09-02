@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from proto_mind.command_registry import COMMAND_REGISTRY
-from proto_mind.memory_store import MemoryStore
+from proto_mind.models import MemoryRecord
 from proto_mind.skill_library import SkillLibrary
 from proto_mind.skill_lifecycle_metadata import (
     PROCEDURAL_SKILL_LIFECYCLE_METADATA_SCHEMA,
@@ -90,6 +90,12 @@ class ProceduralSkillLifecycleAuditError(RuntimeError):
     pass
 
 
+def read_skill_source_memories(path: Path) -> list[MemoryRecord]:
+    from proto_mind.experience_learning_apply import _raw_memory_records, _read_store_bytes
+
+    return [MemoryRecord.from_dict(row) for row in _raw_memory_records(_read_store_bytes(Path(path)))]
+
+
 class ProceduralSkillLifecycleAudit:
     """Classifies only lifecycle facts that survive in current durable stores."""
 
@@ -168,14 +174,10 @@ class ProceduralSkillLifecycleAudit:
         )
 
     def _load_memories(self) -> tuple[list[Any], bool, str]:
-        if not self.persistent_memory_path.exists():
+        if not self.persistent_memory_path.exists() and not self.persistent_memory_path.is_symlink():
             return [], False, ""
-        store = MemoryStore(
-            working_path=self.persistent_memory_path.parent / "working_memory.json",
-            persistent_path=self.persistent_memory_path,
-        )
         try:
-            return store.load_persistent_memory(), True, ""
+            return read_skill_source_memories(self.persistent_memory_path), True, ""
         except (OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
             return [], True, str(exc)
 
