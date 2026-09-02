@@ -98,6 +98,7 @@ struct WorkspaceView: View {
         .sheet(item: $model.skillLifecycleApply) { SkillLifecycleApplyView(model: $0) }
         .sheet(item: $model.skillRestore) { SkillRestoreView(model: $0) }
         .sheet(item: $model.skillHistory) { SkillHistoryView(model: $0) }
+        .sheet(item: $model.projectMemory) { ProjectMemoryView(model: $0) }
         .sheet(isPresented: $model.showTaskCriteria) { TaskCriteriaView(model: model) }
         .sheet(item: $model.imagePreview) { ImageAttachmentPreviewView(model: model, preview: $0) }
         .sheet(item: $model.pdfPreview) { PDFAttachmentPreviewView(model: model, preview: $0) }
@@ -466,6 +467,7 @@ struct ComposerView: View {
                 }.font(.caption).foregroundStyle(.secondary).padding(.horizontal, 6)
             }
             VStack(spacing: 0) {
+                if !model.pendingProjectNotes.isEmpty { PendingProjectNotesView(model: model) }
                 if model.selected?.pendingImages.isEmpty == false { PendingImageAttachmentsView(model: model) }
                 if model.selected?.pendingPDFs.isEmpty == false { PendingPDFAttachmentsView(model: model) }
                 if let files = model.selected?.pendingFiles, !files.isEmpty {
@@ -494,6 +496,7 @@ struct ComposerView: View {
                 }
                 HStack(spacing: 13) {
                     Menu {
+                        Button("Заметка проекта…", systemImage: "brain.head.profile") { Task { await model.openProjectMemory() } }
                         Button("Изображение или скриншот…", systemImage: "photo", action: model.chooseImage)
                         Button("PDF · выбрать страницы…", systemImage: "doc.richtext", action: model.choosePDF)
                         Button("Файл рабочей папки…", systemImage: "doc.text") {

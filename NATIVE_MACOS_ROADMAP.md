@@ -551,6 +551,16 @@ The detailed receipt remains process-memory-only in this milestone; durable rest
 
 Rule 0 checkpoints: `backups/proto_mind_backup_2026-09-02_22-16-51.tar.gz` and `backups/proto_mind_native_history_2026-09-02_22-16-51_cognitive_cycle.tar.gz` (Native-owned history/preferences/binding/work sessions; credentials excluded). Verification results are recorded in the Architect Ledger after acceptance.
 
+## EV-04 Explicit Project Memory / Native 0.29.0
+
+The Memory screen and composer attachment menu expose a separate project-note library, not a guessed conversion of `persistent_memory.json`. An operator explicitly supplies one `project_fact`, `preference`, `decision`, `lesson` or `constraint` with content and source/basis. Facts are labeled `operator_asserted_not_independently_verified`; notes are not executable and do not activate automatic learning.
+
+Fixed `project_memory_list/recall/inspect/preview/save` RPCs share immutable private storage. Only exact preview-bound Save writes `project_memory/`; note identity includes the launch project, exact workspace path/device/inode and originating conversation. Conversations in that same folder can read the notes; another/replaced folder cannot. `supersedes_id` is explicit, project-local and current-only. Predecessors stay historical; broken/ambiguous linkage and corrupted records block recall/sending/saving without repair. A cooperative locked snapshot check prevents concurrent branches of a replacement. No data/exports file is rewritten.
+
+Reading and saving do not attach notes. **To next message** selects up to five current inspected notes in UI memory only. The context desk shows exact text/basis locally; Send re-reads scope, integrity and supersession before dispatch. Current notes go to the selected existing provider as quoted user context, not system instructions or permissions. Cloud consent and Full Mac grants remain separate. Mock explicitly disclaims understanding; no additional retrieval/model call or hidden counter update is added. Private work manifests record IDs, hashes, kind, size and scope without note contents. A slash command ignores and retains the selection. Restart drops pending attachment, not the saved notes.
+
+Limits: 200 immutable records across this private namespace, paged lists of 40, 4,000 content and 1,000 basis characters, five exact-token-overlap recall results. No embeddings, fuzzy semantics, morphology, implicit temporal decisions, deletion, auto-cleanup, background task or encryption. Hashes prove consistency, not authorship or truth. Context Injection must stay disabled for new note writes/attachment. The legacy shared core still participates in ordinary recall; this slice does not make the entire cognitive core project-isolated. Previously sent context can remain in Codex provider history. Include `project_memory/` in private-state backups.
+
 ## EV-04 Saved Learning History / Native 0.28.0
 
 **Skills > Results and lifecycle > Learning history** separates durable historical evidence from restart-expiring live authority. Four fixed private RPCs list, preview, explicitly save and inspect immutable snapshots. A current snapshot-bound token plus historical-only acknowledgement copies only the selected skill/current source inspection and available manual-outcome, decision, keep/archive and restore original receipts. Manual outcome receipts retain the exact four linked events; unrelated conversation text/events are excluded. Full old authoring/lesson receipts are outside this first selected-skill archive; their compact durable provenance remains in the saved skill. No expired receipt is invented.
@@ -580,6 +590,7 @@ Private UI state lives outside core stores:
     preferences.json         atomic explicit cloud opt-in, permissions 0600
     work_sessions/           per-run public evidence, private 0700 directory
     learning_history/        explicitly saved immutable skill evidence, private 0700/0600
+    project_memory/          explicit immutable project notes, private 0700/0600
         <uuid>.json          atomic bounded run records, permissions 0600
         .writer.lock         cooperative normal-turn/manual-review writer lease
     codex_threads.json       Native conversation/provider thread bindings, 0600

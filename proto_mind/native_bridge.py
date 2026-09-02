@@ -45,6 +45,8 @@ from proto_mind.native_skill_decision import NativeSkillDecision, parse_skill_de
 from proto_mind.native_skill_lifecycle import NativeSkillLifecycle, parse_skill_lifecycle_request
 from proto_mind.native_skill_restore import NativeSkillRestore, parse_skill_restore_request
 from proto_mind.native_learning_history import NativeLearningHistory, parse_history_request
+from proto_mind.native_project_memory import NativeProjectMemory, parse_project_memory_request, METHODS as PROJECT_MEMORY_METHODS
+from proto_mind.native_knowledge import knowledge_metadata, knowledge_context_message
 from proto_mind.skill_lifecycle_restore_apply import procedural_skill_restore_apply_receipts_snapshot
 from proto_mind.experience_pilot import peek_experience_pilot
 from proto_mind.native_workspace import WorkspaceReader, file_context_message
@@ -124,7 +126,7 @@ class NativeMemoryStore(MemoryStore):
 class NativeOllamaReasoner(OllamaReasoner):
     def __init__(self, config: ProtoMindConfig, history: list[dict], files: list[dict] | None = None,
                  criteria: list[str] | None = None, pdfs: list[SelectedPDF] | None = None,
-                 persona_activation: PersonaTurnActivation | None = None) -> None:
+                 persona_activation: PersonaTurnActivation | None = None, project_notes: list[dict] | None = None) -> None:
         super().__init__(config)
         self.history = history
         self.files = files or []
@@ -132,6 +134,7 @@ class NativeOllamaReasoner(OllamaReasoner):
         self.criteria = validate_criteria([] if criteria is None else criteria)
         self.persona_activation = persona_activation
         self.last_persona_receipt: dict | None = None
+        self.project_notes = project_notes or []
 
     def _post(self, path: str, payload: dict) -> dict:
         messages = payload["messages"]
@@ -157,7 +160,7 @@ class NativeOllamaReasoner(OllamaReasoner):
             "messages": [
                 {"role": "system", "content": instructions},
                 {"role": "user", "content": criteria_context_message(self.criteria) + file_context_message(self.files)
-                 + pdf_context_message(self.pdfs) + user_input.strip()},
+                 + pdf_context_message(self.pdfs) + knowledge_context_message(self.project_notes) + user_input.strip()},
             ],
             "stream": False,
         }
@@ -509,6 +512,7 @@ class NativeBackend:
                 raise ValueError("Image input currently requires an explicitly selected vision-capable Codex model. Ollama/Mock images are not implemented; no provider was changed.")
             images = self.image_reader().selected(params["images"])
         pdfs = [] if description["operator"] else self.pdf_reader().selected(params.get("pdfs", []))
+        project_notes = [] if description["operator"] else self._selected_project_notes(params, session_id)
         logical_workspace = (workspace_identity(self.workspace(params).root)
                              if not description["operator"] and params.get("workspace_root") else None)
         provider_thread = (self.subscription.thread_status(session_id, logical_workspace, mode=mode)
@@ -543,7 +547,7 @@ class NativeBackend:
                         provider=provider, model=model, effort=reasoning_effort, mode=mode,
                         workspace=workspace["path"] if workspace else None, criteria=criteria,
                         images=[image.metadata for image in images], pdfs=[pdf.metadata for pdf in pdfs],
-                        provider_thread=provider_thread)))
+                        provider_thread=provider_thread, knowledge_context=knowledge_metadata(project_notes))))
             if provider == "codex" and not description["operator"]:
                 self.subscription.prepare_turn()
             self.active_request, self.active_provider = request_id, provider if not description["operator"] else "operator"
@@ -583,6 +587,7 @@ class NativeBackend:
                         images=images,
                         pdfs=pdfs,
                         persona_activation=persona_activation,
+                        project_notes=project_notes,
                     )
                 elif provider == "ollama":
                     url = urlparse(config.ollama_url)
@@ -595,6 +600,7 @@ class NativeBackend:
                         criteria,
                         pdfs,
                         persona_activation=persona_activation,
+                        project_notes=project_notes,
                     )
                 else:
                     coordinator.reasoner = MockReasoner()
@@ -602,6 +608,8 @@ class NativeBackend:
                 saved_workspace = work_session.record["workspace"]
                 if saved_workspace and workspace_identity(Path(saved_workspace["path"])) != saved_workspace:
                     raise WorkSessionError("Workspace changed before dispatch. Choose and inspect the folder again.")
+                if project_notes and self._selected_project_notes(params, session_id) != project_notes:
+                    raise WorkSessionError("Project notes changed before dispatch. Review the current notes; no fallback.")
                 work_session.dispatch()
             output = process_interactive_input_with_envelope(
                 text, coordinator=coordinator, session_logger=self.logger, project_root=self.root,
@@ -631,6 +639,9 @@ class NativeBackend:
                 serialized["notices"].append("Mock does not evaluate completion criteria; they remain operator-declared, not verified.")
             if pdfs and provider == "mock":
                 serialized["notices"].append("Mock is a deterministic UI test backend, not a PDF-understanding model. No PDF analysis was performed.")
+            if project_notes:
+                serialized["notices"].append("Explicit project notes: operator assertions, not independently verified facts. No automatic recall or permission change. "
+                                             + ("Mock does not analyze these notes." if provider == "mock" else "Previously sent notes can remain in provider-side conversation history."))
             saved_session = None
             if work_session is not None:
                 reader = self._artifact_workspace(params, work_session.record)
@@ -645,6 +656,7 @@ class NativeBackend:
                     "work_session": saved_session,
                     "image_context": [image.metadata for image in images],
                     "pdf_context": [pdf.metadata for pdf in pdfs],
+                    "knowledge_context": knowledge_metadata(project_notes),
                     "workspace_context": [{key: value for key, value in item.items() if key != "content"} for item in files]}
         except BaseException:
             if work_session is not None and work_session.failed_write and provider == "codex":
@@ -711,6 +723,11 @@ class NativeBackend:
         result["attachments_ready"] = result["attachments_ready"] and all(row["state"] == "ready" for row in pdf_rows)
         result["notes"].append("PDFs: only selected page text is sent on Send, after byte and text hash revalidation. No original PDF, OCR, layout, automatic page selection or PDF history replay.")
         result["notes"].append("Selected image bytes (including embedded metadata) are sent only on Send; vision capability is rechecked then. No automatic OCR, redaction, image history replay or local Ollama image support.")
+        project_notes = [] if operator else self._selected_project_notes(params, str(UUID(params.get("conversation_id", "")))) if params.get("project_memory") else []
+        if project_notes:
+            result["manifest"]["knowledge_context"] = knowledge_metadata(project_notes)
+            result["project_memory_sources"] = project_notes
+            result["notes"].append("Only explicitly selected current project notes will be sent. They are operator assertions, not verified facts. Legacy core recall remains shared; provider history may retain previously sent context.")
         if provider_thread:
             result["provider_thread"] = provider_thread
             if provider_thread["linked"]:
@@ -807,6 +824,36 @@ class NativeBackend:
     def _skill_restore_slot_used(self) -> bool:
         return self._native_skill_restore_used or bool(procedural_skill_restore_apply_receipts_snapshot())
 
+    def _project_memory(self, params: dict, conversation: str) -> NativeProjectMemory:
+        if not params.get("workspace_root"):
+            raise ValueError("Select the project folder before using its explicit notes.")
+        workspace = workspace_identity(self.workspace(params).root)
+        return NativeProjectMemory(self.root, self.state_dir, conversation, workspace)
+
+    def _selected_project_notes(self, params: dict, conversation: str) -> list[dict]:
+        specs = params.get("project_memory", [])
+        if specs == []:
+            return []
+        return self._project_memory(params, conversation).selected(specs)
+
+    def project_memory(self, method: str, params: dict) -> dict:
+        request = parse_project_memory_request(method, params)
+        if self.closing.is_set() or not self.busy.acquire(blocking=False):
+            raise ValueError("Wait for the active turn before reviewing project memory.")
+        try:
+            memory = self._project_memory(params, request["conversation_id"])
+            if method == "project_memory_list":
+                return memory.listing(include_history=params.get("include_history", False), offset=params.get("offset", 0))
+            if method == "project_memory_recall":
+                return memory.listing(query=params["query"])
+            if method == "project_memory_inspect":
+                return memory.inspect(params.get("record_id"))
+            if method == "project_memory_preview":
+                return memory.preview(params.get("note"))
+            return memory.save(params)
+        finally:
+            self.busy.release()
+
     def skill_history(self, method: str, params: dict) -> dict:
         parsed = parse_history_request(method, params)
         if self.closing.is_set() or not self.busy.acquire(blocking=False):
@@ -861,6 +908,8 @@ class NativeBackend:
             self.busy.release()
 
     def dispatch(self, method: str, params: dict, emit: Callable[[dict], None], request_id: str) -> Any:
+        if method in PROJECT_MEMORY_METHODS:
+            return self.project_memory(method, params)
         if method in {"skill_history_list", "skill_history_preview", "skill_history_save", "skill_history_inspect"}:
             return self.skill_history(method, params)
         if method == "bootstrap":

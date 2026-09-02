@@ -10,6 +10,12 @@ Future capabilities are tracked separately in [Personal Agent Evolution](PROTO_M
 
 ## Current Module Map
 
+`proto_mind/native_project_memory.py` + `native_knowledge.py` + `native/Sources/ProjectMemory*.swift` (EV-04 Explicit Project Memory / Native 0.29.0)
+
+- Fixed private list/recall/inspect/preview/save RPCs bind operator-authored notes to the selected folder's path/device/inode and launch project. Save appends to private `project_memory/`; explicit supersession does not rewrite older bytes. Read-only pagination and deterministic lexical recall never initialize stores or call a model.
+- Explicit attachment is ephemeral and separate from saving. Send revalidates scope/hash/current state; only selected notes enter the existing user-context path, clearly quoted as untrusted operator assertions. The existing Codex/Ollama call, permissions and shared-core recall remain unchanged. Content-free provenance extends private run manifests; slash commands bypass it.
+- No inferred project ownership, legacy migration, global-memory rewrite, embeddings, automatic capture/recall/injection, new command prefix, model call, permission or Context Injection change. Provider-side history may retain context sent in earlier turns.
+
 `proto_mind/native_learning_history.py` + `native_private_records.py` + `native/Sources/SkillHistory*.swift` (EV-04 Saved Learning History / Native 0.28.0)
 
 - Fixed list/preview/save/inspect RPCs archive only an exact selected skill/conversation/workspace snapshot, original manual-outcome/decision/lifecycle/restore receipts and their linked manual events. An explicit fresh hash-bound Save creates immutable private evidence, not a new live pilot or token.

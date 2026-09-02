@@ -132,7 +132,7 @@ class PrivateRecordStore:
                 raise ValueError("Private evidence was not saved.")
             return self._read(directory, identifier + ".json", validate)
 
-    def save(self, body: dict, validate) -> tuple[dict, bool]:
+    def save(self, body: dict, validate, *, expected_snapshot: str | None = None) -> tuple[dict, bool]:
         validate(body)
         record = {"schema": SCHEMA, "namespace": self.namespace, "id": digest(body),
                   "saved_at": datetime.now(UTC).isoformat(), "body": body}
@@ -152,6 +152,8 @@ class PrivateRecordStore:
                 existing = next((row for row in rows if row["id"] == record["id"]), None)
                 if existing is not None:
                     return existing, False
+                if expected_snapshot is not None and snapshot_hash(rows) != expected_snapshot:
+                    raise ValueError("Private records changed after preview. Review the current state; nothing saved.")
                 if len(rows) >= MAX_RECORDS:
                     raise ValueError("Private record limit reached. No cleanup or overwrite.")
                 temporary = ".pending-" + uuid4().hex
@@ -175,3 +177,7 @@ class PrivateRecordStore:
                         pass
             finally:
                 os.close(lock)
+
+
+def snapshot_hash(records: list[dict]) -> str:
+    return digest(sorted((record["id"], record["record_hash"]) for record in records))

@@ -16,6 +16,10 @@ struct LibraryView: View {
                 }
                 Spacer(minLength: 12)
                 if collection == .memory {
+                    Button { Task { await model.openProjectMemory() } } label: {
+                        Label("Память проекта…", systemImage: "folder.badge.person.crop")
+                    }.buttonStyle(.nativeHover).disabled(model.busy || model.selected?.workspacePath == nil)
+                        .help("Явные заметки выбранной папки; старые общие записи не переносятся")
                     Button { model.openMemoryWorkshop() } label: {
                         Label("Кандидаты опыта", systemImage: "sparkles.rectangle.stack")
                     }

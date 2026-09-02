@@ -28,6 +28,7 @@ struct NativeWorkSession: Identifiable, Equatable {
             throw NativeError.message("Не удалось проверить формат журнала работы. Файл не изменён.")
         }
         try NativePDFAttachment.validate(value["context_manifest"]["pdfs"].items)
+        try checkKnowledgeMetadata(value["context_manifest"]["knowledge_context"])
         if !value["agent_contract"].isNull {
             guard value["agent_contract"]["schema"].text == "proto_mind.native_agent_contract.v1",
                   value["agent_contract_hash"].text.count == 64,

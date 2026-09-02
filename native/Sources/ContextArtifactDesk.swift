@@ -49,6 +49,12 @@ struct NativeContextPreview: Equatable {
             guard case .array = value["manifest"]["pdfs"] else { throw NativeError.message("Неверный manifest PDF.") }
             try NativePDFAttachment.validate(value["manifest"]["pdfs"].items)
         }
+        try checkKnowledgeMetadata(value["manifest"]["knowledge_context"])
+        if !value["project_memory_sources"].isNull {
+            guard case .array(let notes) = value["project_memory_sources"], notes.count <= 5,
+                  notes.count == value["manifest"]["knowledge_context"]["project_memory"].items.count,
+                  notes.allSatisfy({ (1...4000).contains($0["content"].text.unicodeScalars.count) && (1...1000).contains($0["basis"].text.unicodeScalars.count) }) else { throw projectMemoryError() }
+        }
         self.value = value
     }
 }
@@ -168,6 +174,16 @@ struct ContextDeskView: View {
                                 .foregroundStyle(.secondary)
                         }
                         DeskSection("Текстовые вложения · \(preview.sources.count)/3", icon: "paperclip") {
+                            if !preview.value["project_memory_sources"].items.isEmpty {
+                                Text("Явно выбранная память проекта").font(.headline)
+                                ForEach(Array(preview.value["project_memory_sources"].items.enumerated()), id: \.offset) { _, note in
+                                    Text("\(ProjectNote.title(note["kind"].text)) · \(note["id"].text.prefix(12))").fontWeight(.medium)
+                                    Text(note["content"].text).textSelection(.enabled)
+                                    Text("Основание оператора: \(note["basis"].text)").font(.caption).foregroundStyle(.secondary)
+                                }
+                                Text("Утверждения оператора, не независимые факты. Этот выбор попадёт в следующий запрос; Send проверит источники заново. Старый контекст может оставаться в истории провайдера.").font(.caption).foregroundStyle(.secondary)
+                                Divider()
+                            }
                             if preview.sources.isEmpty {
                                 Text(manifest["operator"].flag ? "Вложения пропущены: \(preview.value["excluded_attachment_count"].integer)." : "Файлы не выбраны. Папка целиком, экран и буфер обмена не прикладываются.").foregroundStyle(.secondary)
                             }
@@ -345,6 +361,10 @@ struct ArtifactDeskView: View {
                         DisclosureGroup("Состав запроса при отправке") {
                             Text("\(manifest["provider"].text) · \(manifest["input"]["characters"].integer) символов ввода · история: \(manifest["history"]["messages"].integer) сообщений")
                             Text("Память общего ядра, не память папки. Manifest не содержит полного текста запроса, истории или скрытых prompts.").font(.caption).foregroundStyle(.secondary)
+                            ForEach(Array(manifest["knowledge_context"]["project_memory"].items.enumerated()), id: \.offset) { _, note in
+                                Text("Заметка проекта: \(note["id"].text.prefix(12)) · SHA \(note["record_hash"].text.prefix(12)) · утверждение оператора")
+                                    .font(.caption).textSelection(.enabled)
+                            }
                             ForEach(Array(manifest["files"].items.enumerated()), id: \.offset) { _, source in
                                 Text("\(source["path"].text) · \(source["included_chars"].integer) символов · SHA \(source["sha256"].text.prefix(12))").font(.caption).textSelection(.enabled)
                             }

@@ -93,6 +93,8 @@ final class AppModel: ObservableObject {
     @Published var skillLifecycleApply: SkillLifecycleApplyModel?
     @Published var skillRestore: SkillRestoreModel?
     @Published var skillHistory: SkillHistoryModel?
+    @Published var projectMemory: ProjectMemoryModel?
+    @Published var projectNoteSelections: [UUID: [ProjectNote]] = [:]
     @Published var showTaskCriteria = false
     @Published var imagePreview: NativeImagePreview?
     @Published var pdfPreview: NativePDFPreview?
@@ -251,6 +253,7 @@ final class AppModel: ObservableObject {
             "history": .array(conversation.history), "files": .array(conversation.pendingFiles),
             "images": .array(conversation.pendingImages),
             "pdfs": .array(conversation.pendingPDFs),
+            "project_memory": .array(pendingProjectNotes.map(\.selection)),
             "criteria": .array(conversation.pendingCriteria.map(JSONValue.string)),
             "cloud_consent": .bool(cloudConsent), "access_mode": .string(fullAccessEnabled ? "full_access" : "chat")
         ]
@@ -273,6 +276,8 @@ final class AppModel: ObservableObject {
         }
         return params
     }
+
+    func invalidateContextPreview() { contextPreview = nil; contextPreviewError = nil; contextPreviewRequest = UUID() }
 
     func refreshContextPreview() async {
         guard !busy, let conversationID = selectedID, let params = contextRequestParameters else { return }
@@ -684,6 +689,7 @@ final class AppModel: ObservableObject {
         skillLifecycleApply?.close()
         skillRestore?.close()
         skillHistory?.close()
+        projectMemory?.close()
         flushDraft()
         let chat = Conversation()
         conversations.insert(chat, at: 0)
@@ -711,6 +717,7 @@ final class AppModel: ObservableObject {
         skillLifecycleApply?.close()
         skillRestore?.close()
         skillHistory?.close()
+        projectMemory?.close()
         flushDraft()
         selectedID = id; section = .chat; inspectedMessageID = nil
         modelSelectionNotice = nil
@@ -937,6 +944,7 @@ final class AppModel: ObservableObject {
         let images = operatorInput ? [] : conversation.pendingImages
         let pdfs = operatorInput ? [] : conversation.pendingPDFs
         let criteria = operatorInput ? [] : conversation.pendingCriteria
+        let projectNotes = operatorInput ? [] : projectNoteSelections[conversationID] ?? []
         let grant = !operatorInput && fullAccessEnabled ? agentGrants[conversationID] : nil
         let continuation = operatorInput ? nil : conversation.draftContinuation
         let userMessage = ChatMessage(role: "user", text: text, operatorInput: operatorInput, fileContext: files, imageContext: images, pdfContext: pdfs)
@@ -963,6 +971,7 @@ final class AppModel: ObservableObject {
                 params["criteria"] = .array(criteria.map(JSONValue.string))
                 params["images"] = .array(images)
                 params["pdfs"] = .array(pdfs)
+                params["project_memory"] = .array(projectNotes.map(\.selection))
                 if let root = conversation.workspacePath { params["workspace_root"] = .string(root) }
                 if let continuation { params["continuation"] = continuation }
             }
@@ -982,6 +991,11 @@ final class AppModel: ObservableObject {
                 throw NativeError.message("Ядро вернуло Persona receipt без активированного opt-in.")
             }
             let evidence = result["cognitive_turn"]
+            try checkKnowledgeMetadata(result["knowledge_context"])
+            let returnedNotes = result["knowledge_context"]["project_memory"].items
+            guard returnedNotes.count == projectNotes.count, zip(returnedNotes, projectNotes).allSatisfy({ row, note in
+                row["id"] == note.raw["id"] && row["record_hash"] == note.raw["record_hash"]
+            }) else { throw projectMemoryError() }
             let raw = result["text"].text
             let body = result["exit_requested"].flag ? "Сессия ядра завершена. История диалога сохранена локально." : evidence.isNull ? raw : evidence["response"].text
             var notices = result["notices"].items.map(\.text)
@@ -1007,6 +1021,7 @@ final class AppModel: ObservableObject {
                 conversations[current].pendingImages = []
                 conversations[current].pendingPDFs = []
                 conversations[current].pendingCriteria = []
+                projectNoteSelections[conversationID] = nil
             }
             inspectedMessageID = message.id
             if !result["provider_thread"].isNull { codexThreadStatus = .null }
@@ -1100,6 +1115,7 @@ final class AppModel: ObservableObject {
             let value = try await client.request("workspace_status", ["workspace_root": .string(path)])
             guard let index = conversations.firstIndex(where: { $0.id == id }) else { return }
             conversations[index].workspacePath = value["root"].text
+            projectNoteSelections[id] = nil; projectMemory = nil; invalidateContextPreview()
             closeLearningReview()
             memoryWorkshop = nil
             discardAgentGrants(for: id)

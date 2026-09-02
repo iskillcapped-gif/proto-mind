@@ -13,6 +13,7 @@ from proto_mind.native_workspace import MAX_CONTEXT_FILE_CHARS, MAX_CONTEXT_FILE
 from proto_mind.native_review import criteria_contract
 from proto_mind.native_images import IMAGE_FIELDS, MAX_IMAGES, MAX_IMAGE_BYTES, MAX_TOTAL_IMAGE_BYTES
 from proto_mind.native_pdf import validate_pdf_metadata, MAX_PDF_BYTES, MAX_SELECTED_PAGES, MAX_PAGE_CHARS
+from proto_mind.native_knowledge import validate_knowledge_metadata
 
 
 CONTEXT_SCHEMA = "proto_mind.native_context_manifest.v1"
@@ -49,10 +50,11 @@ def context_manifest(*, root: Path, text: str, history: list[dict], files: list[
                      provider: str, model: str, effort: str, mode: str,
                      workspace: str | None, operator: bool = False, criteria: list[str] | None = None,
                      images: list[dict] | None = None, pdfs: list[dict] | None = None,
-                     provider_thread: dict | None = None) -> dict:
+                     provider_thread: dict | None = None, knowledge_context: dict | None = None) -> dict:
     """Compact manifest of adapter inputs, not a fabricated preview of future recall."""
     history = [] if operator else history
     files = [] if operator else files
+    validate_knowledge_metadata(knowledge_context)
     return {"schema": CONTEXT_SCHEMA, "generated_at": _stamp(), "read_only": True,
             "operator": operator, "provider": provider, "requested_model": model, "requested_effort": effort,
             "destination": "operator_local" if operator else {"codex": "openai_cloud", "ollama": "ollama_loopback", "mock": "mock_local"}[provider],
@@ -71,7 +73,8 @@ def context_manifest(*, root: Path, text: str, history: list[dict], files: list[
             "context_injection": injection_state(root), "access_mode": "operator" if operator else mode,
             "provider_thread": deepcopy(provider_thread),
             "success_criteria": criteria_contract([] if operator or criteria is None else criteria),
-            "permission_granted": False, "private_reasoning_included": False}
+            "permission_granted": False, "private_reasoning_included": False,
+            **({"knowledge_context": deepcopy(knowledge_context)} if knowledge_context and not operator else {})}
 
 
 def context_preview(*, reader: WorkspaceReader | None, specifications: object, cloud_consent: bool, **values) -> dict:

@@ -18,6 +18,7 @@ from proto_mind.native_desk import CONTEXT_SCHEMA, valid_artifact_snapshot
 from proto_mind.native_images import validate_image_metadata
 from proto_mind.native_pdf import validate_pdf_metadata
 from proto_mind.native_review import ACCEPTANCE, criteria_contract, make_review, valid_reviews
+from proto_mind.native_knowledge import validate_knowledge_metadata
 from proto_mind.native_agent_contract import (
     contract_hash,
     public_agent_contract,
@@ -197,6 +198,9 @@ class WorkSessionStore:
             if manifest is not None:
                 validate_image_metadata(manifest.get("images", []))
                 validate_pdf_metadata(manifest.get("pdfs", []))
+                validate_knowledge_metadata(manifest.get("knowledge_context"))
+                if any(row["workspace"] != record.get("workspace") for row in (manifest.get("knowledge_context") or {}).get("project_memory", [])):
+                    raise ValueError()
             contract = record.get("agent_contract")
             if contract is not None:
                 validate_agent_contract(contract)
