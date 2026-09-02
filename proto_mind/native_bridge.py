@@ -47,6 +47,7 @@ from proto_mind.native_skill_restore import NativeSkillRestore, parse_skill_rest
 from proto_mind.native_learning_history import NativeLearningHistory, parse_history_request
 from proto_mind.native_project_memory import NativeProjectMemory, parse_project_memory_request, METHODS as PROJECT_MEMORY_METHODS
 from proto_mind.native_skill_tasks import NativeSkillTask, parse_task_request, SELECT_FIELDS as SKILL_TASK_SELECT_FIELDS
+from proto_mind.native_auto_skills import AutoSkills, HISTORY_BOUNDARY as AUTO_SKILL_HISTORY_BOUNDARY
 from proto_mind.native_knowledge import knowledge_metadata, knowledge_context_message
 from proto_mind.native_private_records import encoded
 from proto_mind.skill_lifecycle_restore_apply import procedural_skill_restore_apply_receipts_snapshot
@@ -471,6 +472,8 @@ class NativeBackend:
         persona_enabled = params.get("persona_enabled", False)
         if type(persona_enabled) is not bool:
             raise ValueError("Invalid Brother Persona activation state.")
+        if type(params.get("auto_skills", False)) is not bool:
+            raise ValueError("Automatic skill selection must be explicitly on or off.")
         if description["blocked"]:
             raise ValueError(description["notice"])
         if description["requires_confirmation"] and params.get("confirmed_text") != text:
@@ -520,11 +523,16 @@ class NativeBackend:
         pdfs = [] if description["operator"] else self.pdf_reader().selected(params.get("pdfs", []))
         project_notes = [] if description["operator"] else self._selected_project_notes(params, session_id)
         skill_task = None if description["operator"] else self._selected_skill_task(params, session_id, text=text, criteria=criteria)
+        auto_skills = None
         def revalidate_knowledge():
             if project_notes and self._selected_project_notes(params, session_id) != project_notes:
                 raise WorkSessionError("Project notes changed before the provider call. Review them again; no fallback.")
             if skill_task and self._selected_skill_task(params, session_id, text=text, criteria=criteria) != skill_task:
                 raise WorkSessionError("Skill task changed before the provider call. Review it again; no fallback.")
+            if auto_skills and auto_skills.report["state"] in {"selected", "no_match"}:
+                auto_skills.revalidate()
+            if agent_workspace is not None:
+                self.agent_grants.validate(session_id, agent_workspace, params.get("access_token"))
         logical_workspace = (workspace_identity(self.workspace(params).root)
                              if not description["operator"] and params.get("workspace_root") else None)
         provider_thread = (self.subscription.thread_status(session_id, logical_workspace, mode=mode)
@@ -588,6 +596,9 @@ class NativeBackend:
             if not description["operator"]:
                 config = ProtoMindConfig.from_env(self.root / "proto_mind")
                 if provider == "codex":
+                    if params.get("auto_skills") is True and skill_task is None:
+                        auto_skills = AutoSkills(self.root, conversation=session_id, workspace=logical_workspace, text=text, mode=mode)
+                        auto_skills.select(self.subscription, text=text, history=history, model=model, emit=activity)
                     coordinator.reasoner = SubscriptionReasoner(
                         self.subscription, model, history,
                         lambda delta: emit({"event": "answer_delta", "request_id": request_id, "delta": delta}),
@@ -601,6 +612,7 @@ class NativeBackend:
                         persona_activation=persona_activation,
                         project_notes=project_notes,
                         skill_task=skill_task, before_provider_call=revalidate_knowledge,
+                        auto_skill_guidance=(AUTO_SKILL_HISTORY_BOUNDARY if "auto_skills" in params else "") + (auto_skills.guidance() if auto_skills else ""),
                     )
                 elif provider == "ollama":
                     url = urlparse(config.ollama_url)
@@ -671,6 +683,7 @@ class NativeBackend:
                     "work_log": work_log,
                     "provider_thread": self.subscription.last_thread_info if provider == "codex" and not description["operator"] else None,
                     "work_session": saved_session,
+                    "auto_skills": auto_skills.report if auto_skills else None,
                     "image_context": [image.metadata for image in images],
                     "pdf_context": [pdf.metadata for pdf in pdfs],
                     "knowledge_context": knowledge_metadata(project_notes, skill_task),
@@ -708,6 +721,8 @@ class NativeBackend:
         if not isinstance(model, str) or len(model) > 160 or "\x00" in model:
             raise ValueError("Invalid model name.")
         operator = describe_input(text)["operator"] if text else False
+        if type(params.get("auto_skills", False)) is not bool:
+            raise ValueError("Invalid automatic skill selection setting.")
         reader = self.workspace(params) if params.get("workspace_root") and not operator else None
         local_history = bounded_history(params.get("history", []))
         logical_workspace = workspace_identity(reader.root) if reader else None
@@ -723,6 +738,11 @@ class NativeBackend:
                                  reader=reader, specifications=params.get("files", []), cloud_consent=params.get("cloud_consent") is True,
                                  provider_thread=provider_thread)
         result["draft_empty"] = not text
+        if not operator and provider == "codex" and params.get("auto_skills") is True and not params.get("skill_task"):
+            auto = AutoSkills(self.root, conversation=str(UUID(params.get("conversation_id", ""))),
+                              workspace=logical_workspace, text=text, mode=mode)
+            result["auto_skills"] = auto.report
+            result["notes"].append("Automatic skills: on Send a separate tool-free Codex turn receives your task, up to four recent messages and a bounded shared-skill catalog. Only selected procedures reach the main turn. No selection or cloud call is performed by this preview.")
         image_specs = params.get("images", [])
         rows, images = self.image_reader().context_rows(image_specs, operator=operator)
         result["image_sources"] = rows

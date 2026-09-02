@@ -1,6 +1,8 @@
 """Private, bounded Native turn evidence. Never a queue, permission or auto-resume engine."""
 from __future__ import annotations
 
+from proto_mind.native_auto_skills import validate_auto_skills
+
 from contextlib import contextmanager
 from copy import deepcopy
 from datetime import UTC, datetime
@@ -185,6 +187,8 @@ class WorkSessionStore:
                 _id(record["parent_run_id"])
             if record.get("status") == "completed" and not record.get("finished_at"):
                 raise ValueError()
+            if "auto_skills" in record:
+                validate_auto_skills(record["auto_skills"], record)
             if "artifact_snapshot" in record and not valid_artifact_snapshot(record["artifact_snapshot"], record):
                 raise ValueError()
             if not valid_reviews(record):
@@ -502,7 +506,11 @@ class WorkSession:
 
     def observe(self, event: dict) -> None:
         force = False
-        if event.get("event") == "work_log":
+        if event.get("event") == "auto_skills":
+            validate_auto_skills(event.get("report"), self.record)
+            self.record["auto_skills"] = deepcopy(event["report"])
+            force = True
+        elif event.get("event") == "work_log":
             value = public_work_log(event.get("log", {}))
             if not value:
                 return

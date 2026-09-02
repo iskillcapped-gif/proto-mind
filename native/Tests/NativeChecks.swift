@@ -74,6 +74,7 @@ struct NativeChecks {
         try attachmentLayout(root: root)
         try await attachmentDropContracts(root: root)
         try taskCriteria(root: root)
+        try autoSkillsContracts(root: root)
         try workLogAndGrouping(root: root)
         try sidebarLayout(root: root)
         try hoverFeedback()

@@ -29,6 +29,7 @@ struct NativeWorkSession: Identifiable, Equatable {
         }
         try NativePDFAttachment.validate(value["context_manifest"]["pdfs"].items)
         try checkKnowledgeMetadata(value["context_manifest"]["knowledge_context"])
+        if !value["auto_skills"].isNull { _ = try NativeAutoSkillsReport(value["auto_skills"], run: value) }
         let skill = value["context_manifest"]["knowledge_context"]["skill_task"]
         if !skill.isNull {
             guard skill["workspace"] == value["workspace"], skill["conversation_id"] == value["conversation_id"],
@@ -172,6 +173,9 @@ struct WorkSessionsView: View {
                         Text("\(index + 1). \(item["text"].text)").textSelection(.enabled)
                     }
                 }
+            }
+            if let report = try? NativeAutoSkillsReport(run.value["auto_skills"], run: run.value) {
+                AutoSkillsReportView(report: report)
             }
             if !run.value["context_manifest"]["knowledge_context"]["skill_task"].isNull {
                 let skill = run.value["context_manifest"]["knowledge_context"]["skill_task"]

@@ -59,6 +59,7 @@ struct ChatMessage: Codable, Identifiable, Equatable {
     var pdfContext: [JSONValue]? = nil
     var agentRun: JSONValue? = nil
     var workLog: JSONValue? = nil
+    var autoSkills: JSONValue? = nil
 }
 
 struct Conversation: Codable, Identifiable, Equatable {
@@ -70,6 +71,7 @@ struct Conversation: Codable, Identifiable, Equatable {
     var provider = "ollama"
     var model = ""
     var reasoningEffort = ""
+    var autoSkillsEnabled = true
     var archived = false
     var draft = ""
     var workspacePath: String?
@@ -83,7 +85,7 @@ struct Conversation: Codable, Identifiable, Equatable {
     init() {}
 
     enum CodingKeys: String, CodingKey {
-        case id, title, createdAt, updatedAt, messages, provider, model, reasoningEffort, archived, draft, workspacePath, pendingFiles, pendingImages, pendingPDFs, pendingCriteria, draftContinuation, dismissedWorkSessionWarnings
+        case id, title, createdAt, updatedAt, messages, provider, model, reasoningEffort, autoSkillsEnabled, archived, draft, workspacePath, pendingFiles, pendingImages, pendingPDFs, pendingCriteria, draftContinuation, dismissedWorkSessionWarnings
     }
 
     init(from decoder: Decoder) throws {
@@ -96,6 +98,7 @@ struct Conversation: Codable, Identifiable, Equatable {
         provider = try values.decode(String.self, forKey: .provider)
         model = try values.decode(String.self, forKey: .model)
         reasoningEffort = try values.decodeIfPresent(String.self, forKey: .reasoningEffort) ?? ""
+        autoSkillsEnabled = try values.decodeIfPresent(Bool.self, forKey: .autoSkillsEnabled) ?? true
         archived = try values.decodeIfPresent(Bool.self, forKey: .archived) ?? false
         draft = try values.decodeIfPresent(String.self, forKey: .draft) ?? ""
         workspacePath = try values.decodeIfPresent(String.self, forKey: .workspacePath)
@@ -106,6 +109,7 @@ struct Conversation: Codable, Identifiable, Equatable {
         for message in messages { try NativePDFAttachment.validate(message.pdfContext ?? []) }
         try NativeImageAttachment.validate(pendingImages)
         for message in messages { try NativeImageAttachment.validate(message.imageContext ?? []) }
+        for message in messages { if let report = message.autoSkills { _ = try NativeAutoSkillsReport(report) } }
         pendingCriteria = try NativeTaskCriteria.validate(values.decodeIfPresent([String].self, forKey: .pendingCriteria) ?? [])
         draftContinuation = try values.decodeIfPresent(JSONValue.self, forKey: .draftContinuation)
         dismissedWorkSessionWarnings = try values.decodeIfPresent([NativeWorkSessionNotice].self, forKey: .dismissedWorkSessionWarnings) ?? []

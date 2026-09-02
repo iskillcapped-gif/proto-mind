@@ -97,6 +97,7 @@ final class AppModel: ObservableObject {
     @Published var projectNoteSelections: [UUID: [ProjectNote]] = [:]
     @Published var skillTask: SkillTaskModel?
     @Published var preparedSkillTasks: [UUID: PreparedSkillTask] = [:]
+    @Published var autoSkillsReport: NativeAutoSkillsReport?
     @Published var showTaskCriteria = false
     @Published var imagePreview: NativeImagePreview?
     @Published var pdfPreview: NativePDFPreview?
@@ -195,6 +196,10 @@ final class AppModel: ObservableObject {
         client.onEvent = { [weak self] event in
             guard let self, event["request_id"].text == self.activeRequest else { return }
             if event["event"].text == "answer_delta" { self.stream += event["delta"].text }
+            if event["event"].text == "auto_skills", let report = try? NativeAutoSkillsReport(event["report"]) {
+                self.autoSkillsReport = report
+                if report.state == "selecting" { self.status = "Подбираю навык · без инструментов" }
+            }
             if event["event"].text == "agent_activity" {
                 let item = event["item"]
                 guard !item["id"].text.isEmpty else { return }
@@ -257,6 +262,7 @@ final class AppModel: ObservableObject {
             "pdfs": .array(conversation.pendingPDFs),
             "project_memory": .array(pendingProjectNotes.map(\.selection)),
             "criteria": .array(conversation.pendingCriteria.map(JSONValue.string)),
+            "auto_skills": .bool(conversation.provider == "codex" && conversation.autoSkillsEnabled),
             "cloud_consent": .bool(cloudConsent), "access_mode": .string(fullAccessEnabled ? "full_access" : "chat")
         ]
         if let path = conversation.workspacePath { params["workspace_root"] = .string(path) }
@@ -735,6 +741,12 @@ final class AppModel: ObservableObject {
         }
     }
 
+    func setAutoSkillsEnabled(_ enabled: Bool) {
+        guard !busy, let index = conversations.firstIndex(where: { $0.id == selectedID }), !conversations[index].archived else { return }
+        conversations[index].autoSkillsEnabled = enabled
+        invalidateContextPreview(); persist()
+    }
+
     func setProvider(_ value: String) {
         guard !busy, ["ollama", "codex", "mock"].contains(value), selected?.provider != value,
               let index = conversations.firstIndex(where: { $0.id == selectedID }) else { return }
@@ -951,6 +963,7 @@ final class AppModel: ObservableObject {
         let criteria = operatorInput ? [] : conversation.pendingCriteria
         let projectNotes = operatorInput ? [] : projectNoteSelections[conversationID] ?? []
         let skillTask = operatorInput ? nil : preparedSkillTasks[conversationID]
+        let automaticSkills = !operatorInput && conversation.provider == "codex" && conversation.autoSkillsEnabled && skillTask == nil
         let grant = !operatorInput && fullAccessEnabled ? agentGrants[conversationID] : nil
         let continuation = operatorInput ? nil : conversation.draftContinuation
         let userMessage = ChatMessage(role: "user", text: text, operatorInput: operatorInput, fileContext: files, imageContext: images, pdfContext: pdfs)
@@ -959,7 +972,7 @@ final class AppModel: ObservableObject {
             conversations[index].title = String(text.split(whereSeparator: \.isWhitespace).joined(separator: " ").prefix(54))
         }
         conversations[index].updatedAt = Date()
-        setComposer(""); stream = ""; agentItems = []; agentReceipt = .null; workLog = .null
+        setComposer(""); stream = ""; agentItems = []; agentReceipt = .null; workLog = .null; autoSkillsReport = nil
         turnStartedAt = Date(); section = .chat
         status = grant == nil ? "Proto-Mind думает" : "Агент подключается · полный доступ + интернет"
         persist()
@@ -978,6 +991,7 @@ final class AppModel: ObservableObject {
                 params["images"] = .array(images)
                 params["pdfs"] = .array(pdfs)
                 params["project_memory"] = .array(projectNotes.map(\.selection))
+                params["auto_skills"] = .bool(automaticSkills)
                 if let skillTask { params["skill_task"] = skillTask.selection }
                 if let root = conversation.workspacePath { params["workspace_root"] = .string(root) }
                 if let continuation { params["continuation"] = continuation }
@@ -1004,6 +1018,13 @@ final class AppModel: ObservableObject {
                 row["id"] == note.raw["id"] && row["record_hash"] == note.raw["record_hash"]
             }) else { throw projectMemoryError() }
             guard result["knowledge_context"]["skill_task"] == (skillTask?.reference ?? .null) else { throw skillTaskError() }
+            if automaticSkills {
+                let report = try NativeAutoSkillsReport(result["auto_skills"], run: result["work_session"])
+                guard ["selected", "no_match", "empty", "unavailable"].contains(report.state),
+                      report.matches(conversation: conversationID, text: text, workspace: conversation.workspacePath,
+                                     mode: grant == nil ? "chat" : "full_access") else { throw NativeAutoSkillsReport.error() }
+                autoSkillsReport = report
+            } else if !result["auto_skills"].isNull { throw NativeAutoSkillsReport.error() }
             let raw = result["text"].text
             let body = result["exit_requested"].flag ? "Сессия ядра завершена. История диалога сохранена локально." : evidence.isNull ? raw : evidence["response"].text
             var notices = result["notices"].items.map(\.text)
@@ -1022,7 +1043,8 @@ final class AppModel: ObservableObject {
                                       imageContext: result["image_context"].items,
                                       pdfContext: result["pdf_context"].items,
                                       agentRun: result["agent_run"].isNull ? nil : result["agent_run"],
-                                      workLog: result["work_log"].isNull ? nil : result["work_log"])
+                                      workLog: result["work_log"].isNull ? nil : result["work_log"],
+                                      autoSkills: autoSkillsReport?.value)
             append(message, to: conversationID)
             if !operatorInput, let current = conversations.firstIndex(where: { $0.id == conversationID }) {
                 conversations[current].pendingFiles = []
@@ -1043,7 +1065,7 @@ final class AppModel: ObservableObject {
             let caution = grant == nil ? "" : "\nДействия могли уже изменить файлы. Проверьте журнал и результат перед повтором; автоматического отката нет."
             append(ChatMessage(role: "report", text: error.localizedDescription + caution, isError: true,
                                agentRun: agentReceipt.isNull ? nil : agentReceipt,
-                               workLog: workLog.isNull ? nil : workLog), to: conversationID)
+                               workLog: workLog.isNull ? nil : workLog, autoSkills: autoSkillsReport?.value), to: conversationID)
             if grant != nil { discardAgentGrants(for: conversationID) }
             if selectedID == conversationID && composer.isEmpty {
                 if let current = conversations.firstIndex(where: { $0.id == conversationID }) {
@@ -1053,7 +1075,7 @@ final class AppModel: ObservableObject {
             }
             status = "Запрос не завершён"
         }
-        busy = false; stream = ""; activeRequest = nil; agentItems = []; agentReceipt = .null; workLog = .null; turnStartedAt = nil
+        busy = false; stream = ""; activeRequest = nil; agentItems = []; agentReceipt = .null; workLog = .null; turnStartedAt = nil; autoSkillsReport = nil
         persist()
         await refreshCodexThreadStatus()
         await refresh()

@@ -10,6 +10,12 @@ Future capabilities are tracked separately in [Personal Agent Evolution](PROTO_M
 
 ## Current Module Map
 
+`proto_mind/native_auto_skills.py` + `native_codex.py` + `native/Sources/AutoSkills.swift` (EV-04 Automatic Skill Guidance / Native 0.31.0)
+
+- Normal Codex Send optionally reads a bounded shared-skill catalog, reusing exactly the manual-task source/lifecycle/contract eligibility boundary. One isolated ephemeral structured-output selector chooses zero to two IDs; no tools, thread-binding changes, credentials copying or Platform API are involved. Manual selection wins; operator routes and local providers bypass it.
+- Only current selected contracts become quoted guidance for the existing main turn. Cloud/Full Mac grants, requested main effort, actual tool observations and durable chat continuity are unchanged. Catalog hashes/source bytes are rechecked before selection, after selection, before dispatch and before the provider call. Malformed output, unknown IDs, Stop and drift stop the task without automatic retry.
+- Per-chat Auto preference and optional closed `auto_skills` message/run metadata use existing private Native storage. The context desk previews availability without a model call. Selection reasons/checks are public model suggestions, not private reasoning, operator criteria or acceptance. No skill-use counters, lifecycle writes, learning events, core-store migration, embeddings or new slash commands. See the roadmap for the 32-entry catalog cap and independent six-case live fixture evaluation.
+
 `proto_mind/native_skill_tasks.py` + `native_knowledge.py` + `native/Sources/SkillTask*.swift` (EV-04 Operator-Guided Skill Tasks / Native 0.30.0)
 
 - One fixed read-only `skill_task_preview` RPC checks the current active authored procedure and its source lesson, including verified restored skills. The exact task goal, declared criteria, conversation/folder identity, provider/access mode and source hashes bind a non-authorizing preview. Unknown, historical, archived, executable or drifted records cannot prepare a task.

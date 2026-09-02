@@ -67,6 +67,11 @@ struct NativeContextPreview: Equatable {
             guard reference == skillTaskReference(body: body, fingerprint: hash), body["success_criteria"] == value["manifest"]["success_criteria"],
                   reference["goal_sha256"] == value["manifest"]["input"]["sha256"] else { throw skillTaskError() }
         } else if !value["skill_task_source"].isNull || !value["skill_task_hash_material"].isNull { throw skillTaskError() }
+        if !value["auto_skills"].isNull {
+            let report = try NativeAutoSkillsReport(value["auto_skills"])
+            guard ["ready", "empty", "unavailable"].contains(report.state), !report.value["selector_attempted"].flag,
+                  report.value["goal_sha256"] == value["manifest"]["input"]["sha256"], reference.isNull else { throw NativeAutoSkillsReport.error() }
+        }
         self.value = value
     }
 }
@@ -189,6 +194,12 @@ struct ContextDeskView: View {
                             DeskSection("Явно выбранный навык", icon: "list.bullet.clipboard") {
                                 SkillTaskContractView(value: preview.value["skill_task_source"])
                                 Text("Это ориентир для следующего ручного Send. Проверка происхождения не оценивает качество выполнения и не выдаёт разрешений.").font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                        if let report = try? NativeAutoSkillsReport(preview.value["auto_skills"]) {
+                            DeskSection("Автоматические навыки", icon: "square.stack.3d.up") {
+                                AutoSkillsReportView(report: report)
+                                Text("При отправке: один отдельный запрос выбранной Codex-модели на low, если поддерживается, иначе на усилии по умолчанию. Он получает задачу, до четырёх последних сообщений и краткий каталог. Основной ответ сохраняет выбранное вами усилие. Здесь облачного запроса нет.").font(.caption).foregroundStyle(.secondary)
                             }
                         }
                         DeskSection("Заметки проекта", icon: "brain") {

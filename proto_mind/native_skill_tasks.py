@@ -1,14 +1,11 @@
 """Operator-prepared use of a verified procedure as guidance, never a skill interpreter."""
 from copy import deepcopy
 from pathlib import Path
-from proto_mind.experience_learning_skill_authoring import _validate_authored_contract
 from proto_mind.native_private_records import digest, encoded, HASH
 from proto_mind.native_review import validate_criteria, criteria_contract
-from proto_mind.native_skill_authoring import parse_skill_request
 from proto_mind.native_skill_inspection import parse_skill_inspection_request
 from proto_mind.native_skill_outcome import NativeSkillOutcome
 from proto_mind.native_work_sessions import workspace_identity
-from proto_mind.skill_lifecycle_audit import ProceduralSkillLifecycleAudit
 
 
 PREVIEW_SCHEMA = "proto_mind.native_skill_task_preview.v1"
@@ -51,15 +48,8 @@ class NativeSkillTask:
             record = next((row for row in source.builder.skill_library.read_snapshot()["records"] if row["id"] == request["skill_id"]), None)
             if record is None:
                 raise ValueError("Selected skill no longer exists. No substitute was chosen.")
-            lifecycle = ProceduralSkillLifecycleAudit.inspect_record(
-                record, memories=source.builder.memory_store.load_persistent_memory(), memory_exists=True, memory_error="")
-            if (lifecycle.state not in {"active_verified", "active_restored_verified"} or lifecycle.issues
-                    or lifecycle.source_status != "current" or not lifecycle.restart_safe or record.get("executable") is not False):
-                raise ValueError("Only active, current-provenance verified procedures can guide a task. " + "; ".join(lifecycle.issues or [lifecycle.state]))
+            contract, lifecycle = source.verified_guidance(record)
             provenance = record["provenance"]
-            contract = deepcopy(provenance["authored_contract"])
-            _validate_authored_contract(contract)
-            parse_skill_request({"conversation_id": request["conversation_id"], "lesson_id": provenance["source_lesson_id"], "authored": contract}, method="skill_authoring_review")
             body = {"schema": TASK_SCHEMA, "conversation_id": request["conversation_id"], "project_root": str(self.root),
                     "workspace": self.workspace, "skill_id": record["id"], "skill_name": record["name"],
                     "skill_record_hash": digest(record), "source_lesson_id": provenance["source_lesson_id"],

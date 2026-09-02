@@ -119,6 +119,28 @@ class NativeSkillOutcome:
             if hashlib.sha256(payload).hexdigest() != expected:
                 raise ValueError(f"{name} changed during review. Preview again; no outcome recorded.")
 
+    def verified_guidance(self, record: dict) -> tuple[dict, object]:
+        """Shared eligibility boundary for manual and automatic procedure guidance."""
+        from copy import deepcopy
+        from proto_mind.experience_learning_skill_authoring import _validate_authored_contract
+        from proto_mind.native_skill_authoring import parse_skill_request
+        from proto_mind.skill_lifecycle_audit import ProceduralSkillLifecycleAudit
+
+        if self.builder is None or self.issues or not self.context_disabled:
+            raise ValueError("Current skill sources and disabled Context Injection must be verifiable.")
+        lifecycle = ProceduralSkillLifecycleAudit.inspect_record(
+            record, memories=self.builder.memory_store.load_persistent_memory(), memory_exists=True, memory_error="")
+        if (lifecycle.state not in {"active_verified", "active_restored_verified"} or lifecycle.issues
+                or lifecycle.source_status != "current" or not lifecycle.restart_safe or record.get("executable") is not False):
+            raise ValueError("Only active, current-provenance verified procedures can guide a task. "
+                             + "; ".join(lifecycle.issues or [lifecycle.state]))
+        contract = deepcopy(record["provenance"]["authored_contract"])
+        _validate_authored_contract(contract)
+        parse_skill_request({"conversation_id": self.request["conversation_id"],
+                             "lesson_id": record["provenance"]["source_lesson_id"],
+                             "authored": contract}, method="skill_authoring_review")
+        return contract, lifecycle
+
     def _identity(self) -> dict:
         return {"conversation_id": self.request["conversation_id"], "skill_id": self.request["skill_id"],
                 "workspace_path": str(self.workspace["path"]) if self.workspace else ""}

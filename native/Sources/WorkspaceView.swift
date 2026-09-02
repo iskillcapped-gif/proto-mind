@@ -262,6 +262,7 @@ private struct ChatView: View {
                                 }
                                 if model.busy {
                                     VStack(alignment: .leading, spacing: 20) {
+                                        if let report = model.autoSkillsReport { AutoSkillsReportView(report: report) }
                                         WorkTimelineView(log: model.workLog, agentReceipt: model.agentReceipt,
                                                          toolItems: model.agentItems, live: true, startedAt: model.turnStartedAt)
                                         if !model.stream.isEmpty { MessageMarkdownView(text: model.stream, copy: model.copy) }
@@ -376,6 +377,7 @@ private struct MessageView: View {
             }
         } else {
             VStack(alignment: .leading, spacing: 18) {
+                if let raw = message.autoSkills, let report = try? NativeAutoSkillsReport(raw) { AutoSkillsReportView(report: report) }
                 if let work = message.workLog, work["schema"].text == "proto_mind.native_work_log.v1" {
                     WorkTimelineView(log: work, agentReceipt: message.agentRun ?? .null)
                 } else if let receipt = message.agentRun, !receipt.isNull {
@@ -523,6 +525,7 @@ struct ComposerView: View {
                         }.menuStyle(.borderlessButton).fixedSize().nativeHoverSurface().disabled(model.busy || model.selected?.archived == true)
                             .help(model.fullAccessEnabled ? (model.computerUseAvailable ? "Полный доступ к Mac, Web Search, сеть и Computer Use. Stop/Esc не откатывают изменения." : "Полный доступ к Mac, Web Search и сеть. Computer Use недоступен.") : "Файловые, сетевые, Web Search и экранные инструменты выключены")
                     }
+                    if model.selected?.provider == "codex" { AutoSkillsMenu(model: model) }
                     Spacer(minLength: 8)
                     Button { model.showTaskCriteria = true } label: {
                         HStack(spacing: 4) {

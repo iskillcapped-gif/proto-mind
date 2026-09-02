@@ -612,6 +612,71 @@ class CodexSubscription:
         finally:
             progress.finish(status)
 
+    def select_skills(self, prompt: str, instructions: str, schema: dict, model: str) -> dict:
+        """One tool-free ephemeral selection, without touching durable chat bindings."""
+        if len(prompt) > 96_000:
+            raise CodexConnectionError("Skill catalog is too large for the bounded selector.")
+        try:
+            if self.cancelled.is_set():
+                raise TurnCancelled("Skill selection stopped before connecting.")
+            if not self.account()["connected"]:
+                raise CodexConnectionError("Sign in with ChatGPT before automatic skill selection. No API-key fallback.")
+            options = self.models()
+            model, effort = resolve_model_selection(options, model, "")
+            option = next((item for item in options if item["id"] == model), None)
+            if option is None:
+                raise CodexConnectionError("Current model could not be resolved for skill selection.")
+            if "low" in {item["id"] for item in option["reasoning_efforts"]}:
+                effort = "low"
+            rpc = self.connect()
+            if self.cancelled.is_set():
+                raise TurnCancelled("Skill selection stopped before starting.")
+            result = rpc.request("thread/start", {
+                "cwd": str(self.workspace), "model": model, "sandbox": "read-only", "approvalPolicy": "never",
+                "ephemeral": True, "baseInstructions": instructions,
+                "developerInstructions": "Tool-free procedure selection only. Return the requested JSON; do not do the user's task.",
+            })
+            thread_id = self._validate_thread_policy(result, None, self.workspace, "chat")
+            if self.cancelled.is_set():
+                raise TurnCancelled("Skill selection stopped before cloud processing.")
+            params = {"threadId": thread_id, "input": [{"type": "text", "text": prompt}], "outputSchema": schema}
+            if effort:
+                params["effort"] = effort
+            turn = rpc.request("turn/start", params)
+            turn_id = turn["turn"]["id"]
+            self.active_turn = (thread_id, turn_id)
+            messages = PublicMessages(lambda _: None, WorkLog(None, "chat"), limit=6000, error_type=CodexConnectionError)
+            deadline = time.monotonic() + 60
+            while time.monotonic() < deadline:
+                if self.cancelled.is_set():
+                    raise TurnCancelled("Skill selection stopped. Main task not started.")
+                event = rpc.next_event(timeout=0.2)
+                method, payload = event.get("method", ""), event.get("params") or {}
+                if method == "proto_mind/tool_refused":
+                    raise CodexConnectionError("Tool request refused during automatic skill selection.")
+                if payload.get("threadId") != thread_id or payload.get("turnId") not in {None, turn_id}:
+                    continue
+                if method in {"item/started", "item/completed"} and (payload.get("item") or {}).get("type") not in {
+                    "userMessage", "agentMessage", "reasoning"
+                }:
+                    raise CodexConnectionError("Non-chat operation refused during automatic skill selection.")
+                messages.observe(method, payload)
+                if method == "turn/completed" and (payload.get("turn") or {}).get("id") == turn_id:
+                    completed = payload["turn"]
+                    if completed.get("status") != "completed":
+                        raise CodexConnectionError(safe_turn_error(completed))
+                    answer = messages.answer()
+                    if not answer:
+                        raise CodexConnectionError("Empty automatic skill selection. Main task not started.")
+                    return {"text": answer, "model": model, "effort": effort}
+            raise CodexConnectionError("Automatic skill selection timed out. Main task not started; no automatic retry.")
+        except BaseException:
+            self.interrupt()
+            raise
+        finally:
+            self.active_turn = None
+            self.close()
+
     def _chat_answer(self, prompt: str, instructions: str, model: str, on_delta, progress: WorkLog, reasoning_effort: str,
                      images: list[SelectedImage], conversation: str, logical_workspace: dict | None,
                      history: list[dict]) -> str:
@@ -758,7 +823,7 @@ class SubscriptionReasoner(BaseReasoner):
                  criteria: list[str] | None = None, images: list[SelectedImage] | None = None,
                  pdfs: list[SelectedPDF] | None = None,
                  persona_activation: PersonaTurnActivation | None = None, project_notes: list[dict] | None = None,
-                 skill_task: dict | None = None, before_provider_call=None) -> None:
+                 skill_task: dict | None = None, before_provider_call=None, auto_skill_guidance: str = "") -> None:
         self.subscription, self.model, self.history, self.on_delta = subscription, model, history, on_delta
         self.conversation, self.logical_workspace = conversation, logical_workspace
         self.files = files or []
@@ -772,6 +837,7 @@ class SubscriptionReasoner(BaseReasoner):
         self.last_persona_receipt: dict | None = None
         self.project_notes = project_notes or []
         self.skill_task, self.before_provider_call = skill_task, before_provider_call
+        self.auto_skill_guidance = auto_skill_guidance
 
     def respond(self, user_input: str, retrieved_memory: list[MemoryRecord], observer_state: ObserverState,
                 correction_hints: list[str] | None = None) -> str:
@@ -796,7 +862,7 @@ class SubscriptionReasoner(BaseReasoner):
             instructions = prepared.instructions
             self.last_persona_receipt = prepared.receipt
         prompt = user_input
-        prompt = criteria_context_message(self.criteria) + file_context_message(self.files) + image_context_message(self.images) + pdf_context_message(self.pdfs) + knowledge_context_message(self.project_notes, self.skill_task) + prompt
+        prompt = criteria_context_message(self.criteria) + file_context_message(self.files) + image_context_message(self.images) + pdf_context_message(self.pdfs) + knowledge_context_message(self.project_notes, self.skill_task) + self.auto_skill_guidance + prompt
         image_options = {"images": self.images} if self.images else {}
         if self.agent_workspace is not None:
             return self.subscription.agent_answer(prompt, instructions, self.model, self.on_delta,
