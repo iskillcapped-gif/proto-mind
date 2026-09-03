@@ -22,6 +22,8 @@ from proto_mind.session_spine_store import (
     SessionSpineStoreBusy,
     SessionSpineStoreError,
     SessionSpineStoreMissing,
+    build_store_image,
+    inspect_store_image,
 )
 
 
@@ -83,6 +85,26 @@ class SessionSpineStoreTests(TestCase):
         self.assertEqual(reopened.to_dict()["schema"], PROJECTION_SCHEMA)
         self.assertTrue(reopened.to_dict()["read_only"])
         self.assertFalse(reopened.to_dict()["task_success_inferred"])
+
+    def test_pure_store_image_builder_matches_writer_bytes_exactly(self):
+        events = (
+            self.event(0),
+            SessionEvent.create(1, 1001, "user/message", {"text": "hello"}, surface_op="append"),
+            SessionEvent.create(2, 1002, "assistant/message", {"text": "hi"}, surface_op="append"),
+            self.event(3, "turn/end", outcome="response_recorded"),
+        )
+        expected = build_store_image(
+            session_id=self.session_id,
+            created_ms=1000,
+            owner_id="owner.first",
+            events=events,
+        )
+        with self.store.writer(self.session_id, "owner.first", created_ms=1000) as writer:
+            for event in events:
+                writer.append(event)
+        actual = self.data_path().read_bytes()
+        self.assertEqual(actual, expected)
+        self.assertEqual(inspect_store_image(actual, self.session_id), self.store.inspect(self.session_id))
 
     def test_receipt_records_explicit_owner_and_no_target_execution(self):
         with self.store.writer(self.session_id, "owner.alpha", created_ms=5) as writer:

@@ -12,12 +12,13 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 import fcntl
 import hashlib
+from itertools import islice
 import json
 import os
 from pathlib import Path
 import re
 import stat
-from typing import Any, Iterator, Mapping
+from typing import Any, Iterable, Iterator, Mapping
 from uuid import UUID
 
 from proto_mind.session_spine import SessionEvent, SurfaceSnapshot, event_from_dict, fold_surface
@@ -216,6 +217,40 @@ class SessionSpineAppendReceipt:
         }
 
 
+def _event_records(
+    *,
+    session_id: str,
+    owner_id: str,
+    event: SessionEvent,
+    previous_commit_hash: str,
+) -> tuple[bytes, bytes, dict[str, Any], dict[str, Any]]:
+    event_value = event.to_dict()
+    event_hash = _digest(event_value)
+    prepared: dict[str, Any] = {
+        "schema": PREPARE_SCHEMA,
+        "session_id": session_id,
+        "ordinal": event.seq,
+        "owner_id": owner_id,
+        "previous_commit_hash": previous_commit_hash,
+        "event": event_value,
+        "event_hash": event_hash,
+    }
+    prepared["prepare_hash"] = _digest(prepared)
+    committed: dict[str, Any] = {
+        "schema": COMMIT_SCHEMA,
+        "session_id": session_id,
+        "ordinal": event.seq,
+        "owner_id": owner_id,
+        "previous_commit_hash": previous_commit_hash,
+        "prepare_hash": prepared["prepare_hash"],
+    }
+    committed["commit_hash"] = _digest(committed)
+    prepare_line, commit_line = _line(prepared), _line(committed)
+    if len(prepare_line) > MAX_RECORD_BYTES or len(commit_line) > MAX_RECORD_BYTES:
+        raise SessionSpineStoreError("Session event envelope exceeds its bounded record size.")
+    return prepare_line, commit_line, prepared, committed
+
+
 def _header(value: Mapping[str, Any], session_id: str) -> dict[str, Any]:
     expected = {"schema", "store_schema", "format_version", "session_id", "created_ms", "created_by"}
     if (set(value) != expected or value.get("schema") != HEADER_SCHEMA
@@ -374,6 +409,69 @@ def _snapshot(parsed: _ParsedLog) -> SessionSpineStoreSnapshot:
         torn_tail_bytes=parsed.torn_tail_bytes,
         warnings=tuple(warnings),
     )
+
+
+def inspect_store_image(raw: bytes, session_id: str) -> SessionSpineStoreSnapshot:
+    """Validate one detached store image without opening a path or changing bytes."""
+    if type(raw) is not bytes:
+        raise SessionSpineStoreError("Detached Session Spine image must be immutable bytes.")
+    return _snapshot(_parse(raw, _uuid(session_id, "Session ID")))
+
+
+def build_store_image(
+    *,
+    session_id: str,
+    created_ms: int,
+    owner_id: str,
+    events: Iterable[SessionEvent],
+) -> bytes:
+    """Build the exact canonical P2a bytes for an explicitly supplied event fixture."""
+    session = _uuid(session_id, "Session ID")
+    created = _integer(created_ms, "Session creation time")
+    owner = _owner(owner_id)
+    try:
+        rows = tuple(islice(iter(events), MAX_EVENTS + 1))
+    except TypeError:
+        raise SessionSpineStoreError("Session image events must be an iterable of validated events.") from None
+    if len(rows) > MAX_EVENTS:
+        raise SessionSpineStoreError("Session store exceeds its bounded event count.")
+    for expected, event in enumerate(rows):
+        if not isinstance(event, SessionEvent) or event.seq != expected:
+            raise SessionSpineStoreError("Session image requires contiguous validated events from sequence zero.")
+    try:
+        fold_surface(rows)
+        _turn_state(rows, False)
+    except SessionSpineStoreError:
+        raise
+    except ValueError as error:
+        raise SessionSpineStoreError(f"Session image events do not replay: {error}") from None
+
+    header = {
+        "schema": HEADER_SCHEMA,
+        "store_schema": STORE_SCHEMA,
+        "format_version": FORMAT_VERSION,
+        "session_id": session,
+        "created_ms": created,
+        "created_by": owner,
+    }
+    raw = _line(header)
+    previous = _digest(header)
+    for event in rows:
+        prepare_line, commit_line, _, committed = _event_records(
+            session_id=session,
+            owner_id=owner,
+            event=event,
+            previous_commit_hash=previous,
+        )
+        if len(raw) + len(prepare_line) + len(commit_line) > MAX_FILE_BYTES:
+            raise SessionSpineStoreError("Session store file limit reached; no automatic cleanup.")
+        raw += prepare_line + commit_line
+        previous = committed["commit_hash"]
+
+    snapshot = inspect_store_image(raw, session)
+    if snapshot.events != rows or snapshot.last_commit_hash != previous:
+        raise SessionSpineStoreError("Built Session Spine image did not survive exact replay.")
+    return raw
 
 
 class SessionSpineStore:
@@ -746,31 +844,13 @@ class SessionSpineWriter:
             prospective = (*self.events, event)
             fold_surface(prospective)
             _turn_state(prospective, False)
-            event_value = event.to_dict()
-            event_hash = _digest(event_value)
             previous = self.last_commit_hash
-            prepared: dict[str, Any] = {
-                "schema": PREPARE_SCHEMA,
-                "session_id": self.session_id,
-                "ordinal": event.seq,
-                "owner_id": self.owner_id,
-                "previous_commit_hash": previous,
-                "event": event_value,
-                "event_hash": event_hash,
-            }
-            prepared["prepare_hash"] = _digest(prepared)
-            committed: dict[str, Any] = {
-                "schema": COMMIT_SCHEMA,
-                "session_id": self.session_id,
-                "ordinal": event.seq,
-                "owner_id": self.owner_id,
-                "previous_commit_hash": previous,
-                "prepare_hash": prepared["prepare_hash"],
-            }
-            committed["commit_hash"] = _digest(committed)
-            prepare_line, commit_line = _line(prepared), _line(committed)
-            if len(prepare_line) > MAX_RECORD_BYTES or len(commit_line) > MAX_RECORD_BYTES:
-                raise SessionSpineStoreError("Session event envelope exceeds its bounded record size.")
+            prepare_line, commit_line, prepared, committed = _event_records(
+                session_id=self.session_id,
+                owner_id=self.owner_id,
+                event=event,
+                previous_commit_hash=previous,
+            )
             if len(self.raw) + len(prepare_line) + len(commit_line) > MAX_FILE_BYTES:
                 raise SessionSpineStoreError("Session store file limit reached; no automatic cleanup.")
             write_started = True
@@ -787,7 +867,7 @@ class SessionSpineWriter:
                 session_id=self.session_id,
                 owner_id=self.owner_id,
                 event_seq=event.seq,
-                event_hash=event_hash,
+                event_hash=prepared["event_hash"],
                 prepare_hash=prepared["prepare_hash"],
                 commit_hash=committed["commit_hash"],
                 previous_commit_hash=previous,

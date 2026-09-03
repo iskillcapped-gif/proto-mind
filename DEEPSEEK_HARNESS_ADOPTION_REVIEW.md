@@ -101,16 +101,39 @@ lock and stale-fingerprint fencing, hash-chain tampering, committed corruption, 
 uncommitted tails, unknown-turn recovery, symlink/replacement refusal, limits, permissions,
 and read-only retention. No personal Native directory was used as a store target.
 
-P2a is not production activation. Before any authoritative Native use, a separate P2b must
-provide isolated export plus migration/rollback previews and prove parity on copied fixtures.
-The broader P2 design must still provide:
+P2b is delivered as the fixture-only transfer boundary in
+`proto_mind/session_spine_transfer.py`:
+
+- one explicitly supplied canonical Native fixture is independently revalidated through P1;
+  no archive directory, conversation history, or personal path is discovered or scanned;
+- the migration candidate is built in memory by the same canonical P2a record builder used by
+  the durable writer, then reparsed to prove exact event and surface parity;
+- absent targets produce `READY_FOR_SEPARATE_REVIEW`, exact matches produce `NO_CHANGE`, and
+  any different existing valid target is `BLOCKED`; overwrite is never planned;
+- the sole writer creates one new private, run-once export bundle in an explicit absolute
+  directory. It preserves exact source bytes, exact candidate JSONL, an exact rollback
+  preimage when one exists, and a canonical hashed manifest written last. The bundle is
+  explicitly marked as exact-content private evidence and is not safe to publish;
+- restart-time verification reprojects the source and reconstructs the candidate independently.
+  Hash, size, schema, file-set, permission, symlink, metadata, and rollback drift fail closed;
+- rollback preview requires current bytes to match the candidate or captured preimage. It does
+  not restore, delete, rewrite, migrate, or grant authority.
+
+Twenty-one additional regressions cover shared builder/writer byte identity, fixture tamper,
+P1-to-P2 parity, absent/identical/conflicting targets, private export modes, run-once IDs,
+manifest/payload/rollback verification, symlink and partial bundles, stale rollback refusal,
+and unchanged source/target bytes. All writes use disposable temporary export directories.
+
+P2a/P2b are not production activation. Before any authoritative Native use, a separate
+checkpoint must prove ordered multi-turn composition and copied-archive parity, then separately
+design an apply/restore lifecycle. The broader P2 design must still provide:
 
 - explicit production owner/session lifecycle binding;
-- export and restore validation for the new private format;
+- an authorized migration/restore writer with exact post-write and rollback verification;
 - restart-safe reconstruction of interrupted turns;
 - versioned pure projections for chat, work timeline, turn outline, memory candidates, and telemetry;
 - bounded retention/export before any compaction;
-- migration preview and byte-preserving rollback for existing personal history.
+- explicit copied-history compatibility evidence beyond one paired turn.
 
 Do not make the new store authoritative until old/new parity is proven on isolated fixtures
 and a separate private backup is created.
