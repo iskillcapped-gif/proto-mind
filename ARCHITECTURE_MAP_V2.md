@@ -10,6 +10,11 @@ Future capabilities are tracked separately in [Personal Agent Evolution](PROTO_M
 
 ## Current Module Map
 
+`proto_mind/session_spine.py` (DeepSeek Harness extraction / Session Spine pilot v0.1)
+
+- Independent pure event/surface contract reviewed against official DeepSeek Harness commit `76fda729799fe9b3848dbe2c211d4b231032b81e`. Canonical bounded event data/provenance, contiguous sequence replay, append/replace surface operations, complete shadow provenance, unknown-required-event refusal and a schema-separated deterministic log fingerprint.
+- `proto_mind/tests/test_session_spine.py` proves the no-write contract. This pilot has no store, migration, provider, command, UI or execution integration and is not yet an authoritative history source. See `DEEPSEEK_HARNESS_ADOPTION_REVIEW.md` for the comparison, license boundary, priorities and explicit non-adoptions.
+
 `proto_mind/native_memory_suggestions.py` + `native/Sources/MemorySuggestion*.swift` (EV-04 Source-grounded Memory Suggestions / Native 0.34.0)
 
 - After a completed ordinary Codex turn, deterministic anchored RU/EN rules examine only the original operator text. Up to two whole quotes, 600 characters each, from inputs up to 12,000 characters; no assistant/tool/attachment/history fact extraction, extra LLM, automatic promotion, background job or source-store initialization. Exact current scoped duplicates are omitted. Conservative quoted/hypothetical/obvious-secret filters are heuristics, not semantic understanding or comprehensive redaction.
