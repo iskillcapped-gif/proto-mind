@@ -94,6 +94,8 @@ final class AppModel: ObservableObject {
     @Published var skillRestore: SkillRestoreModel?
     @Published var skillHistory: SkillHistoryModel?
     @Published var projectMemory: ProjectMemoryModel?
+    @Published var memorySuggestion: MemorySuggestionModel?
+    @Published var reviewedMemorySuggestions: Set<String> = []
     @Published var projectNoteSelections: [UUID: [ProjectNote]] = [:]
     @Published var skillTask: SkillTaskModel?
     @Published var preparedSkillTasks: [UUID: PreparedSkillTask] = [:]
@@ -707,6 +709,7 @@ final class AppModel: ObservableObject {
         skillRestore?.close()
         skillHistory?.close()
         projectMemory?.close()
+        memorySuggestion?.close()
         skillTask?.close()
         flushDraft()
         let chat = Conversation()
@@ -736,6 +739,7 @@ final class AppModel: ObservableObject {
         skillRestore?.close()
         skillHistory?.close()
         projectMemory?.close()
+        memorySuggestion?.close()
         skillTask?.close()
         flushDraft()
         selectedID = id; section = .chat; inspectedMessageID = nil
@@ -759,6 +763,11 @@ final class AppModel: ObservableObject {
         guard !busy, let index = conversations.firstIndex(where: { $0.id == selectedID }), !conversations[index].archived else { return }
         conversations[index].autoProjectRecallEnabled = enabled
         invalidateContextPreview(); persist()
+    }
+
+    func setMemorySuggestionsEnabled(_ enabled: Bool) {
+        guard !busy, let index = conversations.firstIndex(where: { $0.id == selectedID }), !conversations[index].archived else { return }
+        conversations[index].memorySuggestionsEnabled = enabled; persist()
     }
 
     func setProvider(_ value: String) {
@@ -979,6 +988,7 @@ final class AppModel: ObservableObject {
         let skillTask = operatorInput ? nil : preparedSkillTasks[conversationID]
         let automaticSkills = !operatorInput && conversation.provider == "codex" && conversation.autoSkillsEnabled && skillTask == nil
         let automaticRecall = !operatorInput && conversation.provider == "codex" && conversation.autoProjectRecallEnabled && projectNotes.isEmpty
+        let suggestMemory = !operatorInput && conversation.provider == "codex" && conversation.memorySuggestionsEnabled && conversation.workspacePath != nil
         let grant = !operatorInput && fullAccessEnabled ? agentGrants[conversationID] : nil
         let reviewedRecall = contextPreview.flatMap { try? NativeProjectRecallReport($0.manifest["knowledge_context"]["project_recall"]) }
         let expectedProjectSnapshot = automaticRecall && reviewedRecall?.matches(conversation: conversationID, text: text,
@@ -1012,6 +1022,7 @@ final class AppModel: ObservableObject {
                 params["project_memory"] = .array(projectNotes.map(\.selection))
                 params["auto_skills"] = .bool(automaticSkills)
                 params["auto_project_recall"] = .bool(automaticRecall)
+                params["memory_suggestions"] = .bool(suggestMemory)
                 if let expectedProjectSnapshot, !expectedProjectSnapshot.isNull { params["expected_project_snapshot"] = expectedProjectSnapshot }
                 if let skillTask { params["skill_task"] = skillTask.selection }
                 if let root = conversation.workspacePath { params["workspace_root"] = .string(root) }
@@ -1058,6 +1069,17 @@ final class AppModel: ObservableObject {
             let raw = result["text"].text
             let body = result["exit_requested"].flag ? "Сессия ядра завершена. История диалога сохранена локально." : evidence.isNull ? raw : evidence["response"].text
             var notices = result["notices"].items.map(\.text)
+            var suggestions: JSONValue?
+            if !result["memory_suggestions"].isNull {
+                do {
+                    guard suggestMemory else { throw memorySuggestionError() }
+                    let report = try MemorySuggestionsReport(result["memory_suggestions"], text: text, run: result["work_session"])
+                    guard UUID(uuidString: report.source["conversation_id"].text) == conversationID,
+                          ProjectMemoryScope(conversationID: conversationID, workspace: conversation.workspacePath ?? "").matches(report.source["workspace"]) else { throw memorySuggestionError() }
+                    if report.value["state"] == .string("unavailable") { notices.append("Предложения памяти недоступны: проверьте папку, настройки и заметки. Ответ сохранён; автоматической записи памяти не было.") }
+                    if !report.items.isEmpty { suggestions = report.value }
+                } catch { notices.append("Предложения памяти не прошли проверку источника. Ответ сохранён без карточек; ничего не записано в заметки проекта.") }
+            }
             if !result["envelope_warning"].text.isEmpty { notices.append(result["envelope_warning"].text) }
             try NativeImageAttachment.validate(result["image_context"].items)
             guard images.isEmpty || result["image_context"] == .array(images) else {
@@ -1075,7 +1097,8 @@ final class AppModel: ObservableObject {
                                       agentRun: result["agent_run"].isNull ? nil : result["agent_run"],
                                       workLog: result["work_log"].isNull ? nil : result["work_log"],
                                       autoSkills: autoSkillsReport?.value,
-                                      knowledgeContext: result["knowledge_context"].isNull ? nil : result["knowledge_context"])
+                                      knowledgeContext: result["knowledge_context"].isNull ? nil : result["knowledge_context"],
+                                      memorySuggestions: suggestions, memorySuggestionSourceID: suggestions == nil ? nil : userMessage.id)
             append(message, to: conversationID)
             if !operatorInput, let current = conversations.firstIndex(where: { $0.id == conversationID }) {
                 conversations[current].pendingFiles = []
@@ -1177,7 +1200,7 @@ final class AppModel: ObservableObject {
             let value = try await client.request("workspace_status", ["workspace_root": .string(path)])
             guard let index = conversations.firstIndex(where: { $0.id == id }) else { return }
             conversations[index].workspacePath = value["root"].text
-            projectNoteSelections[id] = nil; projectMemory = nil; invalidateContextPreview()
+            projectNoteSelections[id] = nil; projectMemory = nil; memorySuggestion = nil; invalidateContextPreview()
             preparedSkillTasks[id] = nil; skillTask = nil
             closeLearningReview()
             memoryWorkshop = nil

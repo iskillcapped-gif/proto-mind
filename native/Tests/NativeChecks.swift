@@ -10,12 +10,20 @@ struct NativeChecks {
         guard try condition() else { throw NativeError.message("FAIL: \(name)") }
         passed += 1
         print("PASS: \(name)")
+        fflush(stdout)
     }
 
     @MainActor
     static func main() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("proto-native-checks-" + UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
+        if CommandLine.arguments.contains("--memory-suggestions-only"),
+           let fixture = LaunchConfiguration.argument("--fixture"), let python = LaunchConfiguration.argument("--python") {
+            try memorySuggestionContracts(root: root)
+            try await memorySuggestionIntegration(fixture: URL(fileURLWithPath: fixture), python: URL(fileURLWithPath: python), root: root)
+            print("Native memory suggestion checks: \(passed) OK")
+            return
+        }
         if CommandLine.arguments.contains("--learning-only"),
            let fixture = LaunchConfiguration.argument("--fixture"), let python = LaunchConfiguration.argument("--python") {
             try await learningReview(fixture: URL(fileURLWithPath: fixture), python: URL(fileURLWithPath: python), root: root)
@@ -76,6 +84,7 @@ struct NativeChecks {
         try taskCriteria(root: root)
         try autoSkillsContracts(root: root)
         try projectRecallContracts(root: root)
+        try memorySuggestionContracts(root: root)
         try workLogAndGrouping(root: root)
         try sidebarLayout(root: root)
         try hoverFeedback()
@@ -483,6 +492,7 @@ struct NativeChecks {
         try await pdfAttachments(fixture: fixture, python: python, root: root)
         try await projectMemory(fixture: fixture, python: python, root: root)
         try await projectRecallIntegration(fixture: fixture, python: python, root: root)
+        try await memorySuggestionIntegration(fixture: fixture, python: python, root: root)
         app.setProvider("codex")
         app.cloudConsent = false
         await app.submit("retry draft")

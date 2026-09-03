@@ -83,6 +83,9 @@ struct ProjectRecallMenu: View {
             Text("Только явно сохранённые заметки этой папки")
             if !model.pendingProjectNotes.isEmpty { Text("На этот ход приоритет у ручного выбора заметок") }
             Divider()
+            Toggle("Предлагать заметки из моих сообщений", isOn: Binding(get: { model.selected?.memorySuggestionsEnabled != false }, set: model.setMemorySuggestionsEnabled))
+            Text("Локальные подсказки, запись только после подтверждения")
+            Divider()
             Button("Заметки проекта…") { Task { await model.openProjectMemory() } }.disabled(model.selected?.workspacePath == nil)
             Button("Посмотреть контекст…") { model.showContextDesk = true }
         } label: {

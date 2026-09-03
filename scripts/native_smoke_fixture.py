@@ -123,6 +123,35 @@ def notice_fixture(project: Path, state: Path) -> None:
     print(f"Notice fixture: {state} (3 synthetic records; cloud disabled); runs={','.join(runs)}")
 
 
+def memory_suggestion_fixture(project: Path, state: Path) -> None:
+    """Synthetic completed-source metadata for UI review; no provider or tools are called."""
+    sys.path.insert(0, str(project))
+    from proto_mind.native_memory_suggestions import suggestions
+    from proto_mind.native_work_sessions import WorkSessionStore, workspace_identity
+
+    state.mkdir(mode=0o700)
+    chat_id, user_id = str(uuid4()), str(uuid4())
+    text = "Мы решили использовать кобальтовую палитру.\nЯ предпочитаю короткий итог после проверки тестов."
+    with WorkSessionStore(state, project).begin(run_id=str(uuid4()), conversation_id=chat_id, text=text,
+            provider="codex", model="synthetic-ui-source-no-model-call", effort="low", mode="chat",
+            workspace=workspace_identity(project), sources=[]) as run:
+        run.dispatch()
+        completed = run.complete("Synthetic UI source only; no actual model call or task execution.")
+    report = suggestions(project, state, completed, text)
+    def message(identifier, role, text, **extra):
+        return {"id": identifier, "role": role, "text": text, "raw": "", "evidence": None,
+                "notices": [], "createdAt": 800_000_000, "isError": False, **extra}
+    messages = [message(user_id, "user", text), message(str(uuid4()), "assistant",
+        "Синтетический UI-пример. Под ответом появились две цитаты для памяти проекта. Ни одна пока не сохранена; модель не вызывалась.",
+        memorySuggestions=report, memorySuggestionSourceID=user_id)]
+    chat = {"id": chat_id, "title": "Memory suggestion review · fixture", "createdAt": 800_000_000, "updatedAt": 800_000_000,
+            "messages": messages, "provider": "mock", "model": "", "draft": "", "workspacePath": str(project)}
+    history = state / "conversations.json"
+    history.write_text(json.dumps({"version": 5, "selectedID": chat_id, "conversations": [chat]}, ensure_ascii=False), encoding="utf-8")
+    history.chmod(0o600)
+    print(f"Memory suggestion fixture: {state} (synthetic source; no provider call, cloud disabled)")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("destination", type=Path)
@@ -130,12 +159,13 @@ def main() -> None:
     group.add_argument("--attachment-state", type=Path)
     group.add_argument("--notice-state", type=Path)
     group.add_argument("--pdf-state", type=Path)
+    group.add_argument("--memory-suggestion-state", type=Path)
     args = parser.parse_args()
     destination = args.destination.resolve()
     temporary = Path(tempfile.gettempdir()).resolve()
     if temporary not in destination.parents or destination.exists():
         raise SystemExit("Fixture must be a new directory inside the system temporary directory.")
-    selected_state = args.attachment_state or args.notice_state or args.pdf_state
+    selected_state = args.attachment_state or args.notice_state or args.pdf_state or args.memory_suggestion_state
     state = selected_state.resolve() if selected_state else None
     if state is not None and (temporary not in state.parents or state.exists() or state == destination or destination in state.parents):
         raise SystemExit("State must be a separate new directory inside the system temporary directory.")
@@ -146,7 +176,7 @@ def main() -> None:
     )
     print(f"Native smoke fixture: {destination} (code only; no personal stores copied)")
     if state is not None:
-        (pdf_fixture if args.pdf_state else notice_fixture if args.notice_state else attachment_fixture)(destination, state)
+        (memory_suggestion_fixture if args.memory_suggestion_state else pdf_fixture if args.pdf_state else notice_fixture if args.notice_state else attachment_fixture)(destination, state)
 
 
 if __name__ == "__main__":

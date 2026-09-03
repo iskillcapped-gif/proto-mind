@@ -46,6 +46,8 @@ from proto_mind.native_skill_lifecycle import NativeSkillLifecycle, parse_skill_
 from proto_mind.native_skill_restore import NativeSkillRestore, parse_skill_restore_request
 from proto_mind.native_learning_history import NativeLearningHistory, parse_history_request
 from proto_mind.native_project_memory import NativeProjectMemory, parse_project_memory_request, METHODS as PROJECT_MEMORY_METHODS
+from proto_mind.native_memory_suggestions import (NativeMemorySuggestion, suggestions as memory_suggestions,
+                                                parse_request as parse_memory_suggestion_request, METHODS as MEMORY_SUGGESTION_METHODS)
 from proto_mind.native_project_recall import ProjectRecall
 from proto_mind.native_skill_tasks import NativeSkillTask, parse_task_request, SELECT_FIELDS as SKILL_TASK_SELECT_FIELDS
 from proto_mind.native_auto_skills import AutoSkills, HISTORY_BOUNDARY as AUTO_SKILL_HISTORY_BOUNDARY
@@ -478,6 +480,8 @@ class NativeBackend:
             raise ValueError("Automatic skill selection must be explicitly on or off.")
         if type(params.get("auto_project_recall", False)) is not bool:
             raise ValueError("Automatic project recall must be explicitly on or off.")
+        if type(params.get("memory_suggestions", False)) is not bool:
+            raise ValueError("Project memory suggestions must be explicitly on or off.")
         expected_snapshot = params.get("expected_project_snapshot")
         if "expected_project_snapshot" in params and (not isinstance(expected_snapshot, str) or not HASH.fullmatch(expected_snapshot)):
             raise ValueError("Invalid reviewed project-note snapshot.")
@@ -698,6 +702,12 @@ class NativeBackend:
                 reader = self._artifact_workspace(params, work_session.record)
                 artifacts = capture_artifacts(work_session.record, reader)
                 saved_session = work_session.complete(serialized.get("text") or "", artifacts=artifacts)
+            suggestions_report = None
+            if params.get("memory_suggestions") is True and provider == "codex" and saved_session and logical_workspace:
+                try:
+                    suggestions_report = memory_suggestions(self.root, self.state_dir, saved_session, text)
+                except (ValueError, OSError, WorkSessionError):
+                    serialized["notices"].append("Project memory suggestions unavailable; the completed answer is preserved. No note was saved.")
             return {**serialized, "operator": description["operator"],
                     "conversation_id": session_id, "exit_requested": output.text is None,
                     "agent_run": agent_receipt,
@@ -706,6 +716,7 @@ class NativeBackend:
                     "provider_thread": self.subscription.last_thread_info if provider == "codex" and not description["operator"] else None,
                     "work_session": saved_session,
                     "auto_skills": auto_skills.report if auto_skills else None,
+                    "memory_suggestions": suggestions_report,
                     "image_context": [image.metadata for image in images],
                     "pdf_context": [pdf.metadata for pdf in pdfs],
                     "knowledge_context": knowledge_metadata(project_notes, skill_task, recall=recall_report),
@@ -946,6 +957,17 @@ class NativeBackend:
         finally:
             self.busy.release()
 
+    def memory_suggestion(self, method: str, params: dict) -> dict:
+        parse_memory_suggestion_request(method, params)
+        if self.closing.is_set() or not self.busy.acquire(blocking=False):
+            raise ValueError("Wait for the active turn before reviewing a memory suggestion.")
+        try:
+            workspace = workspace_identity(self.workspace(params).root)
+            review = NativeMemorySuggestion(self.root, self.state_dir, workspace, params)
+            return review.preview() if method == "memory_suggestion_preview" else review.save()
+        finally:
+            self.busy.release()
+
     def skill_history(self, method: str, params: dict) -> dict:
         parsed = parse_history_request(method, params)
         if self.closing.is_set() or not self.busy.acquire(blocking=False):
@@ -1013,6 +1035,8 @@ class NativeBackend:
                 self.busy.release()
         if method in PROJECT_MEMORY_METHODS:
             return self.project_memory(method, params)
+        if method in MEMORY_SUGGESTION_METHODS:
+            return self.memory_suggestion(method, params)
         if method in {"skill_history_list", "skill_history_preview", "skill_history_save", "skill_history_inspect"}:
             return self.skill_history(method, params)
         if method == "bootstrap":

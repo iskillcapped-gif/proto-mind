@@ -10,6 +10,12 @@ Future capabilities are tracked separately in [Personal Agent Evolution](PROTO_M
 
 ## Current Module Map
 
+`proto_mind/native_memory_suggestions.py` + `native/Sources/MemorySuggestion*.swift` (EV-04 Source-grounded Memory Suggestions / Native 0.34.0)
+
+- After a completed ordinary Codex turn, deterministic anchored RU/EN rules examine only the original operator text. Up to two whole quotes, 600 characters each, from inputs up to 12,000 characters; no assistant/tool/attachment/history fact extraction, extra LLM, automatic promotion, background job or source-store initialization. Exact current scoped duplicates are omitted. Conservative quoted/hypothetical/obvious-secret filters are heuristics, not semantic understanding or comprehensive redaction.
+- Optional private chat metadata keeps run ID/fingerprint, folder identity, input/quote SHA-256, Unicode offsets and kind, not duplicate quote bodies. Independent Native validation binds it to the original user message and completed run; metadata is not model replay. The existing work journal is a source, not a new suggestion queue or write target. Opt-out is per conversation and defaults on for the local suggestion layer only.
+- Two fixed private RPCs review and explicitly save one source-bound suggestion. They recheck the completed source, exact workspace, disabled Context, duplicates and existing note snapshot; the existing `NativeProjectMemory.save` remains the only writer. An acknowledgement plus explicit Save sends the exact preview token, with no free-form body or replacement ID accepted by these RPCs. Only `project_memory/` gains one immutable note/lock; no core, export, journal, permission or command-registry mutation. Assertions are operator-reviewed, not independently verified; source hashes are integrity checks, not signatures or a cross-store transaction.
+
 `proto_mind/native_project_recall.py` + `native_knowledge.py` + `native/Sources/ProjectRecall.swift` (EV-04 Automatic Project Recall / Native 0.33.0)
 
 - Normal Codex Send and local `context_preview` reuse the fixed private project-note reader, exact launch-root/workspace path/device/inode scope and immutable supersession rules. Informative Unicode content-token overlap ranks current notes deterministically; basis text is not a relevance signal. Up to three whole notes / 6000 content-plus-basis characters, no LLM selector, embedding, file crawler, new RPC or command prefix.

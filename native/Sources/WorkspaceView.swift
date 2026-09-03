@@ -99,6 +99,7 @@ struct WorkspaceView: View {
         .sheet(item: $model.skillRestore) { SkillRestoreView(model: $0) }
         .sheet(item: $model.skillHistory) { SkillHistoryView(model: $0) }
         .sheet(item: $model.projectMemory) { ProjectMemoryView(model: $0) }
+        .sheet(item: $model.memorySuggestion) { MemorySuggestionView(model: $0) }
         .sheet(item: $model.skillTask) { SkillTaskView(model: $0) }
         .sheet(isPresented: $model.showTaskCriteria) { TaskCriteriaView(model: model) }
         .sheet(item: $model.imagePreview) { ImageAttachmentPreviewView(model: model, preview: $0) }
@@ -395,6 +396,7 @@ private struct MessageView: View {
                     MessageMarkdownView(text: message.text, copy: model.copy).frame(maxWidth: .infinity, alignment: .leading)
                 }
                 attachments
+                if let (report, text) = model.memorySuggestions(for: message) { MemorySuggestionCard(app: model, report: report, text: text) }
                 ForEach(Array(message.notices.enumerated()), id: \.offset) { _, notice in
                     Label(notice, systemImage: "info.circle").font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
                 }
