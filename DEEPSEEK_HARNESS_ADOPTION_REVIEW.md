@@ -57,14 +57,28 @@ migrated, read, rewritten, or duplicated.
 
 ### P1: Existing-State Projection And Parity
 
-Before a writer exists, define a read-only adapter from synthetic Native chat/work-session
-fixtures into the spine. Compare the projected user input, completed answer, run state,
-tool evidence, and memory-suggestion lineage against the existing source hashes. Unknown or
-partial runs must stay unknown. This stage may expose a doctor, but must not persist events.
+Delivered as a pure read-only adapter in `proto_mind/native_session_spine.py`:
+
+- the caller explicitly pairs one Native user message, optional assistant message, and an
+  already-inspected work-session view; the adapter never scans or guesses across archives;
+- exact operator input plus displayed and raw assistant text are preserved through bounded,
+  hash-verified chunks rather than truncated event payloads;
+- work-session input hashes/previews, completed-answer preview, stable run state, public tool
+  evidence, public work-log digest, and source-bound memory suggestions are revalidated;
+- tool results are evidence-only and non-replayable; no provider call, command, tool, model,
+  file read, store read, event append, or migration occurs;
+- stopped or partial runs remain `unknown` or `not_started` with no assistant success, while
+  active `preparing`/`running` views are rejected as unstable projection sources.
+
+Nineteen synthetic regressions prove deterministic projection, exact Unicode parity, closed
+public evidence, tamper refusal, uncertainty and no input mutation/file access. This stage is
+not a writer or an authoritative history source. Native work sessions retain only a bounded
+answer preview, so full-answer parity depends on the explicit caller pairing; archive-wide
+reconciliation remains intentionally unavailable.
 
 ### P2: Private Session Spine Store
 
-Only after P1 acceptance, design a separate private append-only store with:
+P1 is accepted. Any P2 design remains a separate checkpointed decision; it must provide:
 
 - one writer per session and explicit owner identity;
 - durable append commit boundaries and torn-tail tests;

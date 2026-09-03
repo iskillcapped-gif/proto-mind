@@ -23,6 +23,7 @@ LOG_EVENT_TYPES = frozenset({
     "turn/start",
     "turn/end",
     "tool/call",
+    "user/chunk",
     "assistant/chunk",
     "reasoning/chunk",
     "usage/recorded",

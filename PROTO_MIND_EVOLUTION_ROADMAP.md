@@ -14,7 +14,7 @@ The source is an idea collection, not a reliable current-state inventory. Its em
 
 Use [Architect Ledger](PROTO_MIND_ARCHITECT_LEDGER.md) for current state and [Native Roadmap](NATIVE_MACOS_ROADMAP.md) for delivered native behavior. Packages remain candidates unless explicitly marked delivered below. They do not renumber the existing v3.x cognitive or v4.0 native work. The starting-point inventory records the pre-EV-01 review, not the latest test count.
 
-The 2026-09-03 [DeepSeek Harness adoption review](DEEPSEEK_HARNESS_ADOPTION_REVIEW.md) adds a second evidence source without authorizing an upstream runtime import. The first extracted pilot is a pure append-only Session Spine contract: immutable events, source-linked surface replacement, unknown-required-event refusal and deterministic replay. It is not connected to personal history or Send. Next, project existing synthetic Native records into that contract read-only and prove parity before considering a private writer or typed capability kernel.
+The 2026-09-03 [DeepSeek Harness adoption review](DEEPSEEK_HARNESS_ADOPTION_REVIEW.md) adds a second evidence source without authorizing an upstream runtime import. The pure append-only Session Spine contract and its P1 synthetic Native projection are now delivered: immutable events, source-linked surface replacement, exact hash-verified text chunks, public non-replayable tool evidence, source-bound memory suggestions, fail-closed active views and deterministic replay. Neither layer reads personal history, persists events, enters Send, or changes provider authority. A private writer or typed capability kernel remains a separate future decision.
 
 ## Verified Starting Point
 
