@@ -203,6 +203,10 @@ class WorkSessionStore:
                 validate_image_metadata(manifest.get("images", []))
                 validate_pdf_metadata(manifest.get("pdfs", []))
                 validate_knowledge_metadata(manifest.get("knowledge_context"))
+                recall = (manifest.get("knowledge_context") or {}).get("project_recall")
+                if recall is not None:
+                    from proto_mind.native_project_recall import validate_project_recall
+                    validate_project_recall(recall, record=record)
                 if any(row["workspace"] != record.get("workspace") for row in (manifest.get("knowledge_context") or {}).get("project_memory", [])):
                     raise ValueError()
                 skill = (manifest.get("knowledge_context") or {}).get("skill_task")

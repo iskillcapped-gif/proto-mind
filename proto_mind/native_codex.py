@@ -823,7 +823,8 @@ class SubscriptionReasoner(BaseReasoner):
                  criteria: list[str] | None = None, images: list[SelectedImage] | None = None,
                  pdfs: list[SelectedPDF] | None = None,
                  persona_activation: PersonaTurnActivation | None = None, project_notes: list[dict] | None = None,
-                 skill_task: dict | None = None, before_provider_call=None, auto_skill_guidance: str = "") -> None:
+                 skill_task: dict | None = None, before_provider_call=None, auto_skill_guidance: str = "",
+                 project_notes_automatic: bool = False, project_note_history_boundary: bool = False) -> None:
         self.subscription, self.model, self.history, self.on_delta = subscription, model, history, on_delta
         self.conversation, self.logical_workspace = conversation, logical_workspace
         self.files = files or []
@@ -836,6 +837,8 @@ class SubscriptionReasoner(BaseReasoner):
         self.persona_activation = persona_activation
         self.last_persona_receipt: dict | None = None
         self.project_notes = project_notes or []
+        self.project_notes_automatic = project_notes_automatic
+        self.project_note_history_boundary = project_note_history_boundary
         self.skill_task, self.before_provider_call = skill_task, before_provider_call
         self.auto_skill_guidance = auto_skill_guidance
 
@@ -862,7 +865,10 @@ class SubscriptionReasoner(BaseReasoner):
             instructions = prepared.instructions
             self.last_persona_receipt = prepared.receipt
         prompt = user_input
-        prompt = criteria_context_message(self.criteria) + file_context_message(self.files) + image_context_message(self.images) + pdf_context_message(self.pdfs) + knowledge_context_message(self.project_notes, self.skill_task) + self.auto_skill_guidance + prompt
+        prompt = criteria_context_message(self.criteria) + file_context_message(self.files) + image_context_message(self.images) + pdf_context_message(self.pdfs) + knowledge_context_message(self.project_notes, self.skill_task, automatic=self.project_notes_automatic) + self.auto_skill_guidance + prompt
+        if self.project_note_history_boundary:
+            from proto_mind.native_project_recall import HISTORY_BOUNDARY
+            prompt = HISTORY_BOUNDARY + prompt
         image_options = {"images": self.images} if self.images else {}
         if self.agent_workspace is not None:
             return self.subscription.agent_answer(prompt, instructions, self.model, self.on_delta,

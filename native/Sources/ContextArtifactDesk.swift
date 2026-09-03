@@ -50,10 +50,13 @@ struct NativeContextPreview: Equatable {
             try NativePDFAttachment.validate(value["manifest"]["pdfs"].items)
         }
         try checkKnowledgeMetadata(value["manifest"]["knowledge_context"])
-        if !value["project_memory_sources"].isNull {
-            guard case .array(let notes) = value["project_memory_sources"], notes.count <= 5,
-                  notes.count == value["manifest"]["knowledge_context"]["project_memory"].items.count,
-                  notes.allSatisfy({ (1...4000).contains($0["content"].text.unicodeScalars.count) && (1...1000).contains($0["basis"].text.unicodeScalars.count) }) else { throw projectMemoryError() }
+        try checkProjectMemorySources(value["project_memory_sources"], metadata: value["manifest"]["knowledge_context"])
+        if !value["manifest"]["knowledge_context"]["project_recall"].isNull {
+            let report = try NativeProjectRecallReport(value["manifest"]["knowledge_context"]["project_recall"])
+            let workspace = report.value["workspace"].isNull ? JSONValue.null : report.value["workspace"]["path"]
+            guard report.value["goal_sha256"] == value["manifest"]["input"]["sha256"],
+                  report.value["access_mode"] == value["manifest"]["access_mode"], workspace == value["manifest"]["workspace"],
+                  value["manifest"]["provider"] == .string("codex"), !value["manifest"]["operator"].flag else { throw NativeProjectRecallReport.error() }
         }
         let reference = value["manifest"]["knowledge_context"]["skill_task"]
         if !reference.isNull {
@@ -203,8 +206,11 @@ struct ContextDeskView: View {
                             }
                         }
                         DeskSection("Заметки проекта", icon: "brain") {
+                            if let report = try? NativeProjectRecallReport(manifest["knowledge_context"]["project_recall"]) {
+                                ProjectRecallReportView(report: report)
+                            }
                             if !preview.value["project_memory_sources"].items.isEmpty {
-                                Text("Явно выбранная память проекта").font(.headline)
+                                Text(manifest["knowledge_context"]["automatic_recall"].flag ? "Автоматически выбранные заметки" : "Явно выбранная память проекта").font(.headline)
                                 ForEach(Array(preview.value["project_memory_sources"].items.enumerated()), id: \.offset) { _, note in
                                     Text("\(ProjectNote.title(note["kind"].text)) · \(note["id"].text.prefix(12))").fontWeight(.medium)
                                     Text(note["content"].text).textSelection(.enabled)
@@ -213,7 +219,7 @@ struct ContextDeskView: View {
                                 Text("Утверждения оператора, не независимые факты. Этот выбор попадёт в следующий запрос; Send проверит источники заново. Старый контекст может оставаться в истории провайдера.").font(.caption).foregroundStyle(.secondary)
                                 Divider()
                             }
-                            if preview.value["project_memory_sources"].items.isEmpty { Text("Заметки не выбраны или пропущены для операторской команды.").foregroundStyle(.secondary) }
+                            if preview.value["project_memory_sources"].items.isEmpty && manifest["knowledge_context"]["project_recall"].isNull { Text("Заметки не выбраны или пропущены для операторской команды.").foregroundStyle(.secondary) }
                         }
                         DeskSection("Текстовые вложения · \(preview.sources.count)/3", icon: "paperclip") {
                             if preview.sources.isEmpty {

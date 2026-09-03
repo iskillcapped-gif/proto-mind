@@ -75,6 +75,7 @@ struct NativeChecks {
         try await attachmentDropContracts(root: root)
         try taskCriteria(root: root)
         try autoSkillsContracts(root: root)
+        try projectRecallContracts(root: root)
         try workLogAndGrouping(root: root)
         try sidebarLayout(root: root)
         try hoverFeedback()
@@ -481,6 +482,7 @@ struct NativeChecks {
         try await attachmentDrops(fixture: fixture, python: python, root: root)
         try await pdfAttachments(fixture: fixture, python: python, root: root)
         try await projectMemory(fixture: fixture, python: python, root: root)
+        try await projectRecallIntegration(fixture: fixture, python: python, root: root)
         app.setProvider("codex")
         app.cloudConsent = false
         await app.submit("retry draft")

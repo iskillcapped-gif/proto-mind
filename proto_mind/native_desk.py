@@ -14,6 +14,7 @@ from proto_mind.native_review import criteria_contract
 from proto_mind.native_images import IMAGE_FIELDS, MAX_IMAGES, MAX_IMAGE_BYTES, MAX_TOTAL_IMAGE_BYTES
 from proto_mind.native_pdf import validate_pdf_metadata, MAX_PDF_BYTES, MAX_SELECTED_PAGES, MAX_PAGE_CHARS
 from proto_mind.native_knowledge import validate_knowledge_metadata
+from proto_mind.native_private_records import _object as unique_object, _constant as invalid_constant
 
 
 CONTEXT_SCHEMA = "proto_mind.native_context_manifest.v1"
@@ -35,7 +36,7 @@ def injection_state(root: Path) -> dict:
     result = {"enabled": None, "state": "unknown", "path": str(root / "proto_mind/data/context_injection.json")}
     try:
         raw, _ = NativeLibrary(root)._read_bytes("context_injection.json")
-        value = json.loads(raw)
+        value = json.loads(raw, object_pairs_hook=unique_object, parse_constant=invalid_constant)
         if not isinstance(value, dict) or type(value.get("enabled")) is not bool:
             return result
         result.update(enabled=value["enabled"], state="enabled" if value["enabled"] else "disabled")
@@ -118,7 +119,7 @@ def context_preview(*, reader: WorkspaceReader | None, specifications: object, c
             "excluded_criterion_count": len(values.get("criteria", [])) if values["operator"] else 0,
             "notes": ["Local inspection only. Send revalidates selected file hashes; this preview grants no permission.",
                       "Core recall/correction context is selected during the turn, not simulated here. See the completed-turn inspector.",
-                      "Workspace binding does not isolate or select project memory. Full Mac tools can access additional files after Send.",
+                      "Workspace binding does not isolate legacy core memory. Native project notes are scoped separately. Full Mac tools can access additional files after Send.",
                       "Mock does not understand attachments. No complete provider/system prompt or private reasoning is displayed."]}
 
 

@@ -46,11 +46,12 @@ from proto_mind.native_skill_lifecycle import NativeSkillLifecycle, parse_skill_
 from proto_mind.native_skill_restore import NativeSkillRestore, parse_skill_restore_request
 from proto_mind.native_learning_history import NativeLearningHistory, parse_history_request
 from proto_mind.native_project_memory import NativeProjectMemory, parse_project_memory_request, METHODS as PROJECT_MEMORY_METHODS
+from proto_mind.native_project_recall import ProjectRecall
 from proto_mind.native_skill_tasks import NativeSkillTask, parse_task_request, SELECT_FIELDS as SKILL_TASK_SELECT_FIELDS
 from proto_mind.native_auto_skills import AutoSkills, HISTORY_BOUNDARY as AUTO_SKILL_HISTORY_BOUNDARY
 from proto_mind.native_starter_skills import StarterSkills
 from proto_mind.native_knowledge import knowledge_metadata, knowledge_context_message
-from proto_mind.native_private_records import encoded
+from proto_mind.native_private_records import HASH, encoded
 from proto_mind.skill_lifecycle_restore_apply import procedural_skill_restore_apply_receipts_snapshot
 from proto_mind.experience_pilot import peek_experience_pilot
 from proto_mind.native_workspace import WorkspaceReader, file_context_message
@@ -475,6 +476,11 @@ class NativeBackend:
             raise ValueError("Invalid Brother Persona activation state.")
         if type(params.get("auto_skills", False)) is not bool:
             raise ValueError("Automatic skill selection must be explicitly on or off.")
+        if type(params.get("auto_project_recall", False)) is not bool:
+            raise ValueError("Automatic project recall must be explicitly on or off.")
+        expected_snapshot = params.get("expected_project_snapshot")
+        if "expected_project_snapshot" in params and (not isinstance(expected_snapshot, str) or not HASH.fullmatch(expected_snapshot)):
+            raise ValueError("Invalid reviewed project-note snapshot.")
         if description["blocked"]:
             raise ValueError(description["notice"])
         if description["requires_confirmation"] and params.get("confirmed_text") != text:
@@ -522,11 +528,23 @@ class NativeBackend:
                 raise ValueError("Image input currently requires an explicitly selected vision-capable Codex model. Ollama/Mock images are not implemented; no provider was changed.")
             images = self.image_reader().selected(params["images"])
         pdfs = [] if description["operator"] else self.pdf_reader().selected(params.get("pdfs", []))
+        logical_workspace = (workspace_identity(self.workspace(params).root)
+                             if not description["operator"] and params.get("workspace_root") else None)
         project_notes = [] if description["operator"] else self._selected_project_notes(params, session_id)
+        project_recall = None
+        if not description["operator"] and provider == "codex" and params.get("auto_project_recall") is True and not project_notes:
+            project_recall = ProjectRecall(self.root, self.state_dir, conversation=session_id,
+                                           workspace=logical_workspace, text=text, mode=mode)
+            project_notes = project_recall.notes
+        if expected_snapshot is not None and (project_recall is None or expected_snapshot != project_recall.report["source_snapshot_hash"]):
+            raise ValueError("Project notes changed since context preview. Preview again; no main task, fallback or automatic retry.")
+        recall_report = project_recall.report if project_recall else None
         skill_task = None if description["operator"] else self._selected_skill_task(params, session_id, text=text, criteria=criteria)
         auto_skills = None
         def revalidate_knowledge():
-            if project_notes and self._selected_project_notes(params, session_id) != project_notes:
+            if project_recall is not None:
+                project_recall.revalidate()
+            elif project_notes and self._selected_project_notes(params, session_id) != project_notes:
                 raise WorkSessionError("Project notes changed before the provider call. Review them again; no fallback.")
             if skill_task and self._selected_skill_task(params, session_id, text=text, criteria=criteria) != skill_task:
                 raise WorkSessionError("Skill task changed before the provider call. Review it again; no fallback.")
@@ -534,8 +552,6 @@ class NativeBackend:
                 auto_skills.revalidate()
             if agent_workspace is not None:
                 self.agent_grants.validate(session_id, agent_workspace, params.get("access_token"))
-        logical_workspace = (workspace_identity(self.workspace(params).root)
-                             if not description["operator"] and params.get("workspace_root") else None)
         provider_thread = (self.subscription.thread_status(session_id, logical_workspace, mode=mode)
                            if provider == "codex" and not description["operator"] else None)
         provider_history = ([] if provider_thread and provider_thread["linked"] else history)
@@ -568,7 +584,7 @@ class NativeBackend:
                         provider=provider, model=model, effort=reasoning_effort, mode=mode,
                         workspace=workspace["path"] if workspace else None, criteria=criteria,
                         images=[image.metadata for image in images], pdfs=[pdf.metadata for pdf in pdfs],
-                        provider_thread=provider_thread, knowledge_context=knowledge_metadata(project_notes, skill_task))))
+                        provider_thread=provider_thread, knowledge_context=knowledge_metadata(project_notes, skill_task, recall=recall_report))))
             if provider == "codex" and not description["operator"]:
                 self.subscription.prepare_turn()
             self.active_request, self.active_provider = request_id, provider if not description["operator"] else "operator"
@@ -612,6 +628,8 @@ class NativeBackend:
                         pdfs=pdfs,
                         persona_activation=persona_activation,
                         project_notes=project_notes,
+                        project_notes_automatic=project_recall is not None,
+                        project_note_history_boundary="auto_project_recall" in params,
                         skill_task=skill_task, before_provider_call=revalidate_knowledge,
                         auto_skill_guidance=(AUTO_SKILL_HISTORY_BOUNDARY if "auto_skills" in params else "") + (auto_skills.guidance() if auto_skills else ""),
                     )
@@ -665,7 +683,10 @@ class NativeBackend:
                 serialized["notices"].append("Mock does not evaluate completion criteria; they remain operator-declared, not verified.")
             if pdfs and provider == "mock":
                 serialized["notices"].append("Mock is a deterministic UI test backend, not a PDF-understanding model. No PDF analysis was performed.")
-            if project_notes:
+            if project_recall is not None:
+                serialized["notices"].append("Automatic project recall: " + project_recall.report["reason"]
+                                             + " No note writes, learning, extra model call or permission change. Previously sent notes may remain in provider history.")
+            elif project_notes:
                 serialized["notices"].append("Explicit project notes: operator assertions, not independently verified facts. No automatic recall or permission change. "
                                              + ("Mock does not analyze these notes." if provider == "mock" else "Previously sent notes can remain in provider-side conversation history."))
             if skill_task:
@@ -687,7 +708,7 @@ class NativeBackend:
                     "auto_skills": auto_skills.report if auto_skills else None,
                     "image_context": [image.metadata for image in images],
                     "pdf_context": [pdf.metadata for pdf in pdfs],
-                    "knowledge_context": knowledge_metadata(project_notes, skill_task),
+                    "knowledge_context": knowledge_metadata(project_notes, skill_task, recall=recall_report),
                     "workspace_context": [{key: value for key, value in item.items() if key != "content"} for item in files]}
         except BaseException:
             if work_session is not None and work_session.failed_write and provider == "codex":
@@ -724,6 +745,8 @@ class NativeBackend:
         operator = describe_input(text)["operator"] if text else False
         if type(params.get("auto_skills", False)) is not bool:
             raise ValueError("Invalid automatic skill selection setting.")
+        if type(params.get("auto_project_recall", False)) is not bool:
+            raise ValueError("Invalid automatic project recall setting.")
         reader = self.workspace(params) if params.get("workspace_root") and not operator else None
         local_history = bounded_history(params.get("history", []))
         logical_workspace = workspace_identity(reader.root) if reader else None
@@ -762,16 +785,24 @@ class NativeBackend:
         result["notes"].append("PDFs: only selected page text is sent on Send, after byte and text hash revalidation. No original PDF, OCR, layout, automatic page selection or PDF history replay.")
         result["notes"].append("Selected image bytes (including embedded metadata) are sent only on Send; vision capability is rechecked then. No automatic OCR, redaction, image history replay or local Ollama image support.")
         project_notes = [] if operator else self._selected_project_notes(params, str(UUID(params.get("conversation_id", "")))) if params.get("project_memory") else []
+        project_recall = None
+        skill_task = None
+        if not operator and provider == "codex" and params.get("auto_project_recall") is True and not project_notes:
+            project_recall = ProjectRecall(self.root, self.state_dir, conversation=str(UUID(params.get("conversation_id", ""))),
+                                           workspace=logical_workspace, text=text, mode=mode)
+            project_notes = project_recall.notes
+            result["notes"].append("Automatic project recall: exact current project, up to three notes / 6000 characters; informative content-word matching only, no model call or write. Manually selected notes override automatic selection. Only Send transmits the selected content.")
         if project_notes:
-            result["manifest"]["knowledge_context"] = knowledge_metadata(project_notes)
             result["project_memory_sources"] = project_notes
-            result["notes"].append("Only explicitly selected current project notes will be sent. They are operator assertions, not verified facts. Legacy core recall remains shared; provider history may retain previously sent context.")
+            result["notes"].append("Current project notes are operator assertions, not independently verified facts. Legacy core recall remains shared; provider history may retain previously sent context.")
         if params.get("skill_task") is not None and not operator:
             skill_task = self._selected_skill_task(params, str(UUID(params.get("conversation_id", ""))), text=text, criteria=validate_criteria(params.get("criteria", [])))
-            result["manifest"]["knowledge_context"] = knowledge_metadata(project_notes, skill_task)
             result["skill_task_source"] = skill_task
             result["skill_task_hash_material"] = encoded({key: value for key, value in skill_task.items() if key != "preview_fingerprint"}).decode()
             result["notes"].append("The chosen procedure is non-executable reference guidance for the ordinary manually sent task. Preconditions and outcome criteria still require verification; this preview grants no tool authority.")
+        knowledge = knowledge_metadata(project_notes, skill_task, recall=project_recall.report if project_recall else None)
+        if knowledge is not None:
+            result["manifest"]["knowledge_context"] = knowledge
         if provider_thread:
             result["provider_thread"] = provider_thread
             if provider_thread["linked"]:

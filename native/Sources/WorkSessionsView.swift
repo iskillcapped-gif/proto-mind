@@ -29,6 +29,9 @@ struct NativeWorkSession: Identifiable, Equatable {
         }
         try NativePDFAttachment.validate(value["context_manifest"]["pdfs"].items)
         try checkKnowledgeMetadata(value["context_manifest"]["knowledge_context"])
+        if !value["context_manifest"]["knowledge_context"]["project_recall"].isNull {
+            _ = try NativeProjectRecallReport(value["context_manifest"]["knowledge_context"]["project_recall"], run: value)
+        }
         if !value["auto_skills"].isNull { _ = try NativeAutoSkillsReport(value["auto_skills"], run: value) }
         let skill = value["context_manifest"]["knowledge_context"]["skill_task"]
         if !skill.isNull {
@@ -176,6 +179,9 @@ struct WorkSessionsView: View {
             }
             if let report = try? NativeAutoSkillsReport(run.value["auto_skills"], run: run.value) {
                 AutoSkillsReportView(report: report)
+            }
+            if let report = try? NativeProjectRecallReport(run.value["context_manifest"]["knowledge_context"]["project_recall"], run: run.value) {
+                ProjectRecallReportView(report: report)
             }
             if !run.value["context_manifest"]["knowledge_context"]["skill_task"].isNull {
                 let skill = run.value["context_manifest"]["knowledge_context"]["skill_task"]

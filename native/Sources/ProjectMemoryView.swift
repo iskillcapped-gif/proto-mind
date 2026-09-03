@@ -18,6 +18,7 @@ struct ProjectMemoryView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     Text(model.scope.workspace).font(.caption.monospaced()).textSelection(.enabled)
                     Text("Только явно сохранённые заметки этой папки. Общая старая память не переносится и не получает выдуманную привязку к проекту.").foregroundStyle(.secondary)
+                    Text("В Codex текущие заметки могут подбираться к задаче автоматически. Переключатель памяти рядом с навыками отключает подбор для диалога; ручное прикрепление имеет приоритет. Сохранение здесь ничего не отправляет.").font(.caption).foregroundStyle(.secondary)
                     if let error = model.error { Text(error).foregroundStyle(.orange) }
                     ForEach(model.issues, id: \.self) { Text($0).font(.caption).foregroundStyle(.orange) }
                     HStack {
@@ -83,7 +84,7 @@ struct ProjectMemoryView: View {
                             }
                         }.padding(16).background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
                     }
-                    Text("Без LLM, фонового поиска, автоматического обучения и миграции. Выбор для отправки временный: исчезнет после перезапуска. Уже отправленный контекст может остаться в истории провайдера.").font(.caption).foregroundStyle(.secondary)
+                    Text("Без LLM, фонового поиска, автоматического обучения и миграции. Ручной выбор для отправки временный: исчезнет после перезапуска. Автоподбор проверяет актуальные заметки заново; уже отправленный контекст может остаться в истории провайдера.").font(.caption).foregroundStyle(.secondary)
                 }.padding(22)
             }
         }.frame(width: 850, height: 740).buttonStyle(.nativeHover).interactiveDismissDisabled(model.saving)

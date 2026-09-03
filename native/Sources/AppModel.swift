@@ -263,6 +263,7 @@ final class AppModel: ObservableObject {
             "project_memory": .array(pendingProjectNotes.map(\.selection)),
             "criteria": .array(conversation.pendingCriteria.map(JSONValue.string)),
             "auto_skills": .bool(conversation.provider == "codex" && conversation.autoSkillsEnabled),
+            "auto_project_recall": .bool(conversation.provider == "codex" && conversation.autoProjectRecallEnabled),
             "cloud_consent": .bool(cloudConsent), "access_mode": .string(fullAccessEnabled ? "full_access" : "chat")
         ]
         if let path = conversation.workspacePath { params["workspace_root"] = .string(path) }
@@ -300,7 +301,14 @@ final class AppModel: ObservableObject {
             guard params == contextRequestParameters else {
                 throw NativeError.message("Состав запроса изменился. Обновите локальный просмотр.")
             }
-            contextPreview = try NativeContextPreview(value)
+            let preview = try NativeContextPreview(value)
+            if !preview.manifest["knowledge_context"]["project_recall"].isNull {
+                let recall = try NativeProjectRecallReport(preview.manifest["knowledge_context"]["project_recall"])
+                guard params["auto_project_recall"] == .bool(true), params["project_memory"]?.items.isEmpty == true,
+                      recall.matches(conversation: conversationID, text: params["text"]!.text.trimmingCharacters(in: .whitespacesAndNewlines),
+                                     workspace: params["workspace_root"]?.text, mode: params["access_mode"]!.text) else { throw NativeProjectRecallReport.error() }
+            }
+            contextPreview = preview
         } catch {
             if contextPreviewRequest == request && selectedID == conversationID { contextPreviewError = error.localizedDescription }
         }
@@ -747,6 +755,12 @@ final class AppModel: ObservableObject {
         invalidateContextPreview(); persist()
     }
 
+    func setAutoProjectRecallEnabled(_ enabled: Bool) {
+        guard !busy, let index = conversations.firstIndex(where: { $0.id == selectedID }), !conversations[index].archived else { return }
+        conversations[index].autoProjectRecallEnabled = enabled
+        invalidateContextPreview(); persist()
+    }
+
     func setProvider(_ value: String) {
         guard !busy, ["ollama", "codex", "mock"].contains(value), selected?.provider != value,
               let index = conversations.firstIndex(where: { $0.id == selectedID }) else { return }
@@ -964,7 +978,12 @@ final class AppModel: ObservableObject {
         let projectNotes = operatorInput ? [] : projectNoteSelections[conversationID] ?? []
         let skillTask = operatorInput ? nil : preparedSkillTasks[conversationID]
         let automaticSkills = !operatorInput && conversation.provider == "codex" && conversation.autoSkillsEnabled && skillTask == nil
+        let automaticRecall = !operatorInput && conversation.provider == "codex" && conversation.autoProjectRecallEnabled && projectNotes.isEmpty
         let grant = !operatorInput && fullAccessEnabled ? agentGrants[conversationID] : nil
+        let reviewedRecall = contextPreview.flatMap { try? NativeProjectRecallReport($0.manifest["knowledge_context"]["project_recall"]) }
+        let expectedProjectSnapshot = automaticRecall && reviewedRecall?.matches(conversation: conversationID, text: text,
+            workspace: conversation.workspacePath, mode: grant == nil ? "chat" : "full_access") == true
+            ? reviewedRecall?.value["source_snapshot_hash"] : nil
         let continuation = operatorInput ? nil : conversation.draftContinuation
         let userMessage = ChatMessage(role: "user", text: text, operatorInput: operatorInput, fileContext: files, imageContext: images, pdfContext: pdfs)
         conversations[index].messages.append(userMessage)
@@ -992,6 +1011,8 @@ final class AppModel: ObservableObject {
                 params["pdfs"] = .array(pdfs)
                 params["project_memory"] = .array(projectNotes.map(\.selection))
                 params["auto_skills"] = .bool(automaticSkills)
+                params["auto_project_recall"] = .bool(automaticRecall)
+                if let expectedProjectSnapshot, !expectedProjectSnapshot.isNull { params["expected_project_snapshot"] = expectedProjectSnapshot }
                 if let skillTask { params["skill_task"] = skillTask.selection }
                 if let root = conversation.workspacePath { params["workspace_root"] = .string(root) }
                 if let continuation { params["continuation"] = continuation }
@@ -1014,9 +1035,18 @@ final class AppModel: ObservableObject {
             let evidence = result["cognitive_turn"]
             try checkKnowledgeMetadata(result["knowledge_context"])
             let returnedNotes = result["knowledge_context"]["project_memory"].items
-            guard returnedNotes.count == projectNotes.count, zip(returnedNotes, projectNotes).allSatisfy({ row, note in
-                row["id"] == note.raw["id"] && row["record_hash"] == note.raw["record_hash"]
-            }) else { throw projectMemoryError() }
+            if automaticRecall {
+                let report = try NativeProjectRecallReport(result["knowledge_context"]["project_recall"], notes: returnedNotes, run: result["work_session"])
+                guard report.matches(conversation: conversationID, text: text, workspace: conversation.workspacePath,
+                                     mode: grant == nil ? "chat" : "full_access"),
+                      expectedProjectSnapshot == nil || expectedProjectSnapshot?.isNull == true || report.value["source_snapshot_hash"] == expectedProjectSnapshot,
+                      result["knowledge_context"] == result["work_session"]["context_manifest"]["knowledge_context"] else { throw NativeProjectRecallReport.error() }
+            } else {
+                guard result["knowledge_context"]["project_recall"].isNull,
+                      returnedNotes.count == projectNotes.count, zip(returnedNotes, projectNotes).allSatisfy({ row, note in
+                    row["id"] == note.raw["id"] && row["record_hash"] == note.raw["record_hash"]
+                }) else { throw projectMemoryError() }
+            }
             guard result["knowledge_context"]["skill_task"] == (skillTask?.reference ?? .null) else { throw skillTaskError() }
             if automaticSkills {
                 let report = try NativeAutoSkillsReport(result["auto_skills"], run: result["work_session"])
@@ -1044,7 +1074,8 @@ final class AppModel: ObservableObject {
                                       pdfContext: result["pdf_context"].items,
                                       agentRun: result["agent_run"].isNull ? nil : result["agent_run"],
                                       workLog: result["work_log"].isNull ? nil : result["work_log"],
-                                      autoSkills: autoSkillsReport?.value)
+                                      autoSkills: autoSkillsReport?.value,
+                                      knowledgeContext: result["knowledge_context"].isNull ? nil : result["knowledge_context"])
             append(message, to: conversationID)
             if !operatorInput, let current = conversations.firstIndex(where: { $0.id == conversationID }) {
                 conversations[current].pendingFiles = []

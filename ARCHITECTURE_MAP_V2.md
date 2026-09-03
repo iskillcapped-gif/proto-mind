@@ -10,6 +10,12 @@ Future capabilities are tracked separately in [Personal Agent Evolution](PROTO_M
 
 ## Current Module Map
 
+`proto_mind/native_project_recall.py` + `native_knowledge.py` + `native/Sources/ProjectRecall.swift` (EV-04 Automatic Project Recall / Native 0.33.0)
+
+- Normal Codex Send and local `context_preview` reuse the fixed private project-note reader, exact launch-root/workspace path/device/inode scope and immutable supersession rules. Informative Unicode content-token overlap ranks current notes deterministically; basis text is not a relevance signal. Up to three whole notes / 6000 content-plus-basis characters, no LLM selector, embedding, file crawler, new RPC or command prefix.
+- Per-chat default-on recall is independent of skills and permissions; explicit notes override it. Operator routes, local providers and opt-out bypass it. Missing notes do not initialize storage; unreadable/unsafe initial sources/config are visibly unavailable and add no notes. The source snapshot is revalidated before main dispatch and provider invocation; an already reviewed snapshot is bound at Send. Drift refuses without reselection/retry. Current notes are quoted untrusted assertions, never system authority or verified truth.
+- `native_knowledge_context.v2` adds closed content-free `project_recall` provenance; old v1 remains readable without rewrite. Swift verifies source text hashes, counts, IDs, task/scope/mode, and journal linkage; the context desk, chat and journal show the result. The private namespace is bounded at 200 records and scanned across scopes before filtering, not physically isolated per-folder storage. Snapshot hashes identify canonical records, not formatting or a filesystem lock. Legacy core recall remains shared. No note/usage/learning write, new consent, Context Injection change, background job or additional provider generation.
+
 `proto_mind/native_starter_skills.py` + `starter_skills.json` + `native/Sources/StarterSkillsView.swift` (EV-04 Built-in Starter Skills / Native 0.32.0)
 
 - Four fixed, versioned application-authored contracts supply project orientation, verified change, failure diagnosis and handoff guidance. Bounded no-follow reads, closed schema and canonical hashes protect the catalog boundary. A fixed parameter-free `starter_skills` RPC only inspects the pack; it is not a model tool or command dispatcher.
@@ -32,7 +38,7 @@ Future capabilities are tracked separately in [Personal Agent Evolution](PROTO_M
 
 - Fixed private list/recall/inspect/preview/save RPCs bind operator-authored notes to the selected folder's path/device/inode and launch project. Save appends to private `project_memory/`; explicit supersession does not rewrite older bytes. Read-only pagination and deterministic lexical recall never initialize stores or call a model.
 - Explicit attachment is ephemeral and separate from saving. Send revalidates scope/hash/current state; only selected notes enter the existing user-context path, clearly quoted as untrusted operator assertions. The existing Codex/Ollama call, permissions and shared-core recall remain unchanged. Content-free provenance extends private run manifests; slash commands bypass it.
-- No inferred project ownership, legacy migration, global-memory rewrite, embeddings, automatic capture/recall/injection, new command prefix, model call, permission or Context Injection change. Provider-side history may retain context sent in earlier turns.
+- The original 0.29.0 slice adds no inferred project ownership, legacy migration, global-memory rewrite, embeddings, automatic capture/recall/injection, new command prefix, model call, permission or Context Injection change. Native 0.33.0 adds the separate read-only automatic selection above. Provider-side history may retain context sent in earlier turns.
 
 `proto_mind/native_learning_history.py` + `native_private_records.py` + `native/Sources/SkillHistory*.swift` (EV-04 Saved Learning History / Native 0.28.0)
 

@@ -89,11 +89,14 @@ private func checkProjectNoteBody(_ body: JSONValue, scope: ProjectMemoryScope) 
 
 func checkKnowledgeMetadata(_ value: JSONValue) throws {
     if value.isNull { return }
-    let required: Set<String> = ["schema", "selection", "permission_granted", "automatic_recall", "automatic_skill_execution", "project_memory"]
+    let automatic = value["schema"] == .string("proto_mind.native_knowledge_context.v2")
+    var required: Set<String> = ["schema", "selection", "permission_granted", "automatic_recall", "automatic_skill_execution", "project_memory"]
+    if automatic { required.insert("project_recall") }
     guard case .object(let fields) = value, required.isSubset(of: Set(fields.keys)), Set(fields.keys).subtracting(required).isSubset(of: ["skill_task"]),
-          value["schema"] == .string("proto_mind.native_knowledge_context.v1"), value["selection"] == .string("operator_explicit"),
-          ["permission_granted", "automatic_recall", "automatic_skill_execution"].allSatisfy({ value[$0] == .bool(false) }),
-          case .array(let notes) = value["project_memory"], notes.count <= 5, !notes.isEmpty || fields["skill_task"] != nil,
+          ["proto_mind.native_knowledge_context.v1", "proto_mind.native_knowledge_context.v2"].contains(value["schema"].text),
+          value["selection"] == .string(automatic ? "automatic_project_recall" : "operator_explicit"), value["automatic_recall"] == .bool(automatic),
+          ["permission_granted", "automatic_skill_execution"].allSatisfy({ value[$0] == .bool(false) }),
+          case .array(let notes) = value["project_memory"], notes.count <= 5, !notes.isEmpty || fields["skill_task"] != nil || automatic,
           Set(notes.map { $0["id"].text }).count == notes.count else { throw projectMemoryError() }
     if let skill = fields["skill_task"] { try checkSkillTaskReference(skill) }
     for note in notes {
@@ -103,5 +106,21 @@ func checkKnowledgeMetadata(_ value: JSONValue) throws {
               note["characters"] == .number(Double(note["characters"].integer)), (1...4000).contains(note["characters"].integer),
               ProjectMemoryScope(conversationID: UUID(), workspace: note["workspace"]["path"].text).matches(note["workspace"]),
               note["workspace"]["path"].text.hasPrefix("/") else { throw projectMemoryError() }
+    }
+    if automatic { _ = try NativeProjectRecallReport(value["project_recall"], notes: notes) }
+}
+
+func checkProjectMemorySources(_ value: JSONValue, metadata: JSONValue) throws {
+    let sources = value.isNull ? JSONValue.array([]) : value
+    guard case .array(let notes) = sources, notes.count == metadata["project_memory"].items.count, notes.count <= 5 else { throw projectMemoryError() }
+    for (note, reference) in zip(notes, metadata["project_memory"].items) {
+        guard case .object(let row) = note else { throw projectMemoryError() }
+        let parsed = try ProjectNote(.object(row.filter { $0.key != "workspace" }))
+        let hash = SHA256.hash(data: Data(parsed.content.utf8)).map { String(format: "%02x", $0) }.joined()
+        guard parsed.active, ["id", "record_hash", "kind", "workspace", "verification"].allSatisfy({ note[$0] == reference[$0] }),
+              reference["characters"].integer == parsed.content.unicodeScalars.count, reference["content_sha256"] == .string(hash) else { throw projectMemoryError() }
+    }
+    if !metadata["project_recall"].isNull {
+        guard notes.reduce(0, { $0 + $1["content"].text.unicodeScalars.count + $1["basis"].text.unicodeScalars.count }) == metadata["project_recall"]["characters"].integer else { throw projectMemoryError() }
     }
 }

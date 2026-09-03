@@ -378,6 +378,7 @@ private struct MessageView: View {
         } else {
             VStack(alignment: .leading, spacing: 18) {
                 if let raw = message.autoSkills, let report = try? NativeAutoSkillsReport(raw) { AutoSkillsReportView(report: report) }
+                if let raw = message.knowledgeContext, let report = try? NativeProjectRecallReport(raw["project_recall"]) { ProjectRecallReportView(report: report) }
                 if let work = message.workLog, work["schema"].text == "proto_mind.native_work_log.v1" {
                     WorkTimelineView(log: work, agentReceipt: message.agentRun ?? .null)
                 } else if let receipt = message.agentRun, !receipt.isNull {
@@ -526,6 +527,7 @@ struct ComposerView: View {
                             .help(model.fullAccessEnabled ? (model.computerUseAvailable ? "Полный доступ к Mac, Web Search, сеть и Computer Use. Stop/Esc не откатывают изменения." : "Полный доступ к Mac, Web Search и сеть. Computer Use недоступен.") : "Файловые, сетевые, Web Search и экранные инструменты выключены")
                     }
                     if model.selected?.provider == "codex" { AutoSkillsMenu(model: model) }
+                    if model.selected?.provider == "codex" { ProjectRecallMenu(model: model) }
                     Spacer(minLength: 8)
                     Button { model.showTaskCriteria = true } label: {
                         HStack(spacing: 4) {
