@@ -10,11 +10,12 @@ Future capabilities are tracked separately in [Personal Agent Evolution](PROTO_M
 
 ## Current Module Map
 
-`proto_mind/session_spine.py` + `proto_mind/native_session_spine.py` (DeepSeek Harness extraction / Session Spine v0.1 + Native projection P1)
+`proto_mind/session_spine.py` + `proto_mind/native_session_spine.py` + `proto_mind/session_spine_store.py` (DeepSeek Harness extraction / Session Spine v0.1, Native projection P1, private store P2a)
 
 - Independent pure event/surface contract reviewed against official DeepSeek Harness commit `76fda729799fe9b3848dbe2c211d4b231032b81e`. Canonical bounded event data/provenance, contiguous sequence replay, append/replace surface operations, complete shadow provenance, unknown-required-event refusal and a schema-separated deterministic log fingerprint.
 - The P1 adapter projects one explicitly paired synthetic Native user/assistant/work-session turn. Hash-verified chunks preserve exact input and separate displayed/raw answers; existing public tool sanitizers produce evidence-only, non-replayable results; stable unknown/not-started states never invent an assistant success; memory suggestions retain exact message/run/quote lineage.
-- `proto_mind/tests/test_session_spine.py` and `proto_mind/tests/test_native_session_spine.py` prove the detached no-write/no-file-access contract. There is no archive scan, automatic pairing, store, migration, provider, command, UI or execution integration, and the spine is not an authoritative history source. See `DEEPSEEK_HARNESS_ADOPTION_REVIEW.md` for the comparison, license boundary, priorities and explicit non-adoptions.
+- P2a adds an explicit-path-only private store contract with canonical prepare/commit pairs, two fsync boundaries, commit hash chaining, private bounded files, catalog/session locks, exact readback and stale-fingerprint fencing. Readers replay only committed pairs and report torn/uncommitted/open-turn state as unknown without mutation; committed corruption fails closed. A pure retention preview cannot compact or delete.
+- `proto_mind/tests/test_session_spine.py`, `proto_mind/tests/test_native_session_spine.py` and `proto_mind/tests/test_session_spine_store.py` prove the detached contracts. P2a writes only disposable explicit test directories and has no default location, personal archive scan, automatic pairing, migration, provider, command, UI or execution integration. The spine is not an authoritative history source. See `DEEPSEEK_HARNESS_ADOPTION_REVIEW.md` for the comparison, license boundary, priorities and explicit non-adoptions.
 
 `proto_mind/native_memory_suggestions.py` + `native/Sources/MemorySuggestion*.swift` (EV-04 Source-grounded Memory Suggestions / Native 0.34.0)
 

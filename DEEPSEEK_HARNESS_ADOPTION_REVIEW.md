@@ -78,10 +78,35 @@ reconciliation remains intentionally unavailable.
 
 ### P2: Private Session Spine Store
 
-P1 is accepted. Any P2 design remains a separate checkpointed decision; it must provide:
+P2a is delivered as the isolated foundation in `proto_mind/session_spine_store.py`:
 
-- one writer per session and explicit owner identity;
-- durable append commit boundaries and torn-tail tests;
+- no default path or production caller: a writer requires an explicit absolute private
+  directory, canonical session UUID, bounded owner ID, and creation time or a freshly
+  inspected exact file fingerprint;
+- every event uses a canonical hashed `prepare`, file `fsync`, matching hashed `commit`, and
+  second `fsync`; the next event chains from the previous commit hash;
+- a private catalog lock bounds the store to 256 sessions, while a per-session lock permits
+  one writer and refuses unstable readers; files are regular, no-follow, `0600`, and bounded
+  to 512 committed events / 48 MiB per session;
+- read-only replay applies only committed pairs. A complete prepare without commit, partial
+  final line, or committed open turn becomes `unknown`; no bytes are truncated, repaired,
+  resumed, or reported as successful. Corrupt committed prefixes fail closed;
+- exact append readback and inode checks precede receipts. A write-side uncertainty poisons
+  that writer and requires a fresh inspection instead of retry;
+- the versioned projection and retention preview are pure reads. Compaction and deletion are
+  disabled, and export is required before any future retention action.
+
+Twenty-seven disposable regressions include an exact P1 projection/store/restart replay,
+lock and stale-fingerprint fencing, hash-chain tampering, committed corruption, torn and
+uncommitted tails, unknown-turn recovery, symlink/replacement refusal, limits, permissions,
+and read-only retention. No personal Native directory was used as a store target.
+
+P2a is not production activation. Before any authoritative Native use, a separate P2b must
+provide isolated export plus migration/rollback previews and prove parity on copied fixtures.
+The broader P2 design must still provide:
+
+- explicit production owner/session lifecycle binding;
+- export and restore validation for the new private format;
 - restart-safe reconstruction of interrupted turns;
 - versioned pure projections for chat, work timeline, turn outline, memory candidates, and telemetry;
 - bounded retention/export before any compaction;
