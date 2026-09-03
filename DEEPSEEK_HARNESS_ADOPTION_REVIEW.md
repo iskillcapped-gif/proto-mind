@@ -124,16 +124,39 @@ P1-to-P2 parity, absent/identical/conflicting targets, private export modes, run
 manifest/payload/rollback verification, symlink and partial bundles, stale rollback refusal,
 and unchanged source/target bytes. All writes use disposable temporary export directories.
 
-P2a/P2b are not production activation. Before any authoritative Native use, a separate
-checkpoint must prove ordered multi-turn composition and copied-archive parity, then separately
-design an apply/restore lifecycle. The broader P2 design must still provide:
+P2c is delivered as the pure ordered composition boundary in
+`proto_mind/session_spine_composition.py`:
+
+- the caller supplies two to 64 immutable canonical fixtures, their exact ordered SHA-256 tuple
+  and the expected conversation ID; the module has no path or archive-discovery API;
+- each fixture is revalidated through P1. Mixed conversations, duplicate fixture/run/message
+  identities, noncanonical evidence, and equal/overlapping/reversed time boundaries fail closed;
+- the supplied order is never sorted or inferred. Composition changes only `seq`,
+  `source_event_seqs`, and any `SurfaceReplace` boundaries by an exact cumulative offset;
+  canonical data, event type/time, source IDs, content hashes, work-log hashes and memory lineage
+  remain unchanged and receive content-free lineage evidence;
+- the complete stream is folded and built through the shared P2a byte contract, then reparsed to
+  prove exact closed event/surface parity. Stable interrupted turns remain explicitly `unknown`
+  and do not become task-success claims;
+- the result exists only in memory, contains no writer/export/apply/restore/delete/compaction API,
+  and is marked non-authoritative and unsafe to publish because candidate bytes contain exact
+  source content.
+
+Twenty additional regressions cover explicit order binding, sequence/provenance/replacement
+rebasing, message materialization, candidate restart parity, metadata-only reports, unknown turns,
+mixed/duplicate identities, malformed evidence, temporal overlap, byte/turn/event limits and no
+file access. No personal archive fixture or path is used.
+
+P2a/P2b/P2c are not production activation. Before any authoritative Native use, a separate
+checkpoint must provide a versioned multi-turn evidence export and explicit copied-history parity
+dossier, then separately design an apply/restore lifecycle. The broader P2 design must still provide:
 
 - explicit production owner/session lifecycle binding;
 - an authorized migration/restore writer with exact post-write and rollback verification;
 - restart-safe reconstruction of interrupted turns;
 - versioned pure projections for chat, work timeline, turn outline, memory candidates, and telemetry;
 - bounded retention/export before any compaction;
-- explicit copied-history compatibility evidence beyond one paired turn.
+- explicit copied-history compatibility evidence beyond synthetic caller-supplied fixtures.
 
 Do not make the new store authoritative until old/new parity is proven on isolated fixtures
 and a separate private backup is created.

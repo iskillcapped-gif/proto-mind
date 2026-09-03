@@ -18,7 +18,11 @@ import stat
 from typing import Any, Iterator, Mapping
 from uuid import UUID
 
-from proto_mind.native_session_spine import NativeSessionProjectionError, project_native_turn
+from proto_mind.native_session_spine import (
+    NativeSessionProjectionError,
+    NativeTurnProjection,
+    project_native_turn,
+)
 from proto_mind.session_spine_store import (
     FORMAT_VERSION as STORE_FORMAT_VERSION,
     MAX_FILE_BYTES,
@@ -155,6 +159,14 @@ def _fixture_projection(raw: bytes):
     if not projection.events or projection.events[0].event_type != "turn/start":
         raise SessionSpineTransferError("Native migration fixture did not produce a bounded turn projection.")
     return fixture, projection
+
+
+def project_native_fixture(raw: bytes) -> NativeTurnProjection:
+    """Revalidate one explicit canonical fixture through the detached P1 adapter."""
+    if type(raw) is not bytes:
+        raise SessionSpineTransferError("Native migration fixture must be immutable bytes.")
+    _, projection = _fixture_projection(raw)
+    return projection
 
 
 @dataclass(frozen=True)
