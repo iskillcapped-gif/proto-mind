@@ -76,6 +76,7 @@ struct NativeProjectRecallReport: Equatable {
 
 struct ProjectRecallMenu: View {
     @ObservedObject var model: AppModel
+    var showLabel = false
     var body: some View {
         Menu {
             Toggle("Вспоминать заметки проекта автоматически", isOn: Binding(get: { model.selected?.autoProjectRecallEnabled != false }, set: model.setAutoProjectRecallEnabled))
@@ -89,10 +90,14 @@ struct ProjectRecallMenu: View {
             Button("Заметки проекта…") { Task { await model.openProjectMemory() } }.disabled(model.selected?.workspacePath == nil)
             Button("Посмотреть контекст…") { model.showContextDesk = true }
         } label: {
-            Image(systemName: "brain").font(.system(size: 14))
+            if showLabel {
+                Text(model.selected?.autoProjectRecallEnabled != false ? "Авто" : "Выкл").font(.system(size: 12))
+            } else {
+                Image(systemName: "brain").font(.system(size: 14))
                 .foregroundStyle(model.selected?.autoProjectRecallEnabled != false ? Color.primary : .secondary)
                 .frame(width: 24, height: 28)
-        }.menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().nativeHoverSurface()
+            }
+        }.menuStyle(.borderlessButton).menuIndicator(showLabel ? .visible : .hidden).fixedSize().nativeHoverSurface()
             .disabled(model.busy || model.selected?.archived == true)
             .accessibilityLabel("Память проекта · \(model.selected?.autoProjectRecallEnabled != false ? "Авто" : "Выкл")")
             .help("Автоподбор заметок текущей папки. Можно отключить для этого диалога; уже отправленный контекст может оставаться в истории Codex.")

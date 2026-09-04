@@ -1,8 +1,8 @@
 # Proto-Mind: Current Direction
 
-Updated: 2026-09-05. Current release: Native **0.46.0 (53)**.
+Updated: 2026-09-05. Current release: Native **0.47.0 (54)**.
 
-Proto-Mind is a personal macOS assistant. The immediate goal is a dependable, approachable application that can support the operator's planned expansion. The next agreed stage is to make the interface less developer-oriented.
+Proto-Mind is a personal macOS assistant. The immediate goal is a dependable, approachable application that can support the operator's planned expansion. The first everyday-interface pass is delivered; the next visual refinements should follow the operator's actual use.
 
 This is the current priority map. [AGENTS.md](AGENTS.md) describes how to work in the project; [Native releases](NATIVE_MACOS_ROADMAP.md) preserve delivered contracts and verification; [Architect Ledger](PROTO_MIND_ARCHITECT_LEDGER.md) preserves architectural evidence. Earlier versions of this document remain in Git history. Historical EV/P2 numbering and imported blueprints do not determine the next task.
 
@@ -20,16 +20,20 @@ This is the current priority map. [AGENTS.md](AGENTS.md) describes how to work i
 
 Release 0.46.0 closes the agreed storage, recovery, code-structure and current-roadmap batch. Its detailed limits and verification are in the [release contract](NATIVE_MACOS_ROADMAP.md#dialog-storage-and-recovery--native-0460).
 
-## Next: Everyday Interface
+## Everyday Interface: First Pass Delivered
 
-Improve the real app around the most frequent paths: open a conversation, choose a model, attach context, send, understand progress, inspect a result and recover from a failure.
+Release 0.47.0 improves the most frequent paths: open a conversation, choose a model, attach context, send, understand progress, inspect a result and find recovery actions.
 
-- Give the conversation and composer a clear visual hierarchy, consistent spacing and predictable keyboard behavior.
-- Use plain Russian for everyday labels and status messages. Keep protocol names, hashes and milestone terminology in expandable technical details where they help inspection.
-- Organize model, access, memory and project controls so their current state and effect are easy to understand.
-- Make settings, empty states, warnings and recovery actions consistent. Preserve useful evidence and access controls while reducing the amount presented at once.
+- A consistent light/dark palette, clearer message typography, searchable sidebar and three welcome actions establish the everyday layout.
+- The responsive composer keeps model/access visible and groups context, criteria, skills and project recall in one request menu. Programmatically prepared drafts receive focus; search supports ⌘F.
+- Four settings sections separate models, communication, data/copies and advanced controls. Answer details use ordinary labels, retaining raw reports and exact run/Spine entry points.
+- Work evidence starts collapsed; completed model output says “Ответ получен”. Interrupted-run warnings and recovery remain visible and actionable.
 
-Acceptance is an end-to-end check in the running app, including a small window, a long conversation, streaming/Stop, an interrupted request and recovery. Existing conversations, drafts and permissions must survive the update. These are product outcomes, not a fixed visual specification.
+Acceptance used isolated signed apps in both appearances, a small window with the inspector, a 240-message conversation, keyboard input/search, a delayed Mock response and recovery navigation. Native fixtures cover provider progress/cancellation and persistence; this UI pass does not claim a new live cloud-streaming run. The [release contract](NATIVE_MACOS_ROADMAP.md#everyday-interface--native-0470) records exact verification and boundaries.
+
+## Next: Feedback And Product Expansion
+
+Review the first pass in ordinary use, then refine the screens that still feel crowded or unclear. Specialized memory, learning and protocol inspectors retain their detailed existing workflows; they can receive focused design passes when the operator chooses those paths. The planned functional expansion remains for the operator to scope.
 
 ## Later Candidates
 

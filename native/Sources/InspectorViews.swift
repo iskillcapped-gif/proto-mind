@@ -6,14 +6,19 @@ struct EvidenceInspectorView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 23) {
-                HStack { Text("КОНТЕКСТ ОТВЕТА").font(.system(size: 10, weight: .semibold)); Spacer(); Image(systemName: "checkmark.shield").foregroundStyle(.secondary) }
-                Text("Не догадки о мышлении модели, а факты из локального ядра.")
-                    .font(.system(size: 11)).foregroundStyle(.secondary).lineSpacing(3)
+                HStack {
+                    Text("Об ответе").font(.system(size: 16, weight: .semibold))
+                    Spacer()
+                    Button { model.showInspector = false } label: { Image(systemName: "xmark").font(.system(size: 11)) }
+                        .accessibilityLabel("Закрыть подробности ответа")
+                }
+                Text("Источники памяти и сохранённые сведения о выбранном ответе.")
+                    .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(3)
                 if let message = model.evidenceMessage, !message.evidence.isNull {
                     let turn = message.evidence
                     InspectorSection(title: "Источник ответа", icon: "cpu") {
-                        detail("Backend", turn["reasoner_backend"].text)
-                        detail("Intent", turn["observer"]["query_type"].text)
+                        detail("Модель", turn["reasoner_backend"].text)
+                        detail("Тип запроса", turn["observer"]["query_type"].text)
                         detail("Поиск памяти", turn["observer"]["needs_memory"].flag ? "нужен" : "не нужен")
                     }
                     InspectorSection(title: "Найденная память", icon: "tray.2") {
@@ -24,7 +29,7 @@ struct EvidenceInspectorView: View {
                                 Text(item["record_id"].text).font(.system(size: 9, design: .monospaced)).foregroundStyle(.secondary)
                                 Text(item["content_preview"].text).textSelection(.enabled)
                                 Text(item["memory_type"].text).foregroundStyle(.tertiary)
-                                Button("Открыть источник и доказательства") {
+                                Button("Открыть запись") {
                                     Task { await model.openMemoryEvidence(recordID: item["record_id"].text) }
                                 }
                                 .buttonStyle(.nativeHover)
@@ -37,42 +42,60 @@ struct EvidenceInspectorView: View {
                     InspectorSection(title: "Решение о памяти", icon: "square.and.arrow.down") {
                         let decision = turn["memory_decision"]
                         detail("Сохранение", !decision["stored_record_id"].text.isEmpty ? "запись подтверждена ядром" : decision["should_store"].flag ? "предложено, ID записи отсутствует" : "нет")
-                        Text(turn["memory_decision"]["storage_rationale"].text).foregroundStyle(.secondary).textSelection(.enabled)
+                        if !decision["storage_rationale"].text.isEmpty {
+                            DisclosureGroup("Почему") {
+                                Text(decision["storage_rationale"].text).foregroundStyle(.secondary).textSelection(.enabled)
+                            }
+                        }
                         if !turn["memory_decision"]["stored_record_id"].text.isEmpty {
                             Text(turn["memory_decision"]["stored_record_id"].text).font(.system(size: 9, design: .monospaced))
                         }
                     }
                     InspectorSection(title: "Проверки", icon: "checkmark.magnifyingglass") {
-                        detail("Grounding", turn["grounding"]["grounding_status"].text)
-                        detail("Уверенность", turn["reflection"]["overall_confidence"].text)
+                        detail("Согласованность с памятью", turn["grounding"]["grounding_status"].text)
+                        detail("Оценка ядра", turn["reflection"]["overall_confidence"].text)
+                        Text("Локальные проверки не оценивают фактическую точность ответа.")
+                            .font(.system(size: 10)).foregroundStyle(.secondary)
                         ForEach(Array((turn["grounding"]["warnings"].items + turn["reflection"]["warnings"].items).enumerated()), id: \.offset) { _, value in
                             Text(value.text).foregroundStyle(.orange).textSelection(.enabled)
                         }
                     }
-                    InspectorSection(title: "Context Injection", icon: "lock.shield") {
+                    InspectorSection(title: "Дополнительный контекст", icon: "doc.text") {
                         let injection = turn["context_injection"]
                         Text(injection.isNull ? "Нет данных об этом запросе" : injection["applied"].flag ? "Применён вручную включённый режим" : "Не применялся")
                     }
                 } else {
-                    InspectorSection(title: "Ничего не скрываем", icon: "eye") {
-                        Text("После обычного ответа здесь появятся ссылки на память, решение о сохранении и проверки обоснованности.").foregroundStyle(.secondary)
-                        Text("Slash-команды выполняются отдельным операторским путём, без LLM.").foregroundStyle(.secondary)
+                    InspectorSection(title: "Пока нет сведений", icon: "text.bubble") {
+                        Text("Когда у ответа появятся сохранённые источники и проверки, их можно будет открыть через меню «Подробнее» под сообщением.").foregroundStyle(.secondary)
                     }
                 }
                 Divider()
-                Text(model.contextLabel).font(.system(size: 10)).foregroundStyle(.secondary)
-                Text("История интерфейса хранится на этом Mac. Память Proto-Mind остаётся в прежних хранилищах.")
-                    .font(.system(size: 10)).foregroundStyle(.tertiary).lineSpacing(3)
-            }.font(.system(size: 11)).padding(20).frame(maxWidth: .infinity, alignment: .leading)
-        }.background(Color(nsColor: .windowBackgroundColor).opacity(0.45))
+                DisclosureGroup("Технические сведения") {
+                    Text(model.contextLabel).font(.caption).foregroundStyle(.secondary)
+                    Text("Показанные проверки не раскрывают внутренние рассуждения модели и не доказывают правильность ответа. Команды приложения выполняются отдельно от модели.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }.font(.system(size: 12)).padding(20).frame(maxWidth: .infinity, alignment: .leading)
+        }.background(NativeTheme.composer.opacity(0.4))
     }
 
     private func detail(_ label: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(label).foregroundStyle(.secondary)
-            Text(value.isEmpty ? "не указано" : value).textSelection(.enabled)
+            Text(value.isEmpty ? "не указано" : Self.valueLabels[value] ?? value).textSelection(.enabled).help(value)
         }
     }
+
+    private static let valueLabels = [
+        "mock": "Тестовый режим", "codex": "Codex", "ollama": "Ollama",
+        "new_question": "Новый вопрос", "personal_context": "Личный контекст",
+        "project_context": "О проекте", "meta_architecture": "Об устройстве приложения",
+        "continuity_followup": "Продолжение разговора", "memory_inventory": "Обзор памяти",
+        "decision_request": "Выбор решения", "not_needed": "Проверка не требовалась",
+        "grounded": "Согласовано", "partially_grounded": "Частично согласовано",
+        "ungrounded": "Недостаточно опоры", "contradicted": "Найдено противоречие",
+        "high": "Высокая", "medium": "Средняя", "low": "Низкая"
+    ]
 }
 
 private struct InspectorSection<Content: View>: View {

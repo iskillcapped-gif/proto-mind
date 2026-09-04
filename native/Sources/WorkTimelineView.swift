@@ -31,7 +31,7 @@ enum WorkLogPresentation {
             }
         }
         switch log["status"].text {
-        case "completed": return "Выполнено за \(duration(log["elapsed_ms"].integer))"
+        case "completed": return "Ответ получен · \(duration(log["elapsed_ms"].integer))"
         case "interrupted": return "Остановлено · \(duration(log["elapsed_ms"].integer))"
         default: return "Ход не завершён · \(duration(log["elapsed_ms"].integer))"
         }
@@ -51,7 +51,7 @@ struct WorkTimelineView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 15) {
             Button {
-                withAnimation(.easeInOut(duration: 0.16)) { expanded.toggle() }
+                expanded.toggle()
             } label: {
                 HStack(spacing: 8) {
                     if live { ProgressView().controlSize(.mini).scaleEffect(0.75) }
@@ -94,7 +94,7 @@ struct WorkTimelineView: View {
             } else if live, let latest = entries.last(where: { $0["kind"].text == "commentary" }), !latest["text"].text.isEmpty {
                 Text(latest["text"].text).font(NativeTheme.interfaceFont).foregroundStyle(.secondary).lineLimit(2)
             }
-        }.onAppear { if live { expanded = true } }
+        }
     }
 
     @ViewBuilder

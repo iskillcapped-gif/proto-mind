@@ -120,13 +120,13 @@ struct TaskCriteriaView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             Label("Готово, когда…", systemImage: "checklist").font(.title2.weight(.semibold))
-            Text("Задайте критерии для следующего обычного сообщения. Один пункт на строку, максимум 8.")
+            Text("Как понять, что задача решена? До 8 пунктов, по одному на строку.")
                 .foregroundStyle(.secondary)
             TextEditor(text: $draft).font(NativeTheme.interfaceFont).padding(10)
                 .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 10))
                 .frame(minHeight: 170).accessibilityLabel("Критерии следующей задачи")
             if let error { Text(error).foregroundStyle(.orange) }
-            Text("Критерии сохраняются только в личном черновике. При отправке они попадут выбранной модели и в журнал запуска. Это не разрешение на инструменты и не автоматическая проверка. Операторские команды их пропускают.")
+            Text("Критерии сохранятся в черновике и попадут в следующий запрос. Оценить результат можно будет в журнале работы.")
                 .font(.callout).foregroundStyle(.secondary)
             HStack {
                 Button("Отмена") { model.showTaskCriteria = false }.keyboardShortcut(.cancelAction)

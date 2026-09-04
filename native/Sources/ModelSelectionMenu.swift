@@ -17,38 +17,40 @@ struct ModelSelectionMenu: View {
                 Menu {
                     CodexEffortPicker(model: model)
                 } label: {
-                    Text("Усилие: \(model.reasoningEffortLabel)")
+                    Text("Глубина: \(model.reasoningEffortLabel)")
                 }.disabled(model.availableReasoningEfforts.isEmpty && (model.selected?.reasoningEffort.isEmpty ?? true))
                 Divider()
-                Button("Сбросить модель и усилие", systemImage: "arrow.counterclockwise") { model.resetCodexSelection() }
+                Button("Сбросить выбор", systemImage: "arrow.counterclockwise") { model.resetCodexSelection() }
                     .disabled((model.selected?.model.isEmpty ?? true) && (model.selected?.reasoningEffort.isEmpty ?? true))
                 Button("Обновить список моделей", systemImage: "arrow.clockwise") { Task { await model.refreshAccount() } }
                     .disabled(model.connecting)
                 Divider()
             }
-            Menu("Провайдер") {
+            Menu("Источник модели") {
                 Picker("Провайдер", selection: Binding(get: { model.selected?.provider ?? "ollama" }, set: model.setProvider)) {
                     Text("Ollama · на этом Mac").tag("ollama")
                     Text("Codex · подписка ChatGPT").tag("codex")
                     Text("Mock · локальная диагностика").tag("mock")
                 }.pickerStyle(.inline)
             }
-            Button("Модели и настройки…", systemImage: "slider.horizontal.3", action: openSettings)
+            Button("Настройки модели…", systemImage: "slider.horizontal.3") { model.settingsSection = .models; openSettings() }
         } label: {
             // AppKit's Menu bridge keeps only the first Text in a composite label.
             Text(isCodex ? "\(model.codexModelLabel) · \(model.reasoningEffortLabel)" : localModelLabel)
-                .font(NativeTheme.interfaceFont).lineLimit(1)
+                .font(.system(size: 12, weight: .medium)).lineLimit(1).truncationMode(.middle)
         }
         .menuStyle(.borderlessButton)
-        // Ask the menu for its intrinsic width before drawing hover feedback.
-        .frame(maxWidth: 260, alignment: .trailing).fixedSize(horizontal: true, vertical: true)
-        .padding(.horizontal, 8).frame(minHeight: 32)
+        // Long catalog names must leave room for the send and access controls.
+        .frame(maxWidth: 200, alignment: .leading).fixedSize(horizontal: false, vertical: true)
+        .padding(.horizontal, 5).frame(minHeight: 32)
         .nativeHoverSurface()
+        .help(isCodex ? "\(model.codexModelLabel) · \(model.reasoningEffortLabel)" : localModelLabel)
         .disabled(model.busy)
         .accessibilityLabel(isCodex ? "Модель \(model.codexModelLabel), усилие \(model.reasoningEffortLabel)" : "Модель \(localModelLabel)")
     }
 
     private var localModelLabel: String {
+        if model.selected?.provider == "mock" { return "Тестовый режим" }
         let selected = model.selected?.model ?? ""
         return selected.isEmpty ? model.providerLabel : selected
     }

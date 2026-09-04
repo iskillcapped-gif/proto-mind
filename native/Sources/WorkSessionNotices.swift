@@ -58,7 +58,7 @@ struct WorkSessionNoticeBanner: View {
         if !model.busy, model.hasWorkSessionNotice {
             HStack(alignment: .top, spacing: 10) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Label(model.workSessionsWarning == nil ? "Есть прошлый запрос без подтверждённого результата." : "Журнал работы требует проверки. Откройте диагностику перед новым запросом.", systemImage: "exclamationmark.circle")
+                    Label(model.workSessionsWarning == nil ? "Предыдущая задача требует внимания" : "Не удалось прочитать часть журнала", systemImage: "exclamationmark.circle")
                         .font(.callout).foregroundStyle(.orange)
                     if model.workSessionsWarning == nil, let run = model.workSessionNoticeToShow {
                         Text("\(run.title): \(run.value["input_preview"].text)").font(.caption).foregroundStyle(.secondary).lineLimit(2)
@@ -75,7 +75,8 @@ struct WorkSessionNoticeBanner: View {
                         .accessibilityLabel("Скрыть уведомление о прошлом запуске")
                         .help("Скрыть только это уведомление. Запуск остаётся в журнале и не считается принятым.")
                 }
-            }.padding(.horizontal, 28).padding(.vertical, 10).background(Color.orange.opacity(0.05))
+            }.padding(14).background(Color.orange.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+                .padding(.horizontal, 28).padding(.top, 8)
         }
     }
 }

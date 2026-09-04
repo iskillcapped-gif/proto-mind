@@ -26,6 +26,11 @@ struct NativeChecks {
             print("Native history checks: \(passed) OK")
             return
         }
+        if CommandLine.arguments.contains("--interface-only") {
+            try interfaceLayout(root: root)
+            print("Native interface checks: \(passed) OK")
+            return
+        }
         if CommandLine.arguments.contains("--memory-suggestions-only"),
            let fixture = LaunchConfiguration.argument("--fixture"), let python = LaunchConfiguration.argument("--python") {
             try memorySuggestionContracts(root: root)
@@ -112,6 +117,7 @@ struct NativeChecks {
         try memorySuggestionContracts(root: root)
         try workLogAndGrouping(root: root)
         try sidebarLayout(root: root)
+        try interfaceLayout(root: root)
         try hoverFeedback()
         try transcriptLayout(root: root)
         try markdown()
@@ -553,7 +559,7 @@ struct NativeChecks {
         try store.save(ChatArchive(conversations: [chat], selectedID: chat.id))
         let oldBytes = try Data(contentsOf: store.url)
         try check(try store.load().conversations[0].messages.last?.workLog == nil && Data(contentsOf: store.url) == oldBytes, "Older history v3 remains untouched and has no invented progress")
-        try check(WorkLogPresentation.title(log, live: false) == "Выполнено за 1 мин 5 с", "Completed work title reports observed duration")
+        try check(WorkLogPresentation.title(log, live: false) == "Ответ получен · 1 мин 5 с", "Completed provider turn reports duration without claiming task success")
         try check(WorkLogPresentation.duration(-1000) == "менее секунды" && WorkLogPresentation.duration(3661000) == "1 ч 1 мин", "Duration handles invalid and long values")
         try check(WorkLogPresentation.title(.object(["status": .string("interrupted")]), live: false).hasPrefix("Остановлено"), "Interrupted work is never labelled completed")
         try check(WorkLogPresentation.title(.object(["stage": .string("answering")]), live: true) == "Пишу ответ", "Live work distinguishes final answer from public commentary")

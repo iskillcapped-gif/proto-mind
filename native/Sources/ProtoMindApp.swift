@@ -69,7 +69,7 @@ struct ProtoMindApp: App {
             }
         }
         Settings {
-            NativeSettingsView(model: model).frame(width: 640, height: 650)
+            NativeSettingsView(model: model).frame(width: 800, height: 680)
         }
     }
 }

@@ -15,6 +15,7 @@ Proto-Mind is a personal macOS application with a Python cognitive core. The goa
 ## Project map
 
 - `native/Sources/`: primary SwiftUI/AppKit application. `AppModel` owns shared state; `ConversationModel`, `TurnExecutionModel`, `WorkSessionHistoryModel`, `SessionSpineFlowModel` and `HistoryPersistenceModel` group its flows. `ChatStore`, `ChatHistoryFiles`, `ChatHistoryFormat` and `ChatBackups` own dialog persistence.
+- `SidebarView`, `ConversationWelcomeView`, `ComposerView` and `NativeSettingsView` own everyday UI; `WorkspaceView` composes the workspace/transcript and `NativeTheme` defines adaptive appearance. Keep source evidence and permission state reachable when simplifying presentation.
 - `proto_mind/`: Python cognition, persistence, provider adapters and stdio bridge. `native_history_routes.py` groups journal/Spine RPCs; `native_chat_history.py` adapts exact v6 dialog evidence without writing it.
 - `native/Tests/` and `proto_mind/tests/`: Native checks and Python regression tests. `test_flow.py` is the stable aggregate for `test_flow_*.py`; shared fixtures live in `flow_fixtures.py`. Add flow tests to the relevant topic module and keep the aggregate/provenance inventory aligned.
 - `scripts/test_native.sh`: builds Native and checks it against temporary Python fixtures.

@@ -62,7 +62,7 @@ struct MessageMarkdownView: View {
             ForEach(Array(MarkdownBlock.parse(text).enumerated()), id: \.offset) { _, block in
                 switch block.kind {
                 case .text:
-                    Text(MarkdownBlock.inline(block.content)).font(NativeTheme.interfaceFont).lineSpacing(5)
+                    Text(MarkdownBlock.inline(block.content)).font(NativeTheme.messageFont).lineSpacing(6)
                         .textSelection(.enabled)
                 case .heading(let level):
                     Text(MarkdownBlock.inline(block.content)).font(.system(size: level < 3 ? 22 : 17, weight: .semibold)).padding(.top, 5)

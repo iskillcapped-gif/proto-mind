@@ -1,4 +1,34 @@
+import AppKit
 import SwiftUI
+
+enum NativeSettingsSection: String, CaseIterable, Identifiable {
+    case models, persona, data, advanced
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .models: return "Модели"
+        case .persona: return "Общение"
+        case .data: return "Данные и копии"
+        case .advanced: return "Дополнительно"
+        }
+    }
+    var symbol: String {
+        switch self {
+        case .models: return "slider.horizontal.3"
+        case .persona: return "bubble.left.and.bubble.right"
+        case .data: return "externaldrive"
+        case .advanced: return "gearshape.2"
+        }
+    }
+    var subtitle: String {
+        switch self {
+        case .models: return "Выберите, с какой моделью продолжить этот диалог."
+        case .persona: return "Характер общения и использование памяти."
+        case .data: return "Ваши диалоги и способы их восстановить."
+        case .advanced: return "Доступ, сессии и технические сведения."
+        }
+    }
+}
 
 struct NativeSettingsView: View {
     @ObservedObject var model: AppModel
@@ -10,228 +40,271 @@ struct NativeSettingsView: View {
     }
 
     var body: some View {
-        Form {
-            Section("История диалогов") {
-                Button("Копии и восстановление…") { model.openHistoryBackups() }
-                    .disabled(model.busy || model.client.turnOutstanding)
-                Text("Сохранить диалоги отдельно или восстановить их из проверенной копии.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            Section("Модель этого диалога") {
-                Picker("Провайдер", selection: Binding(get: { model.selected?.provider ?? "ollama" }, set: model.setProvider)) {
-                    Text("Ollama · полностью локально").tag("ollama")
-                    Text("Codex · подписка ChatGPT").tag("codex")
-                    Text("Mock · без модели, для теста").tag("mock")
-                }.disabled(model.busy)
-                if model.selected?.provider == "ollama" {
-                    TextField("Модель Ollama", text: Binding(get: { model.selected?.model ?? "" }, set: model.setModel), prompt: Text(model.bootstrap["ollama_model"].text))
-                        .disabled(model.busy)
-                    Text("Только loopback-сервер на этом Mac. Используется существующая конфигурация Proto-Mind; сетевые адреса вне localhost отклоняются.")
-                        .font(.caption).foregroundStyle(.secondary)
-                    HStack {
-                        Button("Проверить Ollama") { Task { await model.checkOllama() } }.disabled(model.busy)
-                        if !model.ollamaStatus.isNull {
-                            Label(model.ollamaStatus["connected"].flag ? "Доступна" : "Не запущена или недоступна", systemImage: model.ollamaStatus["connected"].flag ? "checkmark.circle" : "exclamationmark.circle")
+        HStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text("Настройки").font(.system(size: 17, weight: .semibold)).padding(.horizontal, 12).padding(.top, 20).padding(.bottom, 18)
+                ForEach(NativeSettingsSection.allCases) { section in
+                    Button { model.settingsSection = section } label: {
+                        Label(section.title, systemImage: section.symbol).font(.system(size: 13))
+                            .frame(maxWidth: .infinity, alignment: .leading).padding(11)
+                            .background(model.settingsSection == section ? NativeTheme.selection : .clear, in: RoundedRectangle(cornerRadius: 9))
+                    }.buttonStyle(.nativeHover)
+                }
+                Spacer(minLength: 0)
+                Label("Proto-Mind", systemImage: "cube.transparent.fill")
+                    .font(.system(size: 12)).foregroundStyle(.secondary).padding(12)
+            }.padding(.horizontal, 10).padding(.bottom, 8).frame(width: 185).background(NativeTheme.sidebar)
+            VStack(alignment: .leading, spacing: 0) {
+                VStack(alignment: .leading, spacing: 7) {
+                    Text(model.settingsSection.title).font(.system(size: 24, weight: .semibold))
+                    Text(model.settingsSection.subtitle).font(.system(size: 13)).foregroundStyle(.secondary)
+                }.padding(.horizontal, 26).padding(.top, 28).padding(.bottom, 12)
+                Form {
+                    switch model.settingsSection {
+                    case .models:
+                        modelSettings
+                        if model.selected?.provider == "codex" { accountSettings }
+                    case .persona:
+                        personaSettings
+                        Section("Память и навыки") {
+                            Text("Заметки проекта и автоматический подбор навыков настраиваются для каждого диалога через кнопку рядом с вложениями.")
+                                .font(.callout).foregroundStyle(.secondary)
+                            Text("Перед отправкой можно посмотреть, какие сведения попадут в запрос, в разделе «Контекст запроса».")
                                 .font(.caption).foregroundStyle(.secondary)
                         }
-                    }
-                    if !model.ollamaStatus["models"].items.isEmpty {
-                        Menu("Установленные модели") {
-                            ForEach(model.ollamaStatus["models"].items.map(\.text), id: \.self) { name in
-                                Button(name) { model.setModel(name) }
+                    case .data: dataSettings
+                    case .advanced:
+                        accessSettings
+                        if model.selected?.provider == "codex" { sessionSettings }
+                        spineSettings
+                        Section("О приложении") {
+                            LabeledContent("Версия", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Локальная сборка")
+                            DisclosureGroup("Технические сведения") {
+                                Text("Python: \(model.client.configuration.python.path)\nПроект: \(model.client.configuration.projectRoot.path)")
+                                    .font(.caption.monospaced()).textSelection(.enabled)
+                                Text("Управление экраном: \(model.computerUseAvailable ? model.computerUseVersion : "недоступно")")
+                                    .font(.caption).foregroundStyle(.secondary)
                             }
-                        }.disabled(model.busy)
-                    }
-                }
-                if model.selected?.provider == "codex" {
-                    Picker("Модель Codex", selection: Binding(get: { model.selected?.model ?? "" }, set: model.setModel)) {
-                        Text("По умолчанию для аккаунта").tag("")
-                        ForEach(model.codexModels) { item in Text(item.displayName).tag(item.id) }
-                        if let selected = model.selected?.model, !selected.isEmpty, model.selectedCodexModel == nil {
-                            Text("\(selected) · недоступна").tag(selected)
-                        }
-                    }.disabled(model.busy)
-                    Picker("Усилие рассуждения", selection: Binding(get: { model.selected?.reasoningEffort ?? "" }, set: model.setReasoningEffort)) {
-                        Text(model.selectedCodexModel?.defaultEffort.map { "По умолчанию · \($0.title)" } ?? "По умолчанию").tag("")
-                        ForEach(model.availableReasoningEfforts) { effort in Text(effort.title).tag(effort.rawValue) }
-                        if let selected = model.selected?.reasoningEffort, !selected.isEmpty,
-                           !model.availableReasoningEfforts.contains(where: { $0.rawValue == selected }) {
-                            Text("\(selected) · недоступно").tag(selected)
-                        }
-                    }.disabled(model.busy)
-                    HStack {
-                        Button("Обновить модели") { Task { await model.refreshAccount() } }
-                        Button("Сбросить модель и усилие") { model.resetCodexSelection() }
-                    }.disabled(model.busy || model.connecting)
-                    Text("Настройки сохраняются для этого диалога и передаются в Codex при следующем сообщении. Доступные уровни приходят от модели; список может отличаться от Codex Desktop. Изменение усилия не включает инструменты.")
-                        .font(.caption).foregroundStyle(.secondary)
-                    if let note = model.modelSelectionWarning ?? model.modelSelectionNotice {
-                        Text(note).font(.caption).foregroundStyle(.orange)
-                    }
-                }
-            }
-            Section("Brother Persona") {
-                HStack {
-                    Label(model.personaEnabled ? "Включена" : "Выключена",
-                          systemImage: model.personaEnabled ? "person.crop.circle.badge.checkmark" : "person.crop.circle.badge.xmark")
-                    Spacer()
-                    Text(model.personaEnabled ? "opt-in" : "legacy prompt")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                if model.personaEnabled {
-                    Button("Вернуться к legacy prompt") { model.disablePersona() }
-                        .disabled(model.busy)
-                    Text("Отключение действует со следующего хода и меняет только локальную настройку. Уже существующая история durable Codex thread не стирается.")
-                        .font(.caption).foregroundStyle(.secondary)
-                } else {
-                    Button("Проверить и включить…") {
-                        Task {
-                            if await model.preparePersonaActivation() { confirmPersonaActivation = true }
                         }
                     }
-                    .disabled(model.busy || model.loadingPersonaReadiness || !["codex", "ollama"].contains(model.selected?.provider ?? ""))
-                    Text("Сначала собирается свежий read-only readiness report. Включение потребует отдельного подтверждения; Mock не поддерживается.")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                if let readiness = model.personaReadiness {
-                    Text("Последняя проверка: \(readiness.status) · activation \(String(readiness.value["activation_fingerprint"].text.prefix(12)))")
-                        .font(.caption.monospaced()).foregroundStyle(readiness.status == "READY" ? Color.secondary : .orange)
-                }
-                if let receipt = model.lastPersonaTurnReceipt {
-                    Text("Последний активный ход: \(String(receipt.snapshotHash.prefix(12))) · память \(receipt.selectedMemoryCount) · receipt \(String(receipt.receiptHash.prefix(12)))")
-                        .font(.caption.monospaced()).foregroundStyle(.secondary).textSelection(.enabled)
-                }
-                Text("Один проверенный Brother snapshot использует уже выбранную ядром память в существующем model call. Persona не выдаёт инструменты, не меняет Context Injection и не добавляет скрытых записей.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            Section("Session Spine pilot") {
-                HStack {
-                    Label(model.sessionSpineWriterReceipt != nil ? "Один точный ход записан"
-                          : model.sessionSpinePilotArmed ? "Один точный ход подготовлен" : "Writer закрыт",
-                          systemImage: model.sessionSpineWriterReceipt != nil ? "checkmark.seal"
-                            : model.sessionSpinePilotArmed ? "checkmark.shield" : "lock.shield")
-                    Spacer()
-                    Text(model.sessionSpineWriterReceipt != nil ? "closed"
-                         : model.sessionSpinePilotArmed ? "до перезапуска" : "inactive")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                if let readiness = model.sessionSpineReadiness {
-                    Text("Readiness: \(readiness.state) · identity \(readiness.identityState) · candidate \(String(readiness.candidateHash.prefix(12)))")
-                        .font(.caption.monospaced())
-                        .foregroundStyle(readiness.recoveryRequired ? .orange : .secondary)
-                    if readiness.recoveryRequired {
-                        Text("Существующая identity требует ручной проверки. Автоматического ремонта, удаления или пересоздания нет.")
-                            .font(.caption).foregroundStyle(.orange)
+                    if let error = model.error {
+                        Section { Label(error, systemImage: "exclamationmark.circle").foregroundStyle(.orange).font(.callout).textSelection(.enabled) }
                     }
-                } else {
-                    Text("Откройте Session Spine у exact-linked ответа и выберите «Проверить readiness…». Legacy-ответы без Turn Lineage не подходят.")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                if model.sessionSpinePilotArmed {
-                    if let rehearsal = model.sessionSpineAcceptance {
-                        Text("P2k rehearsal: \(rehearsal.state) · \(String(rehearsal.rehearsalHash.prefix(12)))")
-                            .font(.caption.monospaced())
-                            .foregroundStyle(rehearsal.recoveryRequired ? .orange : .secondary)
-                    }
-                    Button("Снять локальную подготовку") { model.revokeSessionSpinePilot() }
-                        .disabled(model.busy)
-                }
-                Text("P2j opt-in и P2k acceptance не сохраняются и сами ничего не записывают. P2l отдельно требует свежий exact preview, acknowledgement и точную фразу; он может закрыть только один новый связанный ход, без модели, команд, инструментов, смены разрешений или legacy backfill.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            Section("Подписка ChatGPT / Codex") {
-                HStack {
-                    Label(model.account.isNull ? "Вход ещё не проверен" : model.account["connected"].flag ? "Подключено" : "Не подключено", systemImage: model.account["connected"].flag ? "checkmark.circle" : "person.crop.circle")
-                    Spacer()
-                    if model.connecting { ProgressView().controlSize(.small) }
-                }
-                if model.account["connected"].flag {
-                    Text("\(model.account["email"].text) · \(model.account["plan"].text)").font(.caption).foregroundStyle(.secondary)
-                }
-                HStack {
-                    Button("Войти через ChatGPT…") { Task { await model.login() } }
-                    Button("Проверить вход") { Task { await model.refreshAccount() } }
-                    if model.account["connected"].flag { Button("Выйти") { Task { await model.logout() } } }
-                }.disabled(model.busy || model.connecting)
-                if model.loginPending {
-                    Text("Завершите вход в открытом браузере, затем нажмите «Проверить вход». Пароли и коды не вводятся в Proto-Mind.")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                Text("Официальный Codex CLI, отдельный профиль Proto-Mind. Не читаем вход, hooks и MCP из Codex Desktop. Список моделей приходит от аккаунта. API-ключи и отдельный Platform API billing не используются.")
-                    .font(.caption).foregroundStyle(.secondary)
-                Toggle("Разрешаю облачную обработку через Codex на этом Mac", isOn: $model.cloudConsent)
-                    .disabled(model.busy)
-                Text("В режиме Codex новое сообщение, выбранная ядром память и явно прикреплённые фрагменты файлов передаются OpenAI. До 12 локальных реплик добавляются только при создании нового durable thread; последующие turns продолжаются через Codex. Это не офлайн-модель. Разрешение сохраняется локально и выключается здесь или при выходе из аккаунта.")
-                    .font(.caption).foregroundStyle(model.cloudConsent ? Color.secondary : .orange)
-            }
-            if model.selected?.provider == "codex" {
-                Section("Сессия Codex этого диалога") {
-                    HStack {
-                        Label(model.codexThreadLabel,
-                              systemImage: model.codexThreadStatus["linked"].flag ? "link.circle" : "plus.bubble")
-                        Spacer()
-                        if model.loadingCodexThreadStatus { ProgressView().controlSize(.small) }
-                    }
-                    if !model.codexThreadStatus.isNull {
-                        Text(model.codexThreadStatus["notice"].text)
-                            .font(.caption)
-                            .foregroundStyle(model.codexThreadStatus["workspace_matches"].flag && !model.codexThreadStatus["refresh_required"].flag ? Color.secondary : .orange)
-                        if model.codexThreadStatus["linked"].flag || model.codexThreadStatus["refresh_required"].flag {
-                            let mode = model.codexThreadStatus["last_mode"].text == "full_access" ? "полный доступ" : "чат без инструментов"
-                            Text("Последний режим: \(mode) · модель: \(model.codexThreadStatus["last_model"].text.isEmpty ? "по умолчанию" : model.codexThreadStatus["last_model"].text)")
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                        let modes = model.codexThreadStatus["available_modes"].items.map(\.text)
-                        if !modes.isEmpty {
-                            Text("Раздельные сессии по режимам: \(modes.map { $0 == "full_access" ? "Full Mac" : "Chat" }.joined(separator: ", ")).")
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                        if model.codexThreadStatus["legacy_binding"].flag {
-                            Text("Старая сессия с неоднозначными инструкциями сохранена как история и не будет возобновлена автоматически.")
-                                .font(.caption).foregroundStyle(.orange)
-                        }
-                    }
-                    HStack {
-                        Button("Обновить статус") { Task { await model.refreshCodexThreadStatus() } }
-                        Button("Начать новую сессию Codex…", role: .destructive) { confirmCodexThreadReset = true }
-                            .disabled(!model.codexThreadStatus["linked"].flag && !model.codexThreadStatus["refresh_required"].flag && !model.codexThreadStatus["legacy_binding"].flag)
-                    }.disabled(model.busy || model.loadingCodexThreadStatus)
-                    Text("Для Chat и Full Mac создаются отдельные durable threads. Первый ход каждого режима один раз получает до 12 локальных реплик; следующие ходы этого же режима используют thread/resume. Если статический контракт инструкций обновился, только этот режим безопасно начнёт свежий thread, а прежний rollout не удаляется.")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-            }
-            Section("Локальное хранение и безопасность") {
-                Text(model.client.configuration.stateDirectory.path).font(.system(size: 10, design: .monospaced)).textSelection(.enabled)
-                Text("Здесь история нового интерфейса, приватный индекс связей сессий и отдельный профиль Codex. Rollout с запросами, ответами и выводом инструментов сохраняется самим Codex в этом профиле; это не редактированный экспорт. Исходные хранилища Proto-Mind не переносятся.")
-                    .font(.caption).foregroundStyle(.secondary)
-                Text(model.computerUseAvailable
-                     ? "По умолчанию модель отвечает без инструментов. Отдельный Full Mac включает файлы, терминал, live Web Search, сеть и подписанный OpenAI Computer Use \(model.computerUseVersion). Экран и скриншоты могут обрабатываться OpenAI; разрешение не сохраняется между запусками. Другие MCP, hooks и субагенты выключены."
-                     : "По умолчанию модель отвечает без инструментов. Отдельный Full Mac включает файлы, терминал, live Web Search и сеть. Подписанный OpenAI Computer Use не найден или не прошёл проверку; управление экраном выключено. Разрешение не сохраняется между запусками.")
-                    .font(.caption).foregroundStyle(.secondary)
-                Text("Журнал действий и ограниченные фрагменты вывода сохраняются только в локальной истории Native. Для Computer Use он хранит тип действия и имя приложения, но не скриншоты, UI-дерево, координаты или введённый текст. Журнал не является полным аудитом. Stop/Esc не откатывают изменения.")
-                    .font(.caption).foregroundStyle(.secondary)
-                Text("Первое чтение каждого приложения в новом ходе запрашивает полный свежий state. Зависший Computer Use вызов ограничен 30 секундами и не повторяется автоматически под другим именем приложения.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            if let error = model.error { Text(error).foregroundStyle(.orange).font(.caption).textSelection(.enabled) }
+                }.formStyle(.grouped)
+            }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).background(NativeTheme.canvas)
         }
-        .formStyle(.grouped)
-        .font(NativeTheme.interfaceFont)
-        .buttonStyle(.nativeHover)
-        .navigationTitle("Proto-Mind · Модели")
-        .tint(.primary)
+        .font(NativeTheme.interfaceFont).buttonStyle(.nativeHover).tint(NativeTheme.accent)
+        .navigationTitle("Настройки Proto-Mind")
         .task(id: codexThreadTaskID) { await model.refreshCodexThreadStatus() }
-        .confirmationDialog("Начать новую сессию Codex?", isPresented: $confirmCodexThreadReset, titleVisibility: .visible) {
+        .confirmationDialog("Начать новую сессию ChatGPT?", isPresented: $confirmCodexThreadReset, titleVisibility: .visible) {
             Button("Начать новую сессию", role: .destructive) { Task { await model.resetCodexThread() } }
             Button("Отмена", role: .cancel) {}
         } message: {
-            Text("Будет удалена только локальная связь этого диалога с thread Codex. История Proto-Mind и прежний rollout Codex не удаляются. Следующее сообщение создаст новый thread; полный доступ к Mac останется выключенным.")
+            Text("Следующее сообщение начнёт новую сессию модели. Диалоги Proto-Mind и прежние записи Codex сохранятся. Полный доступ к Mac будет выключен.")
         }
-        .confirmationDialog("Включить Brother Persona?", isPresented: $confirmPersonaActivation, titleVisibility: .visible) {
-            Button("Включить после повторной проверки") { Task { await model.confirmPersonaActivation() } }
+        .confirmationDialog("Включить Brother?", isPresented: $confirmPersonaActivation, titleVisibility: .visible) {
+            Button("Проверить и включить") { Task { await model.confirmPersonaActivation() } }
             Button("Отмена", role: .cancel) { model.cancelPersonaActivation() }
         } message: {
-            Text("Readiness будет проверена ещё раз по тому же SHA. После включения каждый Send заново проверяет provider, модель, доступ и выключенный Context Injection. Новых полномочий это не даёт.")
+            Text("Совместимость будет проверена повторно. Изменение действует со следующего сообщения и не добавляет доступа к файлам или инструментам.")
+        }
+    }
+
+    private var modelSettings: some View {
+        Section("В этом диалоге") {
+            Text(model.selected?.title ?? "Новый диалог").font(.callout.weight(.medium)).lineLimit(2)
+            Picker("Источник модели", selection: Binding(get: { model.selected?.provider ?? "ollama" }, set: model.setProvider)) {
+                Text("ChatGPT · по подписке").tag("codex")
+                Text("Ollama · на этом Mac").tag("ollama")
+                Text("Тестовый режим · без модели").tag("mock")
+            }.disabled(model.busy)
+            if model.selected?.provider == "ollama" {
+                TextField("Модель Ollama", text: Binding(get: { model.selected?.model ?? "" }, set: model.setModel), prompt: Text(model.bootstrap["ollama_model"].text))
+                    .disabled(model.busy)
+                Text("Сообщения обрабатываются локально. Для работы запустите Ollama на этом Mac.")
+                    .font(.caption).foregroundStyle(.secondary)
+                HStack {
+                    Button("Проверить подключение") { Task { await model.checkOllama() } }.disabled(model.busy)
+                    Spacer()
+                    if !model.ollamaStatus.isNull {
+                        Label(model.ollamaStatus["connected"].flag ? "Доступна" : "Недоступна", systemImage: model.ollamaStatus["connected"].flag ? "checkmark.circle" : "exclamationmark.circle")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                if !model.ollamaStatus["models"].items.isEmpty {
+                    Menu("Установленные модели") {
+                        ForEach(model.ollamaStatus["models"].items.map(\.text), id: \.self) { name in Button(name) { model.setModel(name) } }
+                    }.disabled(model.busy)
+                }
+            } else if model.selected?.provider == "codex" {
+                Picker("Модель", selection: Binding(get: { model.selected?.model ?? "" }, set: model.setModel)) {
+                    Text("По умолчанию для аккаунта").tag("")
+                    ForEach(model.codexModels) { item in Text(item.displayName).tag(item.id) }
+                    if let selected = model.selected?.model, !selected.isEmpty, model.selectedCodexModel == nil {
+                        Text("\(selected) · недоступна").tag(selected)
+                    }
+                }.disabled(model.busy)
+                Picker("Глубина рассуждения", selection: Binding(get: { model.selected?.reasoningEffort ?? "" }, set: model.setReasoningEffort)) {
+                    Text(model.selectedCodexModel?.defaultEffort.map { "По умолчанию · \($0.title)" } ?? "По умолчанию").tag("")
+                    ForEach(model.availableReasoningEfforts) { effort in Text(effort.title).tag(effort.rawValue) }
+                    if let selected = model.selected?.reasoningEffort, !selected.isEmpty, !model.availableReasoningEfforts.contains(where: { $0.rawValue == selected }) {
+                        Text("\(selected) · недоступно").tag(selected)
+                    }
+                }.disabled(model.busy)
+                HStack {
+                    Button("Обновить список") { Task { await model.refreshAccount() } }
+                    Spacer()
+                    Button("Сбросить выбор") { model.resetCodexSelection() }
+                }.disabled(model.busy || model.connecting)
+                Text("Выбор сохраняется для этого диалога. Доступные модели и уровни зависят от аккаунта.")
+                    .font(.caption).foregroundStyle(.secondary)
+                if let note = model.modelSelectionWarning ?? model.modelSelectionNotice { Text(note).font(.caption).foregroundStyle(.orange) }
+            } else {
+                Text("Этот режим проверяет приложение без запроса к модели. Он не выполняет задачи и не анализирует сообщения.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var accountSettings: some View {
+        Section("Аккаунт ChatGPT") {
+            HStack {
+                Label(model.account.isNull ? "Вход ещё не проверен" : model.account["connected"].flag ? "Подключено" : "Не подключено", systemImage: model.account["connected"].flag ? "checkmark.circle" : "person.crop.circle")
+                Spacer()
+                if model.connecting { ProgressView().controlSize(.small) }
+            }
+            if model.account["connected"].flag {
+                Text("\(model.account["email"].text) · \(model.account["plan"].text)").font(.caption).foregroundStyle(.secondary)
+            }
+            HStack {
+                Button("Войти через ChatGPT…") { Task { await model.login() } }
+                Button("Проверить вход") { Task { await model.refreshAccount() } }
+                Spacer()
+                if model.account["connected"].flag { Button("Выйти") { Task { await model.logout() } } }
+            }.disabled(model.busy || model.connecting)
+            if model.loginPending {
+                Text("Завершите вход в браузере и нажмите «Проверить вход».").font(.caption).foregroundStyle(.secondary)
+            }
+            Toggle("Разрешить облачную обработку", isOn: $model.cloudConsent).disabled(model.busy)
+            Text("Сообщения, выбранная память и прикреплённые материалы передаются OpenAI. Разрешение действует на этом Mac и сохраняется после перезапуска.")
+                .font(.caption).foregroundStyle(.secondary)
+            DisclosureGroup("Как работает подключение") {
+                Text("Proto-Mind использует официальный Codex и отдельный профиль входа. API-ключ не нужен. Сессии продолжаются между сообщениями; при создании новой сессии добавляется до 12 локальных реплик. Данные входа и настройки Codex Desktop не используются.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var personaSettings: some View {
+        Section("Характер общения · Brother") {
+            LabeledContent("Состояние", value: model.personaEnabled ? "Включён" : "Обычный режим")
+            Text("Brother задаёт устойчивый характер общения и использует память, уже выбранную ядром для ответа.")
+                .font(.callout).foregroundStyle(.secondary)
+            if model.personaEnabled {
+                Button("Вернуться к обычному режиму") { model.disablePersona() }.disabled(model.busy)
+            } else {
+                Button(model.loadingPersonaReadiness ? "Проверяем совместимость…" : "Проверить и включить…") {
+                    Task { if await model.preparePersonaActivation() { confirmPersonaActivation = true } }
+                }.disabled(model.busy || model.loadingPersonaReadiness || !["codex", "ollama"].contains(model.selected?.provider ?? ""))
+                if model.selected?.provider == "mock" { Text("Выберите ChatGPT или Ollama для включения Brother.").font(.caption).foregroundStyle(.secondary) }
+            }
+            Text("Изменение действует со следующего сообщения. Оно не даёт дополнительных разрешений и не стирает прежнюю историю модели.")
+                .font(.caption).foregroundStyle(.secondary)
+            DisclosureGroup("Сведения о проверке") {
+                if let readiness = model.personaReadiness {
+                    Text("Состояние: \(readiness.status)\nПроверка: \(readiness.value["activation_fingerprint"].text)")
+                        .font(.caption.monospaced()).textSelection(.enabled)
+                } else { Text("Проверка ещё не выполнялась.").font(.caption).foregroundStyle(.secondary) }
+                if let receipt = model.lastPersonaTurnReceipt {
+                    Text("Последний ответ: \(receipt.snapshotHash)\nЗаписей памяти: \(receipt.selectedMemoryCount)\nКвитанция: \(receipt.receiptHash)")
+                        .font(.caption.monospaced()).textSelection(.enabled)
+                }
+                Text("Persona не меняет Context Injection, не создаёт скрытых записей и проверяет совместимость перед каждым ответом.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var dataSettings: some View {
+        Group {
+            Section("Копии диалогов") {
+                Text("Сохраните отдельную копию или вернитесь к предыдущему состоянию истории.")
+                    .font(.callout).foregroundStyle(.secondary)
+                Button("Копии и восстановление…") { model.openHistoryBackups() }.buttonStyle(.borderedProminent)
+                    .disabled(model.busy || model.client.turnOutstanding)
+                Text("В копию входят сообщения, черновики и настройки диалогов. Память, журнал задач, облачные сессии и исходные вложения хранятся отдельно.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Section("На этом Mac") {
+                Text("Диалоги хранятся в приватной папке приложения. Локальные снимки помогают восстановить историю, а копия на другом диске — защититься от потери данных.")
+                    .font(.callout).foregroundStyle(.secondary)
+                DisclosureGroup("Расположение данных") {
+                    Text(model.client.configuration.stateDirectory.path).font(.caption.monospaced()).textSelection(.enabled)
+                    Button("Показать в Finder") { NSWorkspace.shared.activateFileViewerSelecting([model.client.configuration.stateDirectory]) }
+                    Text("В профиле Codex могут храниться полные сообщения и вывод инструментов. Папка содержит личные данные и не предназначена для публикации.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private var accessSettings: some View {
+        Section("Доступ к Mac") {
+            Label(model.fullAccessEnabled ? "Полный доступ включён" : "Только чат · инструменты выключены", systemImage: model.fullAccessEnabled ? "exclamationmark.shield" : "lock.shield")
+                .foregroundStyle(model.fullAccessEnabled ? Color.orange : .primary)
+            Text("Доступ включается отдельно для диалога возле поля сообщения. Он разрешает работу с файлами, терминалом и интернетом, а при доступности — управление экраном. После перезапуска разрешение снимается.")
+                .font(.caption).foregroundStyle(.secondary)
+            if model.fullAccessEnabled {
+                Button("Выключить доступ") { Task { await model.disableAgentAccess() } }.disabled(model.busy)
+            }
+            DisclosureGroup("Ограничения и журнал действий") {
+                Text("Доступ охватывает весь Mac в пределах прав пользователя. Экран может обрабатываться OpenAI. Остановка не откатывает уже выполненные действия. В журнале управления экраном остаются тип действия и приложение, без скриншотов, координат и введённого текста. Это не полный аудит.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Text("Подключается только проверенная служба OpenAI Computer Use. Прочие MCP, hooks и субагенты выключены. Зависший вызов ограничен 30 секундами и не повторяется автоматически под другим именем приложения.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var sessionSettings: some View {
+        Section("Сессия модели") {
+            Label(model.codexThreadLabel, systemImage: model.codexThreadStatus["linked"].flag ? "link" : "bubble.left")
+            if model.loadingCodexThreadStatus { ProgressView().controlSize(.small) }
+            if !model.codexThreadStatus["notice"].text.isEmpty { Text(model.codexThreadStatus["notice"].text).font(.caption).foregroundStyle(.secondary) }
+            HStack {
+                Button("Обновить статус") { Task { await model.refreshCodexThreadStatus() } }
+                Spacer()
+                Button("Начать заново…", role: .destructive) { confirmCodexThreadReset = true }
+                    .disabled(!model.codexThreadStatus["linked"].flag && !model.codexThreadStatus["refresh_required"].flag && !model.codexThreadStatus["legacy_binding"].flag)
+            }.disabled(model.busy || model.loadingCodexThreadStatus)
+            DisclosureGroup("Технические сведения о сессии") {
+                Text("Для чата и полного доступа создаются разные сессии Codex. Следующие сообщения продолжают соответствующую сессию. Обновление инструкций может начать новую сессию, сохраняя прежнюю историю.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Text("Последний режим: \(model.codexThreadStatus["last_mode"].text)\nМодель: \(model.codexThreadStatus["last_model"].text)\nДоступные режимы: \(model.codexThreadStatus["available_modes"].items.map(\.text).joined(separator: ", "))")
+                    .font(.caption.monospaced()).textSelection(.enabled)
+                if model.codexThreadStatus["legacy_binding"].flag { Text("Старая сессия сохранена, но не возобновляется автоматически.").font(.caption).foregroundStyle(.orange) }
+            }
+        }
+    }
+
+    private var spineSettings: some View {
+        Section {
+            DisclosureGroup("Цепочка диалога · Session Spine") {
+                Label(model.sessionSpineWriterReceipt != nil ? "Один ход записан" : model.sessionSpinePilotArmed ? "Ход подготовлен до перезапуска" : "Запись не включена", systemImage: "point.3.connected.trianglepath.dotted")
+                    .font(.callout)
+                Text("Экспериментальная связь ответа с сохранёнными данными о его выполнении. Открывается из меню «Подробнее» под связанным ответом.")
+                    .font(.caption).foregroundStyle(.secondary)
+                if let readiness = model.sessionSpineReadiness {
+                    Text("Состояние: \(readiness.state)\nIdentity: \(readiness.identityState)\nКандидат: \(readiness.candidateHash)")
+                        .font(.caption.monospaced()).foregroundStyle(readiness.recoveryRequired ? .orange : .secondary).textSelection(.enabled)
+                }
+                if model.sessionSpinePilotArmed {
+                    if let rehearsal = model.sessionSpineAcceptance { Text("P2k: \(rehearsal.state) · \(rehearsal.rehearsalHash)").font(.caption.monospaced()).textSelection(.enabled) }
+                    Button("Отменить подготовку") { model.revokeSessionSpinePilot() }.disabled(model.busy)
+                }
+                Text("P2j/P2k действуют только до перезапуска и ничего не записывают. P2l требует новой проверки, подтверждения и точной фразы для одного связанного хода. Старые ответы без Turn Lineage не переносятся. Существующие ошибки требуют ручной проверки; автоматического ремонта нет.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
         }
     }
 }

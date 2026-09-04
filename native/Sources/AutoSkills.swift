@@ -116,6 +116,7 @@ struct NativeAutoSkillsReport: Equatable {
 
 struct AutoSkillsMenu: View {
     @ObservedObject var model: AppModel
+    var compact = false
     @State private var showStarters = false
     var body: some View {
         Menu {
@@ -130,7 +131,7 @@ struct AutoSkillsMenu: View {
             Button("Встроенный набор…") { showStarters = true }
             Button("Личная библиотека навыков…") { Task { await model.showLibrary(.skills) } }
         } label: {
-            Label(model.pendingSkillTask != nil ? "Навыки · Вручную" : model.selected?.autoSkillsEnabled != false ? "Навыки · Авто" : "Навыки · Выкл",
+            Label(model.pendingSkillTask != nil ? (compact ? "Вручную" : "Навыки · Вручную") : model.selected?.autoSkillsEnabled != false ? (compact ? "Авто" : "Навыки · Авто") : (compact ? "Выкл" : "Навыки · Выкл"),
                   systemImage: "square.stack.3d.up").font(.system(size: 12))
         }.menuStyle(.borderlessButton).fixedSize().nativeHoverSurface()
             .disabled(model.busy || model.selected?.archived == true)

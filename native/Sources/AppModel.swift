@@ -77,6 +77,7 @@ final class AppModel: ObservableObject {
     @Published var error: String?
     @Published var historyPersistence = HistoryPersistenceState()
     @Published var showHistoryBackups = false
+    @Published var settingsSection: NativeSettingsSection = .models
     @Published var historyBackupPreview: ChatBackupPreview?
     @Published var historyBackupItems: [ChatBackupSummary] = []
     @Published var historyBackupError: String?
