@@ -119,10 +119,15 @@ struct NativeSettingsView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 if model.sessionSpinePilotArmed {
+                    if let rehearsal = model.sessionSpineAcceptance {
+                        Text("P2k rehearsal: \(rehearsal.state) · \(String(rehearsal.rehearsalHash.prefix(12)))")
+                            .font(.caption.monospaced())
+                            .foregroundStyle(rehearsal.recoveryRequired ? .orange : .secondary)
+                    }
                     Button("Снять локальную подготовку") { model.revokeSessionSpinePilot() }
                         .disabled(model.busy)
                 }
-                Text("Opt-in не сохраняется, не создаёт installation identity или intent и не активирует writer. Любая будущая запись требует отдельного milestone и персональной приёмки нового точного хода.")
+                Text("P2j opt-in и P2k acceptance не сохраняются, не создают installation identity или intent и не активируют writer. Любая будущая запись требует отдельного milestone после принятого exact rehearsal.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("Подписка ChatGPT / Codex") {

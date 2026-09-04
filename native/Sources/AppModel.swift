@@ -133,6 +133,8 @@ final class AppModel: ObservableObject {
     @Published private(set) var loadingSessionSpinePreview = false
     @Published var sessionSpineReadiness: NativeSessionSpineActivationReadiness?
     @Published private(set) var sessionSpinePilotGrant: NativeSessionSpinePilotGrant?
+    @Published var sessionSpineAcceptance: NativeSessionSpineAcceptanceRehearsal?
+    @Published private(set) var sessionSpineAcceptanceGrant: NativeSessionSpineAcceptanceGrant?
     @Published var conversationSearch = ""
     @Published var showArchived = false
     @Published var workspaceStatus: JSONValue = .null
@@ -737,6 +739,8 @@ final class AppModel: ObservableObject {
             }
             sessionSpinePilotGrant = grant
             sessionSpineReadiness = armed
+            sessionSpineAcceptance = nil
+            sessionSpineAcceptanceGrant = nil
             error = nil
             status = "Session Spine · один точный ход подготовлен, writer выключен"
         } catch {
@@ -747,6 +751,8 @@ final class AppModel: ObservableObject {
 
     func revokeSessionSpinePilot() {
         sessionSpinePilotGrant = nil
+        sessionSpineAcceptance = nil
+        sessionSpineAcceptanceGrant = nil
         if let preview = sessionSpinePreview {
             do { sessionSpineReadiness = try buildSessionSpineReadiness(preview, grant: nil) }
             catch { sessionSpineReadiness = nil; report(error); return }
@@ -758,6 +764,92 @@ final class AppModel: ObservableObject {
     }
 
     var sessionSpinePilotArmed: Bool { sessionSpinePilotGrant != nil }
+    var sessionSpineAcceptanceAccepted: Bool { sessionSpineAcceptanceGrant != nil }
+
+    func openSessionSpineAcceptance(_ readiness: NativeSessionSpineActivationReadiness) {
+        do {
+            guard let preview = sessionSpinePreview, let pilot = sessionSpinePilotGrant else {
+                throw NativeError.message("P2k требует активный exact-candidate P2j. Ничего не принято.")
+            }
+            let refreshed = try buildSessionSpineReadiness(preview, grant: pilot)
+            guard refreshed.armed, refreshed.candidateHash == readiness.candidateHash,
+                  refreshed.value["report_hash"] == readiness.value["report_hash"] else {
+                throw NativeError.message("Session Spine readiness изменилась. Повторите проверку без записи.")
+            }
+            let rehearsal = try NativeSessionSpineAcceptanceRehearsal.inspect(
+                readiness: refreshed,
+                stateDirectory: client.configuration.stateDirectory,
+                grant: sessionSpineAcceptanceGrant
+            )
+            if sessionSpineAcceptanceGrant?.matches(rehearsal) != true {
+                sessionSpineAcceptanceGrant = nil
+            }
+            sessionSpineAcceptance = rehearsal
+            error = nil
+            status = rehearsal.recoveryRequired
+                ? "Session Spine · P2k требует ручной recovery-проверки"
+                : rehearsal.accepted
+                    ? "Session Spine · personal rehearsal принят, writer выключен"
+                    : "Session Spine · personal rehearsal готов, writer выключен"
+        } catch {
+            sessionSpineAcceptance = nil
+            sessionSpineAcceptanceGrant = nil
+            report(error)
+        }
+    }
+
+    func acceptSessionSpineRehearsal(rehearsalHash: String) {
+        do {
+            guard let preview = sessionSpinePreview, let pilot = sessionSpinePilotGrant else {
+                throw NativeError.message("P2j grant отсутствует или устарел. P2k ничего не принял.")
+            }
+            let readiness = try buildSessionSpineReadiness(preview, grant: pilot)
+            let fresh = try NativeSessionSpineAcceptanceRehearsal.inspect(
+                readiness: readiness,
+                stateDirectory: client.configuration.stateDirectory
+            )
+            guard fresh.canAccept, fresh.rehearsalHash == rehearsalHash else {
+                throw NativeError.message("P2k rehearsal или private paths изменились. Ничего не принято.")
+            }
+            let grant = try NativeSessionSpineAcceptanceGrant(rehearsal: fresh)
+            let accepted = try NativeSessionSpineAcceptanceRehearsal.inspect(
+                readiness: readiness,
+                stateDirectory: client.configuration.stateDirectory,
+                grant: grant
+            )
+            guard accepted.accepted else {
+                throw NativeError.message("P2k process-memory acceptance не прошёл повторную проверку.")
+            }
+            sessionSpineAcceptanceGrant = grant
+            sessionSpineAcceptance = accepted
+            error = nil
+            status = "Session Spine · exact rehearsal принят до перезапуска, writer выключен"
+        } catch {
+            sessionSpineAcceptance = nil
+            sessionSpineAcceptanceGrant = nil
+            report(error)
+        }
+    }
+
+    func revokeSessionSpineAcceptance() {
+        sessionSpineAcceptanceGrant = nil
+        guard let readiness = sessionSpineReadiness, readiness.armed else {
+            sessionSpineAcceptance = nil
+            status = "Session Spine · P2k acceptance снят, writer выключен"
+            return
+        }
+        do {
+            sessionSpineAcceptance = try NativeSessionSpineAcceptanceRehearsal.inspect(
+                readiness: readiness,
+                stateDirectory: client.configuration.stateDirectory
+            )
+            error = nil
+            status = "Session Spine · P2k acceptance снят, writer выключен"
+        } catch {
+            sessionSpineAcceptance = nil
+            report(error)
+        }
+    }
 
     private func buildSessionSpineReadiness(
         _ preview: NativeSessionSpinePreview,
@@ -803,6 +895,8 @@ final class AppModel: ObservableObject {
     private func invalidateSessionSpinePilot() {
         sessionSpinePilotGrant = nil
         sessionSpineReadiness = nil
+        sessionSpineAcceptanceGrant = nil
+        sessionSpineAcceptance = nil
     }
 
     func setWorkSessionWarningHidden(_ run: NativeWorkSession, hidden: Bool) throws {

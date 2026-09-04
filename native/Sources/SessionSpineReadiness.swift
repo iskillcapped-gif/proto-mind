@@ -232,6 +232,10 @@ struct SessionSpineReadinessView: View {
                                 .foregroundStyle(.green)
                             Text("Она не переживёт перезапуск и не включает writer. Следующий этап всё равно потребует отдельной персональной приёмки нового exact-linked хода.")
                                 .font(.callout).foregroundStyle(.secondary)
+                            Button("Открыть personal acceptance rehearsal…") {
+                                model.openSessionSpineAcceptance(current)
+                            }
+                            .buttonStyle(.borderedProminent).nativeHoverSurface()
                             Button("Снять локальную подготовку") { model.revokeSessionSpinePilot() }
                         }.padding(14).background(Color.green.opacity(0.07), in: RoundedRectangle(cornerRadius: 12))
                     } else {
@@ -253,6 +257,9 @@ struct SessionSpineReadinessView: View {
             }
         }.frame(width: 760, height: 690).background(NativeTheme.canvas)
             .font(NativeTheme.interfaceFont).buttonStyle(.nativeHover)
+            .sheet(item: $model.sessionSpineAcceptance) {
+                SessionSpineAcceptanceView(model: model, rehearsal: $0)
+            }
     }
 
     private var statusColor: Color {

@@ -108,10 +108,91 @@ extension NativeChecks {
         try check(readinessSize.width <= 780 && readinessSize.height <= 710,
                   "Session Spine readiness and recovery UI stays bounded")
 
+        app.openSessionSpineAcceptance(armed)
+        guard let rehearsal = app.sessionSpineAcceptance else {
+            throw NativeError.message(app.error ?? "Session Spine personal rehearsal missing")
+        }
+        try check(rehearsal.state == "READY" && rehearsal.canAccept
+                  && rehearsal.value["read_only"].flag && !rehearsal.value["writer_active"].flag
+                  && !rehearsal.value["write_authority_granted"].flag,
+                  "P2k opens one read-only exact-candidate rehearsal without writer authority "
+                    + "(state=\(rehearsal.state); paths="
+                    + rehearsal.paths.map { "\($0.label):\($0.state)" }.joined(separator: ",") + ")")
+        try check(rehearsal.paths.count == 4 && rehearsal.paths.allSatisfy(\.ready)
+                  && rehearsal.paths.filter { $0.state == "clean_uninitialized" }.count == 3,
+                  "P2k binds the existing private root and three clean future storage paths")
+        try check(rehearsal.recoveryCases.count == 5
+                  && rehearsal.recoveryCases.allSatisfy { !$0["automatic_retry"].flag && !$0["automatic_repair"].flag }
+                  && rehearsal.recoveryCases.last?["required_response"] == .string("manual_inspection_no_retry_or_repair"),
+                  "P2k rehearses each crash window without retrying, repairing or executing it")
+        try check(!rehearsal.value.pretty.contains(source.text) && !rehearsal.value.pretty.contains(assistant.raw)
+                  && !FileManager.default.fileExists(atPath: rehearsal.paths[2].path)
+                  && !FileManager.default.fileExists(atPath: rehearsal.paths[3].path),
+                  "P2k evidence is content-free and creates no future store")
+        let rehearsalSize = NSHostingController(rootView: SessionSpineAcceptanceView(model: app, rehearsal: rehearsal))
+            .sizeThatFits(in: CGSize(width: 900, height: 760))
+        try check(rehearsalSize.width <= 810 && rehearsalSize.height <= 740,
+                  "Session Spine personal rehearsal stays inside a bounded scrollable sheet")
+
+        app.acceptSessionSpineRehearsal(rehearsalHash: String(repeating: "0", count: 64))
+        try check(!app.sessionSpineAcceptanceAccepted && app.sessionSpineAcceptance == nil
+                  && app.sessionSpinePilotArmed,
+                  "Incorrect P2k token grants nothing while preserving the separately armed P2j candidate")
+        app.openSessionSpineAcceptance(armed)
+        guard let refreshedRehearsal = app.sessionSpineAcceptance else {
+            throw NativeError.message(app.error ?? "Refreshed Session Spine personal rehearsal missing")
+        }
+        app.acceptSessionSpineRehearsal(rehearsalHash: refreshedRehearsal.rehearsalHash)
+        guard let accepted = app.sessionSpineAcceptance else {
+            throw NativeError.message(app.error ?? "Accepted Session Spine personal rehearsal missing")
+        }
+        try check(accepted.state == "ACCEPTED" && accepted.value["gate"]["accepted_for_future_design"].flag
+                  && !accepted.value["gate"]["activates_writer"].flag && app.sessionSpineAcceptanceAccepted,
+                  "Exact P2k token accepts only the process-memory design rehearsal")
+        try check(!accepted.value["identity_created"].flag && !accepted.value["intent_prepared"].flag
+                  && !accepted.value["spine_write_performed"].flag && !accepted.value["history_write_performed"].flag
+                  && (try fileBytes(state)) == before,
+                  "Accepted rehearsal creates no identity, intent, Spine event or history write")
+
+        let existingEvidence = state.appendingPathComponent("session_spine_store", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: existingEvidence, withIntermediateDirectories: false,
+            attributes: [.posixPermissions: 0o700]
+        )
+        let unknownEvidence = existingEvidence.appendingPathComponent("unexpected.tmp")
+        try Data("synthetic recovery evidence".utf8).write(to: unknownEvidence)
+        let evidenceBefore = try fileBytes(existingEvidence)
+        let blocked = try NativeSessionSpineAcceptanceRehearsal.inspect(
+            readiness: armed, stateDirectory: state
+        )
+        try check(blocked.state == "RECOVERY_REQUIRED" && !blocked.canAccept
+                  && blocked.paths.first(where: { $0.label == "Session Spine store" })?.state
+                    == "existing_evidence_requires_manual_inspection",
+                  "Existing private store evidence blocks P2k without guessing recovery")
+        try check(try fileBytes(existingEvidence) == evidenceBefore,
+                  "Recovery inspection leaves unknown evidence byte-identical")
+        try FileManager.default.removeItem(at: existingEvidence)
+
+        var mismatchedPathRefused = false
+        do {
+            _ = try NativeSessionSpineAcceptanceRehearsal.inspect(
+                readiness: armed,
+                stateDirectory: state.deletingLastPathComponent().appendingPathComponent("other-private-state")
+            )
+        } catch { mismatchedPathRefused = true }
+        try check(mismatchedPathRefused,
+                  "P2k refuses rebinding an armed candidate to another private state scope")
+
+        app.revokeSessionSpineAcceptance()
+        try check(!app.sessionSpineAcceptanceAccepted && app.sessionSpineAcceptance?.state == "READY"
+                  && app.sessionSpinePilotArmed,
+                  "Operator can revoke P2k acceptance without revoking or widening P2j")
+
         let restarted = AppModel(configuration: LaunchConfiguration(projectRoot: fixture, python: python, stateDirectory: state))
         defer { restarted.client.shutdown() }
-        try check(!restarted.sessionSpinePilotArmed && restarted.sessionSpineReadiness == nil,
-                  "Per-launch Session Spine opt-in never survives relaunch")
+        try check(!restarted.sessionSpinePilotArmed && restarted.sessionSpineReadiness == nil
+                  && !restarted.sessionSpineAcceptanceAccepted && restarted.sessionSpineAcceptance == nil,
+                  "Per-launch Session Spine opt-in and personal acceptance never survive relaunch")
         let recovered = try NativeSessionSpineActivationReadiness.inspect(
             preview: preview, identity: nil,
             identityPath: state.appendingPathComponent("session_spine_identity/installation.json"),
@@ -122,13 +203,14 @@ extension NativeChecks {
                   "Unknown identity evidence blocks the pilot and exposes manual no-cleanup recovery")
 
         app.revokeSessionSpinePilot()
-        try check(!app.sessionSpinePilotArmed && app.sessionSpineReadiness?.state == "INACTIVE",
-                  "Operator can revoke the in-memory preparation without changing persisted state")
+        try check(!app.sessionSpinePilotArmed && app.sessionSpineReadiness?.state == "INACTIVE"
+                  && app.sessionSpineAcceptance == nil && !app.sessionSpineAcceptanceAccepted,
+                  "Operator can revoke the in-memory preparation and dependent acceptance without changing persisted state")
         app.armSessionSpinePilot(candidateHash: String(repeating: "0", count: 64))
         try check(!app.sessionSpinePilotArmed && app.sessionSpineReadiness == nil,
                   "Stale or incorrect readiness input clears all in-memory pilot state")
         app.sessionSpinePreview = nil
         try check(try fileBytes(state) == before && app.messages == messagesBefore && !app.cloudConsent && !app.fullAccessEnabled,
-                  "Preview, readiness, opt-in, relaunch and revoke change no history, run, preference or permission bytes")
+                  "Preview, readiness, opt-in, acceptance, relaunch and revoke change no history, run, preference or permission bytes")
     }
 }

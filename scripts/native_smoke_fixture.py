@@ -159,6 +159,10 @@ def session_spine_fixture(project: Path, state: Path) -> None:
     from proto_mind.native_turn_lineage import build_turn_reference
     from proto_mind.native_work_sessions import WorkSessionStore, workspace_identity
 
+    # Match the Native app's private state container before WorkSessionStore
+    # creates its own child directory. pathlib otherwise creates this parent
+    # with the process umask (typically 0755), which is not a valid P2k scope.
+    state.mkdir(mode=0o700)
     chat_id, run_id, user_id, assistant_id = (str(uuid4()) for _ in range(4))
     prompt = "Build the synthetic read-only Session Spine preview."
     answer = "Synthetic exact answer; no provider, command, or tool was called."
