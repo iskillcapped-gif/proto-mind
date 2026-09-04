@@ -816,8 +816,12 @@ class NativeBackend:
             result["manifest"]["knowledge_context"] = knowledge
         if provider_thread:
             result["provider_thread"] = provider_thread
-            if provider_thread["linked"]:
+            if not provider_thread["workspace_matches"]:
+                result["notes"].append("The saved Codex binding belongs to another workspace. Send is blocked until the operator starts a new Codex session; no automatic contract refresh will rebind it.")
+            elif provider_thread["linked"]:
                 result["notes"].append("Codex will resume its durable provider thread. Bounded local chat history is not sent again; provider-side history is not reproduced in this local preview.")
+            elif provider_thread.get("refresh_required"):
+                result["notes"].append("The selected mode has an older static instruction contract. Send will create one fresh durable thread, bootstrap it with the bounded local history shown here and preserve the old provider rollout as history.")
             else:
                 result["notes"].append("This will create a durable Codex thread and bootstrap it once with the bounded local chat history shown here.")
             if not provider_thread["workspace_matches"]:

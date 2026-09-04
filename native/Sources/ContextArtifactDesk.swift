@@ -151,13 +151,20 @@ struct ContextDeskView: View {
                         if manifest["provider"].text == "codex" {
                             let thread = manifest["provider_thread"]
                             DeskSection("Сессия Codex", icon: "link.circle") {
-                                if thread["linked"].flag {
-                                    Text(thread["workspace_matches"].flag
-                                         ? "Продолжится сохранённый thread · \(thread["thread_id_short"].text)"
-                                         : "Сохранённый thread относится к другой рабочей папке.")
+                                if !thread["workspace_matches"].flag {
+                                    Text("Сохранённый thread относится к другой рабочей папке.")
+                                        .fontWeight(.medium).foregroundStyle(.orange)
+                                    Text("Отправка заблокирована до ручного начала новой сессии; автоматическое обновление инструкций не меняет привязку папки.")
+                                        .font(.caption).foregroundStyle(.secondary)
+                                } else if thread["linked"].flag {
+                                    Text("Продолжится сохранённый thread · \(thread["thread_id_short"].text)")
                                         .fontWeight(.medium)
-                                        .foregroundStyle(thread["workspace_matches"].flag ? Color.primary : .orange)
                                     Text("Локальная история повторно не прикладывается. Историю provider thread этот preview не дублирует.")
+                                        .font(.caption).foregroundStyle(.secondary)
+                                } else if thread["refresh_required"].flag {
+                                    Text("Статические инструкции режима обновились: будет создан свежий thread Codex.")
+                                        .fontWeight(.medium).foregroundStyle(.orange)
+                                    Text("До 12 показанных локальных реплик один раз восстановят continuity. Прежний rollout останется в приватном профиле как история.")
                                         .font(.caption).foregroundStyle(.secondary)
                                 } else {
                                     Text("Следующее сообщение создаст новый постоянный thread Codex.").fontWeight(.medium)

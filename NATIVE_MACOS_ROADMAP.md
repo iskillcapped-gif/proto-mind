@@ -551,6 +551,18 @@ The detailed receipt remains process-memory-only in this milestone; durable rest
 
 Rule 0 checkpoints: `backups/proto_mind_backup_2026-09-02_22-16-51.tar.gz` and `backups/proto_mind_native_history_2026-09-02_22-16-51_cognitive_cycle.tar.gz` (Native-owned history/preferences/binding/work sessions; credentials excluded). Verification results are recorded in the Architect Ledger after acceptance.
 
+## Native Instruction Contract Refresh / Native 0.35.0
+
+Chat and Full Mac provider threads now carry a local SHA-256 fingerprint of the exact static developer-instruction contract used when each mode binding was created. The fingerprint binds a versioned domain, access mode and instruction bytes; `codex_threads.json` stores only that digest alongside the existing private provider ID/workspace metadata, never the instruction text. Dynamic base context such as selected memories, Persona state and current task is deliberately excluded so normal per-turn context changes do not rotate a durable thread.
+
+`codex_threads.json` v3 reads v1 and v2 registries without rewriting them. A v1 row remains mode-ambiguous historical data. A v2 mode row has an unknown contract and is therefore stale against the current application. Settings and Context preview report that state locally; preview keeps bounded local history in the exact next-turn manifest and performs no provider call or migration.
+
+Only an explicit ordinary Send may refresh a stale mode. Proto-Mind calls `thread/start` with the current sandbox, cwd, approval, base and developer instructions, validates the returned policy, then checks the old ID/workspace/contract and atomically replaces the local registry file with exactly that mode updated. Reused provider IDs, workspace drift, a concurrent in-process binding change, malformed storage or failed policy validation stop before `turn/start`. The new thread receives up to 12 bounded local messages once for continuity; the following unchanged-contract turn uses normal `thread/resume`. The other mode keeps its provider ID, timestamps, workspace and model metadata; a v2-to-v3 save necessarily adds the new contract field and canonicalizes the registry JSON. No provider deletion call exists: the former rollout remains in the isolated Codex profile, although there is not yet a UI to browse or relink retired provider threads. The registry has no cross-process lock, so running multiple Native bridges against one private state directory remains unsupported.
+
+The completed turn's existing provider-thread evidence reports `started`, `resumed` or `refreshed`, the current contract hash prefix, whether a refresh occurred and that provider history was not deleted. This is lifecycle evidence, not proof of semantic equivalence between prompts. A SHA-256 match proves exact local contract bytes, not that the provider interpreted them as intended. Manual **Start New Codex Session** remains available for operator-chosen reset and still removes only local bindings.
+
+Rule 0 checkpoints: `backups/proto_mind_backup_2026-09-04_04-29-34.tar.gz` and `backups/proto_mind_native_state_2026-09-04_04-29-34_instruction_contract.tar.gz` (32 Native-owned entries; Codex credentials/profile/runtime workspace excluded). No new command, dependency, provider permission, tool or Context Injection behavior is introduced. Verification and personal-state acceptance are recorded in the Architect Ledger.
+
 ## EV-04 Source-grounded Memory Suggestions / Native 0.34.0
 
 The local memory loop now connects an explicit operator statement to a small optional review card, then to existing project recall. It does not require opening a form for every task or generate an extra model request.

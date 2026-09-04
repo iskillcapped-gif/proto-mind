@@ -16,15 +16,18 @@ from uuid import UUID, uuid4
 
 
 LEGACY_SCHEMA = "proto_mind.native_codex_threads.v1"
-SCHEMA = "proto_mind.native_codex_threads.v2"
+MODE_SCHEMA = "proto_mind.native_codex_threads.v2"
+SCHEMA = "proto_mind.native_codex_threads.v3"
 STATUS_SCHEMA = "proto_mind.native_codex_threads.v1"
 MAX_BINDINGS = 500
 MAX_STORE_BYTES = 512 * 1024
 LEGACY_FIELDS = frozenset({"conversation_id", "thread_id", "workspace", "created_at", "updated_at", "last_mode", "last_model"})
-FIELDS = LEGACY_FIELDS | {"instruction_mode"}
+MODE_FIELDS = LEGACY_FIELDS | {"instruction_mode"}
+FIELDS = MODE_FIELDS | {"instruction_contract_hash"}
 WORKSPACE_FIELDS = frozenset({"path", "device", "inode"})
 MODES = frozenset({"chat", "full_access"})
 LEGACY_MODE = "legacy_unknown"
+UNKNOWN_INSTRUCTION_CONTRACT = "legacy_unknown"
 
 
 class CodexThreadStoreError(RuntimeError):
@@ -73,14 +76,27 @@ def _valid_stamp(value: object) -> str:
     return value
 
 
-def validate_binding(value: object, *, legacy: bool = False) -> dict:
-    expected = LEGACY_FIELDS if legacy else FIELDS
+def _contract_hash(value: object, *, unknown: bool = False) -> str:
+    if unknown:
+        return UNKNOWN_INSTRUCTION_CONTRACT
+    if value == UNKNOWN_INSTRUCTION_CONTRACT:
+        return value
+    if (not isinstance(value, str) or len(value) != 64
+            or any(char not in "0123456789abcdef" for char in value)):
+        raise CodexThreadStoreError("Invalid Codex instruction contract hash.")
+    return value
+
+
+def validate_binding(value: object, *, schema: str = SCHEMA) -> dict:
+    expected = {LEGACY_SCHEMA: LEGACY_FIELDS, MODE_SCHEMA: MODE_FIELDS, SCHEMA: FIELDS}.get(schema)
+    if expected is None:
+        raise CodexThreadStoreError("Unknown Codex thread registry format.")
     if not isinstance(value, dict) or set(value) != expected:
         raise CodexThreadStoreError("Invalid Codex thread binding.")
     mode, model = value.get("last_mode"), value.get("last_model")
     if mode not in MODES:
         raise CodexThreadStoreError("Invalid Codex thread access mode.")
-    instruction_mode = LEGACY_MODE if legacy else value.get("instruction_mode")
+    instruction_mode = LEGACY_MODE if schema == LEGACY_SCHEMA else value.get("instruction_mode")
     if instruction_mode not in MODES | {LEGACY_MODE}:
         raise CodexThreadStoreError("Invalid Codex thread instruction mode.")
     if instruction_mode in MODES and instruction_mode != mode:
@@ -96,6 +112,9 @@ def validate_binding(value: object, *, legacy: bool = False) -> dict:
         "last_mode": mode,
         "last_model": model,
         "instruction_mode": instruction_mode,
+        "instruction_contract_hash": _contract_hash(
+            value.get("instruction_contract_hash"), unknown=schema != SCHEMA
+        ),
     }
 
 
@@ -127,13 +146,12 @@ class CodexThreadStore:
                 raise CodexThreadStoreError("Codex thread registry exceeds its local size limit.")
             value = json.loads(raw)
             if (not isinstance(value, dict) or set(value) != {"schema", "bindings"}
-                    or value.get("schema") not in {LEGACY_SCHEMA, SCHEMA}):
+                    or value.get("schema") not in {LEGACY_SCHEMA, MODE_SCHEMA, SCHEMA}):
                 raise CodexThreadStoreError("Unknown Codex thread registry format.")
             rows = value.get("bindings")
             if not isinstance(rows, list) or len(rows) > MAX_BINDINGS:
                 raise CodexThreadStoreError("Invalid Codex thread registry size.")
-            legacy = value["schema"] == LEGACY_SCHEMA
-            result = [validate_binding(row, legacy=legacy) for row in rows]
+            result = [validate_binding(row, schema=value["schema"]) for row in rows]
             pairs = {(row["conversation_id"], row["instruction_mode"]) for row in result}
             workspaces = {}
             for row in result:
@@ -188,25 +206,44 @@ class CodexThreadStore:
                 os.close(descriptor)
             os.close(directory)
 
-    def status(self, conversation: object, workspace: object, *, mode: str | None = None) -> dict:
+    def status(self, conversation: object, workspace: object, *, mode: str | None = None,
+               instruction_contracts: dict[str, str] | None = None) -> dict:
         identifier, identity = conversation_id(conversation), workspace_identity(workspace)
         if mode is not None and mode not in MODES:
             raise CodexThreadStoreError("Invalid Codex thread access mode.")
+        if instruction_contracts is not None:
+            if (not isinstance(instruction_contracts, dict)
+                    or set(instruction_contracts) != MODES):
+                raise CodexThreadStoreError("Invalid current instruction contracts.")
+            instruction_contracts = {
+                key: _contract_hash(value) for key, value in instruction_contracts.items()
+            }
         with self.lock:
             rows = [item for item in self._load() if item["conversation_id"] == identifier]
         if not rows:
             return {"schema": STATUS_SCHEMA, "linked": False, "workspace_matches": True,
                     "available_modes": [], "legacy_binding": False,
+                    "refresh_required": False, "stale_modes": [],
                     "notice": "Следующее сообщение создаст новую постоянную сессию Codex."}
         matches = all(row["workspace"] == identity for row in rows)
-        available = sorted(row["instruction_mode"] for row in rows if row["instruction_mode"] in MODES)
-        selected = (next((row for row in rows if row["instruction_mode"] == mode), None)
-                    if mode is not None else max(rows, key=lambda row: row["updated_at"]))
-        linked = selected is not None
+        mode_rows = [row for row in rows if row["instruction_mode"] in MODES]
+        available = sorted(row["instruction_mode"] for row in mode_rows)
+        selected = (next((row for row in mode_rows if row["instruction_mode"] == mode), None)
+                    if mode is not None else max(mode_rows, key=lambda row: row["updated_at"], default=None))
+        stale_modes = sorted(
+            row["instruction_mode"] for row in mode_rows
+            if instruction_contracts is not None
+            and row["instruction_contract_hash"] != instruction_contracts[row["instruction_mode"]]
+        )
+        refresh_required = selected is not None and selected["instruction_mode"] in stale_modes
+        linked = selected is not None and not refresh_required
         display = selected or max(rows, key=lambda row: row["updated_at"])
         if not matches:
             notice = "Сессия Codex привязана к другой рабочей папке. Начните новую сессию явно."
-        elif linked and display["instruction_mode"] == LEGACY_MODE:
+        elif refresh_required:
+            notice = ("Статические инструкции этого режима изменились. Следующее сообщение создаст свежую "
+                      "сессию Codex, один раз добавит bounded локальную историю и сохранит прежний rollout как историю.")
+        elif display["instruction_mode"] == LEGACY_MODE:
             notice = "Старая связь Codex сохранена только как история и не будет автоматически продолжена."
         elif linked:
             notice = "Сессия Codex будет продолжена в том же режиме доступа."
@@ -217,9 +254,16 @@ class CodexThreadStore:
                   "last_mode": display["last_mode"], "last_model": display["last_model"],
                   "workspace": deepcopy(display["workspace"]), "available_modes": available,
                   "legacy_binding": any(row["instruction_mode"] == LEGACY_MODE for row in rows),
+                  "refresh_required": refresh_required, "stale_modes": stale_modes,
                   "notice": notice}
         if linked:
             result["thread_id_short"] = selected["thread_id"][:8]
+        if selected is not None:
+            current_hash = selected["instruction_contract_hash"]
+            result["instruction_contract_current"] = not refresh_required
+            result["instruction_contract_hash_short"] = (
+                current_hash[:12] if current_hash != UNKNOWN_INSTRUCTION_CONTRACT else "legacy"
+            )
         return result
 
     def binding(self, conversation: object, workspace: object, *, mode: str) -> dict | None:
@@ -236,7 +280,8 @@ class CodexThreadStore:
         return deepcopy(row)
 
     def record_new(self, conversation: object, provider_thread: object, workspace: object,
-                   *, mode: str, model: str) -> dict:
+                   *, mode: str, model: str,
+                   instruction_contract_hash: str = UNKNOWN_INSTRUCTION_CONTRACT) -> dict:
         identifier, provider_id = conversation_id(conversation), thread_id(provider_thread)
         identity = workspace_identity(workspace)
         if mode not in MODES:
@@ -244,7 +289,8 @@ class CodexThreadStore:
         now = timestamp()
         row = validate_binding({"conversation_id": identifier, "thread_id": provider_id, "workspace": identity,
                                 "created_at": now, "updated_at": now, "last_mode": mode, "last_model": model,
-                                "instruction_mode": mode})
+                                "instruction_mode": mode,
+                                "instruction_contract_hash": _contract_hash(instruction_contract_hash)})
         with self.lock:
             rows = self._load()
             if any((item["conversation_id"], item["instruction_mode"]) == (identifier, mode)
@@ -256,7 +302,8 @@ class CodexThreadStore:
         return deepcopy(row)
 
     def touch(self, conversation: object, provider_thread: object, workspace: object,
-              *, mode: str, model: str) -> dict:
+              *, mode: str, model: str,
+              instruction_contract_hash: str = UNKNOWN_INSTRUCTION_CONTRACT) -> dict:
         identifier, provider_id = conversation_id(conversation), thread_id(provider_thread)
         identity = workspace_identity(workspace)
         if mode not in MODES:
@@ -267,9 +314,43 @@ class CodexThreadStore:
                           if (item["conversation_id"], item["instruction_mode"]) == (identifier, mode)), None)
             if index is None or rows[index]["thread_id"] != provider_id or rows[index]["workspace"] != identity:
                 raise CodexThreadStoreError("Codex thread binding changed before dispatch; no turn was started.")
+            if rows[index]["instruction_contract_hash"] != _contract_hash(instruction_contract_hash):
+                raise CodexThreadStoreError("Codex instruction contract changed before dispatch; no turn was started.")
             rows[index] = validate_binding({**rows[index], "updated_at": timestamp(), "last_mode": mode, "last_model": model})
             self._save(rows)
             return deepcopy(rows[index])
+
+    def refresh_contract(self, conversation: object, previous_provider_thread: object,
+                         provider_thread: object, workspace: object, *, mode: str,
+                         model: str, instruction_contract_hash: str) -> dict:
+        """Replace one stale mode binding after a new provider thread is verified."""
+        identifier = conversation_id(conversation)
+        previous_id, provider_id = thread_id(previous_provider_thread), thread_id(provider_thread)
+        identity = workspace_identity(workspace)
+        current_contract = _contract_hash(instruction_contract_hash)
+        if mode not in MODES:
+            raise CodexThreadStoreError("Invalid Codex thread access mode.")
+        now = timestamp()
+        replacement = validate_binding({
+            "conversation_id": identifier, "thread_id": provider_id, "workspace": identity,
+            "created_at": now, "updated_at": now, "last_mode": mode, "last_model": model,
+            "instruction_mode": mode, "instruction_contract_hash": current_contract,
+        })
+        with self.lock:
+            rows = self._load()
+            index = next((i for i, item in enumerate(rows)
+                          if (item["conversation_id"], item["instruction_mode"]) == (identifier, mode)), None)
+            if (index is None or rows[index]["thread_id"] != previous_id
+                    or rows[index]["workspace"] != identity):
+                raise CodexThreadStoreError("Codex thread binding changed before contract refresh; no turn was started.")
+            if rows[index]["instruction_contract_hash"] == current_contract:
+                raise CodexThreadStoreError("Codex instruction contract was already current; no replacement was saved.")
+            if provider_id == previous_id or any(
+                    item["thread_id"] == provider_id for i, item in enumerate(rows) if i != index):
+                raise CodexThreadStoreError("Codex returned a reused thread ID; no replacement was saved.")
+            rows[index] = replacement
+            self._save(rows)
+        return deepcopy(replacement)
 
     def reset(self, conversation: object) -> bool:
         identifier = conversation_id(conversation)

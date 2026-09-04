@@ -134,8 +134,8 @@ struct NativeSettingsView: View {
                     if !model.codexThreadStatus.isNull {
                         Text(model.codexThreadStatus["notice"].text)
                             .font(.caption)
-                            .foregroundStyle(model.codexThreadStatus["workspace_matches"].flag ? Color.secondary : .orange)
-                        if model.codexThreadStatus["linked"].flag {
+                            .foregroundStyle(model.codexThreadStatus["workspace_matches"].flag && !model.codexThreadStatus["refresh_required"].flag ? Color.secondary : .orange)
+                        if model.codexThreadStatus["linked"].flag || model.codexThreadStatus["refresh_required"].flag {
                             let mode = model.codexThreadStatus["last_mode"].text == "full_access" ? "полный доступ" : "чат без инструментов"
                             Text("Последний режим: \(mode) · модель: \(model.codexThreadStatus["last_model"].text.isEmpty ? "по умолчанию" : model.codexThreadStatus["last_model"].text)")
                                 .font(.caption).foregroundStyle(.secondary)
@@ -153,9 +153,9 @@ struct NativeSettingsView: View {
                     HStack {
                         Button("Обновить статус") { Task { await model.refreshCodexThreadStatus() } }
                         Button("Начать новую сессию Codex…", role: .destructive) { confirmCodexThreadReset = true }
-                            .disabled(!model.codexThreadStatus["linked"].flag)
+                            .disabled(!model.codexThreadStatus["linked"].flag && !model.codexThreadStatus["refresh_required"].flag && !model.codexThreadStatus["legacy_binding"].flag)
                     }.disabled(model.busy || model.loadingCodexThreadStatus)
-                    Text("Для Chat и Full Mac создаются отдельные durable threads. Первый ход каждого режима один раз получает до 12 локальных реплик; следующие ходы этого же режима используют thread/resume.")
+                    Text("Для Chat и Full Mac создаются отдельные durable threads. Первый ход каждого режима один раз получает до 12 локальных реплик; следующие ходы этого же режима используют thread/resume. Если статический контракт инструкций обновился, только этот режим безопасно начнёт свежий thread, а прежний rollout не удаляется.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }

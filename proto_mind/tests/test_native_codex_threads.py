@@ -20,6 +20,7 @@ class CodexThreadStoreTests(unittest.TestCase):
         self.store = threads.CodexThreadStore(self.state)
         self.conversation = str(uuid4())
         self.workspace = {"path": "/tmp/project", "device": 12, "inode": 34}
+        self.contracts = {"chat": "a" * 64, "full_access": "b" * 64}
 
     def test_missing_status_is_read_only(self):
         status = self.store.status(self.conversation, self.workspace)
@@ -28,7 +29,8 @@ class CodexThreadStoreTests(unittest.TestCase):
 
     def test_record_persists_private_bounded_binding(self):
         row = self.store.record_new(self.conversation, "thread-fixture", self.workspace,
-                                    mode="chat", model="gpt-fixture")
+                                    mode="chat", model="gpt-fixture",
+                                    instruction_contract_hash=self.contracts["chat"])
         self.assertEqual(row["thread_id"], "thread-fixture")
         status = threads.CodexThreadStore(self.state).status(self.conversation, self.workspace)
         self.assertTrue(status["linked"] and status["workspace_matches"])
@@ -36,6 +38,7 @@ class CodexThreadStoreTests(unittest.TestCase):
         value = json.loads(self.store.path.read_text())
         self.assertEqual(value["schema"], threads.SCHEMA)
         self.assertEqual(value["bindings"][0]["instruction_mode"], "chat")
+        self.assertEqual(value["bindings"][0]["instruction_contract_hash"], self.contracts["chat"])
         self.assertNotIn("prompt", self.store.path.read_text())
         self.assertEqual(self.store.path.stat().st_mode & 0o777, 0o600)
 
@@ -59,6 +62,95 @@ class CodexThreadStoreTests(unittest.TestCase):
         self.assertEqual(self.store.binding(self.conversation, self.workspace, mode="full_access")["thread_id"], "thread-full")
         self.assertEqual(self.store.status(self.conversation, self.workspace, mode="chat")["available_modes"],
                          ["chat", "full_access"])
+
+    def test_v2_binding_is_read_only_stale_until_a_provider_refresh(self):
+        self.state.mkdir()
+        now = threads.timestamp()
+        legacy_mode_binding = {"schema": threads.MODE_SCHEMA, "bindings": [{
+            "conversation_id": self.conversation, "thread_id": "mode-thread", "workspace": self.workspace,
+            "created_at": now, "updated_at": now, "last_mode": "chat", "last_model": "old-model",
+            "instruction_mode": "chat",
+        }]}
+        self.store.path.write_text(json.dumps(legacy_mode_binding), encoding="utf-8")
+        before = self.store.path.read_bytes()
+
+        status = self.store.status(
+            self.conversation, self.workspace, mode="chat", instruction_contracts=self.contracts,
+        )
+
+        self.assertFalse(status["linked"])
+        self.assertTrue(status["refresh_required"])
+        self.assertEqual(status["stale_modes"], ["chat"])
+        self.assertEqual(status["instruction_contract_hash_short"], "legacy")
+        self.assertEqual(self.store.path.read_bytes(), before)
+        self.assertEqual(
+            self.store.binding(self.conversation, self.workspace, mode="chat")["instruction_contract_hash"],
+            threads.UNKNOWN_INSTRUCTION_CONTRACT,
+        )
+
+    def test_contract_refresh_replaces_only_the_stale_mode_binding(self):
+        old_chat = "c" * 64
+        self.store.record_new(self.conversation, "thread-chat-old", self.workspace, mode="chat", model="old",
+                              instruction_contract_hash=old_chat)
+        self.store.record_new(self.conversation, "thread-full", self.workspace, mode="full_access", model="full",
+                              instruction_contract_hash=self.contracts["full_access"])
+        before_full = self.store.binding(self.conversation, self.workspace, mode="full_access")
+
+        refreshed = self.store.refresh_contract(
+            self.conversation, "thread-chat-old", "thread-chat-new", self.workspace,
+            mode="chat", model="new", instruction_contract_hash=self.contracts["chat"],
+        )
+
+        self.assertEqual(refreshed["thread_id"], "thread-chat-new")
+        self.assertEqual(refreshed["instruction_contract_hash"], self.contracts["chat"])
+        self.assertEqual(self.store.binding(self.conversation, self.workspace, mode="full_access"), before_full)
+        status = self.store.status(
+            self.conversation, self.workspace, mode="chat", instruction_contracts=self.contracts,
+        )
+        self.assertTrue(status["linked"])
+        self.assertFalse(status["refresh_required"])
+        self.assertEqual(status["stale_modes"], [])
+
+    def test_v2_refresh_preserves_other_mode_as_a_separate_stale_binding(self):
+        self.state.mkdir()
+        now = threads.timestamp()
+        rows = [
+            {"conversation_id": self.conversation, "thread_id": "old-chat", "workspace": self.workspace,
+             "created_at": now, "updated_at": now, "last_mode": "chat", "last_model": "chat-model",
+             "instruction_mode": "chat"},
+            {"conversation_id": self.conversation, "thread_id": "old-full", "workspace": self.workspace,
+             "created_at": now, "updated_at": now, "last_mode": "full_access", "last_model": "full-model",
+             "instruction_mode": "full_access"},
+        ]
+        self.store.path.write_text(json.dumps({"schema": threads.MODE_SCHEMA, "bindings": rows}), encoding="utf-8")
+
+        self.store.refresh_contract(
+            self.conversation, "old-chat", "new-chat", self.workspace,
+            mode="chat", model="new-model", instruction_contract_hash=self.contracts["chat"],
+        )
+
+        saved = json.loads(self.store.path.read_text(encoding="utf-8"))
+        self.assertEqual(saved["schema"], threads.SCHEMA)
+        full = self.store.binding(self.conversation, self.workspace, mode="full_access")
+        self.assertEqual((full["thread_id"], full["created_at"], full["last_model"]),
+                         ("old-full", now, "full-model"))
+        self.assertEqual(full["instruction_contract_hash"], threads.UNKNOWN_INSTRUCTION_CONTRACT)
+        full_status = self.store.status(
+            self.conversation, self.workspace, mode="full_access", instruction_contracts=self.contracts,
+        )
+        self.assertTrue(full_status["refresh_required"])
+        self.assertFalse(full_status["linked"])
+
+    def test_contract_refresh_is_compare_and_swap_and_never_reuses_a_thread_id(self):
+        self.store.record_new(self.conversation, "thread-chat", self.workspace, mode="chat", model="old",
+                              instruction_contract_hash="c" * 64)
+        before = self.store.path.read_bytes()
+        with self.assertRaisesRegex(threads.CodexThreadStoreError, "reused thread ID"):
+            self.store.refresh_contract(
+                self.conversation, "thread-chat", "thread-chat", self.workspace,
+                mode="chat", model="new", instruction_contract_hash=self.contracts["chat"],
+            )
+        self.assertEqual(self.store.path.read_bytes(), before)
 
     def test_workspace_drift_requires_explicit_reset(self):
         self.store.record_new(self.conversation, "thread-fixture", self.workspace, mode="chat", model="")

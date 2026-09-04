@@ -850,8 +850,9 @@ final class AppModel: ObservableObject {
     var codexThreadLabel: String {
         guard selected?.provider == "codex" else { return "Codex не выбран" }
         guard !codexThreadStatus.isNull else { return "Статус не проверен" }
-        guard codexThreadStatus["linked"].flag else { return "Новая сессия при следующем сообщении" }
         guard codexThreadStatus["workspace_matches"].flag else { return "Нужна новая сессия" }
+        if codexThreadStatus["refresh_required"].flag { return "Обновление инструкций при следующем сообщении" }
+        guard codexThreadStatus["linked"].flag else { return "Новая сессия при следующем сообщении" }
         let short = codexThreadStatus["thread_id_short"].text
         return short.isEmpty ? "Продолжение сохранённой сессии" : "Продолжение · \(short)"
     }

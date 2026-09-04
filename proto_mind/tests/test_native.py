@@ -249,7 +249,8 @@ class NativeBridgeTests(unittest.TestCase):
         self.backend.subscription = codex.CodexSubscription(self.state, transport_factory=FakeRPC)
         conversation = str(uuid4())
         self.backend.subscription.threads.record_new(conversation, "thread-fixture", None,
-                                                     mode="chat", model="fixture-model")
+                                                     mode="chat", model="fixture-model",
+                                                     instruction_contract_hash=codex.current_instruction_contracts()["chat"])
         status = self.backend.dispatch("codex_thread_status", {"conversation_id": conversation}, lambda _: None, "s")
         self.assertTrue(status["linked"] and status["workspace_matches"])
         preview = self.backend.preview_context({"text": "next", "conversation_id": conversation,
@@ -267,6 +268,32 @@ class NativeBridgeTests(unittest.TestCase):
                                        "confirmation": bridge.RESET_CODEX_THREAD_CONFIRMATION}, lambda _: None, "r")
         self.assertTrue(result["reset"] and result["no_provider_call"])
         self.assertFalse(self.backend.subscription.thread_status(conversation, None)["linked"])
+        self.assertIsNone(self.backend.subscription.rpc)
+
+    def test_context_preview_exposes_stale_instruction_refresh_without_writing(self):
+        self.backend.subscription = codex.CodexSubscription(self.state, transport_factory=FakeRPC)
+        conversation = str(uuid4())
+        self.state.mkdir(parents=True)
+        now = "2026-01-01T00:00:00Z"
+        legacy = {"schema": "proto_mind.native_codex_threads.v2", "bindings": [{
+            "conversation_id": conversation, "thread_id": "stale-thread", "workspace": None,
+            "created_at": now, "updated_at": now, "last_mode": "chat", "last_model": "fixture-model",
+            "instruction_mode": "chat",
+        }]}
+        self.backend.subscription.threads.path.write_text(json.dumps(legacy), encoding="utf-8")
+        before = self.backend.subscription.threads.path.read_bytes()
+
+        preview = self.backend.preview_context({
+            "text": "continue", "conversation_id": conversation, "provider": "codex",
+            "access_mode": "chat", "history": [{"role": "user", "content": "bounded local history"}],
+            "cloud_consent": False,
+        })
+
+        self.assertTrue(preview["provider_thread"]["refresh_required"])
+        self.assertFalse(preview["provider_thread"]["linked"])
+        self.assertEqual(preview["manifest"]["history"]["messages"], 1)
+        self.assertTrue(any("older static instruction contract" in note for note in preview["notes"]))
+        self.assertEqual(self.backend.subscription.threads.path.read_bytes(), before)
         self.assertIsNone(self.backend.subscription.rpc)
 
     def test_local_ollama_refuses_non_loopback_url(self):
@@ -643,6 +670,44 @@ class CodexAdapterTests(unittest.TestCase):
         self.assertIn("thread/resume", methods)
         self.assertNotIn("thread/start", methods)
         self.assertEqual(restarted.last_thread_info["state"], "resumed")
+
+    def test_changed_static_instruction_contract_starts_fresh_thread_with_local_continuity(self):
+        history = [{"role": "user", "content": "local continuity fixture"}]
+        self.answer(prompt="first", history=history)
+        rpc = self.client.rpc
+        old_binding = self.client.threads.binding(self.conversation, None, mode="chat")
+        rpc.thread_id = "thread-refreshed"
+        rpc.reset_events()
+
+        updated = "Chat only. Updated static contract fixture; do not use tools."
+        with patch.object(codex, "CHAT_DEVELOPER_INSTRUCTIONS", updated):
+            self.answer(prompt="second", history=history)
+            refresh_info = dict(self.client.last_thread_info)
+            status = self.client.thread_status(self.conversation, None, mode="chat")
+            rpc.reset_events()
+            self.answer(prompt="third", history=history)
+
+        methods = [method for method, _ in rpc.calls]
+        self.assertEqual(methods.count("thread/start"), 2)
+        self.assertEqual(methods.count("thread/resume"), 1)
+        second_input = [params for method, params in rpc.calls if method == "turn/start"][1]["input"][0]["text"]
+        third_input = [params for method, params in rpc.calls if method == "turn/start"][2]["input"][0]["text"]
+        self.assertIn("local continuity fixture", second_input)
+        self.assertIn("Current user turn", second_input)
+        self.assertEqual(third_input, "third")
+        self.assertEqual(refresh_info["state"], "refreshed")
+        self.assertTrue(refresh_info["instruction_contract_refreshed"])
+        self.assertEqual(refresh_info["previous_thread_id_short"], old_binding["thread_id"][:8])
+        self.assertEqual(self.client.last_thread_info["state"], "resumed")
+        self.assertFalse(self.client.last_thread_info["instruction_contract_refreshed"])
+        self.assertFalse(self.client.last_thread_info["provider_history_deleted"])
+        self.assertTrue(status["linked"])
+        binding = self.client.threads.binding(self.conversation, None, mode="chat")
+        self.assertEqual(binding["thread_id"], "thread-refreshed")
+        self.assertEqual(binding["instruction_contract_hash"], codex.instruction_contract_hash("chat", updated))
+        self.assertFalse(any("delete" in method for method in methods))
+        refreshed = [params for method, params in rpc.calls if method == "thread/start"][1]
+        self.assertEqual(refreshed["developerInstructions"], updated)
 
     def test_resume_failure_never_creates_replacement_thread_or_turn(self):
         self.answer(prompt="first")
