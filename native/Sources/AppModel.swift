@@ -30,13 +30,13 @@ final class AppModel: ObservableObject {
     @Published var selectedID: UUID?
     @Published var section: WorkspaceSection = .chat
     @Published var composer = "" { didSet { draftChanged() } }
-    @Published private(set) var composerRevision = 0
+    @Published var composerRevision = 0
     @Published var bootstrap: JSONValue = .null
     @Published var account: JSONValue = .null
     @Published var models: [JSONValue] = []
     @Published var modelSelectionNotice: String?
-    @Published private(set) var codexThreadStatus: JSONValue = .null
-    @Published private(set) var loadingCodexThreadStatus = false
+    @Published var codexThreadStatus: JSONValue = .null
+    @Published var loadingCodexThreadStatus = false
     @Published var busy = false
     @Published var connecting = false
     @Published var cloudConsent = false {
@@ -75,18 +75,23 @@ final class AppModel: ObservableObject {
     @Published var stream = ""
     @Published var status = "Запускаем локальное ядро"
     @Published var error: String?
-    @Published private(set) var historyPersistence = HistoryPersistenceState()
+    @Published var historyPersistence = HistoryPersistenceState()
+    @Published var showHistoryBackups = false
+    @Published var historyBackupPreview: ChatBackupPreview?
+    @Published var historyBackupItems: [ChatBackupSummary] = []
+    @Published var historyBackupError: String?
+    @Published var historyBackupNotice: String?
     @Published var showInspector = false
     @Published var inspectedMessageID: UUID?
     @Published var pendingAction: PendingOperatorAction?
-    @Published private(set) var pendingPersonaActivation: PendingPersonaActivation?
+    @Published var pendingPersonaActivation: PendingPersonaActivation?
     @Published var pendingAgentAccess: PendingAgentAccess?
-    @Published private(set) var agentGrants: [UUID: AgentAccessGrant] = [:]
-    @Published private(set) var agentItems: [JSONValue] = []
-    @Published private(set) var agentReceipt: JSONValue = .null
+    @Published var agentGrants: [UUID: AgentAccessGrant] = [:]
+    @Published var agentItems: [JSONValue] = []
+    @Published var agentReceipt: JSONValue = .null
     @Published var computerUsePermissionIssue = false
-    @Published private(set) var workLog: JSONValue = .null
-    @Published private(set) var turnStartedAt: Date?
+    @Published var workLog: JSONValue = .null
+    @Published var turnStartedAt: Date?
     @Published var showWorkSessions = false
     @Published var inspectedWorkSessionID: String?
     @Published var showContextDesk = false
@@ -109,14 +114,14 @@ final class AppModel: ObservableObject {
     @Published var showTaskCriteria = false
     @Published var imagePreview: NativeImagePreview?
     @Published var pdfPreview: NativePDFPreview?
-    @Published private(set) var loadingPDFPreview = false
-    @Published private(set) var loadingImagePreview = false
+    @Published var loadingPDFPreview = false
+    @Published var loadingImagePreview = false
     @Published private(set) var imageThumbnails: [String: NSImage] = [:]
     @Published var attachmentDropPreview: NativeAttachmentDropPreview?
     @Published var attachmentDropTargeted = false
-    @Published private(set) var loadingDroppedAttachments = false
-    @Published private(set) var contextPreview: NativeContextPreview?
-    @Published private(set) var contextPreviewError: String?
+    @Published var loadingDroppedAttachments = false
+    @Published var contextPreview: NativeContextPreview?
+    @Published var contextPreviewError: String?
     @Published private(set) var loadingContextPreview = false
     @Published private(set) var personaPreview: NativePersonaPreview?
     @Published private(set) var personaPreviewError: String?
@@ -124,24 +129,24 @@ final class AppModel: ObservableObject {
     @Published private(set) var personaReadiness: NativePersonaReadiness?
     @Published private(set) var personaReadinessError: String?
     @Published private(set) var loadingPersonaReadiness = false
-    @Published private(set) var lastPersonaTurnReceipt: NativePersonaTurnReceipt?
-    @Published private(set) var workSessions: [NativeWorkSession] = []
-    @Published private(set) var workSessionsTotal: Int?
-    @Published private(set) var workSessionsNextCursor: JSONValue?
-    @Published private(set) var workSessionsPath = ""
-    @Published private(set) var workSessionsWarning: String?
+    @Published var lastPersonaTurnReceipt: NativePersonaTurnReceipt?
+    @Published var workSessions: [NativeWorkSession] = []
+    @Published var workSessionsTotal: Int?
+    @Published var workSessionsNextCursor: JSONValue?
+    @Published var workSessionsPath = ""
+    @Published var workSessionsWarning: String?
     @Published var workSessionsActionError: String?
-    @Published private(set) var loadingWorkSessions = false
+    @Published var loadingWorkSessions = false
     @Published var sessionSpinePreview: NativeSessionSpinePreview?
-    @Published private(set) var loadingSessionSpinePreview = false
+    @Published var loadingSessionSpinePreview = false
     @Published var sessionSpineReadiness: NativeSessionSpineActivationReadiness?
-    @Published private(set) var sessionSpinePilotGrant: NativeSessionSpinePilotGrant?
+    @Published var sessionSpinePilotGrant: NativeSessionSpinePilotGrant?
     @Published var sessionSpineAcceptance: NativeSessionSpineAcceptanceRehearsal?
-    @Published private(set) var sessionSpineAcceptanceGrant: NativeSessionSpineAcceptanceGrant?
+    @Published var sessionSpineAcceptanceGrant: NativeSessionSpineAcceptanceGrant?
     @Published var sessionSpineWriterPreview: NativeSessionSpineWriterPreview?
-    @Published private(set) var sessionSpineWriterReceipt: NativeSessionSpineWriterReceipt?
-    @Published private(set) var loadingSessionSpineWriter = false
-    @Published private(set) var applyingSessionSpineWriter = false
+    @Published var sessionSpineWriterReceipt: NativeSessionSpineWriterReceipt?
+    @Published var loadingSessionSpineWriter = false
+    @Published var applyingSessionSpineWriter = false
     @Published var conversationSearch = ""
     @Published var showArchived = false
     @Published var workspaceStatus: JSONValue = .null
@@ -159,9 +164,9 @@ final class AppModel: ObservableObject {
     @Published private(set) var loadingLibraryDetail = false
     @Published private(set) var libraryError: String?
     @Published private(set) var libraryDetailError: String?
-    @Published private(set) var memoryWorkshop: NativeMemoryWorkshop?
+    @Published var memoryWorkshop: NativeMemoryWorkshop?
     @Published private(set) var loadingMemoryWorkshop = false
-    @Published private(set) var memoryWorkshopError: String?
+    @Published var memoryWorkshopError: String?
     @Published private(set) var learningCandidateID: String?
     @Published private(set) var learningReview: NativeLearningReview?
     @Published private(set) var learningPreview: NativeLearningPreview?
@@ -175,20 +180,20 @@ final class AppModel: ObservableObject {
     let client: BridgeClient
     let store: ChatStore
     let preferences: PreferenceStore
-    private var activeRequest: String?
+    var activeRequest: String?
     private var started = false
-    private var initializing = true
+    var initializing = true
     private var restoringPreferences = false
-    private var restoringDraft = false
-    private var dirtyDraft = false
-    private var draftSave: Task<Void, Never>?
+    var restoringDraft = false
+    var dirtyDraft = false
+    var draftSave: Task<Void, Never>?
     private var libraryRequest = UUID()
     private var libraryDetailRequest = UUID()
     private var memoryWorkshopRequest = UUID()
     private var learningReviewRequest = UUID()
     private var pendingLearningSelection: NativeLearningSelection?
-    private var workSessionsRequest = UUID()
-    private var sessionSpinePreviewRequest = UUID()
+    var workSessionsRequest = UUID()
+    var sessionSpinePreviewRequest = UUID()
     private var contextPreviewRequest = UUID()
     private var personaPreviewRequest = UUID()
     private var personaReadinessRequest = UUID()
@@ -602,7 +607,7 @@ final class AppModel: ObservableObject {
         computerUsePermissionIssue = false
     }
 
-    private func discardAgentGrants(for id: UUID? = nil) {
+    func discardAgentGrants(for id: UUID? = nil) {
         let ids = id.map { [$0] } ?? Array(agentGrants.keys)
         pendingAgentAccess = nil
         for id in ids where agentGrants.removeValue(forKey: id) != nil {
@@ -627,1028 +632,6 @@ final class AppModel: ObservableObject {
         do { bootstrap = try await client.request("bootstrap") }
         catch { report(error) }
         await refreshWorkSessions()
-    }
-
-    func refreshWorkSessions() async {
-        await loadWorkSessionPage(cursor: nil, append: false)
-    }
-
-    func loadMoreWorkSessions() async {
-        guard let cursor = workSessionsNextCursor else { return }
-        await loadWorkSessionPage(cursor: cursor, append: true)
-    }
-
-    private func loadWorkSessionPage(cursor: JSONValue?, append: Bool) async {
-        guard !busy, !loadingWorkSessions, let id = selectedID else { return }
-        let request = UUID(); workSessionsRequest = request; loadingWorkSessions = true
-        defer { if request == workSessionsRequest { loadingWorkSessions = false } }
-        do {
-            var params: [String: JSONValue] = ["conversation_id": .string(id.uuidString)]
-            if let cursor { params["cursor"] = cursor }
-            let raw = try await client.request("work_sessions", params)
-            guard request == workSessionsRequest, id == selectedID else { return }
-            let page = try NativeWorkSessionPage(raw, conversation: id, project: client.configuration.projectRoot, cursor: cursor)
-            var runs = page.runs
-            var warning = page.warning
-            let retainedID = workSessions.first { $0.id == inspectedWorkSessionID
-                && UUID(uuidString: $0.value["conversation_id"].text) == id }?.id
-            if !append, let retainedID, !runs.contains(where: { $0.id == retainedID }) {
-                do { runs.append(try await lookupWorkSession(retainedID, conversation: id)) }
-                catch { warning = [warning, error.localizedDescription].compactMap { $0 }.joined(separator: "\n") }
-            }
-            guard request == workSessionsRequest, id == selectedID else { return }
-            workSessions = mergedWorkSessions(append ? workSessions : [], with: runs)
-            workSessionsPath = page.path; workSessionsTotal = page.total
-            workSessionsNextCursor = page.nextCursor; workSessionsWarning = warning
-        } catch {
-            guard request == workSessionsRequest, id == selectedID else { return }
-            if !append { workSessions = []; workSessionsTotal = nil; workSessionsNextCursor = nil }
-            workSessionsWarning = error.localizedDescription
-        }
-    }
-
-    private func lookupWorkSession(_ runID: String, conversation: UUID) async throws -> NativeWorkSession {
-        let value = try await client.request("work_session_lookup", ["conversation_id": .string(conversation.uuidString), "run_id": .string(runID)])
-        guard value["schema"] == .string("proto_mind.native_work_session_lookup.v1"), value["read_only"] == .bool(true) else {
-            throw NativeWorkSessionPage.error()
-        }
-        let run = try NativeWorkSession(value["run"])
-        guard run.id == runID, UUID(uuidString: run.value["conversation_id"].text) == conversation,
-              NativeWorkSessionPage.matchesProject(run.value["project_root"], client.configuration.projectRoot) else { throw NativeWorkSessionPage.error() }
-        return run
-    }
-
-    private func mergedWorkSessions(_ existing: [NativeWorkSession], with incoming: [NativeWorkSession]) -> [NativeWorkSession] {
-        var byID = Dictionary(uniqueKeysWithValues: existing.map { ($0.id, $0) })
-        for run in incoming { byID[run.id] = run }
-        return byID.values.sorted { NativeWorkSessionPage.key($0) > NativeWorkSessionPage.key($1) }
-    }
-
-    private func resetWorkSessionPages() {
-        workSessionsRequest = UUID(); loadingWorkSessions = false
-        workSessions = []; workSessionsWarning = nil; workSessionsTotal = nil; workSessionsNextCursor = nil
-        inspectedWorkSessionID = nil; workSessionsActionError = nil
-    }
-
-    var workSessionNoticeToShow: NativeWorkSession? {
-        workSessions.first { $0.needsReview && UUID(uuidString: $0.value["conversation_id"].text) == selectedID && !isWorkSessionWarningHidden($0) }
-    }
-
-    var hasWorkSessionNotice: Bool { workSessionsWarning != nil || workSessionNoticeToShow != nil }
-
-    func isWorkSessionWarningHidden(_ run: NativeWorkSession) -> Bool {
-        guard run.needsReview, UUID(uuidString: run.value["conversation_id"].text) == selectedID else { return false }
-        return selected?.dismissedWorkSessionWarnings.contains { $0.matches(run) } == true
-    }
-
-    func openWorkSessions(_ run: NativeWorkSession? = nil) {
-        inspectedWorkSessionID = run?.id
-        showWorkSessions = true
-    }
-
-    func openWorkSession(for message: ChatMessage) async {
-        guard !busy, !loadingWorkSessions, let raw = message.turnReference, let conversation = selectedID else { return }
-        let request = UUID(); workSessionsRequest = request; loadingWorkSessions = true
-        defer { if request == workSessionsRequest { loadingWorkSessions = false } }
-        do {
-            let reference = try NativeTurnReference(raw)
-            guard let index = selected?.messages.firstIndex(where: { $0.id == message.id }), index > 0,
-                  selected?.messages[index] == message, let source = selected?.messages[index - 1],
-                  reference.matches(source: source, assistant: message, conversation: conversation) else {
-                throw NativeError.message("Связь сообщения с запуском изменилась. Ничего не открыто.")
-            }
-            let saved = try await lookupWorkSession(reference.value["run_id"].text, conversation: conversation)
-            guard request == workSessionsRequest, selectedID == conversation,
-                  selected?.messages.indices.contains(index) == true, selected?.messages[index] == message,
-                  selected?.messages[index - 1] == source else { return }
-            let run = try reference.resolve(in: [saved], conversation: conversation)
-            workSessions = mergedWorkSessions(workSessions, with: [run])
-            workSessionsActionError = nil
-            openWorkSessions(run)
-        } catch { if request == workSessionsRequest && selectedID == conversation { report(error) } }
-    }
-
-    func openSessionSpine(for message: ChatMessage) async {
-        guard !busy, !client.turnOutstanding, !loadingWorkSessions, !loadingSessionSpinePreview,
-              let conversation = selected, let conversationID = selectedID else { return }
-        let matches = conversation.messages.indices.filter { conversation.messages[$0].id == message.id }
-        guard matches.count == 1, let assistantIndex = matches.first, assistantIndex > 0,
-              let rawReference = message.turnReference else {
-            report(NativeError.message("Для этого ответа нет однозначного источника Session Spine. Ничего не открыто.")); return
-        }
-        let source = conversation.messages[assistantIndex - 1]
-        let request = UUID()
-        sessionSpinePreviewRequest = request
-        sessionSpinePreview = nil
-        loadingSessionSpinePreview = true
-        defer { if sessionSpinePreviewRequest == request { loadingSessionSpinePreview = false } }
-        do {
-            let reference = try NativeTurnReference(rawReference)
-            if sessionSpinePilotGrant?.runID != reference.value["run_id"].text {
-                invalidateSessionSpinePilot()
-            }
-            guard reference.matches(source: source, assistant: message, conversation: conversationID) else {
-                throw NativeError.message("Связь сообщения с запуском изменилась. Ничего не открыто.")
-            }
-            let saved = try await lookupWorkSession(reference.value["run_id"].text, conversation: conversationID)
-            guard sessionSpinePreviewRequest == request, selectedID == conversationID else { return }
-            let run = try reference.resolve(in: [saved], conversation: conversationID)
-            workSessions = mergedWorkSessions(workSessions, with: [run])
-            inspectedWorkSessionID = run.id
-            let parameters = try NativeSessionSpinePreview.parameters(
-                source: source, assistant: message, conversation: conversationID, reference: reference, run: run
-            )
-            let raw = try await client.request("session_spine_preview", parameters)
-            guard sessionSpinePreviewRequest == request, selectedID == conversationID,
-                  selected?.messages.indices.contains(assistantIndex) == true,
-                  selected?.messages[assistantIndex] == message,
-                  selected?.messages[assistantIndex - 1] == source else { return }
-            sessionSpinePreview = try NativeSessionSpinePreview(
-                raw, source: source, assistant: message, conversation: conversationID, reference: reference, run: run
-            )
-            status = "Session Spine · точная read-only проекция"
-        } catch {
-            if sessionSpinePreviewRequest == request && selectedID == conversationID { report(error) }
-        }
-    }
-
-    func openSessionSpineReadiness(_ preview: NativeSessionSpinePreview) {
-        do {
-            sessionSpineReadiness = try buildSessionSpineReadiness(preview, grant: sessionSpinePilotGrant)
-            error = nil
-            status = sessionSpineReadiness?.recoveryRequired == true
-                ? "Session Spine · нужна ручная recovery-проверка"
-                : "Session Spine · writer выключен, readiness проверена"
-        } catch {
-            invalidateSessionSpinePilot()
-            report(error)
-        }
-    }
-
-    func armSessionSpinePilot(candidateHash: String) {
-        do {
-            guard let preview = sessionSpinePreview else {
-                throw NativeError.message("Точный Session Spine preview закрыт или изменился. Проверьте ход заново.")
-            }
-            let refreshed = try buildSessionSpineReadiness(preview, grant: nil)
-            guard refreshed.candidateHash == candidateHash, refreshed.canArm else {
-                throw NativeError.message("Session Spine readiness изменилась. Ничего не подготовлено.")
-            }
-            let grant = try NativeSessionSpinePilotGrant(readiness: refreshed)
-            let armed = try buildSessionSpineReadiness(preview, grant: grant)
-            guard armed.armed else {
-                throw NativeError.message("Session Spine per-launch opt-in не прошёл повторную проверку.")
-            }
-            sessionSpinePilotGrant = grant
-            sessionSpineReadiness = armed
-            sessionSpineAcceptance = nil
-            sessionSpineAcceptanceGrant = nil
-            error = nil
-            status = "Session Spine · один точный ход подготовлен, writer выключен"
-        } catch {
-            invalidateSessionSpinePilot()
-            report(error)
-        }
-    }
-
-    func revokeSessionSpinePilot() {
-        sessionSpinePilotGrant = nil
-        sessionSpineAcceptance = nil
-        sessionSpineAcceptanceGrant = nil
-        if let preview = sessionSpinePreview {
-            do { sessionSpineReadiness = try buildSessionSpineReadiness(preview, grant: nil) }
-            catch { sessionSpineReadiness = nil; report(error); return }
-        } else {
-            sessionSpineReadiness = nil
-        }
-        error = nil
-        status = "Session Spine · локальная подготовка снята, writer выключен"
-    }
-
-    var sessionSpinePilotArmed: Bool { sessionSpinePilotGrant != nil }
-    var sessionSpineAcceptanceAccepted: Bool { sessionSpineAcceptanceGrant != nil }
-
-    func openSessionSpineAcceptance(_ readiness: NativeSessionSpineActivationReadiness) {
-        do {
-            guard let preview = sessionSpinePreview, let pilot = sessionSpinePilotGrant else {
-                throw NativeError.message("P2k требует активный exact-candidate P2j. Ничего не принято.")
-            }
-            let refreshed = try buildSessionSpineReadiness(preview, grant: pilot)
-            guard refreshed.armed, refreshed.candidateHash == readiness.candidateHash,
-                  refreshed.value["report_hash"] == readiness.value["report_hash"] else {
-                throw NativeError.message("Session Spine readiness изменилась. Повторите проверку без записи.")
-            }
-            let rehearsal = try NativeSessionSpineAcceptanceRehearsal.inspect(
-                readiness: refreshed,
-                stateDirectory: client.configuration.stateDirectory,
-                grant: sessionSpineAcceptanceGrant
-            )
-            if sessionSpineAcceptanceGrant?.matches(rehearsal) != true {
-                sessionSpineAcceptanceGrant = nil
-            }
-            sessionSpineAcceptance = rehearsal
-            error = nil
-            status = rehearsal.recoveryRequired
-                ? "Session Spine · P2k требует ручной recovery-проверки"
-                : rehearsal.accepted
-                    ? "Session Spine · personal rehearsal принят, writer выключен"
-                    : "Session Spine · personal rehearsal готов, writer выключен"
-        } catch {
-            sessionSpineAcceptance = nil
-            sessionSpineAcceptanceGrant = nil
-            report(error)
-        }
-    }
-
-    func acceptSessionSpineRehearsal(rehearsalHash: String) {
-        do {
-            guard let preview = sessionSpinePreview, let pilot = sessionSpinePilotGrant else {
-                throw NativeError.message("P2j grant отсутствует или устарел. P2k ничего не принял.")
-            }
-            let readiness = try buildSessionSpineReadiness(preview, grant: pilot)
-            let fresh = try NativeSessionSpineAcceptanceRehearsal.inspect(
-                readiness: readiness,
-                stateDirectory: client.configuration.stateDirectory
-            )
-            guard fresh.canAccept, fresh.rehearsalHash == rehearsalHash else {
-                throw NativeError.message("P2k rehearsal или private paths изменились. Ничего не принято.")
-            }
-            let grant = try NativeSessionSpineAcceptanceGrant(rehearsal: fresh)
-            let accepted = try NativeSessionSpineAcceptanceRehearsal.inspect(
-                readiness: readiness,
-                stateDirectory: client.configuration.stateDirectory,
-                grant: grant
-            )
-            guard accepted.accepted else {
-                throw NativeError.message("P2k process-memory acceptance не прошёл повторную проверку.")
-            }
-            sessionSpineAcceptanceGrant = grant
-            sessionSpineAcceptance = accepted
-            error = nil
-            status = "Session Spine · exact rehearsal принят до перезапуска, writer выключен"
-        } catch {
-            sessionSpineAcceptance = nil
-            sessionSpineAcceptanceGrant = nil
-            report(error)
-        }
-    }
-
-    func revokeSessionSpineAcceptance() {
-        sessionSpineAcceptanceGrant = nil
-        guard let readiness = sessionSpineReadiness, readiness.armed else {
-            sessionSpineAcceptance = nil
-            status = "Session Spine · P2k acceptance снят, writer выключен"
-            return
-        }
-        do {
-            sessionSpineAcceptance = try NativeSessionSpineAcceptanceRehearsal.inspect(
-                readiness: readiness,
-                stateDirectory: client.configuration.stateDirectory
-            )
-            error = nil
-            status = "Session Spine · P2k acceptance снят, writer выключен"
-        } catch {
-            sessionSpineAcceptance = nil
-            report(error)
-        }
-    }
-
-    func openSessionSpineWriter(_ rehearsal: NativeSessionSpineAcceptanceRehearsal) async {
-        guard !busy, !client.turnOutstanding, !loadingSessionSpineWriter else { return }
-        loadingSessionSpineWriter = true
-        defer { loadingSessionSpineWriter = false }
-        do {
-            await refreshWorkSessions()
-            let context = try buildSessionSpineWriterContext(rehearsal)
-            let raw = try await client.request("session_spine_writer_preview", context.parameters)
-            sessionSpineWriterPreview = try NativeSessionSpineWriterPreview(
-                raw, live: context.preview, readiness: context.readiness,
-                rehearsal: context.rehearsal, stateDirectory: client.configuration.stateDirectory
-            )
-            sessionSpineWriterReceipt = nil
-            error = nil
-            status = sessionSpineWriterPreview?.closed == true
-                ? "Session Spine · этот exact turn уже закрыт"
-                : sessionSpineWriterPreview?.canApply == true
-                    ? "Session Spine · P2l ждёт точную ручную фразу"
-                    : "Session Spine · P2l заблокирован evidence"
-        } catch {
-            sessionSpineWriterPreview = nil
-            sessionSpineWriterReceipt = nil
-            report(error)
-        }
-    }
-
-    func applySessionSpineWriter(
-        _ preview: NativeSessionSpineWriterPreview,
-        token: String,
-        acknowledgement: Bool
-    ) async {
-        guard !busy, !client.turnOutstanding, !applyingSessionSpineWriter,
-              sessionSpineWriterReceipt == nil else { return }
-        guard preview.accepts(token: token, acknowledgement: acknowledgement) else {
-            report(NativeError.message("Точная фраза P2l или acknowledgement не совпали. Ни один файл не записан."))
-            return
-        }
-        applyingSessionSpineWriter = true
-        busy = true
-        var durableWriteStarted = false
-        defer { applyingSessionSpineWriter = false; busy = false }
-        do {
-            guard let rehearsal = sessionSpineAcceptance else {
-                throw NativeError.message("P2l acceptance context исчез. Ничего не записано.")
-            }
-            let context = try buildSessionSpineWriterContext(rehearsal)
-            let refreshedRaw = try await client.request("session_spine_writer_preview", context.parameters)
-            let refreshed = try NativeSessionSpineWriterPreview(
-                refreshedRaw, live: context.preview, readiness: context.readiness,
-                rehearsal: context.rehearsal, stateDirectory: client.configuration.stateDirectory
-            )
-            guard refreshed.value == preview.value, refreshed.accepts(token: token, acknowledgement: acknowledgement) else {
-                throw NativeError.message("P2l preview изменился перед первой записью. Повторите проверку; ничего не записано.")
-            }
-
-            let archive = ChatArchive(conversations: conversations, selectedID: selectedID)
-            durableWriteStarted = true
-            let readback = try store.saveAndReadBack(archive)
-            draftSave?.cancel(); dirtyDraft = false
-            historyPersistence = HistoryPersistenceState()
-            guard readback.sha256 == preview.source["history_sha256"].text,
-                  readback.sizeBytes == preview.source["history_bytes"].integer else {
-                throw NativeError.message("История была сохранена, но exact candidate изменился. Writer не вызван; проверьте history вручную.")
-            }
-            let identityStore = NativeSessionSpineInstallationStore(stateDirectory: client.configuration.stateDirectory)
-            let existingIdentity = try identityStore.load()
-            let identity = try identityStore.loadOrCreate()
-            var parameters = context.parameters
-            parameters["preview"] = preview.value
-            parameters["confirmation_token"] = .string(token)
-            parameters["owner_identity"] = identity.value
-            parameters["history_sha256"] = .string(readback.sha256)
-            parameters["history_bytes"] = .number(Double(readback.sizeBytes))
-            parameters["history_write_performed"] = .bool(true)
-            parameters["identity_created"] = .bool(existingIdentity == nil)
-            let result = try await client.request("session_spine_writer_apply", parameters)
-            sessionSpineWriterReceipt = try NativeSessionSpineWriterReceipt(
-                result, preview: preview, identity: identity, readback: readback
-            )
-            error = nil
-            status = "Session Spine · один exact-linked ход записан и закрыт"
-        } catch {
-            if durableWriteStarted { invalidateSessionSpinePilot() }
-            if store.writeBlocked {
-                historyPersistence = HistoryPersistenceState(hasUnsavedChanges: true, failure: error.localizedDescription, requiresRecovery: true)
-            }
-            report(error)
-        }
-    }
-
-    private func buildSessionSpineWriterContext(
-        _ rehearsal: NativeSessionSpineAcceptanceRehearsal
-    ) throws -> (
-        preview: NativeSessionSpinePreview,
-        readiness: NativeSessionSpineActivationReadiness,
-        rehearsal: NativeSessionSpineAcceptanceRehearsal,
-        parameters: [String: JSONValue]
-    ) {
-        guard let preview = sessionSpinePreview, let pilot = sessionSpinePilotGrant,
-              let conversation = selected, let conversationID = selectedID,
-              let sourceID = UUID(uuidString: preview.source["user_message_id"].text),
-              let assistantID = UUID(uuidString: preview.source["assistant_message_id"].text) else {
-            throw NativeError.message("P2l требует свежие Live Preview и ARMED P2j evidence. Ничего не записано.")
-        }
-        let readiness = try buildSessionSpineReadiness(preview, grant: pilot)
-        let currentRehearsal = try NativeSessionSpineAcceptanceRehearsal.inspect(
-            readiness: readiness,
-            stateDirectory: client.configuration.stateDirectory,
-            grant: rehearsal.accepted ? sessionSpineAcceptanceGrant : nil
-        )
-        guard readiness.armed, currentRehearsal.value == rehearsal.value,
-              currentRehearsal.accepted || currentRehearsal.recoveryRequired else {
-            throw NativeError.message("P2j/P2k evidence изменилось. Writer не получил управление.")
-        }
-        let matches = conversation.messages.indices.filter { conversation.messages[$0].id == assistantID }
-        guard matches.count == 1, let assistantIndex = matches.first, assistantIndex > 0,
-              conversation.messages[assistantIndex - 1].id == sourceID,
-              let referenceValue = conversation.messages[assistantIndex].turnReference else {
-            throw NativeError.message("Exact-linked пара P2l больше не существует. Ничего не записано.")
-        }
-        let source = conversation.messages[assistantIndex - 1]
-        let assistant = conversation.messages[assistantIndex]
-        let reference = try NativeTurnReference(referenceValue)
-        let run = try reference.resolve(in: workSessions, conversation: conversationID)
-        let checked = try NativeSessionSpinePreview(
-            preview.value, source: source, assistant: assistant,
-            conversation: conversationID, reference: reference, run: run
-        )
-        var parameters = try NativeSessionSpinePreview.parameters(
-            source: source, assistant: assistant, conversation: conversationID, reference: reference, run: run
-        )
-        parameters["gate"] = .object([
-            "acceptance_state": .string(currentRehearsal.state),
-            "candidate_hash": .string(readiness.candidateHash),
-            "readiness_report_hash": readiness.value["report_hash"],
-            "rehearsal_hash": .string(currentRehearsal.rehearsalHash),
-            "acceptance_report_hash": currentRehearsal.value["report_hash"],
-        ])
-        return (checked, readiness, currentRehearsal, parameters)
-    }
-
-    private func buildSessionSpineReadiness(
-        _ preview: NativeSessionSpinePreview,
-        grant: NativeSessionSpinePilotGrant?
-    ) throws -> NativeSessionSpineActivationReadiness {
-        guard let conversation = selected, let conversationID = selectedID,
-              conversation.id == conversationID,
-              UUID(uuidString: preview.source["conversation_id"].text) == conversationID,
-              let sourceID = UUID(uuidString: preview.source["user_message_id"].text),
-              let assistantID = UUID(uuidString: preview.source["assistant_message_id"].text) else {
-            throw NativeError.message("Session Spine readiness относится к другому диалогу. Ничего не подготовлено.")
-        }
-        let assistantMatches = conversation.messages.indices.filter { conversation.messages[$0].id == assistantID }
-        guard assistantMatches.count == 1, let assistantIndex = assistantMatches.first, assistantIndex > 0,
-              conversation.messages[assistantIndex - 1].id == sourceID,
-              let rawReference = conversation.messages[assistantIndex].turnReference else {
-            throw NativeError.message("Точная пара сообщений Session Spine больше не существует. Ничего не подготовлено.")
-        }
-        let source = conversation.messages[assistantIndex - 1]
-        let assistant = conversation.messages[assistantIndex]
-        let reference = try NativeTurnReference(rawReference)
-        let run = try reference.resolve(in: workSessions, conversation: conversationID)
-        let checked = try NativeSessionSpinePreview(
-            preview.value, source: source, assistant: assistant,
-            conversation: conversationID, reference: reference, run: run
-        )
-        let identityStore = NativeSessionSpineInstallationStore(stateDirectory: client.configuration.stateDirectory)
-        let identity: NativeSessionSpineInstallationIdentity?
-        do {
-            identity = try identityStore.load()
-        } catch {
-            return try NativeSessionSpineActivationReadiness.inspect(
-                preview: checked, identity: nil, identityPath: identityStore.url,
-                identityError: error.localizedDescription, grant: nil
-            )
-        }
-        return try NativeSessionSpineActivationReadiness.inspect(
-            preview: checked, identity: identity,
-            identityPath: identityStore.url, grant: grant
-        )
-    }
-
-    private func invalidateSessionSpinePilot() {
-        sessionSpinePilotGrant = nil
-        sessionSpineReadiness = nil
-        sessionSpineAcceptanceGrant = nil
-        sessionSpineAcceptance = nil
-        sessionSpineWriterPreview = nil
-        sessionSpineWriterReceipt = nil
-    }
-
-    func setWorkSessionWarningHidden(_ run: NativeWorkSession, hidden: Bool) throws {
-        guard !busy, !client.turnOutstanding, !loadingWorkSessions,
-              let index = conversations.firstIndex(where: { $0.id == selectedID }),
-              UUID(uuidString: run.value["conversation_id"].text) == selectedID,
-              let current = workSessions.first(where: { $0.id == run.id }), current.reference == run.reference,
-              current.state == run.state, current.needsReview else {
-            throw NativeError.message("Запуск изменился или работа ещё идёт. Обновите журнал; уведомление не скрыто.")
-        }
-        let notice = try NativeWorkSessionNotice(current)
-        let previous = conversations[index].dismissedWorkSessionWarnings
-        if hidden && previous.contains(notice) { return }
-        var next = previous.filter { $0.runID != notice.runID }
-        if hidden { next.append(notice) }
-        try NativeWorkSessionNotice.validate(next)
-        guard next != previous else { return }
-        conversations[index].dismissedWorkSessionWarnings = next
-        do {
-            try saveHistory()
-        } catch {
-            conversations[index].dismissedWorkSessionWarnings = previous
-            throw error
-        }
-    }
-
-    func prepareContinuation(_ run: NativeWorkSession) async {
-        workSessionsActionError = nil
-        guard !busy, run.canPrepare, let id = selectedID, UUID(uuidString: run.value["conversation_id"].text) == id,
-              selected?.archived != true else { return }
-        guard composer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, selected?.pendingFiles.isEmpty == true,
-              selected?.pendingImages.isEmpty == true, selected?.pendingPDFs.isEmpty == true else {
-            workSessionsActionError = "Сначала сохраните или очистите текущий черновик и вложения. Продолжение не заменит их автоматически."
-            report(NativeError.message(workSessionsActionError!)); return
-        }
-        busy = true
-        defer { busy = false }
-        do {
-            var params: [String: JSONValue] = ["conversation_id": .string(id.uuidString), "continuation": run.reference]
-            if let root = selected?.workspacePath { params["workspace_root"] = .string(root) }
-            let result = try await client.request("work_session_continuation", params)
-            guard result["schema"].text == "proto_mind.native_continuation.v1", result["read_only"] == .bool(true),
-                  result["automatic_resume"] == .bool(false), result["run_id"].text == run.id,
-                  result["fingerprint"] == run.value["fingerprint"], !result["draft"].text.isEmpty,
-                  result["draft"].text.count <= 5000,
-                  let index = conversations.firstIndex(where: { $0.id == id }) else {
-                throw NativeError.message("Черновик продолжения не прошёл проверку. Ничего не отправлено.")
-            }
-            conversations[index].draftContinuation = run.reference
-            setComposer(result["draft"].text, preservingContinuation: true)
-            flushDraft(); section = .chat; showWorkSessions = false
-            status = "Черновик подготовлен · проверьте и отправьте вручную"
-        } catch { workSessionsActionError = error.localizedDescription; report(error) }
-    }
-
-    func clearContinuation() {
-        guard !busy, let index = conversations.firstIndex(where: { $0.id == selectedID }) else { return }
-        conversations[index].draftContinuation = nil
-        persist()
-    }
-
-    func newConversation() {
-        guard !busy else { return }
-        invalidateSessionSpinePilot()
-        closeLearningReview()
-        memoryWorkshop = nil; showMemoryWorkshop = false
-        skillAuthoring = nil
-        skillInspection?.close()
-        skillOutcome?.close()
-        skillDecision?.close()
-        skillLifecycleApply?.close()
-        skillRestore?.close()
-        skillHistory?.close()
-        projectMemory?.close()
-        memorySuggestion?.close()
-        skillTask?.close()
-        sessionSpinePreview = nil
-        flushDraft()
-        let chat = Conversation()
-        conversations.insert(chat, at: 0)
-        selectedID = chat.id
-        resetWorkSessionPages()
-        codexThreadStatus = .null
-        modelSelectionNotice = nil
-        inspectedMessageID = nil
-        restoreComposer()
-        showArchived = false
-        conversationSearch = ""
-        resetWorkspaceView()
-        section = .chat
-        persist()
-    }
-
-    func select(_ id: UUID) {
-        guard !busy else { return }
-        invalidateSessionSpinePilot()
-        closeLearningReview()
-        memoryWorkshop = nil; showMemoryWorkshop = false
-        skillAuthoring = nil
-        skillInspection?.close()
-        skillOutcome?.close()
-        skillDecision?.close()
-        skillLifecycleApply?.close()
-        skillRestore?.close()
-        skillHistory?.close()
-        projectMemory?.close()
-        memorySuggestion?.close()
-        skillTask?.close()
-        sessionSpinePreview = nil
-        flushDraft()
-        selectedID = id; section = .chat; inspectedMessageID = nil
-        modelSelectionNotice = nil
-        codexThreadStatus = .null
-        restoreComposer(); resetWorkspaceView(); persist()
-        resetWorkSessionPages()
-        Task {
-            await refreshWorkSessions()
-            await refreshCodexThreadStatus()
-        }
-    }
-
-    func setAutoSkillsEnabled(_ enabled: Bool) {
-        guard !busy, let index = conversations.firstIndex(where: { $0.id == selectedID }), !conversations[index].archived else { return }
-        conversations[index].autoSkillsEnabled = enabled
-        invalidateContextPreview(); persist()
-    }
-
-    func setAutoProjectRecallEnabled(_ enabled: Bool) {
-        guard !busy, let index = conversations.firstIndex(where: { $0.id == selectedID }), !conversations[index].archived else { return }
-        conversations[index].autoProjectRecallEnabled = enabled
-        invalidateContextPreview(); persist()
-    }
-
-    func setMemorySuggestionsEnabled(_ enabled: Bool) {
-        guard !busy, let index = conversations.firstIndex(where: { $0.id == selectedID }), !conversations[index].archived else { return }
-        conversations[index].memorySuggestionsEnabled = enabled; persist()
-    }
-
-    func setProvider(_ value: String) {
-        guard !busy, ["ollama", "codex", "mock"].contains(value), selected?.provider != value,
-              let index = conversations.firstIndex(where: { $0.id == selectedID }) else { return }
-        discardAgentGrants(for: selectedID)
-        invalidateSessionSpinePilot()
-        pendingPersonaActivation = nil
-        conversations[index].provider = value
-        conversations[index].model = ""
-        conversations[index].reasoningEffort = ""
-        modelSelectionNotice = nil
-        codexThreadStatus = .null
-        persist()
-    }
-
-    func setModel(_ value: String) {
-        guard !busy, let index = conversations.firstIndex(where: { $0.id == selectedID }) else { return }
-        if selected?.provider == "codex", !value.isEmpty, !codexModels.contains(where: { $0.id == value }) { return }
-        if selected?.model != value { invalidateSessionSpinePilot() }
-        conversations[index].model = value
-        pendingPersonaActivation = nil
-        modelSelectionNotice = nil
-        if selected?.provider == "codex", !conversations[index].reasoningEffort.isEmpty,
-           !availableReasoningEfforts.contains(where: { $0.rawValue == conversations[index].reasoningEffort }) {
-            conversations[index].reasoningEffort = ""
-            modelSelectionNotice = "Предыдущее усилие недоступно для этой модели. Выбрано значение по умолчанию."
-        }
-        persist()
-    }
-
-    var codexModels: [CodexModelOption] {
-        var seen = Set<String>()
-        return models.compactMap(CodexModelOption.init).filter { seen.insert($0.id).inserted }
-    }
-
-    var selectedCodexModel: CodexModelOption? {
-        let identifier = selected?.model ?? ""
-        return identifier.isEmpty ? codexModels.first(where: \.isDefault) : codexModels.first { $0.id == identifier }
-    }
-
-    var availableReasoningEfforts: [CodexReasoningEffort] { selectedCodexModel?.efforts ?? [] }
-
-    var reasoningEffortLabel: String {
-        let value = selected?.reasoningEffort ?? ""
-        if value.isEmpty { return selectedCodexModel?.defaultEffort?.title ?? "Авто" }
-        return CodexReasoningEffort(rawValue: value)?.title ?? value
-    }
-
-    var codexModelLabel: String {
-        selectedCodexModel?.displayName ?? ((selected?.model.isEmpty ?? true) ? "Codex" : selected!.model)
-    }
-
-    var modelSelectionWarning: String? {
-        guard selected?.provider == "codex", !models.isEmpty else { return nil }
-        if !(selected?.model.isEmpty ?? true), selectedCodexModel == nil {
-            return "Сохранённая модель недоступна в текущем каталоге. Выберите другую: автоматической подмены не будет."
-        }
-        if let effort = selected?.reasoningEffort, !effort.isEmpty,
-           !availableReasoningEfforts.contains(where: { $0.rawValue == effort }) {
-            return "Сохранённое усилие больше не поддерживается. Выберите доступное или сбросьте настройки."
-        }
-        return nil
-    }
-
-    func setReasoningEffort(_ value: String) {
-        guard !busy, selected?.provider == "codex", let index = conversations.firstIndex(where: { $0.id == selectedID }),
-              value.isEmpty || availableReasoningEfforts.contains(where: { $0.rawValue == value }) else { return }
-        if selected?.reasoningEffort != value { invalidateSessionSpinePilot() }
-        conversations[index].reasoningEffort = value
-        modelSelectionNotice = nil
-        persist()
-    }
-
-    func resetCodexSelection() {
-        guard !busy, selected?.provider == "codex", let index = conversations.firstIndex(where: { $0.id == selectedID }) else { return }
-        invalidateSessionSpinePilot()
-        conversations[index].model = ""
-        conversations[index].reasoningEffort = ""
-        modelSelectionNotice = nil
-        persist()
-    }
-
-    var codexThreadLabel: String {
-        guard selected?.provider == "codex" else { return "Codex не выбран" }
-        guard !codexThreadStatus.isNull else { return "Статус не проверен" }
-        guard codexThreadStatus["workspace_matches"].flag else { return "Нужна новая сессия" }
-        if codexThreadStatus["refresh_required"].flag { return "Обновление инструкций при следующем сообщении" }
-        guard codexThreadStatus["linked"].flag else { return "Новая сессия при следующем сообщении" }
-        let short = codexThreadStatus["thread_id_short"].text
-        return short.isEmpty ? "Продолжение сохранённой сессии" : "Продолжение · \(short)"
-    }
-
-    func refreshCodexThreadStatus() async {
-        guard !busy, let conversation = selected, conversation.provider == "codex" else {
-            codexThreadStatus = .null
-            return
-        }
-        let id = conversation.id
-        let workspace = conversation.workspacePath
-        loadingCodexThreadStatus = true
-        defer { if selectedID == id { loadingCodexThreadStatus = false } }
-        do {
-            var params: [String: JSONValue] = ["conversation_id": .string(id.uuidString)]
-            if let workspace { params["workspace_root"] = .string(workspace) }
-            let value = try await client.request("codex_thread_status", params)
-            guard selectedID == id, selected?.workspacePath == workspace, selected?.provider == "codex" else { return }
-            guard value["schema"].text == "proto_mind.native_codex_threads.v1",
-                  !value["linked"].isNull, !value["workspace_matches"].isNull else {
-                throw NativeError.message("Не удалось проверить локальную связь с сессией Codex.")
-            }
-            codexThreadStatus = value
-        } catch {
-            guard selectedID == id else { return }
-            codexThreadStatus = .null
-            report(error)
-        }
-    }
-
-    func resetCodexThread() async {
-        guard !busy, !client.turnOutstanding, let id = selectedID, selected?.provider == "codex" else { return }
-        discardAgentGrants(for: id)
-        do {
-            let value = try await client.request("codex_thread_reset", [
-                "conversation_id": .string(id.uuidString),
-                "confirmation": .string("START NEW CODEX SESSION"),
-            ])
-            guard value["schema"].text == "proto_mind.native_codex_thread_reset.v1",
-                  value["no_provider_call"].flag, value["provider_history_deleted"] == .bool(false) else {
-                throw NativeError.message("Сброс сессии Codex не прошёл локальную проверку.")
-            }
-            modelSelectionNotice = value["notice"].text
-            codexThreadStatus = .null
-            await refreshCodexThreadStatus()
-        } catch { report(error) }
-    }
-
-    func setComposer(_ value: String, preservingContinuation: Bool = false) {
-        if !preservingContinuation, let index = conversations.firstIndex(where: { $0.id == selectedID }) {
-            conversations[index].draftContinuation = nil
-        }
-        composer = value
-        composerRevision += 1
-    }
-
-    func renameConversation(_ id: UUID, title: String) {
-        guard !busy, let index = conversations.firstIndex(where: { $0.id == id }) else { return }
-        let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty, name.count <= 120 else { report(NativeError.message("Название должно содержать от 1 до 120 символов.")); return }
-        conversations[index].title = name
-        persist()
-    }
-
-    func archiveConversation(_ id: UUID, archived: Bool) {
-        guard !busy, let index = conversations.firstIndex(where: { $0.id == id }) else { return }
-        conversations[index].archived = archived
-        if archived && selectedID == id {
-            if let next = conversations.first(where: { !$0.archived }) { select(next.id) }
-            else { newConversation() }
-        } else if !archived && selectedID == id {
-            showArchived = false
-        }
-        persist()
-    }
-
-    private func restoreComposer() {
-        restoringDraft = true
-        composer = selected?.draft ?? ""
-        composerRevision += 1
-        restoringDraft = false
-    }
-
-    private func draftChanged() {
-        guard !initializing, !restoringDraft, let index = conversations.firstIndex(where: { $0.id == selectedID }) else { return }
-        conversations[index].draft = composer
-        if composer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { conversations[index].draftContinuation = nil }
-        dirtyDraft = true
-        historyPersistence.hasUnsavedChanges = true
-        draftSave?.cancel()
-        draftSave = Task { [weak self] in
-            do { try await Task.sleep(nanoseconds: 500_000_000) }
-            catch { return }
-            self?.flushDraft()
-        }
-    }
-
-    func flushDraft() { if dirtyDraft { persist() } }
-
-    func submit(_ supplied: String? = nil) async {
-        let text = (supplied ?? composer).trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, !busy, !loadingDroppedAttachments, !loadingImagePreview, !loadingPDFPreview,
-              imagePreview == nil, pdfPreview == nil, attachmentDropPreview == nil,
-              selected?.archived != true, let conversationID = selectedID else { return }
-        guard !historyPersistence.blocksSubmission, !store.writeBlocked else {
-            if composer.isEmpty { setComposer(text, preservingContinuation: true) }
-            status = "Сначала восстановите сохранение истории"
-            return
-        }
-        busy = true
-        do {
-            let description = try await client.request("describe", ["text": .string(text)])
-            guard !description["blocked"].flag else { throw NativeError.message(description["notice"].text) }
-            if description["requires_confirmation"].flag {
-                let summary = description["steps"].items.map { "\($0["command"].text)\nИзменяет: \($0["mutates"].text) · риск: \($0["risk"].text)" }.joined(separator: "\n\n")
-                pendingAction = PendingOperatorAction(text: text, conversationID: conversationID, summary: summary)
-                busy = false
-                return
-            }
-            await perform(text, conversationID: conversationID, confirmed: false, operatorInput: description["operator"].flag)
-        } catch { busy = false; report(error) }
-    }
-
-    func confirmPending() async {
-        guard let action = pendingAction else { return }
-        guard !historyPersistence.blocksSubmission, !store.writeBlocked else {
-            status = "Сначала восстановите сохранение истории"
-            return
-        }
-        pendingAction = nil
-        busy = true
-        await perform(action.text, conversationID: action.conversationID, confirmed: true, operatorInput: true)
-    }
-
-    private func perform(_ text: String, conversationID: UUID, confirmed: Bool, operatorInput: Bool) async {
-        guard let index = conversations.firstIndex(where: { $0.id == conversationID }) else { busy = false; return }
-        invalidateSessionSpinePilot()
-        let conversation = conversations[index]
-        let history = conversation.history
-        let files = operatorInput ? [] : conversation.pendingFiles
-        let images = operatorInput ? [] : conversation.pendingImages
-        let pdfs = operatorInput ? [] : conversation.pendingPDFs
-        let criteria = operatorInput ? [] : conversation.pendingCriteria
-        let projectNotes = operatorInput ? [] : projectNoteSelections[conversationID] ?? []
-        let skillTask = operatorInput ? nil : preparedSkillTasks[conversationID]
-        let automaticSkills = !operatorInput && conversation.provider == "codex" && conversation.autoSkillsEnabled && skillTask == nil
-        let automaticRecall = !operatorInput && conversation.provider == "codex" && conversation.autoProjectRecallEnabled && projectNotes.isEmpty
-        let suggestMemory = !operatorInput && conversation.provider == "codex" && conversation.memorySuggestionsEnabled && conversation.workspacePath != nil
-        let grant = !operatorInput && fullAccessEnabled ? agentGrants[conversationID] : nil
-        let reviewedRecall = contextPreview.flatMap { try? NativeProjectRecallReport($0.manifest["knowledge_context"]["project_recall"]) }
-        let expectedProjectSnapshot = automaticRecall && reviewedRecall?.matches(conversation: conversationID, text: text,
-            workspace: conversation.workspacePath, mode: grant == nil ? "chat" : "full_access") == true
-            ? reviewedRecall?.value["source_snapshot_hash"] : nil
-        let continuation = operatorInput ? nil : conversation.draftContinuation
-        let userMessage = ChatMessage(role: "user", text: text, operatorInput: operatorInput, fileContext: files, imageContext: images, pdfContext: pdfs)
-        conversations[index].messages.append(userMessage)
-        if conversations[index].title == "Новый диалог" {
-            conversations[index].title = String(text.split(whereSeparator: \.isWhitespace).joined(separator: " ").prefix(54))
-        }
-        conversations[index].updatedAt = Date()
-        setComposer(""); stream = ""; agentItems = []; agentReceipt = .null; workLog = .null; autoSkillsReport = nil
-        turnStartedAt = Date(); section = .chat
-        status = grant == nil ? "Proto-Mind думает" : "Агент подключается · полный доступ + интернет"
-        guard persist() else {
-            // The provider has not been called. Restore the draft and attachments;
-            // a local save failure must not create a failed or duplicate turn.
-            conversations[index] = conversation
-            if selectedID == conversationID {
-                restoreComposer()
-                if composer.isEmpty { setComposer(text, preservingContinuation: true) }
-            }
-            busy = false; turnStartedAt = nil
-            return
-        }
-        do {
-            let requestedRunID = operatorInput ? nil : UUID()
-            var params: [String: JSONValue] = [
-                "text": .string(text), "conversation_id": .string(conversationID.uuidString),
-                "provider": .string(conversation.provider), "model": .string(conversation.model),
-                "reasoning_effort": .string(conversation.provider == "codex" ? conversation.reasoningEffort : ""),
-                "cloud_consent": .bool(cloudConsent), "history": .array(history),
-                "persona_enabled": .bool(!operatorInput && personaEnabled),
-            ]
-            if confirmed { params["confirmed_text"] = .string(text) }
-            if let requestedRunID {
-                params["run_id"] = .string(requestedRunID.uuidString)
-                params["criteria"] = .array(criteria.map(JSONValue.string))
-                params["images"] = .array(images)
-                params["pdfs"] = .array(pdfs)
-                params["project_memory"] = .array(projectNotes.map(\.selection))
-                params["auto_skills"] = .bool(automaticSkills)
-                params["auto_project_recall"] = .bool(automaticRecall)
-                params["memory_suggestions"] = .bool(suggestMemory)
-                if let expectedProjectSnapshot, !expectedProjectSnapshot.isNull { params["expected_project_snapshot"] = expectedProjectSnapshot }
-                if let skillTask { params["skill_task"] = skillTask.selection }
-                if let root = conversation.workspacePath { params["workspace_root"] = .string(root) }
-                if let continuation { params["continuation"] = continuation }
-            }
-            if let grant {
-                params["access_mode"] = .string("full_access")
-                params["access_token"] = .string(grant.token)
-                params["workspace_root"] = .string(grant.workspace)
-            }
-            if !files.isEmpty, let root = conversation.workspacePath {
-                params["workspace_root"] = .string(root)
-                params["files"] = .array(files)
-            }
-            let result = try await client.request("process", params, onID: { self.activeRequest = $0 })
-            if !operatorInput && personaEnabled {
-                lastPersonaTurnReceipt = try NativePersonaTurnReceipt(result["persona_activation"])
-            } else if !result["persona_activation"].isNull {
-                throw NativeError.message("Ядро вернуло Persona receipt без активированного opt-in.")
-            }
-            let evidence = result["cognitive_turn"]
-            try checkKnowledgeMetadata(result["knowledge_context"])
-            let returnedNotes = result["knowledge_context"]["project_memory"].items
-            if automaticRecall {
-                let report = try NativeProjectRecallReport(result["knowledge_context"]["project_recall"], notes: returnedNotes, run: result["work_session"])
-                guard report.matches(conversation: conversationID, text: text, workspace: conversation.workspacePath,
-                                     mode: grant == nil ? "chat" : "full_access"),
-                      expectedProjectSnapshot == nil || expectedProjectSnapshot?.isNull == true || report.value["source_snapshot_hash"] == expectedProjectSnapshot,
-                      result["knowledge_context"] == result["work_session"]["context_manifest"]["knowledge_context"] else { throw NativeProjectRecallReport.error() }
-            } else {
-                guard result["knowledge_context"]["project_recall"].isNull,
-                      returnedNotes.count == projectNotes.count, zip(returnedNotes, projectNotes).allSatisfy({ row, note in
-                    row["id"] == note.raw["id"] && row["record_hash"] == note.raw["record_hash"]
-                }) else { throw projectMemoryError() }
-            }
-            guard result["knowledge_context"]["skill_task"] == (skillTask?.reference ?? .null) else { throw skillTaskError() }
-            if automaticSkills {
-                let report = try NativeAutoSkillsReport(result["auto_skills"], run: result["work_session"])
-                guard ["selected", "no_match", "empty", "unavailable"].contains(report.state),
-                      report.matches(conversation: conversationID, text: text, workspace: conversation.workspacePath,
-                                     mode: grant == nil ? "chat" : "full_access") else { throw NativeAutoSkillsReport.error() }
-                autoSkillsReport = report
-            } else if !result["auto_skills"].isNull { throw NativeAutoSkillsReport.error() }
-            let raw = result["text"].text
-            let body = result["exit_requested"].flag ? "Сессия ядра завершена. История диалога сохранена локально." : evidence.isNull ? raw : evidence["response"].text
-            var notices = result["notices"].items.map(\.text)
-            var suggestions: JSONValue?
-            if !result["memory_suggestions"].isNull {
-                do {
-                    guard suggestMemory else { throw memorySuggestionError() }
-                    let report = try MemorySuggestionsReport(result["memory_suggestions"], text: text, run: result["work_session"])
-                    guard UUID(uuidString: report.source["conversation_id"].text) == conversationID,
-                          ProjectMemoryScope(conversationID: conversationID, workspace: conversation.workspacePath ?? "").matches(report.source["workspace"]) else { throw memorySuggestionError() }
-                    if report.value["state"] == .string("unavailable") { notices.append("Предложения памяти недоступны: проверьте папку, настройки и заметки. Ответ сохранён; автоматической записи памяти не было.") }
-                    if !report.items.isEmpty { suggestions = report.value }
-                } catch { notices.append("Предложения памяти не прошли проверку источника. Ответ сохранён без карточек; ничего не записано в заметки проекта.") }
-            }
-            if !result["envelope_warning"].text.isEmpty { notices.append(result["envelope_warning"].text) }
-            try NativeImageAttachment.validate(result["image_context"].items)
-            guard images.isEmpty || result["image_context"] == .array(images) else {
-                throw NativeError.message("Результат не подтвердил выбранные изображения. Запрос не повторялся; проверьте журнал работы.")
-            }
-            try NativePDFAttachment.validate(result["pdf_context"].items)
-            guard pdfs.isEmpty || result["pdf_context"] == .array(pdfs) else {
-                throw NativeError.message("Результат не подтвердил выбранные страницы PDF. Запрос не повторялся; проверьте журнал работы.")
-            }
-            var turnReference: JSONValue?
-            if !operatorInput && ["codex", "ollama"].contains(conversation.provider) {
-                let run = try NativeWorkSession(result["work_session"])
-                guard run.id == requestedRunID?.uuidString.lowercased(), let receipt = run.turnReceipt else {
-                    throw NativeError.message("Завершённый ответ не содержит проверяемую квитанцию связи с запуском. Запрос не повторялся.")
-                }
-                turnReference = try NativeTurnReference.make(
-                    receipt: receipt.value, source: userMessage, conversation: conversationID, response: raw
-                )
-            } else if !result["work_session"]["turn_receipt"].isNull {
-                throw NativeError.message("Квитанция связи появилась на неподдерживаемом маршруте. Ответ не сохранён и запрос не повторялся.")
-            }
-            let message = ChatMessage(role: result["operator"].flag ? "report" : "assistant", text: body,
-                                      raw: raw, evidence: evidence, notices: notices,
-                                      fileContext: result["workspace_context"].items,
-                                      imageContext: result["image_context"].items,
-                                      pdfContext: result["pdf_context"].items,
-                                      agentRun: result["agent_run"].isNull ? nil : result["agent_run"],
-                                      workLog: result["work_log"].isNull ? nil : result["work_log"],
-                                      autoSkills: autoSkillsReport?.value,
-                                      knowledgeContext: result["knowledge_context"].isNull ? nil : result["knowledge_context"],
-                                      memorySuggestions: suggestions, memorySuggestionSourceID: suggestions == nil ? nil : userMessage.id,
-                                      turnReference: turnReference)
-            append(message, to: conversationID)
-            if !operatorInput, let current = conversations.firstIndex(where: { $0.id == conversationID }) {
-                conversations[current].pendingFiles = []
-                conversations[current].pendingImages = []
-                conversations[current].pendingPDFs = []
-                conversations[current].pendingCriteria = []
-                projectNoteSelections[conversationID] = nil
-                preparedSkillTasks[conversationID] = nil
-            }
-            inspectedMessageID = message.id
-            if !result["provider_thread"].isNull { codexThreadStatus = .null }
-            status = "Готов"
-        } catch {
-            if let current = conversations.firstIndex(where: { $0.id == conversationID }),
-               let failed = conversations[current].messages.firstIndex(where: { $0.id == userMessage.id }) {
-                conversations[current].messages[failed].isError = true
-            }
-            let caution = grant == nil ? "" : "\nДействия могли уже изменить файлы. Проверьте журнал и результат перед повтором; автоматического отката нет."
-            append(ChatMessage(role: "report", text: error.localizedDescription + caution, isError: true,
-                               agentRun: agentReceipt.isNull ? nil : agentReceipt,
-                               workLog: workLog.isNull ? nil : workLog, autoSkills: autoSkillsReport?.value), to: conversationID)
-            if grant != nil { discardAgentGrants(for: conversationID) }
-            if selectedID == conversationID && composer.isEmpty {
-                if let current = conversations.firstIndex(where: { $0.id == conversationID }) {
-                    conversations[current].draftContinuation = continuation
-                }
-                setComposer(text, preservingContinuation: true)
-            }
-            status = "Запрос не завершён"
-        }
-        busy = false; stream = ""; activeRequest = nil; agentItems = []; agentReceipt = .null; workLog = .null; turnStartedAt = nil; autoSkillsReport = nil
-        persist()
-        await refreshCodexThreadStatus()
-        await refresh()
-    }
-
-    func stop() async {
-        guard let request = activeRequest else { return }
-        do { status = try await client.request("cancel", ["request_id": .string(request)])["notice"].text }
-        catch { report(error) }
     }
 
     func login() async {
@@ -2042,7 +1025,7 @@ final class AppModel: ObservableObject {
         } catch { conversations[index].pendingPDFs = previous; throw error }
     }
 
-    private func resetWorkspaceView() { workspaceStatus = .null; workspaceListing = .null; filePreview = .null; workspaceError = nil }
+    func resetWorkspaceView() { workspaceStatus = .null; workspaceListing = .null; filePreview = .null; workspaceError = nil }
 
     func showLibrary(_ collection: LibraryCollection) async {
         guard !busy else { return }
@@ -2284,43 +1267,12 @@ final class AppModel: ObservableObject {
         NSPasteboard.general.setString(text, forType: .string)
     }
 
-    private func append(_ message: ChatMessage, to id: UUID) {
+    func append(_ message: ChatMessage, to id: UUID) {
         guard let index = conversations.firstIndex(where: { $0.id == id }) else { return }
         conversations[index].messages.append(message)
         conversations[index].updatedAt = Date()
     }
 
-    private func report(_ error: Error) { self.error = error.localizedDescription; status = "Нужна проверка" }
-    private func saveHistory() throws {
-        draftSave?.cancel()
-        do {
-            try store.save(ChatArchive(conversations: conversations, selectedID: selectedID))
-            dirtyDraft = false
-            if error == historyPersistence.failure { error = nil }
-            historyPersistence = HistoryPersistenceState()
-        } catch {
-            historyPersistence = HistoryPersistenceState(hasUnsavedChanges: true, failure: error.localizedDescription,
-                                                         requiresRecovery: store.writeBlocked)
-            throw error
-        }
-    }
+    func report(_ error: Error) { self.error = error.localizedDescription; status = "Нужна проверка" }
 
-    @discardableResult
-    private func persist() -> Bool {
-        do { try saveHistory(); return true }
-        catch { status = "История не сохранена"; return false }
-    }
-
-    @discardableResult
-    func retryHistorySave() -> Bool {
-        guard !busy, !client.turnOutstanding, !store.writeBlocked else { return false }
-        guard persist() else { return false }
-        status = "История сохранена"
-        return true
-    }
-
-    func saveBeforeExit() -> Bool {
-        guard dirtyDraft || historyPersistence.hasUnsavedChanges else { return true }
-        return persist()
-    }
 }

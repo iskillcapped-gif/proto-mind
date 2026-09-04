@@ -56,6 +56,8 @@ struct ProtoMindApp: App {
                     .keyboardShortcut("n").disabled(model.busy)
             }
             CommandMenu("Proto-Mind") {
+                Button("Копии и восстановление…") { model.openHistoryBackups() }
+                    .disabled(model.busy || model.client.turnOutstanding)
                 Button("Каталог команд") { model.section = .commands }
                     .keyboardShortcut("k")
                 Button("Рабочая папка") { model.section = .workspace; Task { await model.refreshWorkspace() } }

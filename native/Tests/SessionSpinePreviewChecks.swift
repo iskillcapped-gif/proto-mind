@@ -262,9 +262,13 @@ extension NativeChecks {
         let historyPath = state.appendingPathComponent("conversations.json").path
         let stabilizedKeys = Set(beforeWriter.keys).union(stabilizedHistory.keys)
         let changedByReadback = Set(stabilizedKeys.filter { beforeWriter[$0] != stabilizedHistory[$0] })
-        let changedHistoryOnly = changedByReadback.count == 1
-            && URL(fileURLWithPath: changedByReadback.first!).resolvingSymlinksInPath()
-                == URL(fileURLWithPath: historyPath).resolvingSymlinksInPath()
+        let historyRoot = state.resolvingSymlinksInPath().path + "/"
+        let changedHistoryOnly = changedByReadback.contains { URL(fileURLWithPath: $0).resolvingSymlinksInPath().path == historyRoot + "conversations.json" }
+            && changedByReadback.allSatisfy {
+                let path = URL(fileURLWithPath: $0).resolvingSymlinksInPath().path
+                return path == historyRoot + "conversations.json" || path == historyRoot + ".history.lock"
+                    || path.hasPrefix(historyRoot + "chat_objects/") || path.hasPrefix(historyRoot + "history_backups/")
+            }
         try check(app.sessionSpineWriterReceipt == nil && app.sessionSpineWriterPreview == nil
                   && !app.sessionSpinePilotArmed && !app.sessionSpineAcceptanceAccepted
                   && changedHistoryOnly

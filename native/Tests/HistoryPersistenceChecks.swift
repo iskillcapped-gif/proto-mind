@@ -30,15 +30,10 @@ extension NativeChecks {
         let state = root.appendingPathComponent("history-write-faults")
         var rejectWrites = false
         var rejectAnswers = false
-        let history = ChatStore(directory: state, dataWriter: { data, url in
-            let archive = try JSONDecoder().decode(ChatArchive.self, from: data)
+        let history = ChatStore(directory: state, beforeCommit: { archive in
             if rejectWrites || (rejectAnswers && archive.conversations.contains { $0.messages.contains { $0.role == "assistant" } }) {
                 throw NativeError.message("Synthetic disk write failure")
             }
-            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true,
-                                                     attributes: [.posixPermissions: 0o700])
-            try data.write(to: url, options: .atomic)
-            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
         })
         let configuration = LaunchConfiguration(projectRoot: fixture, python: python, stateDirectory: state)
         let app = AppModel(configuration: configuration, historyStore: history)

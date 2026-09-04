@@ -11,6 +11,12 @@ struct NativeSettingsView: View {
 
     var body: some View {
         Form {
+            Section("История диалогов") {
+                Button("Копии и восстановление…") { model.openHistoryBackups() }
+                    .disabled(model.busy || model.client.turnOutstanding)
+                Text("Сохранить диалоги отдельно или восстановить их из проверенной копии.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             Section("Модель этого диалога") {
                 Picker("Провайдер", selection: Binding(get: { model.selected?.provider ?? "ollama" }, set: model.setProvider)) {
                     Text("Ollama · полностью локально").tag("ollama")

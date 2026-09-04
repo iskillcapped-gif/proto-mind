@@ -86,9 +86,13 @@ extension NativeChecks {
         let history = ChatStore(directory: historyState)
         let readback = try history.saveAndReadBack(ChatArchive(conversations: [conversation], selectedID: conversation.id))
         let digest = SHA256.hash(data: readback.data).map { String(format: "%02x", $0) }.joined()
+        let manifestBytes = try Data(contentsOf: history.url)
+        let entry = try ChatHistoryFormat.manifest(manifestBytes).conversations[0]
+        let conversationBytes = try Data(contentsOf: history.objectsDirectory.appendingPathComponent(entry.sha256 + ".json"))
         try check(readback.sizeBytes == readback.data.count && readback.sha256 == digest &&
-                  readback.archive.selectedID == conversation.id && readback.data == (try Data(contentsOf: history.url)),
-                  "Throwable history save returns exact decoded bytes from post-save readback")
+                  readback.archive.selectedID == conversation.id
+                  && readback.data == ChatHistoryFormat.turnSnapshot(manifest: manifestBytes, entry: entry, conversation: conversationBytes),
+                  "Throwable history readback binds the exact manifest and selected conversation bytes")
 
         let failedState = root.appendingPathComponent("session-spine-history-readback-failure")
         let failedReadback = ChatStore(directory: failedState, dataReader: { _ in

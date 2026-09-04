@@ -1,0 +1,231 @@
+import AppKit
+import Foundation
+
+// Main-actor transitions for this domain; stored state remains in AppModel.
+extension AppModel {
+    func submit(_ supplied: String? = nil) async {
+        let text = (supplied ?? composer).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, !busy, !loadingDroppedAttachments, !loadingImagePreview, !loadingPDFPreview,
+              imagePreview == nil, pdfPreview == nil, attachmentDropPreview == nil,
+              selected?.archived != true, let conversationID = selectedID else { return }
+        guard !historyPersistence.blocksSubmission, !store.writeBlocked else {
+            if composer.isEmpty { setComposer(text, preservingContinuation: true) }
+            status = "Сначала восстановите сохранение истории"
+            return
+        }
+        busy = true
+        do {
+            let description = try await client.request("describe", ["text": .string(text)])
+            guard !description["blocked"].flag else { throw NativeError.message(description["notice"].text) }
+            if description["requires_confirmation"].flag {
+                let summary = description["steps"].items.map { "\($0["command"].text)\nИзменяет: \($0["mutates"].text) · риск: \($0["risk"].text)" }.joined(separator: "\n\n")
+                pendingAction = PendingOperatorAction(text: text, conversationID: conversationID, summary: summary)
+                busy = false
+                return
+            }
+            await perform(text, conversationID: conversationID, confirmed: false, operatorInput: description["operator"].flag)
+        } catch { busy = false; report(error) }
+    }
+
+    func confirmPending() async {
+        guard let action = pendingAction else { return }
+        guard !historyPersistence.blocksSubmission, !store.writeBlocked else {
+            status = "Сначала восстановите сохранение истории"
+            return
+        }
+        pendingAction = nil
+        busy = true
+        await perform(action.text, conversationID: action.conversationID, confirmed: true, operatorInput: true)
+    }
+
+    private func perform(_ text: String, conversationID: UUID, confirmed: Bool, operatorInput: Bool) async {
+        guard let index = conversations.firstIndex(where: { $0.id == conversationID }) else { busy = false; return }
+        invalidateSessionSpinePilot()
+        let conversation = conversations[index]
+        let history = conversation.history
+        let files = operatorInput ? [] : conversation.pendingFiles
+        let images = operatorInput ? [] : conversation.pendingImages
+        let pdfs = operatorInput ? [] : conversation.pendingPDFs
+        let criteria = operatorInput ? [] : conversation.pendingCriteria
+        let projectNotes = operatorInput ? [] : projectNoteSelections[conversationID] ?? []
+        let skillTask = operatorInput ? nil : preparedSkillTasks[conversationID]
+        let automaticSkills = !operatorInput && conversation.provider == "codex" && conversation.autoSkillsEnabled && skillTask == nil
+        let automaticRecall = !operatorInput && conversation.provider == "codex" && conversation.autoProjectRecallEnabled && projectNotes.isEmpty
+        let suggestMemory = !operatorInput && conversation.provider == "codex" && conversation.memorySuggestionsEnabled && conversation.workspacePath != nil
+        let grant = !operatorInput && fullAccessEnabled ? agentGrants[conversationID] : nil
+        let reviewedRecall = contextPreview.flatMap { try? NativeProjectRecallReport($0.manifest["knowledge_context"]["project_recall"]) }
+        let expectedProjectSnapshot = automaticRecall && reviewedRecall?.matches(conversation: conversationID, text: text,
+            workspace: conversation.workspacePath, mode: grant == nil ? "chat" : "full_access") == true
+            ? reviewedRecall?.value["source_snapshot_hash"] : nil
+        let continuation = operatorInput ? nil : conversation.draftContinuation
+        let userMessage = ChatMessage(role: "user", text: text, operatorInput: operatorInput, fileContext: files, imageContext: images, pdfContext: pdfs)
+        conversations[index].messages.append(userMessage)
+        if conversations[index].title == "Новый диалог" {
+            conversations[index].title = String(text.split(whereSeparator: \.isWhitespace).joined(separator: " ").prefix(54))
+        }
+        conversations[index].updatedAt = Date()
+        setComposer(""); stream = ""; agentItems = []; agentReceipt = .null; workLog = .null; autoSkillsReport = nil
+        turnStartedAt = Date(); section = .chat
+        status = grant == nil ? "Proto-Mind думает" : "Агент подключается · полный доступ + интернет"
+        guard persist() else {
+            // The provider has not been called. Restore the draft and attachments;
+            // a local save failure must not create a failed or duplicate turn.
+            conversations[index] = conversation
+            if selectedID == conversationID {
+                restoreComposer()
+                if composer.isEmpty { setComposer(text, preservingContinuation: true) }
+            }
+            busy = false; turnStartedAt = nil
+            return
+        }
+        do {
+            let requestedRunID = operatorInput ? nil : UUID()
+            var params: [String: JSONValue] = [
+                "text": .string(text), "conversation_id": .string(conversationID.uuidString),
+                "provider": .string(conversation.provider), "model": .string(conversation.model),
+                "reasoning_effort": .string(conversation.provider == "codex" ? conversation.reasoningEffort : ""),
+                "cloud_consent": .bool(cloudConsent), "history": .array(history),
+                "persona_enabled": .bool(!operatorInput && personaEnabled),
+            ]
+            if confirmed { params["confirmed_text"] = .string(text) }
+            if let requestedRunID {
+                params["run_id"] = .string(requestedRunID.uuidString)
+                params["criteria"] = .array(criteria.map(JSONValue.string))
+                params["images"] = .array(images)
+                params["pdfs"] = .array(pdfs)
+                params["project_memory"] = .array(projectNotes.map(\.selection))
+                params["auto_skills"] = .bool(automaticSkills)
+                params["auto_project_recall"] = .bool(automaticRecall)
+                params["memory_suggestions"] = .bool(suggestMemory)
+                if let expectedProjectSnapshot, !expectedProjectSnapshot.isNull { params["expected_project_snapshot"] = expectedProjectSnapshot }
+                if let skillTask { params["skill_task"] = skillTask.selection }
+                if let root = conversation.workspacePath { params["workspace_root"] = .string(root) }
+                if let continuation { params["continuation"] = continuation }
+            }
+            if let grant {
+                params["access_mode"] = .string("full_access")
+                params["access_token"] = .string(grant.token)
+                params["workspace_root"] = .string(grant.workspace)
+            }
+            if !files.isEmpty, let root = conversation.workspacePath {
+                params["workspace_root"] = .string(root)
+                params["files"] = .array(files)
+            }
+            let result = try await client.request("process", params, onID: { self.activeRequest = $0 })
+            if !operatorInput && personaEnabled {
+                lastPersonaTurnReceipt = try NativePersonaTurnReceipt(result["persona_activation"])
+            } else if !result["persona_activation"].isNull {
+                throw NativeError.message("Ядро вернуло Persona receipt без активированного opt-in.")
+            }
+            let evidence = result["cognitive_turn"]
+            try checkKnowledgeMetadata(result["knowledge_context"])
+            let returnedNotes = result["knowledge_context"]["project_memory"].items
+            if automaticRecall {
+                let report = try NativeProjectRecallReport(result["knowledge_context"]["project_recall"], notes: returnedNotes, run: result["work_session"])
+                guard report.matches(conversation: conversationID, text: text, workspace: conversation.workspacePath,
+                                     mode: grant == nil ? "chat" : "full_access"),
+                      expectedProjectSnapshot == nil || expectedProjectSnapshot?.isNull == true || report.value["source_snapshot_hash"] == expectedProjectSnapshot,
+                      result["knowledge_context"] == result["work_session"]["context_manifest"]["knowledge_context"] else { throw NativeProjectRecallReport.error() }
+            } else {
+                guard result["knowledge_context"]["project_recall"].isNull,
+                      returnedNotes.count == projectNotes.count, zip(returnedNotes, projectNotes).allSatisfy({ row, note in
+                    row["id"] == note.raw["id"] && row["record_hash"] == note.raw["record_hash"]
+                }) else { throw projectMemoryError() }
+            }
+            guard result["knowledge_context"]["skill_task"] == (skillTask?.reference ?? .null) else { throw skillTaskError() }
+            if automaticSkills {
+                let report = try NativeAutoSkillsReport(result["auto_skills"], run: result["work_session"])
+                guard ["selected", "no_match", "empty", "unavailable"].contains(report.state),
+                      report.matches(conversation: conversationID, text: text, workspace: conversation.workspacePath,
+                                     mode: grant == nil ? "chat" : "full_access") else { throw NativeAutoSkillsReport.error() }
+                autoSkillsReport = report
+            } else if !result["auto_skills"].isNull { throw NativeAutoSkillsReport.error() }
+            let raw = result["text"].text
+            let body = result["exit_requested"].flag ? "Сессия ядра завершена. История диалога сохранена локально." : evidence.isNull ? raw : evidence["response"].text
+            var notices = result["notices"].items.map(\.text)
+            var suggestions: JSONValue?
+            if !result["memory_suggestions"].isNull {
+                do {
+                    guard suggestMemory else { throw memorySuggestionError() }
+                    let report = try MemorySuggestionsReport(result["memory_suggestions"], text: text, run: result["work_session"])
+                    guard UUID(uuidString: report.source["conversation_id"].text) == conversationID,
+                          ProjectMemoryScope(conversationID: conversationID, workspace: conversation.workspacePath ?? "").matches(report.source["workspace"]) else { throw memorySuggestionError() }
+                    if report.value["state"] == .string("unavailable") { notices.append("Предложения памяти недоступны: проверьте папку, настройки и заметки. Ответ сохранён; автоматической записи памяти не было.") }
+                    if !report.items.isEmpty { suggestions = report.value }
+                } catch { notices.append("Предложения памяти не прошли проверку источника. Ответ сохранён без карточек; ничего не записано в заметки проекта.") }
+            }
+            if !result["envelope_warning"].text.isEmpty { notices.append(result["envelope_warning"].text) }
+            try NativeImageAttachment.validate(result["image_context"].items)
+            guard images.isEmpty || result["image_context"] == .array(images) else {
+                throw NativeError.message("Результат не подтвердил выбранные изображения. Запрос не повторялся; проверьте журнал работы.")
+            }
+            try NativePDFAttachment.validate(result["pdf_context"].items)
+            guard pdfs.isEmpty || result["pdf_context"] == .array(pdfs) else {
+                throw NativeError.message("Результат не подтвердил выбранные страницы PDF. Запрос не повторялся; проверьте журнал работы.")
+            }
+            var turnReference: JSONValue?
+            if !operatorInput && ["codex", "ollama"].contains(conversation.provider) {
+                let run = try NativeWorkSession(result["work_session"])
+                guard run.id == requestedRunID?.uuidString.lowercased(), let receipt = run.turnReceipt else {
+                    throw NativeError.message("Завершённый ответ не содержит проверяемую квитанцию связи с запуском. Запрос не повторялся.")
+                }
+                turnReference = try NativeTurnReference.make(
+                    receipt: receipt.value, source: userMessage, conversation: conversationID, response: raw
+                )
+            } else if !result["work_session"]["turn_receipt"].isNull {
+                throw NativeError.message("Квитанция связи появилась на неподдерживаемом маршруте. Ответ не сохранён и запрос не повторялся.")
+            }
+            let message = ChatMessage(role: result["operator"].flag ? "report" : "assistant", text: body,
+                                      raw: raw, evidence: evidence, notices: notices,
+                                      fileContext: result["workspace_context"].items,
+                                      imageContext: result["image_context"].items,
+                                      pdfContext: result["pdf_context"].items,
+                                      agentRun: result["agent_run"].isNull ? nil : result["agent_run"],
+                                      workLog: result["work_log"].isNull ? nil : result["work_log"],
+                                      autoSkills: autoSkillsReport?.value,
+                                      knowledgeContext: result["knowledge_context"].isNull ? nil : result["knowledge_context"],
+                                      memorySuggestions: suggestions, memorySuggestionSourceID: suggestions == nil ? nil : userMessage.id,
+                                      turnReference: turnReference)
+            append(message, to: conversationID)
+            if !operatorInput, let current = conversations.firstIndex(where: { $0.id == conversationID }) {
+                conversations[current].pendingFiles = []
+                conversations[current].pendingImages = []
+                conversations[current].pendingPDFs = []
+                conversations[current].pendingCriteria = []
+                projectNoteSelections[conversationID] = nil
+                preparedSkillTasks[conversationID] = nil
+            }
+            inspectedMessageID = message.id
+            if !result["provider_thread"].isNull { codexThreadStatus = .null }
+            status = "Готов"
+        } catch {
+            if let current = conversations.firstIndex(where: { $0.id == conversationID }),
+               let failed = conversations[current].messages.firstIndex(where: { $0.id == userMessage.id }) {
+                conversations[current].messages[failed].isError = true
+            }
+            let caution = grant == nil ? "" : "\nДействия могли уже изменить файлы. Проверьте журнал и результат перед повтором; автоматического отката нет."
+            append(ChatMessage(role: "report", text: error.localizedDescription + caution, isError: true,
+                               agentRun: agentReceipt.isNull ? nil : agentReceipt,
+                               workLog: workLog.isNull ? nil : workLog, autoSkills: autoSkillsReport?.value), to: conversationID)
+            if grant != nil { discardAgentGrants(for: conversationID) }
+            if selectedID == conversationID && composer.isEmpty {
+                if let current = conversations.firstIndex(where: { $0.id == conversationID }) {
+                    conversations[current].draftContinuation = continuation
+                }
+                setComposer(text, preservingContinuation: true)
+            }
+            status = "Запрос не завершён"
+        }
+        busy = false; stream = ""; activeRequest = nil; agentItems = []; agentReceipt = .null; workLog = .null; turnStartedAt = nil; autoSkillsReport = nil
+        persist()
+        await refreshCodexThreadStatus()
+        await refresh()
+    }
+
+    func stop() async {
+        guard let request = activeRequest else { return }
+        do { status = try await client.request("cancel", ["request_id": .string(request)])["notice"].text }
+        catch { report(error) }
+    }
+
+}

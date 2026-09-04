@@ -2,7 +2,7 @@
 
 Decision date: 2026-08-31. This is post-contest work for the operator's personal use, not a change to the submitted Build Week baseline or a commercial product plan.
 
-For the curated future direction and current-versus-missing capability map, see [Personal Agent Evolution](PROTO_MIND_EVOLUTION_ROADMAP.md). EV-01, EV-02's context desk, criteria/manual acceptance and selected-image inputs, durable Codex sessions and Full Mac live Web Search are delivered below; remaining work packages are proposals, not execution grants.
+For the current priority map and the agreed next interface stage, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
 ## Architecture Decision
 
@@ -871,22 +871,27 @@ Private UI state lives outside core stores:
 
 ```text
 ~/Library/Application Support/ProtoMindNative/
-    conversations.json       atomic history, file permissions 0600
+    conversations.json       atomic v6 manifest, file permissions 0600
+    .history.lock            persistent cooperative dialog read/write lock
+    chat_objects/            immutable conversation JSON objects, 0700/0600
+    history_backups/          retained manifests and pinned legacy/recovery copies
     preferences.json         atomic explicit cloud opt-in, permissions 0600
     work_sessions/           per-run public evidence, private 0700 directory
-    learning_history/        explicitly saved immutable skill evidence, private 0700/0600
-    project_memory/          explicit immutable project notes, private 0700/0600
         <uuid>.json          atomic bounded run records, permissions 0600
         .writer.lock         cooperative normal-turn/manual-review writer lease
+    learning_history/        explicitly saved immutable skill evidence, private 0700/0600
+    project_memory/          explicit immutable project notes, private 0700/0600
     codex_threads.json       Native conversation/provider thread bindings, 0600
     codex-profile/           credentials/config and durable rollouts managed by Codex itself
     codex-user-home/         isolated child HOME
     codex-empty-workspace/   no project checkout exposed to Codex
 ```
 
-Conversation history can contain private messages, answer evidence, raw core reports, selected-image/PDF paths/hashes/page metadata and per-run notice display preferences, but not attached image/PDF bytes or extracted PDF text. Answers may quote sources and are still persisted normally. Display preferences do not enter model history. It is not a redacted export. Current writes use v5; v1-v4 load without automatic rewriting or document reads. Invalid or unknown-version history blocks further saves rather than overwriting the original file. History is limited to 50 MB; no automatic deletion/rotation is implemented. `codex_threads.json` contains identifiers, not transcripts, but the separate Codex profile can contain the full provider rollout. Do not publish this directory. Backing up Native state/provider history is separate from the existing project `/memory backup` archive.
+Conversation history can contain private messages, answer evidence, raw core reports, selected-image/PDF paths/hashes/page metadata and per-run notice display preferences, but not attached image/PDF bytes or extracted PDF text. Answers may quote sources and are still persisted normally. Display preferences do not enter model history. It is not a redacted export. Current writes use a v6 manifest with separate immutable conversation objects; v1-v5 load without rewriting or document reads. The next save preserves the exact legacy archive before conversion. Invalid or unknown-version history blocks ordinary saves and offers explicit verified recovery. The previous global 50 MB ceiling is replaced with a 50 MiB per-dialog bound and 10,000-dialog limit. The last 20 automatic snapshots are retained in addition to pinned migration/recovery copies; cleanup only removes verified objects unused by all retained manifests. See the 0.46.0 contract below. `codex_threads.json` contains identifiers, not transcripts, but the separate Codex profile can contain the full provider rollout. Do not publish this directory. Backing up Native state/provider history is separate from the existing project `/memory backup` archive.
 
 ## Verification And Evidence Ceiling
+
+The following is historical foundation evidence. Current suite counts and release checks are in the [Architect Ledger](PROTO_MIND_ARCHITECT_LEDGER.md#current-verification-baseline) and the latest release section.
 
 - `scripts/run_tests.sh`: 1,497 tests pass (1,491 previous + 6 Computer Use discovery/configuration/privacy regressions); compileall passes and optional pytest is not installed.
 - `scripts/test_native.sh`: 349 dependency-free Swift checks pass, adding explicit Web Search/Computer Use capability disclosure to the previous conversation-bound context/session, PDF, notice/review-availability, attachment-layout/drop, image, criteria/review, context/artifact, work-session, menu/sidebar, model/effort, library and grant regressions. Real stdio/PDFKit checks use code-only temporary fixtures and Command Line Tools without requiring XCTest from a full Xcode installation.
@@ -909,15 +914,7 @@ Conversation history can contain private messages, answer evidence, raw core rep
 
 ## Next Steps
 
-1. EV-01, narrow manual assessment and durable provider-thread resume are delivered with the limits above. Run a personal two-turn/restart smoke, then gather ordinary-use feedback before expanding retention or automated verification. Keep the private child bridge, without a daemon or automatic retry.
-2. EV-02's desk, operator criteria/assessment, selected PNG/JPEG Codex input, bounded PDF page text and explicit scoped project notes are delivered. Visual/scanned-document input and eventual local-provider vision remain separate follow-ups; the legacy global core is not project-isolated. Model/effort selection and the 0.151.0 Sol compatibility update are verified; future Desktop parity is not assumed.
-3. Computer Use is now available only inside explicit broad Full Mac. Add a genuinely enforced project-scoped tool mode and finer approval/revocation broker before arbitrary plugins/MCP or sensitive automation; preserve Full Mac for trusted operator-directed work without describing prompt guidance as enforcement.
-4. EV-04 now exposes verified provenance, candidate/decision/proposal/lesson apply, authored skills, manual outcomes, decisions, separately confirmed archive/restore, explicitly saved historical evidence, scoped project notes, operator-guided tasks, automatic skill guidance, a separately labelled built-in starter set and bounded local current-project recall. Next proposed slice is source-grounded learning suggestions; gather ordinary-task evidence before automatic promotion or generalized step execution. Generalized durable review drafts, full authoring-receipt archives and pending post-restore outcome writers remain separate decisions, not permissions granted by this UI.
-5. Build OCR/visual-document handling, non-destructive image preparation and push-to-talk on explicit input/privacy boundaries. Full Mac Computer Use can observe the live screen but does not convert screen/PDF content into a durable local OCR corpus. Browser cookies/logged-in web flows and later parallel/background work need separate tested scope.
-6. Package runtime discovery and private-state backup/restore for the personal Mac. Keep the PySide fallback, existing cognitive follow-up work and core store formats; defer commercial/distribution and cross-project integration plans unless separately chosen.
-
-Current limitations: not a pixel-identical Codex clone; Computer Use depends on the separately installed signed OpenAI service and its macOS permissions, has broad Full Mac authority, no per-click confirmation and no automatic rollback. The privacy-reduced journal intentionally cannot reconstruct screen state or entered values. There are no scanned/visual/encrypted PDF or HEIC/GIF inputs, local-provider vision, OCR, voice UI, full transcript import/reconciliation, automatic sync, provider-history retention UI or account-rate dashboard. Attachments are bounded; Full Mac tools can inspect content independently and previews are not secret detectors. PDF extraction can lose layout. Tool receipts are bounded observations, not secure audit/rollback artifacts. Only one turn is active at a time; up to 32 live core conversations per bridge. Avoid concurrent CLI/PySide/native/agent writes because existing JSON stores have no cross-process transaction manager.
-
+The current sequence and remaining capabilities are maintained in [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md), avoiding a second, drifting task list here. After the reliability and structure batch, the operator chose everyday interface refinement, followed by a separately scoped functional expansion.
 
 ## Scalable Work Session History / Native 0.45.0
 
@@ -936,3 +933,36 @@ A disposable 3,002-run measurement on the development Mac recorded a complete sy
 Verification: 2,137 Python tests (11 added), compile checks and 1,012 Native checks (37 added) pass. New cases cover more than 500 runs, byte-budget pagination without omissions, cursor scope, concurrent newer entries, read-only exact lookup, corruption isolation and continuation reuse prevention. Temporary Native bridge fixtures exercise all 66 historical runs, exact old-message and Session Spine navigation, changed/missing evidence, retained readiness, bounded layout and a conversation switch with a page in flight. Persona evals pass 7/7 + 7/7 + 8/8 and Agent evals 6/6. Optional pytest is absent. All 87 protected personal core/export/Native files retain their exact bytes and inventory.
 
 Native 0.45.0 (52) builds successfully; plist validation and strict deep code-signature checks pass. The verified local app bundle replaces the previous bundle while preserving its files for the running process. The update is available on the next normal app restart.
+
+
+## Dialog Storage And Recovery / Native 0.46.0
+
+The previous `conversations.json` stored and rewrote every dialog on each save, shared a global 50 MB read ceiling and had no cross-process compare-and-swap. A second Native instance could overwrite a newer saved answer. Recovery from a damaged file required manual filesystem work.
+
+### Storage And Migration
+
+`ChatStore` now publishes immutable, SHA-256-addressed conversation objects in `chat_objects/` followed by one small atomic v6 manifest at the existing `conversations.json` path. A changed dialog is encoded and written once; unchanged dialogs reuse their objects, with file-revision checks before reuse. An unchanged archive creates no new snapshot or data write. File and directory fsyncs, private modes, regular-file checks and a persistent cooperative `.history.lock` protect the publication order. The writer compares the complete loaded manifest against current bytes under the exclusive lock. A conflict retains in-window data and offers export or loading the current history after a recovery copy.
+
+Legacy v1-v5 archives load without a write. The next save pins the exact original archive as `history_backups/legacy-<sha>.json` before publishing v6. Legacy input is bounded below 512 MiB; the new format permits up to 10,000 dialogs, each object below 50 MiB, with a manifest below 50 MiB. A synthetic archive larger than the former global ceiling is verified. Startup still materializes all dialogs and messages in memory, and editing a very large single dialog still rewrites that dialog. These are current bounds, not an unlimited-history or fully lazy-loading claim. All app instances sharing a history should use the updated version: older binaries do not implement this lock/format contract.
+
+### Verified Dialog Recovery
+
+**Копии и восстановление…** is reachable from the Proto-Mind menu, Settings and a persistent save-failure notice. It exports a self-contained `.protomind-history` folder with a verified manifest and conversation objects, including visible unsaved replies and drafts. Existing destinations are never overwritten. Selecting an exported folder, an old standalone archive or a local snapshot first validates the complete copy and shows dialog/message counts. Confirmation rechecks both source and target, preserves the current on-disk bytes and in-window state, commits the selected history and verifies actual disk readback before reporting success. Changed input or target requires a new preview. Missing manifests with surviving history files open recovery instead of creating an empty replacement.
+
+Automatic local retention keeps the latest 20 pre-save manifests. Original-format and pre-recovery copies are pinned separately. Cleanup happens after a successful commit and only removes verified objects unused by every retained snapshot. Snapshot dependency checks are cached by file revision so a large pinned legacy archive is not parsed on every draft save; changed or invalid evidence stops cleanup. A damaged pinned copy can therefore leave extra snapshots/objects in place until reviewed. Local snapshots share the same disk: exporting elsewhere is needed for disk-loss recovery.
+
+The backup scope is **dialogs, drafts and dialog settings/evidence**. It excludes shared core memory, separate Work Sessions, project-memory and learning stores, provider session bindings/rollouts, credentials and original attachment files. Referenced runs and attachments remain usable only where their original separate data exists. Provider sessions are not rolled back and may still contain later messages; the restore preview states this before confirmation. This is not a full-machine restore or the detached P2e/P2f Session Spine archive-audit format. Restoring clears pending action grants and Spine readiness; it never submits a provider request or recreates access.
+
+### Integration And Maintainability
+
+The exact-turn Python adapter reads the complete v6 manifest and only the selected conversation object. Native and Python independently derive an identical byte envelope binding the entire manifest hash and exact conversation bytes into the existing v5 Spine handshake. Unrelated manifest changes still invalidate an old candidate. The first v5-to-v6 save invalidates the old P2l candidate before identity/Spine writes; a freshly reviewed v6 candidate can complete normally. The bridge holds the existing shared history lock through P2l preview/apply, preventing an updated Native process from changing history during that operation. Detached legacy audit budgets remain separate.
+
+`AppModel` retains shared MainActor state while dialog, turn execution, work-journal, Spine and persistence flows live in five dedicated extensions. Python history routes have their own module. The former 29,053-line flow test file becomes a stable aggregate for 21 topic modules plus common fixtures; all 1,193 original test-method ASTs match the preceding release exactly. Test provenance counts the split sources. The current roadmap replaces obsolete future-state claims and names interface refinement as the next stage.
+
+### Verification
+
+The complete Python suite passes 2,147 tests, including 10 new exact-history and lock regressions; compileall passes and optional pytest is absent. Native passes 1,041 checks, including 29 new storage/recovery cases. Coverage includes a real competing process, stale-write refusal, unchanged-object reuse and tampering, publication failure, restore readback failure, source/target drift, recovery from corruption or a missing manifest, retained snapshot dependencies, the former 50 MB boundary and existing Session Spine gates. Persona evals pass 7/7 + 7/7 + 8/8; Agent evals pass 6/6.
+
+An isolated signed QA app opens the actual recovery sheet from both menu and Settings, exports a portable copy, changes a draft and restores the earlier dialog through preview and confirmation. UI and independent disk checks confirm that the later draft remains in a recovery snapshot. No personal provider request or history migration is performed during acceptance. All 87 protected personal core/export/Native files retain their exact bytes and inventory.
+
+Native 0.46.0 (53) is built in a separate staging directory, with plist validation and strict deep signature verification. The verified bundle replaces the local app while retaining the previous bundle for its running process. It becomes active on the next normal app restart. The first subsequent history save performs the backed-up legacy conversion if required.

@@ -16,8 +16,16 @@ struct NativeChecks {
 
     @MainActor
     static func main() async throws {
+        if let state = LaunchConfiguration.argument("--history-write-probe") {
+            historyWriteProbe(URL(fileURLWithPath: state)); return
+        }
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("proto-native-checks-" + UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
+        if CommandLine.arguments.contains("--history-only") {
+            try chatStorage(root: root)
+            print("Native history checks: \(passed) OK")
+            return
+        }
         if CommandLine.arguments.contains("--memory-suggestions-only"),
            let fixture = LaunchConfiguration.argument("--fixture"), let python = LaunchConfiguration.argument("--python") {
             try memorySuggestionContracts(root: root)
@@ -79,6 +87,7 @@ struct NativeChecks {
         try personaActivationContracts(root: root)
         try instructionReceiptContracts()
         try turnLineageContracts(root: root)
+        try chatStorage(root: root)
         try sessionSpineDurabilityContracts(root: root)
         if let fixture = LaunchConfiguration.argument("--session-spine-fixture"),
            let state = LaunchConfiguration.argument("--session-spine-state"),
@@ -1350,7 +1359,11 @@ struct NativeChecks {
         let after = try fileBytes(state)
         let changed = Set(before.keys).union(after.keys).filter { before[$0] != after[$0] }
             .map { URL(fileURLWithPath: $0).resolvingSymlinksInPath().path }.sorted()
-        try check(changed == [app.store.url.resolvingSymlinksInPath().path] && app.selected == expected,
+        let historyRoot = state.resolvingSymlinksInPath().path + "/"
+        try check(changed.contains(app.store.url.resolvingSymlinksInPath().path)
+                  && changed.allSatisfy { $0 == historyRoot + "conversations.json"
+                      || $0.hasPrefix(historyRoot + "chat_objects/") || $0.hasPrefix(historyRoot + "history_backups/") }
+                  && app.selected == expected,
                   "Explicit hiding changes only display metadata in private conversation history")
         try check(!app.hasWorkSessionNotice && app.isWorkSessionWarningHidden(run)
                   && app.workSessions.first(where: { $0.id == run.id }) == run && run.needsReview,

@@ -20,7 +20,7 @@ struct HistoryPersistenceNotice: View {
                     .font(.callout.weight(.semibold))
                 Text(failure).font(.callout).textSelection(.enabled)
                 Text(model.historyPersistence.requiresRecovery
-                     ? "Исходный файл защищён от перезаписи. Восстановите историю из резервной копии и откройте приложение заново."
+                     ? "Исходные файлы защищены от перезаписи. Выберите проверенную резервную копию для восстановления."
                      : "Сообщения и черновики остаются в этом окне. Повторите сохранение перед отправкой следующего запроса.")
                     .font(.caption).foregroundStyle(.secondary)
                 HStack {
@@ -28,6 +28,8 @@ struct HistoryPersistenceNotice: View {
                         Button("Повторить сохранение") { model.retryHistorySave() }
                             .disabled(model.busy || model.client.turnOutstanding)
                     }
+                    Button("Копии и восстановление…") { model.openHistoryBackups() }
+                        .disabled(model.busy || model.client.turnOutstanding)
                     Button("Показать файл истории") {
                         NSWorkspace.shared.activateFileViewerSelecting([model.store.url])
                     }

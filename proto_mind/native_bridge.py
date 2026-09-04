@@ -76,14 +76,10 @@ from proto_mind.native_persona import (
     build_native_persona_preview,
     build_native_persona_runtime,
 )
-from proto_mind.native_session_spine_live import build_live_session_spine_preview
-from proto_mind.native_session_spine_writer import (
-    apply_native_session_spine_writer,
-    preview_native_session_spine_writer,
-)
 from proto_mind.persona_engine import validate_persona_snapshot
+from proto_mind.native_history_routes import HISTORY_METHODS, dispatch_history
 from proto_mind.native_work_sessions import WorkSessionStore, WorkSessionError, workspace_identity
-from proto_mind.native_desk import context_manifest, context_preview, capture_artifacts, artifact_page, artifact_preview, review_observations
+from proto_mind.native_desk import context_manifest, context_preview, capture_artifacts, review_observations
 from proto_mind.native_review import CONFIRM_REVIEW, criteria_context_message, validate_criteria, review_preview
 from proto_mind.natural_commands import route_natural_command
 from proto_mind.observer import Observer
@@ -1217,27 +1213,8 @@ class NativeBackend:
                                              workspace=workspace).report()
             finally:
                 self.busy.release()
-        if method == "work_sessions":
-            return self.work_sessions.page(params.get("conversation_id", ""), params.get("cursor"))
-        if method == "work_session_lookup":
-            return {"schema": "proto_mind.native_work_session_lookup.v1", "read_only": True,
-                    "run": self.work_sessions.lookup(params.get("run_id", ""), params.get("conversation_id", ""))}
-        if method == "session_spine_preview":
-            if self.closing.is_set() or not self.busy.acquire(blocking=False):
-                raise ValueError("Wait for the active turn before opening its Session Spine preview.")
-            try:
-                return build_live_session_spine_preview(self.work_sessions, params)
-            finally:
-                self.busy.release()
-        if method in {"session_spine_writer_preview", "session_spine_writer_apply"}:
-            if self.closing.is_set() or not self.busy.acquire(blocking=False):
-                raise ValueError("Wait for the active turn before opening the Session Spine writer pilot.")
-            try:
-                if method == "session_spine_writer_preview":
-                    return preview_native_session_spine_writer(self.work_sessions, self.state_dir, params)
-                return apply_native_session_spine_writer(self.work_sessions, self.state_dir, params)
-            finally:
-                self.busy.release()
+        if method in HISTORY_METHODS:
+            return dispatch_history(self, method, params)
         if method == "context_preview":
             return self.preview_context(params)
         if method == "persona_preview":
@@ -1248,22 +1225,6 @@ class NativeBackend:
             return self.image_reader().preview(params.get("path"), params.get("expected_sha256"))
         if method == "pdf_preview":
             return self.pdf_reader().preview(params.get("path"), params.get("pages"), params.get("expected_sha256"))
-        if method == "review_preview":
-            record = self.work_sessions.inspect(params.get("run"), params.get("conversation_id", ""))
-            return self._review_preview(params, record)
-        if method == "review_save":
-            return self.save_review(params)
-        if method in {"artifact_list", "artifact_preview"}:
-            record = self.work_sessions.inspect(params.get("run"), params.get("conversation_id", ""))
-            if method == "artifact_list":
-                return artifact_page(record)
-            return artifact_preview(record, params.get("artifact_id", ""), self._artifact_workspace(params, record))
-        if method == "work_session_continuation":
-            workspace = workspace_identity(self.workspace(params).root) if params.get("workspace_root") else None
-            result = self.work_sessions.continuation(params.get("continuation"), params.get("conversation_id", ""), workspace)
-            if result["sources"]:
-                self.workspace(params).context_files(result["sources"])
-            return result
         if method == "account_status":
             return self.subscription.account()
         if method == "account_login":

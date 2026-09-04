@@ -193,7 +193,9 @@ def _build_manifest(
     categories = Counter(item["category"] for item in files)
     docs = _decoded(content.get("ARCHITECTURE_MAP_V2.md", b""))
     registry_match = _REGISTRY_PATTERN.search(docs)
-    tests = _decoded(content.get("proto_mind/tests/test_flow.py", b""))
+    tests = "\n".join(_decoded(payload) for path, payload in sorted(content.items())
+                      if path == "proto_mind/tests/test_flow.py"
+                      or (path.startswith("proto_mind/tests/test_flow_") and path.endswith(".py")))
     return {
         "schema_version": PROVENANCE_SCHEMA_VERSION,
         "label": label,

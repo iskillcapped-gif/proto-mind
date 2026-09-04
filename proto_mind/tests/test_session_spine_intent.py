@@ -301,10 +301,11 @@ class SessionSpineIntentTests(unittest.TestCase):
 
     def test_production_writer_is_reachable_only_after_the_exact_native_gates(self):
         root = Path(__file__).resolve().parents[2]
-        app_model = (root / "native/Sources/AppModel.swift").read_text(encoding="utf-8")
+        app_model = (root / "native/Sources/SessionSpineFlowModel.swift").read_text(encoding="utf-8")
         bridge = (root / "proto_mind/native_bridge.py").read_text(encoding="utf-8")
+        routes = (root / "proto_mind/native_history_routes.py").read_text(encoding="utf-8")
         readiness = app_model[app_model.index("func openSessionSpineReadiness"):app_model.index("func openSessionSpineWriter")]
-        writer = app_model[app_model.index("func openSessionSpineWriter"):app_model.index("private func invalidateSessionSpinePilot")]
+        writer = app_model[app_model.index("func openSessionSpineWriter"):app_model.index("func invalidateSessionSpinePilot")]
         self.assertIn("NativeSessionSpineInstallationStore", app_model)
         self.assertNotIn("loadOrCreate()", readiness)
         self.assertNotIn("saveAndReadBack(", readiness)
@@ -312,9 +313,11 @@ class SessionSpineIntentTests(unittest.TestCase):
         self.assertIn("saveAndReadBack(", writer)
         self.assertIn('client.request("session_spine_writer_preview"', writer)
         self.assertIn('client.request("session_spine_writer_apply"', writer)
-        self.assertIn('method in {"session_spine_writer_preview", "session_spine_writer_apply"}', bridge)
-        self.assertNotIn("session_spine_intent", bridge)
-        self.assertNotIn("apply_native_turn_intent", bridge)
+        self.assertIn('method in HISTORY_METHODS', bridge)
+        self.assertIn('return dispatch_history(self, method, params)', bridge)
+        self.assertIn('method in {"session_spine_writer_preview", "session_spine_writer_apply"}', routes)
+        self.assertNotIn("session_spine_intent", bridge + routes)
+        self.assertNotIn("apply_native_turn_intent", bridge + routes)
         self.assertFalse(self.handshake["boundaries"]["native_activation"])
 
 

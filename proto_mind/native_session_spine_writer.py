@@ -18,6 +18,7 @@ from typing import Any, Iterator, Mapping
 
 from proto_mind.native_session_spine_live import NativeSessionSpineLiveError, build_live_session_spine_preview
 from proto_mind.native_work_sessions import WorkSessionError, WorkSessionStore
+from proto_mind.native_chat_history import NativeChatHistoryError, exact_turn_history, locked_history_read
 from proto_mind.session_spine_handshake import (
     MAX_HISTORY_BYTES,
     SessionSpineHandshakeError,
@@ -210,6 +211,10 @@ def _sources(work_sessions: WorkSessionStore, state_root: Path, params: Mapping[
         history_raw = _read_at(state_root, "conversations.json", limit=MAX_HISTORY_BYTES, required=True)
         if history_raw is None:
             raise NativeSessionSpineWriterError("Native history disappeared during exact inspection.")
+        history_raw = exact_turn_history(
+            history_raw, live["source"]["conversation_id"],
+            lambda name: _read_at(state_root / "chat_objects", name, limit=MAX_HISTORY_BYTES, required=True),
+        )
         history = inspect_native_history_turn_copy(
             history_raw,
             conversation_id=live["source"]["conversation_id"],
@@ -218,7 +223,7 @@ def _sources(work_sessions: WorkSessionStore, state_root: Path, params: Mapping[
         )
     except NativeSessionSpineWriterError:
         raise
-    except (NativeSessionSpineLiveError, WorkSessionError, SessionSpineHandshakeError) as error:
+    except (NativeSessionSpineLiveError, WorkSessionError, SessionSpineHandshakeError, NativeChatHistoryError) as error:
         raise NativeSessionSpineWriterError(f"Exact Native writer source did not verify: {error}") from None
     expected = {
         "run_id": live["source"]["run_id"],
@@ -346,6 +351,7 @@ def _preview_material(
     return preview, evidence
 
 
+@locked_history_read
 def preview_native_session_spine_writer(
     work_sessions: WorkSessionStore,
     state_dir: Path,
@@ -446,6 +452,7 @@ def _validate_preview(value: object, root: Path) -> dict[str, Any]:
     return {**preview, "preview_hash": digest}
 
 
+@locked_history_read
 def apply_native_session_spine_writer(
     work_sessions: WorkSessionStore,
     state_dir: Path,
