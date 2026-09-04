@@ -258,7 +258,9 @@ private struct ChatView: View {
                     ScrollView {
                         VStack(spacing: 0) {
                             if model.messages.isEmpty { welcome.padding(.top, 90).padding(.bottom, 45) }
-                            LazyVStack(alignment: .leading, spacing: 34) {
+                            // Variable-height selectable rows can enter a retained layout loop
+                            // in macOS SwiftUI's lazy stack after a long-lived window resumes.
+                            VStack(alignment: .leading, spacing: 34) {
                                 ForEach(model.messages) { message in
                                     MessageView(message: message, model: model).id(message.id)
                                 }
@@ -280,8 +282,9 @@ private struct ChatView: View {
                     }.coordinateSpace(name: "chat-scroll")
                         .modifier(ChatScrollIntent(followOutput: $followOutput))
                         .onPreferenceChange(ChatBottomKey.self) { value in
-                            nearBottom = value <= viewport.size.height + 85
-                            if #unavailable(macOS 15) { followOutput = nearBottom }
+                            let next = value <= viewport.size.height + 85
+                            if nearBottom != next { nearBottom = next }
+                            if #unavailable(macOS 15), followOutput != next { followOutput = next }
                         }
                         .onAppear { scrollToLatest(proxy) }
                         .onChange(of: model.selectedID) { _, _ in followOutput = true; scrollToLatest(proxy) }
@@ -349,9 +352,10 @@ private struct ChatScrollIntent: ViewModifier {
     func body(content: Content) -> some View {
         if #available(macOS 15, *) {
             content.onScrollPhaseChange { old, new, context in
-                if new == .interacting || new == .tracking { followOutput = false }
+                if (new == .interacting || new == .tracking), followOutput { followOutput = false }
                 if new == .idle && [.interacting, .tracking, .decelerating].contains(old) {
-                    followOutput = context.geometry.visibleRect.maxY >= context.geometry.contentSize.height - 85
+                    let next = context.geometry.visibleRect.maxY >= context.geometry.contentSize.height - 85
+                    if followOutput != next { followOutput = next }
                 }
             }
         } else { content }

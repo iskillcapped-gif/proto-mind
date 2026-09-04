@@ -100,6 +100,7 @@ struct NativeChecks {
         try workLogAndGrouping(root: root)
         try sidebarLayout(root: root)
         try hoverFeedback()
+        try transcriptLayout(root: root)
         try markdown()
 
         if let fixture = LaunchConfiguration.argument("--fixture"), let python = LaunchConfiguration.argument("--python") {
@@ -269,6 +270,38 @@ struct NativeChecks {
         try check(hover.fill > idle.fill && hover.border > 0, "Hover has a visible fill and outline")
         try check(pressed.fill > hover.fill, "Press is distinct from hover without layout scaling")
         try check(NativeHoverState(enabled: false, hovered: true, pressed: true) == idle, "Disabled controls do not advertise clickable hover feedback")
+        try check(!NativeInteractionPerformance.hoverAnimationEnabled,
+                  "Hover feedback is immediate and cannot queue animations while transcript controls scroll under the pointer")
+    }
+
+    @MainActor
+    static func transcriptLayout(root: URL) throws {
+        let state = root.appendingPathComponent("transcript-layout")
+        let app = AppModel(configuration: LaunchConfiguration(projectRoot: root, python: root, stateDirectory: state))
+        let completedLog: JSONValue = .object([
+            "schema": .string("proto_mind.native_work_log.v1"), "id": .string("layout-fixture"),
+            "public_only": .bool(true), "status": .string("completed"), "elapsed_ms": .number(850),
+            "entries": .array([.object(["kind": .string("commentary"), "text": .string("Checked the local fixture.")])])
+        ])
+        var messages: [ChatMessage] = []
+        for index in 0..<48 {
+            messages.append(ChatMessage(role: "user", text: "Question \(index)\n" + String(repeating: "variable text ", count: index % 7 + 1)))
+            messages.append(ChatMessage(
+                role: "assistant",
+                text: "## Result \(index)\n\nA selectable paragraph with [a link](https://example.com).\n\n```swift\nlet value = \(index)\n```",
+                workLog: index.isMultiple(of: 8) ? completedLog : nil
+            ))
+        }
+        app.conversations[0].messages = messages
+
+        let workspace = NSHostingController(rootView: WorkspaceView(model: app))
+        for _ in 0..<3 {
+            let size = workspace.sizeThatFits(in: CGSize(width: 1200, height: 860))
+            try check(size.width <= 1200 && size.height <= 860,
+                      "Long variable-height transcript stays bounded during repeated layout")
+        }
+        try check(!FileManager.default.fileExists(atPath: state.path) && !app.client.connected,
+                  "Long transcript layout does not write state or connect a provider")
     }
 
     @MainActor

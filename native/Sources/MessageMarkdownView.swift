@@ -63,8 +63,10 @@ struct MessageMarkdownView: View {
                 switch block.kind {
                 case .text:
                     Text(MarkdownBlock.inline(block.content)).font(NativeTheme.interfaceFont).lineSpacing(5)
+                        .textSelection(.enabled)
                 case .heading(let level):
                     Text(MarkdownBlock.inline(block.content)).font(.system(size: level < 3 ? 22 : 17, weight: .semibold)).padding(.top, 5)
+                        .textSelection(.enabled)
                 case .code(let language):
                     VStack(alignment: .leading, spacing: 0) {
                         HStack {
@@ -74,14 +76,13 @@ struct MessageMarkdownView: View {
                         }.font(.system(size: 10)).foregroundStyle(.secondary).padding(11)
                         Divider()
                         ScrollView(.horizontal) {
-                            Text(block.content).font(NativeTheme.codeFont).padding(13)
+                            Text(block.content).font(NativeTheme.codeFont).padding(13).textSelection(.enabled)
                         }
                     }.background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 10))
                         .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.primary.opacity(0.08)))
                 }
             }
-        }.textSelection(.enabled)
-            .environment(\.openURL, OpenURLAction { url in
+        }.environment(\.openURL, OpenURLAction { url in
                 ["http", "https"].contains(url.scheme?.lowercased() ?? "") ? .systemAction : .discarded
             })
     }

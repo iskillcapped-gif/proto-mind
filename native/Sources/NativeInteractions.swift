@@ -10,6 +10,12 @@ struct NativeHoverState: Equatable {
     }
 }
 
+enum NativeInteractionPerformance {
+    // Animated hover transitions can queue faster than SwiftUI can retire them while
+    // controls move beneath a stationary pointer during transcript scrolling.
+    static let hoverAnimationEnabled = false
+}
+
 private struct NativeHoverFeedback: ViewModifier {
     @Environment(\.isEnabled) private var enabled
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -18,6 +24,8 @@ private struct NativeHoverFeedback: ViewModifier {
 
     func body(content: Content) -> some View {
         let state = NativeHoverState(enabled: enabled, hovered: hovered, pressed: pressed)
+        let animation: Animation? = NativeInteractionPerformance.hoverAnimationEnabled && !reduceMotion
+            ? .easeOut(duration: 0.12) : nil
         content
             .contentShape(RoundedRectangle(cornerRadius: 8))
             .overlay {
@@ -26,8 +34,10 @@ private struct NativeHoverFeedback: ViewModifier {
                     .overlay { RoundedRectangle(cornerRadius: 8).strokeBorder(Color.primary.opacity(state.border), lineWidth: 1) }
                     .allowsHitTesting(false).accessibilityHidden(true)
             }
-            .onHover { hovered = $0 }
-            .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: state)
+            .onHover { next in
+                if hovered != next { hovered = next }
+            }
+            .animation(animation, value: state)
     }
 }
 
