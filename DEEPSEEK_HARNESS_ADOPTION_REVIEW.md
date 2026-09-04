@@ -170,16 +170,44 @@ manifest-last ordering, restart parity, run-once refusal, forged previews, conte
 missing/extra files, symlinks, unsafe permissions, partial writes, bounds, unknown-turn honesty and
 unchanged input/bundle bytes. No personal archive fixture or path is used.
 
-P2a/P2b/P2c/P2d are not production activation. Before any authoritative Native use, a separate
-checkpoint must design an apply/restore lifecycle and prove compatibility beyond explicitly selected
-copied fixtures. The broader P2 design must still provide:
+P2e is delivered as a whole-copy compatibility boundary in
+`proto_mind/session_spine_archive_copy.py`:
+
+- the caller supplies immutable bytes for one `conversations.json` copy, its exact SHA-256 and a
+  unique filename-sorted SHA-256 manifest for every supplied work-session record; there is no path,
+  directory scan, personal-state discovery, export or writer API;
+- Native history versions 1-5 and zero to 500 canonical current work-session copies are bounded and
+  parsed without migration. Existing work-session, Turn Lineage and P1 validators are reused rather
+  than approximated;
+- each persisted reference must name the immediately preceding exact user message and exact run.
+  Missing, invalid, changed, duplicate or reused evidence is an error and is never replaced with a
+  latest, adjacent or otherwise inferred run;
+- legacy unlinked answers, completed runs without receipts, lineage-capable orphan runs and incomplete
+  records remain visible as warnings. Compatible linked turns carry only IDs, counts, hashes and P1
+  event/surface fingerprints in the report, never copied prompt, answer, tool output or project path;
+- the deterministic report is self-hashed and explicitly denies file access, writes, execution,
+  migration, restore, deletion, compaction, model/provider calls, permission changes and writer
+  authority. Even `OK` is compatibility evidence only, not task success or production readiness;
+- the manifest proves integrity and completeness relative to the supplied file set. Because the
+  module deliberately never opens the source directory, it cannot prove that the caller copied every
+  record from that unseen source.
+
+Fourteen disposable regressions cover two-turn P1 parity, history v1-v5, mixed legacy/orphan evidence,
+missing and malformed runs, message/reference-hash drift, duplicate lineage and message IDs, exact manifest
+binding, malformed history, canonical-record enforcement, deterministic content-free output and no
+file access or input mutation. No personal archive copy is used.
+
+P2a/P2b/P2c/P2d/P2e are not production activation. P2e closes the structural whole-supplied-copy
+audit gap, but not source-directory completeness or a personal-history migration. Before any
+authoritative Native use, a separate checkpoint must still provide:
 
 - explicit production owner/session lifecycle binding;
 - an authorized migration/restore writer with exact post-write and rollback verification;
 - restart-safe reconstruction of interrupted turns;
 - versioned pure projections for chat, work timeline, turn outline, memory candidates, and telemetry;
 - bounded retention/export before any compaction;
-- explicit archive-wide copied-history compatibility evidence beyond caller-selected fixtures.
+- an explicitly authorized real-copy exercise and independently reviewed compatibility result before
+  any migration is proposed.
 
 Do not make the new store authoritative until old/new parity is proven on isolated fixtures
 and a separate private backup is created.

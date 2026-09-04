@@ -61,6 +61,21 @@ def fingerprint(record: dict) -> str:
     return hashlib.sha256(_bytes(record)).hexdigest()
 
 
+def inspect_work_session_copy(raw: bytes, name: str) -> dict:
+    """Validate one exact copied record without opening or changing a store."""
+    if type(raw) is not bytes or not raw or len(raw) > MAX_RECORD_BYTES:
+        raise WorkSessionError("Work-session copy is not bounded immutable bytes.")
+    try:
+        record = WorkSessionStore._parse(raw, name)
+        if _bytes(record) != raw:
+            raise WorkSessionError("Work-session copy is not the canonical Native record bytes.")
+        return WorkSessionStore._view(record, None)
+    except WorkSessionError:
+        raise
+    except (UnicodeDecodeError, UnicodeEncodeError, ValueError, TypeError, RecursionError):
+        raise WorkSessionError("Invalid work-session copy. No migration or overwrite was attempted.") from None
+
+
 def workspace_identity(path: Path | None) -> dict | None:
     if path is None:
         return None
