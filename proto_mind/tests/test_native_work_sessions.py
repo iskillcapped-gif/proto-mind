@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import errno
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -383,6 +384,11 @@ class WorkSessionBridgeTests(unittest.TestCase):
         self.assertEqual(receipt["schema"], "proto_mind.native_instruction_receipt.v1")
         self.assertTrue(receipt["content_free"])
         self.assertFalse(receipt["instruction_text_stored"])
+        turn = result["work_session"]["turn_receipt"]
+        self.assertEqual(turn["run_id"], self.params["run_id"])
+        self.assertEqual(turn["conversation_id"], self.params["conversation_id"])
+        self.assertEqual(turn["response_sha256"], hashlib.sha256(result["text"].encode()).hexdigest())
+        self.assertNotIn(result["text"], json.dumps(turn))
         self.assertEqual(len(self.backend.subscription.calls), 1)
         with self.assertRaisesRegex(sessions.WorkSessionError, "already used"):
             self.process()

@@ -22,6 +22,7 @@ from proto_mind.native_pdf import validate_pdf_metadata
 from proto_mind.native_review import ACCEPTANCE, criteria_contract, make_review, valid_reviews
 from proto_mind.native_knowledge import validate_knowledge_metadata
 from proto_mind.native_instructions import validate_instruction_receipt
+from proto_mind.native_turn_lineage import build_turn_receipt, validate_turn_receipt
 from proto_mind.native_agent_contract import (
     contract_hash,
     public_agent_contract,
@@ -193,6 +194,22 @@ class WorkSessionStore:
                 validate_instruction_receipt(receipt)
                 if (record.get("status") != "completed" or receipt["provider"] != record.get("provider")
                         or receipt["mode"] != record.get("access_mode")):
+                    raise ValueError()
+            turn_receipt = record.get("turn_receipt")
+            if turn_receipt is not None:
+                validate_turn_receipt(turn_receipt)
+                preview = record.get("answer_preview")
+                if (record.get("status") != "completed" or receipt is None
+                        or turn_receipt["run_id"] != record.get("id")
+                        or turn_receipt["conversation_id"] != record.get("conversation_id")
+                        or turn_receipt["provider"] != record.get("provider")
+                        or turn_receipt["mode"] != record.get("access_mode")
+                        or turn_receipt["input_chars"] != record.get("input_chars")
+                        or turn_receipt["input_sha256"] != record.get("input_sha256")
+                        or turn_receipt["instruction_receipt_hash"] != receipt["receipt_hash"]
+                        or not isinstance(preview, str)
+                        or turn_receipt["answer_preview_chars"] != len(preview)
+                        or turn_receipt["answer_preview_sha256"] != hashlib.sha256(preview.encode()).hexdigest()):
                     raise ValueError()
             if "auto_skills" in record:
                 validate_auto_skills(record["auto_skills"], record)
@@ -577,22 +594,29 @@ class WorkSession:
 
     def complete(self, answer: str, *, artifacts: dict | None = None,
                  instruction_receipt: dict | None = None) -> dict:
+        updated = deepcopy(self.record)
         if artifacts is not None:
-            if not valid_artifact_snapshot(artifacts, self.record):
+            if not valid_artifact_snapshot(artifacts, updated):
                 raise WorkSessionError("Invalid artifact evidence; no invented success was saved.")
         if instruction_receipt is not None:
             try:
                 validate_instruction_receipt(instruction_receipt)
             except ValueError:
                 raise WorkSessionError("Invalid instruction receipt. Nothing was saved.") from None
-            if (instruction_receipt["provider"] != self.record.get("provider")
-                    or instruction_receipt["mode"] != self.record.get("access_mode")):
+            if (instruction_receipt["provider"] != updated.get("provider")
+                    or instruction_receipt["mode"] != updated.get("access_mode")):
                 raise WorkSessionError("Instruction receipt does not match this work session. Nothing was saved.")
-            self.record["instruction_receipt"] = deepcopy(instruction_receipt)
+            updated["instruction_receipt"] = deepcopy(instruction_receipt)
         if artifacts is not None:
-            self.record["artifact_snapshot"] = deepcopy(artifacts)
-        self.record.update(status="completed", finished_at=timestamp(), updated_at=timestamp(),
-                           answer_preview=display_text(answer, 1600))
+            updated["artifact_snapshot"] = deepcopy(artifacts)
+        updated.update(status="completed", finished_at=timestamp(), updated_at=timestamp(),
+                       answer_preview=display_text(answer, 1600))
+        if instruction_receipt is not None:
+            try:
+                updated["turn_receipt"] = build_turn_receipt(work_session=updated, response=answer)
+            except ValueError:
+                raise WorkSessionError("Invalid Native turn receipt. Nothing was saved.") from None
+        self.record = updated
         self._save()
         return self.store._view(self.record, None)
 

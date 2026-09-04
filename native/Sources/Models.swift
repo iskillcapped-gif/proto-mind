@@ -63,6 +63,7 @@ struct ChatMessage: Codable, Identifiable, Equatable {
     var knowledgeContext: JSONValue? = nil
     var memorySuggestions: JSONValue? = nil
     var memorySuggestionSourceID: UUID? = nil
+    var turnReference: JSONValue? = nil
 }
 
 struct Conversation: Codable, Identifiable, Equatable {
@@ -119,6 +120,7 @@ struct Conversation: Codable, Identifiable, Equatable {
         for message in messages { if let report = message.autoSkills { _ = try NativeAutoSkillsReport(report) } }
         for message in messages { try checkKnowledgeMetadata(message.knowledgeContext ?? .null) }
         try validateMemorySuggestionHistory(messages, conversation: id)
+        try validateTurnLineageHistory(messages, conversation: id)
         pendingCriteria = try NativeTaskCriteria.validate(values.decodeIfPresent([String].self, forKey: .pendingCriteria) ?? [])
         draftContinuation = try values.decodeIfPresent(JSONValue.self, forKey: .draftContinuation)
         dismissedWorkSessionWarnings = try values.decodeIfPresent([NativeWorkSessionNotice].self, forKey: .dismissedWorkSessionWarnings) ?? []
@@ -200,6 +202,7 @@ final class ChatStore {
         guard !writeBlocked else { throw NativeError.message("Запись истории заблокирована, чтобы не перезаписать повреждённый файл.") }
         for conversation in archive.conversations {
             try validateMemorySuggestionHistory(conversation.messages, conversation: conversation.id)
+            try validateTurnLineageHistory(conversation.messages, conversation: conversation.id)
             try NativeWorkSessionNotice.validate(conversation.dismissedWorkSessionWarnings)
             try NativeImageAttachment.validate(conversation.pendingImages)
             try NativePDFAttachment.validate(conversation.pendingPDFs)

@@ -646,6 +646,17 @@ final class AppModel: ObservableObject {
         showWorkSessions = true
     }
 
+    func openWorkSession(for message: ChatMessage) async {
+        guard !busy, !loadingWorkSessions, let raw = message.turnReference, let conversation = selectedID else { return }
+        do {
+            let reference = try NativeTurnReference(raw)
+            await refreshWorkSessions()
+            let run = try reference.resolve(in: workSessions, conversation: conversation)
+            workSessionsActionError = nil
+            openWorkSessions(run)
+        } catch { report(error) }
+    }
+
     func setWorkSessionWarningHidden(_ run: NativeWorkSession, hidden: Bool) throws {
         guard !busy, !client.turnOutstanding, !loadingWorkSessions,
               let index = conversations.firstIndex(where: { $0.id == selectedID }),
@@ -1016,6 +1027,7 @@ final class AppModel: ObservableObject {
         status = grant == nil ? "Proto-Mind думает" : "Агент подключается · полный доступ + интернет"
         persist()
         do {
+            let requestedRunID = operatorInput ? nil : UUID()
             var params: [String: JSONValue] = [
                 "text": .string(text), "conversation_id": .string(conversationID.uuidString),
                 "provider": .string(conversation.provider), "model": .string(conversation.model),
@@ -1024,8 +1036,8 @@ final class AppModel: ObservableObject {
                 "persona_enabled": .bool(!operatorInput && personaEnabled),
             ]
             if confirmed { params["confirmed_text"] = .string(text) }
-            if !operatorInput {
-                params["run_id"] = .string(UUID().uuidString)
+            if let requestedRunID {
+                params["run_id"] = .string(requestedRunID.uuidString)
                 params["criteria"] = .array(criteria.map(JSONValue.string))
                 params["images"] = .array(images)
                 params["pdfs"] = .array(pdfs)
@@ -1099,6 +1111,18 @@ final class AppModel: ObservableObject {
             guard pdfs.isEmpty || result["pdf_context"] == .array(pdfs) else {
                 throw NativeError.message("Результат не подтвердил выбранные страницы PDF. Запрос не повторялся; проверьте журнал работы.")
             }
+            var turnReference: JSONValue?
+            if !operatorInput && ["codex", "ollama"].contains(conversation.provider) {
+                let run = try NativeWorkSession(result["work_session"])
+                guard run.id == requestedRunID?.uuidString.lowercased(), let receipt = run.turnReceipt else {
+                    throw NativeError.message("Завершённый ответ не содержит проверяемую квитанцию связи с запуском. Запрос не повторялся.")
+                }
+                turnReference = try NativeTurnReference.make(
+                    receipt: receipt.value, source: userMessage, conversation: conversationID, response: raw
+                )
+            } else if !result["work_session"]["turn_receipt"].isNull {
+                throw NativeError.message("Квитанция связи появилась на неподдерживаемом маршруте. Ответ не сохранён и запрос не повторялся.")
+            }
             let message = ChatMessage(role: result["operator"].flag ? "report" : "assistant", text: body,
                                       raw: raw, evidence: evidence, notices: notices,
                                       fileContext: result["workspace_context"].items,
@@ -1108,7 +1132,8 @@ final class AppModel: ObservableObject {
                                       workLog: result["work_log"].isNull ? nil : result["work_log"],
                                       autoSkills: autoSkillsReport?.value,
                                       knowledgeContext: result["knowledge_context"].isNull ? nil : result["knowledge_context"],
-                                      memorySuggestions: suggestions, memorySuggestionSourceID: suggestions == nil ? nil : userMessage.id)
+                                      memorySuggestions: suggestions, memorySuggestionSourceID: suggestions == nil ? nil : userMessage.id,
+                                      turnReference: turnReference)
             append(message, to: conversationID)
             if !operatorInput, let current = conversations.firstIndex(where: { $0.id == conversationID }) {
                 conversations[current].pendingFiles = []

@@ -409,6 +409,11 @@ private struct MessageView: View {
                         Button { showRaw.toggle() } label: { Image(systemName: "text.alignleft") }
                             .help("Исходный отчёт ядра").accessibilityLabel("Исходный отчёт ядра")
                     }
+                    if message.turnReference != nil {
+                        Button { Task { await model.openWorkSession(for: message) } } label: { Image(systemName: "clock.arrow.circlepath") }
+                            .disabled(model.busy || model.loadingWorkSessions)
+                            .help("Открыть точный запуск этого ответа").accessibilityLabel("Открыть точный запуск этого ответа")
+                    }
                 }.buttonStyle(.nativeHover).font(.system(size: 13)).foregroundStyle(.tertiary).padding(.top, 2)
                 if showRaw { Text(message.raw).font(.system(size: 11, design: .monospaced)).textSelection(.enabled) }
             }.frame(maxWidth: .infinity, alignment: .leading)

@@ -78,6 +78,7 @@ struct NativeChecks {
         try preferencesAndLegacyHistory(root: root)
         try personaActivationContracts(root: root)
         try instructionReceiptContracts()
+        try turnLineageContracts(root: root)
         try conversationManagement(root: root)
         try modelSelection(root: root)
         try modelMenuLayout(root: root)

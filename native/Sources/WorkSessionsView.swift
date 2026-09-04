@@ -7,6 +7,7 @@ struct NativeWorkSession: Identifiable, Equatable {
     var needsReview: Bool { ["unknown", "not_started"].contains(state) }
     var canPrepare: Bool { !["running", "preparing"].contains(state) }
     var instructionReceipt: NativeInstructionReceipt? { try? NativeInstructionReceipt(value["instruction_receipt"]) }
+    var turnReceipt: NativeTurnReceipt? { try? NativeTurnReceipt(value["turn_receipt"]) }
     var reference: JSONValue { .object(["run_id": .string(id), "fingerprint": value["fingerprint"]]) }
     var title: String {
         switch state {
@@ -54,6 +55,18 @@ struct NativeWorkSession: Identifiable, Equatable {
             guard value["status"] == .string("completed"), receipt.value["provider"] == value["provider"],
                   receipt.value["mode"] == value["access_mode"] else {
                 throw NativeError.message("Квитанция инструкций не соответствует сохранённому запуску. Файл не изменён.")
+            }
+        }
+        if !value["turn_receipt"].isNull {
+            let receipt = try NativeTurnReceipt(value["turn_receipt"])
+            guard value["status"] == .string("completed"), !value["instruction_receipt"].isNull,
+                  receipt.value["run_id"] == value["id"], receipt.value["conversation_id"] == value["conversation_id"],
+                  receipt.value["provider"] == value["provider"], receipt.value["mode"] == value["access_mode"],
+                  receipt.value["input_chars"] == value["input_chars"], receipt.value["input_sha256"] == value["input_sha256"],
+                  receipt.value["instruction_receipt_hash"] == value["instruction_receipt"]["receipt_hash"],
+                  receipt.value["answer_preview_chars"].integer == value["answer_preview"].text.unicodeScalars.count,
+                  receipt.value["answer_preview_sha256"] == .string(NativeTurnReceipt.hash(value["answer_preview"].text)) else {
+                throw NativeError.message("Квитанция связи хода не соответствует сохранённому запуску. Файл не изменён.")
             }
         }
         self.value = value
