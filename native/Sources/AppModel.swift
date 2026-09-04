@@ -57,7 +57,10 @@ final class AppModel: ObservableObject {
     @Published var personaEnabled = false {
         didSet {
             guard !initializing, !restoringPreferences else { return }
-            do { try savePreferences() }
+            do {
+                try savePreferences()
+                invalidateContextPreview()
+            }
             catch {
                 restoringPreferences = true
                 personaEnabled = oldValue
@@ -266,10 +269,14 @@ final class AppModel: ObservableObject {
             "criteria": .array(conversation.pendingCriteria.map(JSONValue.string)),
             "auto_skills": .bool(conversation.provider == "codex" && conversation.autoSkillsEnabled),
             "auto_project_recall": .bool(conversation.provider == "codex" && conversation.autoProjectRecallEnabled),
+            "persona_enabled": .bool(personaEnabled),
             "cloud_consent": .bool(cloudConsent), "access_mode": .string(fullAccessEnabled ? "full_access" : "chat")
         ]
         if let path = conversation.workspacePath { params["workspace_root"] = .string(path) }
         if let pendingSkillTask { params["skill_task"] = pendingSkillTask.selection }
+        if fullAccessEnabled, let grant = agentGrants[conversation.id] {
+            params["access_token"] = .string(grant.token)
+        }
         return params
     }
 
@@ -542,6 +549,7 @@ final class AppModel: ObservableObject {
             guard result["mode"].text == "full_access", !result["token"].text.isEmpty,
                   result["workspace_root"].text == request.workspace else { throw NativeError.message("Не удалось проверить разрешение агента.") }
             agentGrants[request.conversationID] = AgentAccessGrant(token: result["token"].text, workspace: request.workspace)
+            invalidateContextPreview()
             error = nil
             status = computerUseAvailable
                 ? "Полный доступ, интернет и Computer Use включены для этого диалога"
@@ -552,6 +560,7 @@ final class AppModel: ObservableObject {
     func disableAgentAccess() async {
         guard !busy, let id = selectedID else { return }
         agentGrants.removeValue(forKey: id)
+        invalidateContextPreview()
         busy = true
         defer { busy = false }
         do {

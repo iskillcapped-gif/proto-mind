@@ -27,14 +27,23 @@ from proto_mind.main import is_exit_command, process_interactive_input_with_enve
 from proto_mind.memory_hygiene import MemoryHygiene
 from proto_mind.memory_keeper import MemoryKeeper
 from proto_mind.memory_store import MemoryStore
-from proto_mind.native_codex import CodexSubscription, SubscriptionReasoner, validate_reasoning_effort
+from proto_mind.native_codex import (
+    CHAT_DEVELOPER_INSTRUCTIONS,
+    CodexSubscription,
+    SubscriptionReasoner,
+    validate_reasoning_effort,
+)
+from proto_mind.native_instructions import (
+    build_instruction_preview,
+    prepare_local_instructions,
+)
 from proto_mind.native_computer_use import public_computer_use_capability
 from proto_mind.local_knowledge_capabilities import (
     fetch_local_knowledge,
     local_knowledge_descriptors,
     search_local_knowledge,
 )
-from proto_mind.native_agent import AgentGrants, FULL_ACCESS_CONFIRMATION
+from proto_mind.native_agent import AGENT_INSTRUCTIONS, AgentGrants, FULL_ACCESS_CONFIRMATION
 from proto_mind.native_library import NativeLibrary
 from proto_mind.native_memory_workshop import build_native_memory_workshop
 from proto_mind.native_learning_review import NativeLearningReview, parse_learning_request
@@ -60,7 +69,7 @@ from proto_mind.native_workspace import WorkspaceReader, file_context_message
 from proto_mind.native_images import ImageReader, image_specifications, MAX_IMAGES, MAX_IMAGE_BYTES, MAX_TOTAL_IMAGE_BYTES
 from proto_mind.native_pdf import PDFReader, SelectedPDF, pdf_context_message
 from proto_mind.persona_activation_readiness import build_persona_activation_readiness
-from proto_mind.persona_activation import PersonaTurnActivation, prepare_persona_turn
+from proto_mind.persona_activation import PersonaTurnActivation
 from proto_mind.native_persona import (
     NativePersonaRequest,
     build_native_persona_preview,
@@ -152,20 +161,15 @@ class NativeOllamaReasoner(OllamaReasoner):
     def respond(self, user_input, retrieved_memory, observer_state, correction_hints=None) -> str:
         if self.before_provider_call:
             self.before_provider_call()
-        legacy_instructions = self._build_system_prompt(observer_state, retrieved_memory, correction_hints or [])
-        if self.persona_activation is None:
-            instructions = legacy_instructions
-            self.last_persona_receipt = None
-        else:
-            prepared = prepare_persona_turn(
-                self.persona_activation,
-                retrieved_memory=retrieved_memory,
-                observer_state=observer_state,
-                correction_hints=correction_hints or [],
-                legacy_prompt=legacy_instructions,
-            )
-            instructions = prepared.instructions
-            self.last_persona_receipt = prepared.receipt
+        prepared = prepare_local_instructions(
+            "ollama",
+            observer_state,
+            retrieved_memory,
+            correction_hints or [],
+            persona_activation=self.persona_activation,
+        )
+        instructions = prepared.text
+        self.last_persona_receipt = prepared.persona_receipt
         payload = {
             "model": self.config.ollama_model,
             "messages": [
@@ -742,6 +746,84 @@ class NativeBackend:
         except (OSError, ValueError):
             return None
 
+    def _instruction_preview(
+        self,
+        params: dict,
+        *,
+        text: str,
+        provider: str,
+        mode: str,
+        operator: bool,
+    ) -> dict:
+        persona_enabled = params.get("persona_enabled", False)
+        if type(persona_enabled) is not bool:
+            raise ValueError("Invalid Brother Persona inspection state.")
+        if operator or provider == "mock":
+            return build_instruction_preview(
+                provider=provider,
+                mode=mode,
+                operator=operator,
+                prepared=None,
+                developer_instructions=None,
+            )
+
+        conversation_id = None
+        try:
+            if params.get("conversation_id"):
+                conversation_id = str(UUID(str(params["conversation_id"])))
+        except (TypeError, ValueError, AttributeError):
+            raise ValueError("Invalid conversation id for local instruction inspection.") from None
+        coordinator = self.sessions.get(conversation_id) if conversation_id else None
+        observer = coordinator.observer if coordinator is not None else Observer()
+        observer_state = observer.analyze(text)
+        correction_hints = list(coordinator.pending_correction_hints) if coordinator is not None else []
+        retrieved_memory = []
+        if observer_state.needs_memory:
+            data = self.root / "proto_mind" / "data"
+            keeper = MemoryKeeper(NativeMemoryStore(
+                data / "working_memory.json",
+                data / "persistent_memory.json",
+            ))
+            top_k = 10 if observer_state.query_type == "memory_inventory" else 5
+            retrieved_memory = keeper.retrieve(
+                observer_state,
+                top_k=top_k,
+                user_input=text,
+                track_usage=False,
+            )
+
+        persona_activation = None
+        if persona_enabled:
+            if conversation_id is None:
+                raise ValueError("Brother Persona inspection requires a valid conversation id.")
+            persona_activation = self._prepare_persona_activation(
+                params,
+                session_id=conversation_id,
+                provider=provider,
+                model=params.get("model", ""),
+                mode=mode,
+            )
+        prepared = prepare_local_instructions(
+            provider,
+            observer_state,
+            retrieved_memory,
+            correction_hints,
+            persona_activation=persona_activation,
+        )
+        developer = None
+        if provider == "codex":
+            developer = AGENT_INSTRUCTIONS if mode == "full_access" else CHAT_DEVELOPER_INSTRUCTIONS
+        return build_instruction_preview(
+            provider=provider,
+            mode=mode,
+            operator=False,
+            prepared=prepared,
+            developer_instructions=developer,
+            selected_memory=retrieved_memory,
+            correction_hints=correction_hints,
+            retrieval_performed=observer_state.needs_memory,
+        )
+
     def preview_context(self, params: dict) -> dict:
         text = params.get("text", "")
         if not isinstance(text, str) or len(text) > MAX_INPUT_CHARS or "\x00" in text:
@@ -772,6 +854,22 @@ class NativeBackend:
                                  criteria=validate_criteria(params.get("criteria", [])),
                                  reader=reader, specifications=params.get("files", []), cloud_consent=params.get("cloud_consent") is True,
                                  provider_thread=provider_thread)
+        result["instruction_preview"] = self._instruction_preview(
+            params,
+            text=text,
+            provider=provider,
+            mode=mode,
+            operator=operator,
+        )
+        if not operator and provider in {"codex", "ollama"}:
+            result["manifest"]["recall"] = "read_only_current_projection_recomputed_at_send"
+            result["notes"][1] = (
+                "Core Observer, read-only memory retrieval and correction context are included in the current local instruction projection. "
+                "Send recomputes them and may differ if local state changes."
+            )
+            result["notes"][3] = (
+                "Exact Proto-Mind-authored instruction layers are shown separately. Provider-owned system instructions and private reasoning are unavailable and are not reconstructed."
+            )
         result["draft_empty"] = not text
         if not operator and provider == "codex" and params.get("auto_skills") is True and not params.get("skill_task"):
             auto = AutoSkills(self.root, conversation=str(UUID(params.get("conversation_id", ""))),

@@ -146,14 +146,15 @@ class NativeDeskTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 self.context(history=[{"role": role, "content": "never include"}])
 
-    def test_context_does_not_read_memory_or_claim_project_isolation(self):
+    def test_context_does_not_read_irrelevant_memory_or_claim_project_isolation(self):
         data = self.root / "proto_mind/data"
         data.mkdir(parents=True)
         (data / "persistent_memory.json").write_text("DO NOT INCLUDE CORE CONTENT")
         result = self.context()
         self.assertEqual(result["manifest"]["memory_scope"], "shared_core_not_workspace")
         self.assertEqual(result["manifest"]["memory_root"], str(data))
-        self.assertEqual(result["manifest"]["recall"], "selected_at_send_not_previewed")
+        self.assertEqual(result["manifest"]["recall"], "read_only_current_projection_recomputed_at_send")
+        self.assertFalse(result["instruction_preview"]["read_only_retrieval_performed"])
         self.assertNotIn("DO NOT INCLUDE", json.dumps(result))
 
     def test_cloud_disclosure_does_not_connect_or_authorize(self):

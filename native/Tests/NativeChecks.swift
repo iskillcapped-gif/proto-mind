@@ -984,6 +984,10 @@ struct NativeChecks {
                   "Context desk shows a hash-checked selected excerpt through real read-only RPC")
         try check(preview.manifest["memory_scope"].text == "shared_core_not_workspace" && preview.manifest["recall"].text == "selected_at_send_not_previewed",
                   "Context desk distinguishes shared core memory from workspace files without invented recall")
+        try check(preview.instructionPreview.value["provider"] == .string("mock")
+                  && preview.instructionPreview.layers.isEmpty
+                  && preview.instructionPreview.value["persona_state"] == .string("bypassed"),
+                  "Context desk does not fabricate provider instructions for Mock")
         try check(preview.value["history"].items == app.selected?.history && preview.manifest["context_injection"]["enabled"] == .bool(false),
                   "Context desk shows the actual bounded conversation history and disabled injection")
         try check(app.messages == messages && app.selectedID == selected && app.selected?.pendingFiles == files && !app.busy && !app.fullAccessEnabled && !app.cloudConsent,
@@ -1010,9 +1014,27 @@ struct NativeChecks {
         let cloud = try NativeContextPreview(await app.client.request("context_preview", cloudParams))
         try check(cloud.manifest["destination"].text == "openai_cloud" && cloud.value["cloud_consent"] == .bool(false) && !app.cloudConsent && app.account.isNull,
                   "Cloud context disclosure does not contact account/model endpoints or grant cloud consent")
+        try check(cloud.manifest["recall"] == .string("read_only_current_projection_recomputed_at_send")
+                  && cloud.instructionPreview.layers.map({ $0["id"].text }) == ["base_instructions", "developer_instructions"]
+                  && cloud.instructionPreview.layers[1]["source"] == .string("chat_static_contract")
+                  && cloud.instructionPreview.value["no_model_call"] == .bool(true)
+                  && cloud.instructionPreview.value["no_thread_refresh"] == .bool(true)
+                  && cloud.instructionPreview.value["provider_owned_instructions"]["available_to_proto_mind"] == .bool(false),
+                  "Codex context exposes exact local instruction layers while keeping provider-owned instructions unavailable")
         try check(cloud.manifest["provider_thread"]["linked"] == .bool(false)
                   && cloud.value["history"].items == app.selected?.history,
                   "A new Codex thread previews one bounded continuity bootstrap without starting a provider turn")
+        guard case .object(var cloudValue) = cloud.value,
+              case .object(var instructionValue) = cloudValue["instruction_preview"],
+              case .array(var instructionLayers) = instructionValue["layers"],
+              case .object(var baseLayer) = instructionLayers.first else { throw NativeError.message("Missing instruction fixture") }
+        baseLayer["text"] = .string("tampered local instructions")
+        instructionLayers[0] = .object(baseLayer)
+        instructionValue["layers"] = .array(instructionLayers)
+        cloudValue["instruction_preview"] = .object(instructionValue)
+        var instructionTamperRefused = false
+        do { _ = try NativeContextPreview(.object(cloudValue)) } catch { instructionTamperRefused = true }
+        try check(instructionTamperRefused, "Context desk rejects tampered local instruction text and SHA evidence")
         app.setComposer("включи контекст"); app.flushDraft()
         let beforeOperator = try fileBytes(state), beforeOperatorCore = try fileBytes(fixture)
         await app.refreshContextPreview()
@@ -1334,12 +1356,20 @@ struct NativeChecks {
         app.requestAgentAccess()
         await app.confirmAgentAccess()
         try check(app.fullAccessEnabled && app.agentGrants.count == 1 && app.account.isNull && app.error == nil, "Explicit grant clears stale errors without contacting Codex or starting generation")
+        let grantedContext = app.contextRequestParameters
+        try check(grantedContext?["access_mode"] == .string("full_access")
+                  && grantedContext?["access_token"]?.text == app.agentGrants[app.selectedID!]?.token
+                  && grantedContext?["persona_enabled"] == .bool(false),
+                  "Context inspection receives the current in-memory Full Mac grant without inventing Persona state")
         try check(try fileBytes(state) == beforeState && fileBytes(fixture.appendingPathComponent("proto_mind/data")) == beforeData, "Grant creates no history/settings/core-store files")
         let restart = AppModel(configuration: LaunchConfiguration(projectRoot: fixture, python: python, stateDirectory: state))
         try check(restart.agentGrants.isEmpty && !restart.fullAccessEnabled && restart.cloudConsent, "Cloud consent survives restart but Full Mac permission does not")
         app.error = "Earlier configuration warning"
         await app.disableAgentAccess()
         try check(!app.fullAccessEnabled && app.agentGrants.isEmpty && app.error == nil, "Disable clears stale errors and returns to chat without a target command")
+        try check(app.contextRequestParameters?["access_mode"] == .string("chat")
+                  && app.contextRequestParameters?["access_token"] == nil,
+                  "Disabling Full Mac immediately removes its token and mode from context inspection")
         app.requestAgentAccess()
         await app.confirmAgentAccess()
         app.setProvider("mock")

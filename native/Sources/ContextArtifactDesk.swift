@@ -1,7 +1,105 @@
+import CryptoKit
 import SwiftUI
+
+struct NativeInstructionPreview: Equatable {
+    private static let fields: Set<String> = [
+        "schema", "read_only", "no_execution", "no_model_call", "no_network_call", "no_store_write",
+        "no_thread_refresh", "private_reasoning_included", "provider", "mode", "operator", "persona_state",
+        "current_projection", "recomputed_on_send", "read_only_retrieval_performed", "selected_memory_count",
+        "selected_memory_ids", "correction_hint_count", "provider_owned_instructions", "layers", "notices",
+        "projection_hash", "hash_material",
+    ]
+    private static let materialFields = fields.subtracting(["schema", "projection_hash", "hash_material"])
+    private static let layerFields: Set<String> = [
+        "id", "owner", "placement", "source", "text", "characters", "sha256", "dynamic", "provider_visible_at_send",
+    ]
+    let value: JSONValue
+    var layers: [JSONValue] { value["layers"].items }
+
+    init(_ value: JSONValue) throws {
+        guard case .object(let fields) = value, Set(fields.keys) == Self.fields,
+              value["schema"] == .string("proto_mind.native_instruction_preview.v1"),
+              ["read_only", "no_execution", "no_model_call", "no_network_call", "no_store_write", "no_thread_refresh", "current_projection"]
+                .allSatisfy({ value[$0] == .bool(true) }),
+              value["private_reasoning_included"] == .bool(false),
+              ["codex", "ollama", "mock"].contains(value["provider"].text),
+              ["chat", "full_access", "operator"].contains(value["mode"].text),
+              case .bool = value["operator"], case .bool = value["recomputed_on_send"],
+              case .bool = value["read_only_retrieval_performed"],
+              ["brother", "legacy", "bypassed"].contains(value["persona_state"].text),
+              case .array(let memoryIDs) = value["selected_memory_ids"], memoryIDs.count <= 10,
+              memoryIDs.allSatisfy({ !$0.text.isEmpty && $0.text.unicodeScalars.count <= 160 }),
+              Set(memoryIDs.map(\.text)).count == memoryIDs.count,
+              value["selected_memory_count"] == .number(Double(memoryIDs.count)),
+              case .number(let correctionCount) = value["correction_hint_count"], correctionCount.rounded() == correctionCount,
+              correctionCount >= 0, correctionCount <= 5,
+              case .object(let boundary) = value["provider_owned_instructions"],
+              Set(boundary.keys) == ["included", "available_to_proto_mind", "reason"],
+              value["provider_owned_instructions"]["included"] == .bool(false),
+              value["provider_owned_instructions"]["available_to_proto_mind"] == .bool(false),
+              (1...500).contains(value["provider_owned_instructions"]["reason"].text.unicodeScalars.count),
+              case .array(let layers) = value["layers"], layers.count <= 2,
+              case .array(let notices) = value["notices"], (2...8).contains(notices.count),
+              notices.allSatisfy({ (1...800).contains($0.text.unicodeScalars.count) }) else {
+            throw Self.error()
+        }
+        for layer in layers {
+            guard case .object(let body) = layer, Set(body.keys) == Self.layerFields,
+                  layer["owner"] == .string("proto_mind"), layer["provider_visible_at_send"] == .bool(true),
+                  case .bool = layer["dynamic"],
+                  (1...24_512).contains(layer["text"].text.unicodeScalars.count),
+                  !layer["text"].text.contains("\0"), !layer["text"].text.contains("\r"),
+                  layer["characters"] == .number(Double(layer["text"].text.unicodeScalars.count)),
+                  layer["sha256"].text == Self.hash(layer["text"].text) else { throw Self.error() }
+        }
+        let identifiers = layers.map { $0["id"].text }
+        let bypassed = value["operator"].flag || value["provider"].text == "mock"
+        if bypassed {
+            guard layers.isEmpty, value["persona_state"] == .string("bypassed"),
+                  value["recomputed_on_send"] == .bool(false),
+                  value["mode"] == .string(value["operator"].flag ? "operator" : "chat"),
+                  memoryIDs.isEmpty, value["correction_hint_count"] == .number(0),
+                  value["read_only_retrieval_performed"] == .bool(false) else { throw Self.error() }
+        } else if value["provider"] == .string("codex") {
+            guard ["chat", "full_access"].contains(value["mode"].text),
+                  identifiers == ["base_instructions", "developer_instructions"],
+                  layers[0]["placement"] == .string("codex_base_instructions"),
+                  ["legacy_cognitive_core_current_projection", "brother_persona_current_projection"].contains(layers[0]["source"].text),
+                  layers[0]["dynamic"] == .bool(true),
+                  layers[1]["placement"] == .string("codex_developer_instructions"),
+                  layers[1]["source"] == .string(value["mode"].text == "full_access" ? "full_mac_static_contract" : "chat_static_contract"),
+                  layers[1]["dynamic"] == .bool(false), value["recomputed_on_send"] == .bool(true) else { throw Self.error() }
+        } else {
+            guard value["provider"] == .string("ollama"), value["mode"] == .string("chat"),
+                  identifiers == ["system_instructions"], layers[0]["placement"] == .string("ollama_system_message"),
+                  ["legacy_cognitive_core_current_projection", "brother_persona_current_projection"].contains(layers[0]["source"].text),
+                  layers[0]["dynamic"] == .bool(true), value["recomputed_on_send"] == .bool(true) else { throw Self.error() }
+        }
+        if !bypassed {
+            let expected = layers[0]["source"].text == "brother_persona_current_projection" ? "brother" : "legacy"
+            guard value["persona_state"] == .string(expected),
+                  memoryIDs.isEmpty || value["read_only_retrieval_performed"] == .bool(true) else { throw Self.error() }
+        }
+        let material = JSONValue.object(fields.filter { Self.materialFields.contains($0.key) })
+        guard case .string(let materialText) = value["hash_material"],
+              let bytes = materialText.data(using: .utf8), bytes.count <= 256 * 1024,
+              (try? JSONDecoder().decode(JSONValue.self, from: bytes)) == material,
+              value["projection_hash"] == .string(Self.hash(materialText)) else { throw Self.error() }
+        self.value = value
+    }
+
+    private static func hash(_ text: String) -> String {
+        SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()
+    }
+
+    private static func error() -> NativeError {
+        .message("Локальные инструкции или их SHA-256 не прошли проверку. Ничего не отправлено.")
+    }
+}
 
 struct NativeContextPreview: Equatable {
     let value: JSONValue
+    let instructionPreview: NativeInstructionPreview
     var manifest: JSONValue { value["manifest"] }
     var sources: [JSONValue] { value["sources"].items }
     var imageSources: [JSONValue] { value["image_sources"].items }
@@ -49,6 +147,7 @@ struct NativeContextPreview: Equatable {
             guard case .array = value["manifest"]["pdfs"] else { throw NativeError.message("Неверный manifest PDF.") }
             try NativePDFAttachment.validate(value["manifest"]["pdfs"].items)
         }
+        let instructionPreview = try NativeInstructionPreview(value["instruction_preview"])
         try checkKnowledgeMetadata(value["manifest"]["knowledge_context"])
         try checkProjectMemorySources(value["project_memory_sources"], metadata: value["manifest"]["knowledge_context"])
         if !value["manifest"]["knowledge_context"]["project_recall"].isNull {
@@ -76,6 +175,7 @@ struct NativeContextPreview: Equatable {
                   report.value["goal_sha256"] == value["manifest"]["input"]["sha256"], reference.isNull else { throw NativeAutoSkillsReport.error() }
         }
         self.value = value
+        self.instructionPreview = instructionPreview
     }
 }
 
@@ -173,13 +273,54 @@ struct ContextDeskView: View {
                                 }
                             }
                         }
+                        let instructions = preview.instructionPreview
+                        DeskSection("Локальные инструкции Proto-Mind", icon: "text.badge.checkmark") {
+                            Text("Режим: \(instructionMode(instructions.value)) · Persona: \(personaLabel(instructions.value["persona_state"].text))")
+                                .fontWeight(.medium)
+                            if instructions.layers.isEmpty {
+                                Text(instructions.value["operator"].flag
+                                     ? "Операторская команда обходит reasoner: локальный provider prompt не создаётся."
+                                     : "У Mock нет системного/developer envelope провайдера; Proto-Mind ничего не дорисовывает.")
+                                    .foregroundStyle(.secondary)
+                            }
+                            ForEach(Array(instructions.layers.enumerated()), id: \.offset) { _, layer in
+                                VStack(alignment: .leading, spacing: 7) {
+                                    Text(instructionLayerTitle(layer["id"].text)).font(.headline)
+                                    Text("Источник: \(instructionSourceLabel(layer["source"].text)) · \(instructionPlacementLabel(layer["placement"].text))")
+                                        .font(.caption).foregroundStyle(.secondary)
+                                    Text(layer["dynamic"].flag ? "Пересобирается из текущего локального состояния." : "Статический контракт выбранного режима.")
+                                        .font(.caption).foregroundStyle(.secondary)
+                                    hashLine("SHA-256 слоя", layer["sha256"].text)
+                                    DisclosureGroup("Точный локальный текст · \(layer["characters"].integer) символов") {
+                                        DeskPlainText(text: layer["text"].text)
+                                    }
+                                }.padding(.vertical, 5)
+                            }
+                            if instructions.value["read_only_retrieval_performed"].flag {
+                                Text("Read-only retrieval: выбрано \(instructions.value["selected_memory_count"].integer) записей общей памяти; usage telemetry и запись не выполнялись.")
+                                    .foregroundStyle(.secondary)
+                            } else if !instructions.layers.isEmpty {
+                                Text("Observer не запросил память для этого черновика; записей общей памяти в проекции: 0.")
+                                    .foregroundStyle(.secondary)
+                            }
+                            if instructions.value["correction_hint_count"].integer > 0 {
+                                Text("Активных подсказок прошлой самопроверки: \(instructions.value["correction_hint_count"].integer). Их точный текст виден внутри base/system слоя.")
+                                    .foregroundStyle(.secondary)
+                            }
+                            Divider()
+                            Text(instructions.value["provider_owned_instructions"]["reason"].text)
+                                .font(.callout).foregroundStyle(.orange)
+                            Text("Приватные рассуждения модели не включены. Это текущая локальная проекция; Send соберёт её заново после проверки Persona, памяти, режима и доступа.")
+                                .font(.caption).foregroundStyle(.secondary)
+                            hashLine("SHA-256 всей проекции", instructions.value["projection_hash"].text)
+                        }
                         DeskSection("Папка и память: разные области", icon: "folder.badge.questionmark") {
                             Text("Файлы: \(manifest["workspace"].text.isEmpty ? "рабочая папка не привязана" : manifest["workspace"].text)").textSelection(.enabled)
                             Text("Память: общее ядро Proto-Mind, не отдельная память этой папки.").fontWeight(.medium)
                             Text(manifest["memory_root"].text).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
                             Text(manifest["operator"].flag
                                  ? "Операторский маршрут не получает вложения и историю модели. Саму команду здесь не выполняем."
-                                 : "Поиск памяти и контекст исправлений выбираются ядром при отправке, здесь они не вычислялись. Фактически выбранную память можно проверить в инспекторе полученного ответа.")
+                                 : "Текущая проекция Observer/памяти/исправлений показана в локальных инструкциях выше. Send вычислит её заново; фактический выбор после ответа остаётся доступен в инспекторе.")
                                 .foregroundStyle(.secondary)
                             Text("Context Injection: \(injectionLabel(manifest["context_injection"]["state"].text)). Настройка не меняется.")
                             if manifest["access_mode"].text == "full_access" {
@@ -297,7 +438,7 @@ struct ContextDeskView: View {
                                 }
                             }
                         }
-                        Text("Максимум 12 сообщений по 2 000 символов; отчёты, ошибки и журналы инструментов не повторяются как история. Mock не анализирует вложения. Полный системный prompt и приватные рассуждения здесь не показываются.")
+                        Text("Максимум 12 сообщений по 2 000 символов; отчёты, ошибки и журналы инструментов не повторяются как история. Mock не анализирует вложения. Локальные инструкции Proto-Mind показаны выше; скрытые инструкции провайдера и приватные рассуждения недоступны.")
                             .font(.caption).foregroundStyle(.secondary)
                     } else if !model.loadingContextPreview && model.contextPreviewError == nil {
                         Text("Откройте просмотр вне активного запроса.").foregroundStyle(.secondary)
@@ -326,6 +467,47 @@ struct ContextDeskView: View {
 
     private func injectionLabel(_ state: String) -> String {
         switch state { case "disabled", "default_disabled": return "выключен"; case "enabled": return "включён вручную"; default: return "не удалось прочитать" }
+    }
+
+    private func instructionMode(_ value: JSONValue) -> String {
+        switch value["mode"].text {
+        case "full_access": return "Full Mac"
+        case "operator": return "операторский"
+        default: return value["provider"].text == "ollama" ? "локальный" : "Chat"
+        }
+    }
+
+    private func personaLabel(_ value: String) -> String {
+        switch value {
+        case "brother": return "Brother"
+        case "legacy": return "legacy cognitive core"
+        default: return "обход"
+        }
+    }
+
+    private func instructionLayerTitle(_ value: String) -> String {
+        switch value {
+        case "developer_instructions": return "Developer instructions режима"
+        case "system_instructions": return "System instructions Ollama"
+        default: return "Base instructions Proto-Mind"
+        }
+    }
+
+    private func instructionSourceLabel(_ value: String) -> String {
+        switch value {
+        case "brother_persona_current_projection": return "Brother Persona"
+        case "legacy_cognitive_core_current_projection": return "legacy cognitive core"
+        case "full_mac_static_contract": return "Full Mac contract"
+        default: return "Chat-only contract"
+        }
+    }
+
+    private func instructionPlacementLabel(_ value: String) -> String {
+        switch value {
+        case "codex_developer_instructions": return "developerInstructions"
+        case "ollama_system_message": return "system message"
+        default: return "baseInstructions"
+        }
     }
 
     private func sourceLabel(_ source: JSONValue) -> String {
