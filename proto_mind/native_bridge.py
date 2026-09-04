@@ -1218,7 +1218,10 @@ class NativeBackend:
             finally:
                 self.busy.release()
         if method == "work_sessions":
-            return self.work_sessions.page(params.get("conversation_id", ""))
+            return self.work_sessions.page(params.get("conversation_id", ""), params.get("cursor"))
+        if method == "work_session_lookup":
+            return {"schema": "proto_mind.native_work_session_lookup.v1", "read_only": True,
+                    "run": self.work_sessions.lookup(params.get("run_id", ""), params.get("conversation_id", ""))}
         if method == "session_spine_preview":
             if self.closing.is_set() or not self.busy.acquire(blocking=False):
                 raise ValueError("Wait for the active turn before opening its Session Spine preview.")

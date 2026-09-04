@@ -18,8 +18,9 @@ import tarfile
 from typing import Any
 from uuid import UUID
 
-from proto_mind.native_work_sessions import MAX_RECORD_BYTES, MAX_RUNS
+from proto_mind.native_work_sessions import MAX_RECORD_BYTES
 from proto_mind.session_spine_archive_copy import (
+    MAX_COPIED_RUNS,
     MAX_HISTORY_BYTES,
     audit_native_archive_copy,
 )
@@ -28,7 +29,7 @@ from proto_mind.session_spine_archive_copy import (
 SCHEMA = "proto_mind.session_spine_private_backup_audit.v1"
 FORMAT_VERSION = 1
 MAX_ARCHIVE_BYTES = 200 * 1024 * 1024
-MAX_ARCHIVE_MEMBERS = MAX_RUNS * 2 + 10
+MAX_ARCHIVE_MEMBERS = MAX_COPIED_RUNS * 2 + 10
 MAX_IGNORED_METADATA_BYTES = 8 * 1024 * 1024
 MAX_APPLEDOUBLE_BYTES = 64 * 1024
 HASH = re.compile(r"[0-9a-f]{64}\Z")
@@ -210,7 +211,7 @@ def _read_members(raw: bytes) -> tuple[bytes, dict[str, bytes], dict[str, Any]]:
                         raise SessionSpinePrivateBackupError("Backup contains more than one Native history member.")
                     history = _read_member(archive, member, MAX_HISTORY_BYTES - 1)
                     continue
-                if run_name is None or len(work_sessions) >= MAX_RUNS:
+                if run_name is None or len(work_sessions) >= MAX_COPIED_RUNS:
                     raise SessionSpinePrivateBackupError("Backup exceeds the work-session record bound.")
                 work_sessions[run_name] = _read_member(archive, member, MAX_RECORD_BYTES)
     except SessionSpinePrivateBackupError:

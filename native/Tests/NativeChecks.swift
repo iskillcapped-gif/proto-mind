@@ -83,6 +83,10 @@ struct NativeChecks {
         if let fixture = LaunchConfiguration.argument("--session-spine-fixture"),
            let state = LaunchConfiguration.argument("--session-spine-state"),
            let python = LaunchConfiguration.argument("--python") {
+            try await workSessionHistoryIntegration(
+                fixture: URL(fileURLWithPath: fixture), python: URL(fileURLWithPath: python),
+                state: URL(fileURLWithPath: state)
+            )
             try await sessionSpineLiveIntegration(
                 fixture: URL(fileURLWithPath: fixture), python: URL(fileURLWithPath: python),
                 state: URL(fileURLWithPath: state)

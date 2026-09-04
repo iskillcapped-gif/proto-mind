@@ -131,6 +131,11 @@ struct WorkSessionsView: View {
                                         .background(selected?.id == run.id ? NativeTheme.selection : .clear, in: RoundedRectangle(cornerRadius: 10))
                                 }
                             }
+                            if model.workSessionsNextCursor != nil {
+                                Button("Загрузить более ранние") { Task { await model.loadMoreWorkSessions() } }
+                                    .disabled(model.busy || model.loadingWorkSessions)
+                                    .frame(maxWidth: .infinity).padding(.vertical, 8)
+                            }
                         }.padding(12)
                     }.frame(width: 245)
                     Divider()
@@ -155,7 +160,7 @@ struct WorkSessionsView: View {
             Divider()
             VStack(alignment: .leading, spacing: 5) {
                 if model.busy { Text("Активный ход работы виден в диалоге. Журнал обновится после завершения запроса.") }
-                if !model.workSessions.isEmpty { Text("Последние запуски диалога: \(model.workSessions.count). Показана ограниченная часть истории.") }
+                if let total = model.workSessionsTotal { Text("Показано запусков: \(model.workSessions.count) из \(total).") }
                 Text("Локальные фрагменты, не полный аудит и не резервная копия изменённых файлов. Автоповтора нет.")
                 Text(model.workSessionsPath).textSelection(.enabled).lineLimit(2)
             }.font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading).padding(16)

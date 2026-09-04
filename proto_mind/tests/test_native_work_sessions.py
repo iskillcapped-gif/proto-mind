@@ -236,9 +236,11 @@ class WorkSessionTests(unittest.TestCase):
         path.write_text("broken")
         before = self.files()
         self.assertTrue(self.page()["warnings"])
-        with self.assertRaisesRegex(sessions.WorkSessionError, "manual review"):
-            self.finish(run_id=str(uuid4()))
-        self.assertEqual(before, self.files())
+        self.finish(run_id=str(uuid4()))
+        self.assertEqual(path.read_bytes(), before["work_sessions/" + path.name])
+        self.assertTrue(self.page()["warnings"])
+        with self.assertRaises(sessions.WorkSessionError):
+            self.finish()  # The damaged ID itself can never be overwritten.
 
     def test_symlink_record_is_not_followed_or_repaired(self):
         self.finish()
@@ -248,9 +250,12 @@ class WorkSessionTests(unittest.TestCase):
         path.symlink_to(target)
         before = self.files()
         self.assertTrue(self.page()["warnings"])
-        with self.assertRaises(sessions.WorkSessionError):
-            self.finish(run_id=str(uuid4()))
-        self.assertEqual(before, self.files())
+        self.finish(run_id=str(uuid4()))
+        self.assertTrue(path.is_symlink())
+        self.assertEqual(target.read_text(), "not a run")
+        self.assertEqual(path.read_bytes(), before["work_sessions/" + path.name])
+        with self.assertRaises((OSError, sessions.WorkSessionError)):
+            self.finish(run_id=path.stem)
 
     def test_disk_full_before_dispatch_leaves_no_dispatched_record(self):
         with patch.object(sessions.os, "replace", side_effect=OSError(errno.ENOSPC, "fixture disk full")):
@@ -310,12 +315,12 @@ class WorkSessionTests(unittest.TestCase):
                 self.store.continuation(ref, conversation, workspace)
         self.assertEqual(before, self.files())
 
-    def test_storage_limit_refuses_new_run_without_automatic_pruning(self):
+    def test_new_independent_run_does_not_scan_existing_history(self):
         self.finish()
-        before = self.files()
-        with patch.object(sessions, "MAX_RUNS", 1), self.assertRaisesRegex(sessions.WorkSessionError, "limit reached"):
+        original = (self.store.directory / (self.run_id + ".json")).read_bytes()
+        with patch.object(self.store, "_records", side_effect=AssertionError("Do not scan old history before a new task")):
             self.finish(run_id=str(uuid4()))
-        self.assertEqual(before, self.files())
+        self.assertEqual((self.store.directory / (self.run_id + ".json")).read_bytes(), original)
 
     def test_replaced_writer_lock_stops_without_overwriting_run(self):
         with self.assertRaisesRegex(sessions.WorkSessionError, "writer lock changed"):

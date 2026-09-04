@@ -8,6 +8,7 @@ from copy import deepcopy
 from datetime import UTC, datetime
 import fcntl
 import hashlib
+import heapq
 import json
 import os
 from pathlib import Path
@@ -32,7 +33,7 @@ from proto_mind.native_agent_contract import (
 
 
 SCHEMA = "proto_mind.native_work_session.v1"
-MAX_RUNS = 500
+PAGE_SIZE = 30
 MAX_RECORD_BYTES = 256 * 1024
 MAX_PAGE_BYTES = 2 * 1024 * 1024
 STATES = {"prepared", "dispatching", "completed", "interrupted", "error"}
@@ -179,7 +180,7 @@ class WorkSessionStore:
                     or record.get("verification") != "not_assessed"
                     or not isinstance(record.get("project_root"), str)
                     or not isinstance(record.get("input_preview"), str)
-                    or not isinstance(record.get("created_at"), str)
+                    or not isinstance(record.get("created_at"), str) or not 1 <= len(record["created_at"]) <= 80
                     or not isinstance(record.get("work_log"), dict)
                     or not isinstance(record.get("tools"), list) or len(record["tools"]) > 64
                     or not isinstance(record.get("sources"), list) or len(record["sources"]) > 3):
@@ -274,24 +275,22 @@ class WorkSessionStore:
         except (ValueError, TypeError, WorkSessionError):
             raise WorkSessionError("Invalid work-session record. No migration or overwrite was attempted.") from None
 
-    def _scan(self, directory: int | None) -> tuple[list[dict], list[str]]:
+    def _records(self, directory: int | None, warnings: list[str]):
+        """Stream validated records without retaining the entire journal in memory."""
         if directory is None:
-            return [], []
-        names = os.listdir(directory)
-        if len(names) > MAX_RUNS + 20:
-            raise WorkSessionError("Work-session storage limit reached. Make a private backup and review it manually.")
-        records, warnings = [], []
-        for name in sorted(names):
-            if not name.endswith(".json"):
-                continue
-            try:
-                raw = self._raw(directory, name)
-                if raw is None:
-                    raise WorkSessionError("Work-session record disappeared during reading.")
-                records.append(self._parse(raw, name))
-            except (OSError, WorkSessionError):
-                warnings.append("An unreadable or invalid work-session file requires manual review; it was not changed.")
-        return records, warnings
+            return
+        with os.scandir(directory) as entries:
+            for entry in entries:
+                if not entry.name.endswith(".json"):
+                    continue
+                try:
+                    raw = self._raw(directory, entry.name)
+                    if raw is None:
+                        raise WorkSessionError("Work-session record disappeared during reading.")
+                    yield self._parse(raw, entry.name)
+                except (OSError, WorkSessionError):
+                    if not warnings:
+                        warnings.append("One or more unreadable or invalid work-session files require manual review; they were not changed.")
 
     @staticmethod
     def _active(directory: int | None) -> str | None:
@@ -331,38 +330,88 @@ class WorkSessionStore:
                     item["status"] = "unknown"
         return result
 
-    def page(self, conversation_id: str) -> dict:
+    def _cursor(self, record: dict, conversation: str) -> dict:
+        return {"conversation_id": conversation, "project_root": self.project_root,
+                "created_at": record["created_at"], "run_id": record["id"]}
+
+    def _cursor_key(self, cursor: object, conversation: str) -> tuple[str, str] | None:
+        if cursor is None:
+            return None
+        if (not isinstance(cursor, dict) or set(cursor) != {"conversation_id", "project_root", "created_at", "run_id"}
+                or cursor["conversation_id"] != conversation or cursor["project_root"] != self.project_root
+                or not isinstance(cursor["created_at"], str) or not 1 <= len(cursor["created_at"]) <= 80
+                or _id(cursor["run_id"]) != cursor["run_id"]):
+            raise WorkSessionError("Invalid journal page cursor or conversation/project scope. Refresh the journal.")
+        try:
+            datetime.fromisoformat(cursor["created_at"].replace("Z", "+00:00"))
+        except ValueError:
+            raise WorkSessionError("Invalid journal page timestamp. Refresh the journal.") from None
+        return cursor["created_at"], cursor["run_id"]
+
+    def page(self, conversation_id: str, cursor: object = None) -> dict:
         conversation = _id(conversation_id)
+        boundary = self._cursor_key(cursor, conversation)
         with self._directory() as directory:
-            records, warnings = self._scan(directory)
+            warnings: list[str] = []
+            total = remaining = 0
+
+            def candidates():
+                nonlocal total, remaining
+                for record in self._records(directory, warnings):
+                    if record["conversation_id"] != conversation or record["project_root"] != self.project_root:
+                        continue
+                    total += 1
+                    if boundary is None or (record["created_at"], record["id"]) < boundary:
+                        remaining += 1
+                        yield record
+
+            # Keyset pagination stays stable when newer runs arrive. Only one
+            # bounded page of full records is retained while counting the rest.
+            selected = heapq.nlargest(PAGE_SIZE, candidates(), key=lambda record: (record["created_at"], record["id"]))
             active = self._active(directory)
-            selected = [record for record in records if record["conversation_id"] == conversation and record["project_root"] == self.project_root]
-            selected.sort(key=lambda record: (record["created_at"], record["id"]), reverse=True)
             shown, size = [], 0
-            for record in selected[:30]:
+            for record in selected:
                 view = self._view(record, active)
                 size += len(_bytes(view))
                 if size > MAX_PAGE_BYTES:
                     break
                 shown.append(view)
             return {"schema": "proto_mind.native_work_sessions.v1", "read_only": True,
-                    "path": str(self.directory), "total": len(selected), "warnings": warnings,
-                    "partial": len(shown) < len(selected), "runs": shown}
+                    "path": str(self.directory), "conversation_id": conversation, "project_root": self.project_root,
+                    "total": total, "warnings": warnings, "cursor": deepcopy(cursor),
+                    "next_cursor": self._cursor(shown[-1], conversation) if shown and len(shown) < remaining else None,
+                    "partial": len(shown) < remaining, "runs": shown}
 
-    def _parent(self, records: list[dict], continuation: object, conversation: str, workspace: dict | None, active: str | None) -> dict:
+    def _parent(self, records, continuation: object, conversation: str, workspace: dict | None, active: str | None) -> dict:
         if not isinstance(continuation, dict):
             raise WorkSessionError("Invalid continuation reference.")
         parent_id = _id(continuation.get("run_id"))
-        parent = next((record for record in records if record["id"] == parent_id), None)
+        parent = child = None
+        for record in records:
+            if record["id"] == parent_id:
+                parent = record
+            if record.get("parent_run_id") == parent_id:
+                child = record
         if (parent is None or parent["project_root"] != self.project_root or parent["conversation_id"] != conversation
                 or parent.get("workspace") != workspace or continuation.get("fingerprint") != fingerprint(parent)):
             raise WorkSessionError("Saved work or its folder changed. Inspect the journal again before preparing a continuation.")
         if active == parent_id:
             raise WorkSessionError("This work is still owned by an active writer. No continuation was prepared.")
-        child = next((record for record in records if record.get("parent_run_id") == parent_id), None)
         if child is not None:
             raise WorkSessionError(f"A continuation already exists: {child['id']}. Inspect that run; do not replay the parent.")
         return parent
+
+    def lookup(self, run_id: str, conversation_id: str) -> dict:
+        """Read one exact ID, independently of which journal pages are visible."""
+        run_id, conversation = _id(run_id), _id(conversation_id)
+        with self._directory() as directory:
+            raw = self._raw(directory, run_id + ".json") if directory is not None else None
+            if raw is None:
+                raise WorkSessionError("Saved run is missing. No record was created.")
+            record = self._parse(raw, run_id + ".json")
+            if record["project_root"] != self.project_root or record["conversation_id"] != conversation:
+                raise WorkSessionError("Saved run belongs to another conversation/project.")
+            return self._view(record, self._active(directory))
 
     def inspect(self, reference: object, conversation_id: str) -> dict:
         return self.inspect_copy(reference, conversation_id)["record"]
@@ -390,10 +439,10 @@ class WorkSessionStore:
 
     def continuation(self, reference: dict, conversation_id: str, workspace: dict | None) -> dict:
         with self._directory() as directory:
-            records, warnings = self._scan(directory)
+            warnings: list[str] = []
+            parent = self._parent(self._records(directory, warnings), reference, _id(conversation_id), workspace, self._active(directory))
             if warnings:
                 raise WorkSessionError(warnings[0])
-            parent = self._parent(records, reference, _id(conversation_id), workspace, self._active(directory))
             view = self._view(parent, None)
         # Evidence is quoted data, not inherited instructions or permission to replay tools.
         draft = ("Продолжим работу после ручной проверки. Это новый запрос, не автоматическое возобновление.\n"
@@ -476,17 +525,16 @@ class WorkSession:
                 fcntl.flock(self.lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError:
                 raise WorkSessionError("Another Native window owns the work-session writer. No new turn started.") from None
-            records, warnings = self.store._scan(self.directory)
-            if warnings:
-                raise WorkSessionError(warnings[0])
             values = self.values
-            if any(record["id"] == values["run_id"] for record in records):
+            if self.store._raw(self.directory, values["run_id"] + ".json") is not None:
                 raise WorkSessionError("This work-session ID was already used. Inspect its result; no repeated turn was dispatched.")
-            if len(records) >= MAX_RUNS:
-                raise WorkSessionError("Work-session limit reached. Back up and review private history manually; no automatic pruning.")
             parent = None
             if values["continuation"] is not None:
-                parent = self.store._parent(records, values["continuation"], values["conversation_id"], values["workspace"], None)
+                warnings: list[str] = []
+                parent = self.store._parent(self.store._records(self.directory, warnings), values["continuation"],
+                                           values["conversation_id"], values["workspace"], None)
+                if warnings:
+                    raise WorkSessionError(warnings[0])
             os.ftruncate(self.lock, 0)
             os.write(self.lock, values["run_id"].encode("ascii"))
             os.fsync(self.lock)

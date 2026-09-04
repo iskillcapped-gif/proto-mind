@@ -126,6 +126,8 @@ final class AppModel: ObservableObject {
     @Published private(set) var loadingPersonaReadiness = false
     @Published private(set) var lastPersonaTurnReceipt: NativePersonaTurnReceipt?
     @Published private(set) var workSessions: [NativeWorkSession] = []
+    @Published private(set) var workSessionsTotal: Int?
+    @Published private(set) var workSessionsNextCursor: JSONValue?
     @Published private(set) var workSessionsPath = ""
     @Published private(set) var workSessionsWarning: String?
     @Published var workSessionsActionError: String?
@@ -628,24 +630,64 @@ final class AppModel: ObservableObject {
     }
 
     func refreshWorkSessions() async {
-        guard !busy, let id = selectedID else { return }
+        await loadWorkSessionPage(cursor: nil, append: false)
+    }
+
+    func loadMoreWorkSessions() async {
+        guard let cursor = workSessionsNextCursor else { return }
+        await loadWorkSessionPage(cursor: cursor, append: true)
+    }
+
+    private func loadWorkSessionPage(cursor: JSONValue?, append: Bool) async {
+        guard !busy, !loadingWorkSessions, let id = selectedID else { return }
         let request = UUID(); workSessionsRequest = request; loadingWorkSessions = true
         defer { if request == workSessionsRequest { loadingWorkSessions = false } }
         do {
-            let page = try await client.request("work_sessions", ["conversation_id": .string(id.uuidString)])
+            var params: [String: JSONValue] = ["conversation_id": .string(id.uuidString)]
+            if let cursor { params["cursor"] = cursor }
+            let raw = try await client.request("work_sessions", params)
             guard request == workSessionsRequest, id == selectedID else { return }
-            guard page["schema"].text == "proto_mind.native_work_sessions.v1", page["read_only"] == .bool(true),
-                  page["runs"].items.count <= 30 else { throw NativeError.message("Не удалось проверить локальный журнал работы.") }
-            let runs = try page["runs"].items.map(NativeWorkSession.init)
-            guard runs.allSatisfy({ UUID(uuidString: $0.value["conversation_id"].text) == id }) else {
-                throw NativeError.message("Журнал относится к другому диалогу; он не показан.")
+            let page = try NativeWorkSessionPage(raw, conversation: id, project: client.configuration.projectRoot, cursor: cursor)
+            var runs = page.runs
+            var warning = page.warning
+            let retainedID = workSessions.first { $0.id == inspectedWorkSessionID
+                && UUID(uuidString: $0.value["conversation_id"].text) == id }?.id
+            if !append, let retainedID, !runs.contains(where: { $0.id == retainedID }) {
+                do { runs.append(try await lookupWorkSession(retainedID, conversation: id)) }
+                catch { warning = [warning, error.localizedDescription].compactMap { $0 }.joined(separator: "\n") }
             }
-            workSessions = runs; workSessionsPath = page["path"].text
-            workSessionsWarning = page["warnings"].items.isEmpty ? nil : page["warnings"].items.map(\.text).joined(separator: "\n")
+            guard request == workSessionsRequest, id == selectedID else { return }
+            workSessions = mergedWorkSessions(append ? workSessions : [], with: runs)
+            workSessionsPath = page.path; workSessionsTotal = page.total
+            workSessionsNextCursor = page.nextCursor; workSessionsWarning = warning
         } catch {
             guard request == workSessionsRequest, id == selectedID else { return }
-            workSessions = []; workSessionsWarning = error.localizedDescription
+            if !append { workSessions = []; workSessionsTotal = nil; workSessionsNextCursor = nil }
+            workSessionsWarning = error.localizedDescription
         }
+    }
+
+    private func lookupWorkSession(_ runID: String, conversation: UUID) async throws -> NativeWorkSession {
+        let value = try await client.request("work_session_lookup", ["conversation_id": .string(conversation.uuidString), "run_id": .string(runID)])
+        guard value["schema"] == .string("proto_mind.native_work_session_lookup.v1"), value["read_only"] == .bool(true) else {
+            throw NativeWorkSessionPage.error()
+        }
+        let run = try NativeWorkSession(value["run"])
+        guard run.id == runID, UUID(uuidString: run.value["conversation_id"].text) == conversation,
+              NativeWorkSessionPage.matchesProject(run.value["project_root"], client.configuration.projectRoot) else { throw NativeWorkSessionPage.error() }
+        return run
+    }
+
+    private func mergedWorkSessions(_ existing: [NativeWorkSession], with incoming: [NativeWorkSession]) -> [NativeWorkSession] {
+        var byID = Dictionary(uniqueKeysWithValues: existing.map { ($0.id, $0) })
+        for run in incoming { byID[run.id] = run }
+        return byID.values.sorted { NativeWorkSessionPage.key($0) > NativeWorkSessionPage.key($1) }
+    }
+
+    private func resetWorkSessionPages() {
+        workSessionsRequest = UUID(); loadingWorkSessions = false
+        workSessions = []; workSessionsWarning = nil; workSessionsTotal = nil; workSessionsNextCursor = nil
+        inspectedWorkSessionID = nil; workSessionsActionError = nil
     }
 
     var workSessionNoticeToShow: NativeWorkSession? {
@@ -666,13 +708,24 @@ final class AppModel: ObservableObject {
 
     func openWorkSession(for message: ChatMessage) async {
         guard !busy, !loadingWorkSessions, let raw = message.turnReference, let conversation = selectedID else { return }
+        let request = UUID(); workSessionsRequest = request; loadingWorkSessions = true
+        defer { if request == workSessionsRequest { loadingWorkSessions = false } }
         do {
             let reference = try NativeTurnReference(raw)
-            await refreshWorkSessions()
-            let run = try reference.resolve(in: workSessions, conversation: conversation)
+            guard let index = selected?.messages.firstIndex(where: { $0.id == message.id }), index > 0,
+                  selected?.messages[index] == message, let source = selected?.messages[index - 1],
+                  reference.matches(source: source, assistant: message, conversation: conversation) else {
+                throw NativeError.message("Связь сообщения с запуском изменилась. Ничего не открыто.")
+            }
+            let saved = try await lookupWorkSession(reference.value["run_id"].text, conversation: conversation)
+            guard request == workSessionsRequest, selectedID == conversation,
+                  selected?.messages.indices.contains(index) == true, selected?.messages[index] == message,
+                  selected?.messages[index - 1] == source else { return }
+            let run = try reference.resolve(in: [saved], conversation: conversation)
+            workSessions = mergedWorkSessions(workSessions, with: [run])
             workSessionsActionError = nil
             openWorkSessions(run)
-        } catch { report(error) }
+        } catch { if request == workSessionsRequest && selectedID == conversation { report(error) } }
     }
 
     func openSessionSpine(for message: ChatMessage) async {
@@ -697,9 +750,11 @@ final class AppModel: ObservableObject {
             guard reference.matches(source: source, assistant: message, conversation: conversationID) else {
                 throw NativeError.message("Связь сообщения с запуском изменилась. Ничего не открыто.")
             }
-            await refreshWorkSessions()
+            let saved = try await lookupWorkSession(reference.value["run_id"].text, conversation: conversationID)
             guard sessionSpinePreviewRequest == request, selectedID == conversationID else { return }
-            let run = try reference.resolve(in: workSessions, conversation: conversationID)
+            let run = try reference.resolve(in: [saved], conversation: conversationID)
+            workSessions = mergedWorkSessions(workSessions, with: [run])
+            inspectedWorkSessionID = run.id
             let parameters = try NativeSessionSpinePreview.parameters(
                 source: source, assistant: message, conversation: conversationID, reference: reference, run: run
             )
@@ -1128,7 +1183,7 @@ final class AppModel: ObservableObject {
         let chat = Conversation()
         conversations.insert(chat, at: 0)
         selectedID = chat.id
-        workSessions = []; workSessionsWarning = nil
+        resetWorkSessionPages()
         codexThreadStatus = .null
         modelSelectionNotice = nil
         inspectedMessageID = nil
@@ -1161,7 +1216,7 @@ final class AppModel: ObservableObject {
         modelSelectionNotice = nil
         codexThreadStatus = .null
         restoreComposer(); resetWorkspaceView(); persist()
-        workSessions = []; workSessionsWarning = nil
+        resetWorkSessionPages()
         Task {
             await refreshWorkSessions()
             await refreshCodexThreadStatus()

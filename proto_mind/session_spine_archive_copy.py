@@ -26,7 +26,6 @@ from proto_mind.native_turn_lineage import (
 )
 from proto_mind.native_work_sessions import (
     MAX_RECORD_BYTES,
-    MAX_RUNS,
     WorkSessionError,
     inspect_work_session_copy,
 )
@@ -36,7 +35,9 @@ SCHEMA = "proto_mind.session_spine_archive_copy_audit.v1"
 MANIFEST_SCHEMA = "proto_mind.session_spine_archive_copy_manifest.v1"
 FORMAT_VERSION = 1
 MAX_HISTORY_BYTES = 50 * 1024 * 1024
-MAX_TOTAL_COPY_BYTES = MAX_HISTORY_BYTES + MAX_RUNS * MAX_RECORD_BYTES
+# This detached audit's input budget is independent of live journal retention.
+MAX_COPIED_RUNS = 500
+MAX_TOTAL_COPY_BYTES = MAX_HISTORY_BYTES + MAX_COPIED_RUNS * MAX_RECORD_BYTES
 MAX_CONVERSATIONS = 10_000
 MAX_MESSAGES = 100_000
 HASH = re.compile(r"[0-9a-f]{64}\Z")
@@ -220,7 +221,7 @@ def _manifest(
     if any(not isinstance(name, str) for name, _ in supplied_items):
         raise SessionSpineArchiveCopyError("Supplied work-session filename is invalid.")
     supplied = tuple(sorted(supplied_items))
-    if len(supplied) > MAX_RUNS:
+    if len(supplied) > MAX_COPIED_RUNS:
         raise SessionSpineArchiveCopyError("Work-session copy exceeds the Native record-count bound.")
     checked: list[tuple[str, str]] = []
     for row in expected:
