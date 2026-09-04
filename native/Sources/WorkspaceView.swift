@@ -88,6 +88,7 @@ struct WorkspaceView: View {
         }
         .sheet(item: $model.pendingAgentAccess) { request in AgentAccessSheet(model: model, request: request) }
         .sheet(isPresented: $model.showWorkSessions) { WorkSessionsView(model: model) }
+        .sheet(item: $model.sessionSpinePreview) { SessionSpinePreviewView(preview: $0) }
         .sheet(isPresented: $model.showContextDesk) { ContextDeskView(model: model) }
         .sheet(isPresented: $model.showPersonaInspector) { PersonaInspectorView(model: model) }
         .sheet(isPresented: $model.showMemoryWorkshop) { MemoryWorkshopView(model: model) }
@@ -413,6 +414,9 @@ private struct MessageView: View {
                         Button { Task { await model.openWorkSession(for: message) } } label: { Image(systemName: "clock.arrow.circlepath") }
                             .disabled(model.busy || model.loadingWorkSessions)
                             .help("Открыть точный запуск этого ответа").accessibilityLabel("Открыть точный запуск этого ответа")
+                        Button { Task { await model.openSessionSpine(for: message) } } label: { Image(systemName: "point.3.connected.trianglepath.dotted") }
+                            .disabled(model.busy || model.loadingWorkSessions || model.loadingSessionSpinePreview)
+                            .help("Открыть read-only Session Spine этого ответа").accessibilityLabel("Открыть Session Spine этого ответа")
                     }
                 }.buttonStyle(.nativeHover).font(.system(size: 13)).foregroundStyle(.tertiary).padding(.top, 2)
                 if showRaw { Text(message.raw).font(.system(size: 11, design: .monospaced)).textSelection(.enabled) }

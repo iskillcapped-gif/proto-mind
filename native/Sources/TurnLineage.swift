@@ -43,7 +43,7 @@ struct NativeTurnReceipt: Equatable {
         UUID(uuidString: value)?.uuidString.lowercased() == value
     }
 
-    fileprivate static func isHash(_ value: String) -> Bool {
+    static func isHash(_ value: String) -> Bool {
         value.range(of: "^[a-f0-9]{64}$", options: .regularExpression) != nil
     }
 

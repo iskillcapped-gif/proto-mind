@@ -152,6 +152,78 @@ def memory_suggestion_fixture(project: Path, state: Path) -> None:
     print(f"Memory suggestion fixture: {state} (synthetic source; no provider call, cloud disabled)")
 
 
+def session_spine_fixture(project: Path, state: Path) -> None:
+    """One exact synthetic Codex turn with lineage; no provider or command is called."""
+    sys.path.insert(0, str(project))
+    from proto_mind.native_instructions import PreparedLocalInstructions, build_instruction_receipt
+    from proto_mind.native_turn_lineage import build_turn_reference
+    from proto_mind.native_work_sessions import WorkSessionStore, workspace_identity
+
+    chat_id, run_id, user_id, assistant_id = (str(uuid4()) for _ in range(4))
+    prompt = "Build the synthetic read-only Session Spine preview."
+    answer = "Synthetic exact answer; no provider, command, or tool was called."
+    instruction = build_instruction_receipt(
+        provider="codex",
+        mode="chat",
+        prepared=PreparedLocalInstructions("local fixture", "legacy_cognitive_core_current_projection", None),
+        developer_instructions="synthetic local contract",
+    )
+    store = WorkSessionStore(state, project)
+    with store.begin(
+        run_id=run_id,
+        conversation_id=chat_id,
+        text=prompt,
+        provider="codex",
+        model="synthetic-no-provider-call",
+        effort="high",
+        mode="chat",
+        workspace=workspace_identity(project),
+        sources=[],
+    ) as run:
+        run.dispatch()
+        completed = run.complete(answer, instruction_receipt=instruction)
+    reference = build_turn_reference(
+        receipt=completed["turn_receipt"],
+        source_message_id=user_id,
+        input_text=prompt,
+        response=answer,
+    )
+
+    def message(identifier, role, text, **extra):
+        return {
+            "id": identifier,
+            "role": role,
+            "text": text,
+            "raw": "",
+            "evidence": None,
+            "notices": [],
+            "createdAt": 800_000_000,
+            "isError": False,
+            **extra,
+        }
+
+    messages = [
+        message(user_id, "user", prompt),
+        message(assistant_id, "assistant", answer, raw=answer, turnReference=reference),
+    ]
+    chat = {
+        "id": chat_id,
+        "title": "Live Session Spine · synthetic fixture",
+        "createdAt": 800_000_000,
+        "updatedAt": 800_000_000,
+        "messages": messages,
+        "provider": "mock",
+        "model": "",
+        "reasoningEffort": "",
+        "draft": "",
+        "workspacePath": str(project),
+    }
+    history = state / "conversations.json"
+    history.write_text(json.dumps({"version": 5, "selectedID": chat_id, "conversations": [chat]}), encoding="utf-8")
+    history.chmod(0o600)
+    print(f"Session Spine fixture: {state} (exact synthetic turn; no provider call); run={run_id}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("destination", type=Path)
@@ -160,12 +232,14 @@ def main() -> None:
     group.add_argument("--notice-state", type=Path)
     group.add_argument("--pdf-state", type=Path)
     group.add_argument("--memory-suggestion-state", type=Path)
+    group.add_argument("--session-spine-state", type=Path)
     args = parser.parse_args()
     destination = args.destination.resolve()
     temporary = Path(tempfile.gettempdir()).resolve()
     if temporary not in destination.parents or destination.exists():
         raise SystemExit("Fixture must be a new directory inside the system temporary directory.")
-    selected_state = args.attachment_state or args.notice_state or args.pdf_state or args.memory_suggestion_state
+    selected_state = (args.attachment_state or args.notice_state or args.pdf_state
+                      or args.memory_suggestion_state or args.session_spine_state)
     state = selected_state.resolve() if selected_state else None
     if state is not None and (temporary not in state.parents or state.exists() or state == destination or destination in state.parents):
         raise SystemExit("State must be a separate new directory inside the system temporary directory.")
@@ -176,7 +250,10 @@ def main() -> None:
     )
     print(f"Native smoke fixture: {destination} (code only; no personal stores copied)")
     if state is not None:
-        (memory_suggestion_fixture if args.memory_suggestion_state else pdf_fixture if args.pdf_state else notice_fixture if args.notice_state else attachment_fixture)(destination, state)
+        fixture = (session_spine_fixture if args.session_spine_state else memory_suggestion_fixture
+                   if args.memory_suggestion_state else pdf_fixture if args.pdf_state
+                   else notice_fixture if args.notice_state else attachment_fixture)
+        fixture(destination, state)
 
 
 if __name__ == "__main__":

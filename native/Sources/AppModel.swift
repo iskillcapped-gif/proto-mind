@@ -127,6 +127,8 @@ final class AppModel: ObservableObject {
     @Published private(set) var workSessionsWarning: String?
     @Published var workSessionsActionError: String?
     @Published private(set) var loadingWorkSessions = false
+    @Published var sessionSpinePreview: NativeSessionSpinePreview?
+    @Published private(set) var loadingSessionSpinePreview = false
     @Published var conversationSearch = ""
     @Published var showArchived = false
     @Published var workspaceStatus: JSONValue = .null
@@ -173,6 +175,7 @@ final class AppModel: ObservableObject {
     private var learningReviewRequest = UUID()
     private var pendingLearningSelection: NativeLearningSelection?
     private var workSessionsRequest = UUID()
+    private var sessionSpinePreviewRequest = UUID()
     private var contextPreviewRequest = UUID()
     private var personaPreviewRequest = UUID()
     private var personaReadinessRequest = UUID()
@@ -657,6 +660,45 @@ final class AppModel: ObservableObject {
         } catch { report(error) }
     }
 
+    func openSessionSpine(for message: ChatMessage) async {
+        guard !busy, !client.turnOutstanding, !loadingWorkSessions, !loadingSessionSpinePreview,
+              let conversation = selected, let conversationID = selectedID else { return }
+        let matches = conversation.messages.indices.filter { conversation.messages[$0].id == message.id }
+        guard matches.count == 1, let assistantIndex = matches.first, assistantIndex > 0,
+              let rawReference = message.turnReference else {
+            report(NativeError.message("Для этого ответа нет однозначного источника Session Spine. Ничего не открыто.")); return
+        }
+        let source = conversation.messages[assistantIndex - 1]
+        let request = UUID()
+        sessionSpinePreviewRequest = request
+        sessionSpinePreview = nil
+        loadingSessionSpinePreview = true
+        defer { if sessionSpinePreviewRequest == request { loadingSessionSpinePreview = false } }
+        do {
+            let reference = try NativeTurnReference(rawReference)
+            guard reference.matches(source: source, assistant: message, conversation: conversationID) else {
+                throw NativeError.message("Связь сообщения с запуском изменилась. Ничего не открыто.")
+            }
+            await refreshWorkSessions()
+            guard sessionSpinePreviewRequest == request, selectedID == conversationID else { return }
+            let run = try reference.resolve(in: workSessions, conversation: conversationID)
+            let parameters = try NativeSessionSpinePreview.parameters(
+                source: source, assistant: message, conversation: conversationID, reference: reference, run: run
+            )
+            let raw = try await client.request("session_spine_preview", parameters)
+            guard sessionSpinePreviewRequest == request, selectedID == conversationID,
+                  selected?.messages.indices.contains(assistantIndex) == true,
+                  selected?.messages[assistantIndex] == message,
+                  selected?.messages[assistantIndex - 1] == source else { return }
+            sessionSpinePreview = try NativeSessionSpinePreview(
+                raw, source: source, assistant: message, conversation: conversationID, reference: reference, run: run
+            )
+            status = "Session Spine · точная read-only проекция"
+        } catch {
+            if sessionSpinePreviewRequest == request && selectedID == conversationID { report(error) }
+        }
+    }
+
     func setWorkSessionWarningHidden(_ run: NativeWorkSession, hidden: Bool) throws {
         guard !busy, !client.turnOutstanding, !loadingWorkSessions,
               let index = conversations.firstIndex(where: { $0.id == selectedID }),
@@ -731,6 +773,7 @@ final class AppModel: ObservableObject {
         projectMemory?.close()
         memorySuggestion?.close()
         skillTask?.close()
+        sessionSpinePreview = nil
         flushDraft()
         let chat = Conversation()
         conversations.insert(chat, at: 0)
@@ -761,6 +804,7 @@ final class AppModel: ObservableObject {
         projectMemory?.close()
         memorySuggestion?.close()
         skillTask?.close()
+        sessionSpinePreview = nil
         flushDraft()
         selectedID = id; section = .chat; inspectedMessageID = nil
         modelSelectionNotice = nil

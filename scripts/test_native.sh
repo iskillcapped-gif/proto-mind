@@ -18,5 +18,9 @@ for source_file in native/Sources/*.swift; do
 done
 swiftc -parse-as-library "${SOURCES[@]}" native/Tests/*.swift -o "${TEMP_DIR}/native-checks"
 "${PYTHON_BIN}" scripts/native_smoke_fixture.py "${TEMP_DIR}/project"
+"${PYTHON_BIN}" scripts/native_smoke_fixture.py "${TEMP_DIR}/session-spine-project" \
+  --session-spine-state "${TEMP_DIR}/session-spine-state"
 "${TEMP_DIR}/native-checks" --fixture "${TEMP_DIR}/project" --python "${PYTHON_BIN}" --pdf-helper "${PDF_HELPER}" \
-  --icon-source "${PROJECT_DIR}/assets/proto_mind_native_icon.png" "$@"
+  --icon-source "${PROJECT_DIR}/assets/proto_mind_native_icon.png" \
+  --session-spine-fixture "${TEMP_DIR}/session-spine-project" \
+  --session-spine-state "${TEMP_DIR}/session-spine-state" "$@"

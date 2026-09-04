@@ -79,6 +79,14 @@ struct NativeChecks {
         try personaActivationContracts(root: root)
         try instructionReceiptContracts()
         try turnLineageContracts(root: root)
+        if let fixture = LaunchConfiguration.argument("--session-spine-fixture"),
+           let state = LaunchConfiguration.argument("--session-spine-state"),
+           let python = LaunchConfiguration.argument("--python") {
+            try await sessionSpineLiveIntegration(
+                fixture: URL(fileURLWithPath: fixture), python: URL(fileURLWithPath: python),
+                state: URL(fileURLWithPath: state)
+            )
+        }
         try conversationManagement(root: root)
         try modelSelection(root: root)
         try modelMenuLayout(root: root)
