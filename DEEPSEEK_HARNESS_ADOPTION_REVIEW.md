@@ -192,13 +192,43 @@ P2e is delivered as a whole-copy compatibility boundary in
   module deliberately never opens the source directory, it cannot prove that the caller copied every
   record from that unseen source.
 
-Fourteen disposable regressions cover two-turn P1 parity, history v1-v5, mixed legacy/orphan evidence,
+Fifteen disposable regressions cover two-turn P1 parity, Python-lowercase and Swift-uppercase archive
+UUID forms, history v1-v5, mixed legacy/orphan evidence,
 missing and malformed runs, message/reference-hash drift, duplicate lineage and message IDs, exact manifest
 binding, malformed history, canonical-record enforcement, deterministic content-free output and no
 file access or input mutation. No personal archive copy is used.
 
-P2a/P2b/P2c/P2d/P2e are not production activation. P2e closes the structural whole-supplied-copy
-audit gap, but not source-directory completeness or a personal-history migration. Before any
+P2f is delivered as the explicitly authorized private-backup acceptance boundary in
+`proto_mind/session_spine_private_backup.py`:
+
+- the caller must name one absolute `.tar.gz` path and independently supply its exact SHA-256. The
+  reader uses no-follow access, detects byte changes during the read and never discovers a live or
+  latest archive;
+- a closed member allowlist accepts Native history, canonical UUID work-session records and bounded
+  non-audited bindings/preferences/lock metadata. Traversal, duplicate names, unknown credential-like
+  paths, links, sparse/special members, unsupported PAX metadata and oversized inputs fail closed;
+- known macOS AppleDouble and provenance sidecars are bounded and ignored rather than extracted or
+  interpreted. No member is written to disk; only exact history/run bytes reach P2e, and neither
+  those bytes nor the caller path/name appears in the returned content-free report;
+- the operator-authorized credential-excluding backup contains 62 messages in two conversations and
+  27 work-session records. P2e finds zero invalid, incompatible or orphan records, but all 30 eligible
+  assistant turns lack persisted lineage; 26 completed runs have no turn receipt and one run is
+  incomplete. The resulting WARN is expected legacy evidence, not corruption;
+- because there are no persisted exact references, P2f forbids inferred backfill and does not justify
+  migration. Historical chat/run evidence stays legacy; any future authoritative Session Spine design
+  should begin forward-only with newly verified turns;
+- the outer private backup is mode `0644`, reported as a privacy-hygiene WARN. P2f neither changes its
+  mode nor writes a report, repair, migration, export, command, provider call or permission.
+
+Twelve disposable P2f regressions cover exact Swift-shaped lineage, deterministic content-free output,
+no disk extraction/input mutation, SHA/path/symlink refusal, missing members, duplicates, traversal,
+credential-named members, link/special members, bounded AppleDouble/PAX handling, visible file mode,
+legacy empty copies, invalid run evidence and explicit non-authority. The one real acceptance run emits
+aggregates only; no personal report or digest is committed.
+
+P2a/P2b/P2c/P2d/P2e/P2f are not production activation. P2e closes the structural whole-supplied-copy
+audit gap and P2f closes the first explicitly authorized real-copy compatibility review, but neither
+proves live-source completeness nor performs personal-history migration. Before any
 authoritative Native use, a separate checkpoint must still provide:
 
 - explicit production owner/session lifecycle binding;
@@ -206,8 +236,7 @@ authoritative Native use, a separate checkpoint must still provide:
 - restart-safe reconstruction of interrupted turns;
 - versioned pure projections for chat, work timeline, turn outline, memory candidates, and telemetry;
 - bounded retention/export before any compaction;
-- an explicitly authorized real-copy exercise and independently reviewed compatibility result before
-  any migration is proposed.
+- a forward-only ownership and dual-read strategy that preserves legacy history without invented links.
 
 Do not make the new store authoritative until old/new parity is proven on isolated fixtures
 and a separate private backup is created.

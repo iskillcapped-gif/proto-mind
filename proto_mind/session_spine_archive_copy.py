@@ -94,6 +94,19 @@ def _uuid(value: object, label: str) -> str:
     return value
 
 
+def _archive_uuid(value: object, label: str) -> str:
+    """Accept the two canonical UUID forms emitted by Python and Swift stores."""
+    if not isinstance(value, str):
+        raise SessionSpineArchiveCopyError(f"{label} is invalid.")
+    try:
+        normalized = str(UUID(value))
+    except (ValueError, AttributeError):
+        raise SessionSpineArchiveCopyError(f"{label} is invalid.") from None
+    if value not in {normalized, normalized.upper()}:
+        raise SessionSpineArchiveCopyError(f"{label} is not canonical Native UUID text.")
+    return normalized
+
+
 def _optional_uuid(value: object) -> str | None:
     try:
         return _uuid(value, "Referenced ID")
@@ -140,7 +153,7 @@ def _decode_history(raw: bytes) -> tuple[dict[str, Any], tuple[dict[str, Any], .
         raise SessionSpineArchiveCopyError("Native history conversation count exceeds the audit bound.")
     selected = value.get("selectedID")
     if selected is not None:
-        _uuid(selected, "Selected conversation ID")
+        _archive_uuid(selected, "Selected conversation ID")
 
     conversation_ids: set[str] = set()
     issues: list[dict[str, Any]] = []
@@ -150,7 +163,7 @@ def _decode_history(raw: bytes) -> tuple[dict[str, Any], tuple[dict[str, Any], .
     for conversation_index, conversation in enumerate(conversations):
         if not isinstance(conversation, dict) or not required_conversation.issubset(conversation):
             raise SessionSpineArchiveCopyError("Native conversation shape is incomplete.")
-        conversation_id = _uuid(conversation["id"], "Native conversation ID")
+        conversation_id = _archive_uuid(conversation["id"], "Native conversation ID")
         if conversation_id in conversation_ids:
             raise SessionSpineArchiveCopyError("Native history contains duplicate conversation IDs.")
         conversation_ids.add(conversation_id)
@@ -168,7 +181,7 @@ def _decode_history(raw: bytes) -> tuple[dict[str, Any], tuple[dict[str, Any], .
         for message_index, message in enumerate(messages):
             if not isinstance(message, dict) or not required_message.issubset(message):
                 raise SessionSpineArchiveCopyError("Native message shape is incomplete.")
-            message_id = _uuid(message["id"], "Native message ID")
+            message_id = _archive_uuid(message["id"], "Native message ID")
             if message_id in seen_messages:
                 issues.append({
                     "category": "duplicate_message_id",
@@ -192,7 +205,7 @@ def _decode_history(raw: bytes) -> tuple[dict[str, Any], tuple[dict[str, Any], .
                 raise SessionSpineArchiveCopyError("Native operator-input marker is invalid.")
             source = message.get("memorySuggestionSourceID")
             if source is not None:
-                _uuid(source, "Memory suggestion source ID")
+                _archive_uuid(source, "Memory suggestion source ID")
     return value, tuple(issues), message_count
 
 
@@ -310,10 +323,10 @@ def audit_native_archive_copy(
     linked_reference_count = 0
 
     for conversation_index, conversation in enumerate(archive["conversations"]):
-        conversation_id = conversation["id"]
+        conversation_id = _archive_uuid(conversation["id"], "Native conversation ID")
         messages = conversation["messages"]
         for message_index, message in enumerate(messages):
-            message_id = message["id"]
+            message_id = _archive_uuid(message["id"], "Native message ID")
             reference_raw = message.get("turnReference")
             eligible_assistant = (
                 message["role"] == "assistant"
@@ -383,7 +396,7 @@ def audit_native_archive_copy(
                 or message["role"] != "assistant"
                 or message["isError"] is not False
                 or message.get("operatorInput") is True
-                or previous["id"] != source_id
+                or _archive_uuid(previous["id"], "Native source message ID") != source_id
                 or previous["role"] != "user"
                 or previous["isError"] is not False
                 or previous.get("operatorInput") is True

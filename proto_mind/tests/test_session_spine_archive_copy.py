@@ -259,6 +259,21 @@ class SessionSpineArchiveCopyTests(unittest.TestCase):
                 self.assertEqual(report["checks"]["native_history_versions_accepted"], [1, 2, 3, 4, 5])
                 self.assertFalse(report["boundaries"]["migration_installed"])
 
+    def test_swift_uppercase_archive_ids_normalize_without_weakening_lineage(self):
+        self.add_turn(1)
+        changed = deepcopy(self.messages)
+        changed[0]["id"] = changed[0]["id"].upper()
+        changed[1]["id"] = changed[1]["id"].upper()
+        history = json.loads(self.history(messages=changed))
+        history["selectedID"] = history["selectedID"].upper()
+        history["conversations"][0]["id"] = history["conversations"][0]["id"].upper()
+        raw = json.dumps(history, ensure_ascii=False).encode("utf-8")
+        report = self.audit(history=raw)
+        self.assertEqual(report["status"], "OK")
+        self.assertEqual(report["coverage"]["compatible_turns"], 1)
+        self.assertEqual(report["turn_findings"][0]["conversation_id"], self.conversation)
+        self.assertEqual(report["turn_findings"][0]["message_id"], changed[1]["id"].lower())
+
     def test_report_is_deterministic_content_free_and_has_no_authority(self):
         self.add_turn(1)
         history = self.history()
