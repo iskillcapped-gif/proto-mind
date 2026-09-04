@@ -18,11 +18,11 @@ MAX_QUOTE = 600
 MAX_CANDIDATES = 2
 ALGORITHM = "explicit_operator_statements_v1"
 PATTERNS = (
-    ("preference", r"(?:я предпочитаю|мне удобнее|i prefer|my preference is)\s+\S"),
-    ("decision", r"(?:мы решили|решили|we decided|our decision is)\s+\S"),
-    ("project_fact", r"(?:в (?:этом )?проекте используем|наш проект использует|in this project we use|our project uses)\s+\S"),
-    ("constraint", r"(?:в (?:этом )?проекте (?:нельзя|не используем|только)|for this project[, ]+\s*(?:never|only|do not))\s+\S"),
-    ("lesson", r"(?:вывод на будущее|урок на будущее|lesson learned)\s*:\s*\S"),
+    ("preference", r"(?:я предпочитаю|мне удобнее|i prefer|my preference is|я віддаю перевагу|мені зручніше)\s+\S"),
+    ("decision", r"(?:мы решили|решили|we decided|our decision is|ми вирішили|вирішили|наше рішення)\s+\S"),
+    ("project_fact", r"(?:в (?:этом )?проекте используем|наш проект использует|in this project we use|our project uses|[ву] (?:цьому )?про[еє]кті використовуємо|наш про[еє]кт використовує)\s+\S"),
+    ("constraint", r"(?:в (?:этом )?проекте (?:нельзя|не используем|только)|for this project[, ]+\s*(?:never|only|do not)|[ву] (?:цьому )?про[еє]кті (?:не можна|не використовуємо|лише|тільки))\s+\S"),
+    ("lesson", r"(?:вывод на будущее|урок на будущее|lesson learned|висновок на майбутнє|урок на майбутнє)\s*:\s*\S"),
 )
 PREFIXES = [(kind, re.compile(pattern, re.IGNORECASE)) for kind, pattern in PATTERNS]
 # A conservative first slice intentionally ignores pasted, quoted and hypothetical material.
@@ -30,10 +30,12 @@ UNSAFE_SOURCE = re.compile(
     r"```|~~~|^[ \t]*>|[<>]|\b(?:translate|translation|quote|quoted|example|hypothetically|suppose)\b"
     r"|\b(?:переведи|перевод|цитата|цитирую|пример|например|допустим|предположим)\b"
     r"|(?:вот|ниже)\s+(?:чужой\s+)?(?:текст|сообщение|инструкции)|\b(?:he said|she said|pasted text)\b"
-    r"|(?:не|don't|do not)\s+(?:запоминай|сохраняй|remember|save)", re.IGNORECASE | re.MULTILINE)
-UNCERTAIN = re.compile(r"[?¿]|\b(?:если|может|возможно|раньше|когда-то|if|maybe|perhaps|previously|used to)\b", re.IGNORECASE)
+    r"|\b(?:переклади|переклад|цитую|приклад|наприклад|припустімо|припустимо)\b"
+    r"|(?:ось|нижче)\s+(?:чужий\s+)?(?:текст|повідомлення|інструкції)"
+    r"|(?:не|don't|do not)\s+(?:запоминай|сохраняй|remember|save|запам[’ʼ'`]?ятовуй|зберігай)", re.IGNORECASE | re.MULTILINE)
+UNCERTAIN = re.compile(r"[?¿]|\b(?:если|может|возможно|раньше|когда-то|if|maybe|perhaps|previously|used to|якщо|можливо|раніше|колись)\b|\bвирішили\s+б\b", re.IGNORECASE)
 SENSITIVE = re.compile(
-    r"\b(?:password|passwd|secret|api[_ -]?key|(?:access[_ -]?)?token|парол\w*|секрет\w*|токен\w*)\b"
+    r"\b(?:password|passwd|secret|api[_ -]?key|(?:access[_ -]?)?token|парол\w*|секрет\w*|токен\w*|таємни\w*|ключ\s+доступу)\b"
     r"|\bsk-[A-Za-z0-9_-]{8,}|-----BEGIN|://[^\s/]+@", re.IGNORECASE)
 
 
@@ -60,7 +62,7 @@ def explicit_statements(text):
         line = match.group()
         for sentence in re.finditer(r".+?(?:[.!?](?=\s|$)|$)", line):
             raw = sentence.group()
-            leading = re.match(r"\s*(?:(?:[-*]|\d+[.)])\s+)?(?:(?:брат|bro)[, :]\s*)?", raw, re.IGNORECASE).end()
+            leading = re.match(r"\s*(?:(?:[-*]|\d+[.)])\s+)?(?:(?:брат|брате|bro)[, :]\s*)?", raw, re.IGNORECASE).end()
             quote = raw[leading:].strip()
             if not 12 <= len(quote) <= MAX_QUOTE or UNCERTAIN.search(quote):
                 continue

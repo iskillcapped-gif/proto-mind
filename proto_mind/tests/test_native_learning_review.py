@@ -162,7 +162,13 @@ class NativeLearningReviewTests(unittest.TestCase):
         self.assertEqual(self.files(), before)
         result = self.call("memory_learning_confirm", {**confirmation, "acknowledge_global_memory": True})
         after = self.files()
-        self.assertEqual([path for path in after if after[path] != before.get(path)], ["project/proto_mind/data/persistent_memory.json"])
+        self.assertEqual([path for path in after if after[path] != before.get(path)], [
+            "project/proto_mind/data/.persistent_memory.json.lock",
+            "project/proto_mind/data/.working_memory.json.lock",
+            "project/proto_mind/data/persistent_memory.json",
+        ])
+        self.assertEqual(after["project/proto_mind/data/.persistent_memory.json.lock"], hashlib.sha256(b"").hexdigest())
+        self.assertEqual(after["project/proto_mind/data/.working_memory.json.lock"], hashlib.sha256(b"").hexdigest())
         current = json.loads((self.data / "persistent_memory.json").read_bytes())
         self.assertEqual(current[:-1], rows)
         self.assertEqual(result["receipt"]["verification_status"], "OK")

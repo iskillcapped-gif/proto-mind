@@ -118,31 +118,32 @@ def format_explicit_memory_list(store: MemoryStore, *, include_all: bool = False
 
 
 def remember_explicit_memory(store: MemoryStore, text: str) -> str:
-    text = text.strip()
-    if not text:
-        return "Usage: /memory remember <text>"
-    loaded = _safe_load_persistent(store)
-    if isinstance(loaded, str):
-        return loaded
-    now = utc_now_iso()
-    record = MemoryRecord(
-        content=text,
-        type="explicit",
-        importance=1.0,
-        source="operator",
-        tags=[],
-        id=_new_explicit_memory_id(now),
-        timestamp=now,
-        last_used=now,
-        usage_count=0,
-        weight=1.0,
-        active=True,
-        confidence=1.0,
-        updated_at=now,
-    )
-    loaded.append(record)
-    store.save_persistent_memory(loaded)
-    return f"Remembered:\n  {record.id} — {_preview(record.content)}"
+    with store.transaction():
+        text = text.strip()
+        if not text:
+            return "Usage: /memory remember <text>"
+        loaded = _safe_load_persistent(store)
+        if isinstance(loaded, str):
+            return loaded
+        now = utc_now_iso()
+        record = MemoryRecord(
+            content=text,
+            type="explicit",
+            importance=1.0,
+            source="operator",
+            tags=[],
+            id=_new_explicit_memory_id(now),
+            timestamp=now,
+            last_used=now,
+            usage_count=0,
+            weight=1.0,
+            active=True,
+            confidence=1.0,
+            updated_at=now,
+        )
+        loaded.append(record)
+        store.save_persistent_memory(loaded)
+        return f"Remembered:\n  {record.id} — {_preview(record.content)}"
 
 
 def inspect_explicit_memory(store: MemoryStore, memory_id: str) -> str:
@@ -203,25 +204,26 @@ def search_explicit_memories(store: MemoryStore, query: str) -> str:
 
 
 def forget_explicit_memory(store: MemoryStore, memory_id: str) -> str:
-    memory_id = memory_id.strip()
-    if not memory_id:
-        return "Usage: /memory forget <id>"
-    loaded = _safe_load_persistent(store)
-    if isinstance(loaded, str):
-        return loaded
-    record = _find_forgettable_record(loaded, memory_id)
-    if not record:
-        return f"Explicit memory not found: {memory_id}"
-    if _explicit_status(record) == "forgotten":
-        return f"Already forgotten:\n  {record.id} — {_preview(record.content)}"
-    now = utc_now_iso()
-    record.active = False
-    record.updated_at = now
-    record.last_used = now
-    record.superseded_at = now
-    record.superseded_reason = "Forgotten by operator."
-    store.save_persistent_memory(loaded)
-    return f"Forgotten:\n  {record.id} — {_preview(record.content)}"
+    with store.transaction():
+        memory_id = memory_id.strip()
+        if not memory_id:
+            return "Usage: /memory forget <id>"
+        loaded = _safe_load_persistent(store)
+        if isinstance(loaded, str):
+            return loaded
+        record = _find_forgettable_record(loaded, memory_id)
+        if not record:
+            return f"Explicit memory not found: {memory_id}"
+        if _explicit_status(record) == "forgotten":
+            return f"Already forgotten:\n  {record.id} — {_preview(record.content)}"
+        now = utc_now_iso()
+        record.active = False
+        record.updated_at = now
+        record.last_used = now
+        record.superseded_at = now
+        record.superseded_reason = "Forgotten by operator."
+        store.save_persistent_memory(loaded)
+        return f"Forgotten:\n  {record.id} — {_preview(record.content)}"
 
 
 def format_memory_doctor(store: MemoryStore) -> str:

@@ -172,7 +172,7 @@ class OperatorReviewedLearningMemoryApplySession:
         memory_store: MemoryStore,
         skill_library: SkillLibrary,
     ) -> LearningMemoryApplyReceipt:
-        with self._lock:
+        with self._lock, memory_store.transaction():
             review = self._review_locked(
                 proposal,
                 candidates=candidates,

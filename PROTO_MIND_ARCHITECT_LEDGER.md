@@ -2,9 +2,11 @@
 
 Purpose: descriptive architectural memory for the operator and future development sessions. This file is not a system prompt, personality prompt, permission policy, or immutable task instruction. Historical limits record what a milestone did and did not prove at that time; they do not create standing prohibitions for later work.
 
-Last updated: 2026-09-04
+Last updated: 2026-09-05
 
 ## Current Stable State
+
+- Native 0.44.0 adds cooperative transactions for complete core-memory mutations, prevents stale retrieval from resurrecting removed records, expands local project recall with finite RU/UK/EN technical aliases and recognizes Ukrainian memory flows and reviewed suggestions. Old recall evidence remains readable. See the current [release contract](NATIVE_MACOS_ROADMAP.md#memory-reliability-and-multilingual-recall--native-0440) for scope and verification.
 
 - Native 0.43.1 fixes ordinary chat-history save failures: failed pre-dispatch saves restore the draft and prevent a turn; completed but unsaved replies remain visible and can be saved again without re-running the provider; quitting with unsaved changes requires an explicit decision. Recovery status is separate from dismissible errors.
 

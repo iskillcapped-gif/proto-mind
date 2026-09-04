@@ -7,10 +7,13 @@ from uuid import UUID
 from proto_mind.native_desk import injection_state
 from proto_mind.native_private_records import HASH, snapshot_hash
 from proto_mind.native_project_memory import NativeProjectMemory
+from proto_mind.project_recall_terms import TERM_ALIASES
+from proto_mind.text_normalization import normalize_text
 
 
 SCHEMA = "proto_mind.native_project_recall.v1"
-ALGORITHM = "local_content_token_overlap_v1"
+ALGORITHM = "local_content_terms_v2"
+SUPPORTED_ALGORITHMS = {"local_content_token_overlap_v1", ALGORITHM}
 MAX_NOTES = 3
 MAX_CHARACTERS = 6000
 FIELDS = {"schema", "conversation_id", "workspace", "goal_sha256", "access_mode", "state", "algorithm",
@@ -26,17 +29,23 @@ can could would should make want use using now here there they them their our yo
 проект проекта проекте текущий текущего сейчас тут там мне меня мы нам наш наша наши ваш брат давай давайте
 сделай сделать использовать используй расскажи покажи помоги работа задачу задачи можно есть было будет
 проверь продолжим продолжаем дальше привет спасибо хорошо отлично просто
+does did explain works working on which яких якому чому коли який яка які яке як це цього ці цей ця щоб
+будь ласка проєкт проєкту проєкті проекту проекті поточний поточного зараз тут там мені мене наш наша наші
+брате давай давайте зроби зробити використовувати використовуй розкажи покажи допоможи робота роботу роботи
+працює працюють завдання можна було буде перевір продовжимо продовжуємо далі привіт дякую добре чудово просто
+каком каком-то работает работают работающий
 """.split())
 
 
 def tokens(text: str) -> set[str]:
-    return {token for token in re.findall(r"[^\W_]+", text.casefold().replace("ё", "е"), flags=re.UNICODE)
-            if 3 <= len(token) <= 80 and token not in STOP_WORDS}
+    return {TERM_ALIASES.get(token, token) for token in re.findall(r"[^\W_]+", normalize_text(text), flags=re.UNICODE)
+            if (3 <= len(token) <= 80 or token in TERM_ALIASES) and token not in STOP_WORDS}
 
 
 def validate_project_recall(value, *, notes=None, record=None):
     if (not isinstance(value, dict) or set(value) != FIELDS or value["schema"] != SCHEMA
-            or value["algorithm"] != ALGORITHM or not isinstance(value["state"], str) or value["state"] not in {"selected", "no_match", "empty", "unavailable"}
+            or not isinstance(value["algorithm"], str) or value["algorithm"] not in SUPPORTED_ALGORITHMS
+            or not isinstance(value["state"], str) or value["state"] not in {"selected", "no_match", "empty", "unavailable"}
             or not isinstance(value["conversation_id"], str) or str(UUID(value["conversation_id"])) != value["conversation_id"]
             or not isinstance(value["access_mode"], str) or value["access_mode"] not in {"chat", "full_access"}
             or not isinstance(value["goal_sha256"], str) or not HASH.fullmatch(value["goal_sha256"])
@@ -115,8 +124,8 @@ class ProjectRecall:
         self.report.update(state=state, source_snapshot_hash=snapshot_hash(all_records), total_count=len(records), active_count=len(active),
                            matching_count=len(ranked), selected_ids=[row["id"] for row in self.notes], characters=characters,
                            omitted_count=len(ranked) - len(self.notes), reason={
-                               "selected": "Current notes matched informative words in this task. Local selection, not independent factual verification.",
-                               "no_match": "No informative content-word match. No note was added and relevance was not guessed.",
+                               "selected": "Current notes matched normalized content words, including supported RU/UK/EN term aliases. Local lexical selection, not independent factual verification.",
+                               "no_match": "No informative content-term match, including supported word forms and aliases. No note was added.",
                                "empty": "No active notes for this exact project. No store was initialized or old memory migrated.",
                            }[state])
         self.revalidate()

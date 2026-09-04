@@ -8,6 +8,7 @@ Proto-Mind is a personal macOS application with a Python cognitive core. The goa
 - Choose priorities from user value and current evidence. Historical milestone order, narrow pilot limits and earlier implementation choices are not permanent design constraints.
 - Keep product behavior and controls honest: distinguish a completed model response, saved data and a verified task outcome. Preserve user data and make intentional changes to permissions, memory policy or schemas understandable and recoverable.
 - A clean Git commit or branch point is a sufficient source checkpoint for code-only work. Back up affected personal state before a migration or operation that can alter it; a new full archive is not required for every patch.
+- Core-memory read/change/save operations must hold `MemoryStore.transaction()` through revalidation, save and verification. Keep live sidecar locks in place; plain reads and previews must remain free of writes.
 - Tests and fault injection should use disposable state. Run focused checks while iterating and the broader suites appropriate to the affected components before delivery. Match verification claims to what actually ran.
 
 ## Project map

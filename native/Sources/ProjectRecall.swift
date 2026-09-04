@@ -9,7 +9,7 @@ struct NativeProjectRecallReport: Equatable {
         switch state {
         case "selected": return "Память проекта · выбрано: \(selectedIDs.count)"
         case "empty": return "Память проекта · пока нет заметок"
-        case "no_match": return "Память проекта · нет точных совпадений"
+        case "no_match": return "Память проекта · совпадений нет"
         default: return "Память проекта · подбор недоступен"
         }
     }
@@ -20,7 +20,7 @@ struct NativeProjectRecallReport: Equatable {
             "reason", "read_only", "model_call_performed", "permission_granted", "automatic_learning"]
         guard case .object(let raw) = value, Set(raw.keys) == fields,
               value["schema"] == .string("proto_mind.native_project_recall.v1"),
-              value["algorithm"] == .string("local_content_token_overlap_v1"),
+              ["local_content_token_overlap_v1", "local_content_terms_v2"].contains(value["algorithm"].text),
               UUID(uuidString: value["conversation_id"].text) != nil, decisionHashValue(value["goal_sha256"].text),
               ["chat", "full_access"].contains(value["access_mode"].text),
               ["selected", "no_match", "empty", "unavailable"].contains(value["state"].text),
@@ -105,9 +105,12 @@ struct ProjectRecallReportView: View {
         DisclosureGroup {
             VStack(alignment: .leading, spacing: 7) {
                 switch report.state {
-                case "selected": Text("Выбраны текущие версии заметок по совпадению значимых слов задачи. Это утверждения оператора, а не независимая проверка фактов.")
+                case "selected":
+                    Text(report.value["algorithm"] == .string("local_content_terms_v2")
+                         ? "Выбраны текущие заметки по словам задачи с учётом известных форм слов и переводов терминов. Смысл и достоверность заметок отдельно не проверялись."
+                         : "Выбраны текущие версии заметок по совпадению значимых слов задачи. Это утверждения оператора, а не независимая проверка фактов.")
                 case "empty": Text("В этой папке нет активных явно сохранённых заметок. Старая память не переносилась, новое хранилище не создавалось.")
-                case "no_match": Text("Значимые слова задачи не совпали с содержанием заметок. Подбор не угадывает смысл; можно прикрепить нужное вручную.")
+                case "no_match": Text("Подходящих совпадений с содержанием заметок не найдено. Нужную заметку можно прикрепить вручную.")
                 default: Text("Подбор недоступен: нет рабочей папки либо источник/настройки требуют проверки. Обычный запрос идёт без автоматически добавленных заметок.")
                 }
                 Text(report.value["reason"].text).textSelection(.enabled)

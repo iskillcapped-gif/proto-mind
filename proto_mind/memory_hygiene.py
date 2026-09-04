@@ -79,35 +79,36 @@ class MemoryHygiene:
         )
 
     def apply_cleanup(self) -> MemoryHygieneApplyResult:
-        preview = self.preview_cleanup()
-        remove_working = {
-            candidate.id
-            for group in preview.duplicate_groups
-            for candidate in group.cleanup_candidates
-            if candidate.layer == "working"
-        }
-        remove_persistent = {
-            candidate.id
-            for group in preview.duplicate_groups
-            for candidate in group.cleanup_candidates
-            if candidate.layer == "persistent"
-        }
+        with self.store.transaction():
+            preview = self.preview_cleanup()
+            remove_working = {
+                candidate.id
+                for group in preview.duplicate_groups
+                for candidate in group.cleanup_candidates
+                if candidate.layer == "working"
+            }
+            remove_persistent = {
+                candidate.id
+                for group in preview.duplicate_groups
+                for candidate in group.cleanup_candidates
+                if candidate.layer == "persistent"
+            }
 
-        if remove_working:
-            working = [record for record in self.store.load_working_memory() if record.id not in remove_working]
-            self.store.save_working_memory(working)
-        if remove_persistent:
-            persistent = [record for record in self.store.load_persistent_memory() if record.id not in remove_persistent]
-            self.store.save_persistent_memory(persistent)
+            if remove_working:
+                working = [record for record in self.store.load_working_memory() if record.id not in remove_working]
+                self.store.save_working_memory(working)
+            if remove_persistent:
+                persistent = [record for record in self.store.load_persistent_memory() if record.id not in remove_persistent]
+                self.store.save_persistent_memory(persistent)
 
-        repaired_refs = self._repair_superseded_by_references(preview.replacement_record_ids)
+            repaired_refs = self._repair_superseded_by_references(preview.replacement_record_ids)
 
-        return MemoryHygieneApplyResult(
-            preview=preview,
-            removed_working_ids=sorted(remove_working),
-            removed_persistent_ids=sorted(remove_persistent),
-            repaired_superseded_by_refs=repaired_refs,
-        )
+            return MemoryHygieneApplyResult(
+                preview=preview,
+                removed_working_ids=sorted(remove_working),
+                removed_persistent_ids=sorted(remove_persistent),
+                repaired_superseded_by_refs=repaired_refs,
+            )
 
     def preview_reference_repair(self) -> MemoryHygieneReferenceRepairPreview:
         layered = self._load_layered_records()
@@ -141,17 +142,18 @@ class MemoryHygiene:
         )
 
     def apply_reference_repair(self) -> MemoryHygieneReferenceRepairApplyResult:
-        preview = self.preview_reference_repair()
-        replacement_record_ids = {
-            reference.missing_superseded_by: reference.candidate_record_id
-            for reference in preview.orphaned_references
-            if reference.auto_repairable and reference.candidate_record_id
-        }
-        repaired_refs = self._repair_superseded_by_references(replacement_record_ids)
-        return MemoryHygieneReferenceRepairApplyResult(
-            preview=preview,
-            repaired_superseded_by_refs=repaired_refs,
-        )
+        with self.store.transaction():
+            preview = self.preview_reference_repair()
+            replacement_record_ids = {
+                reference.missing_superseded_by: reference.candidate_record_id
+                for reference in preview.orphaned_references
+                if reference.auto_repairable and reference.candidate_record_id
+            }
+            repaired_refs = self._repair_superseded_by_references(replacement_record_ids)
+            return MemoryHygieneReferenceRepairApplyResult(
+                preview=preview,
+                repaired_superseded_by_refs=repaired_refs,
+            )
 
     def _repair_superseded_by_references(
         self,

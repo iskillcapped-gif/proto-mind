@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import re
 
+from proto_mind.text_normalization import normalize_text
+
 
 GENERIC_TOPIC_WEIGHTS = {
     "decision": 0.2,
@@ -156,6 +158,34 @@ PHRASE_CANONICAL_TAGS = {
     "как мы обсуждали": ("continuity", "historical"),
     "продолжим работу": ("continuity", "project"),
     "прото-майнд": ("proto-mind",),
+    "короткі відповіді": ('preference', 'short', 'response_style'),
+    "стислі відповіді": ('preference', 'concise', 'response_style'),
+    "лаконічні відповіді": ('preference', 'concise', 'response_style'),
+    "стиль відповіді": ('preference', 'style', 'response_style'),
+    "як відповідати": ('future_behavior', 'response_style'),
+    "як тобі відповідати": ('future_behavior', 'response_style'),
+    "як ти маєш відповідати": ('future_behavior', 'response_style'),
+    "чому я віддаю перевагу": ('preference',),
+    "я віддаю перевагу": ('preference',),
+    "у майбутніх відповідях": ('future_behavior', 'response_style'),
+    "система зберігання": ('storage',),
+    "база даних": ('storage',),
+    "базу даних": ('storage',),
+    "бекенд пам'яті": ('backend', 'storage', 'memory'),
+    "постійна пам'ять": ('persistence', 'memory', 'storage'),
+    "використовуємо зараз": ('current',),
+    "просто зараз": ('current',),
+    "активне рішення": ('current', 'decision'),
+    "використовували раніше": ('historical',),
+    "що змінилося": ('historical', 'change'),
+    "замість": ('decision', 'change', 'historical'),
+    "більше не": ('change', 'historical'),
+    "зараз пам'ятаєш": ('current', 'memory'),
+    "тепер використовуємо": ('decision', 'current'),
+    "зберігання пам'яті": ('storage', 'memory'),
+    "як ми обговорювали": ('continuity', 'historical'),
+    "продовжимо роботу": ('continuity', 'project'),
+    "продовжуємо роботу": ('continuity', 'project'),
 }
 
 TOKEN_CANONICAL_TAGS = {
@@ -257,11 +287,63 @@ TOKEN_CANONICAL_TAGS = {
     "текущий": ("current",),
     "хранение": ("storage",),
     "хранилище": ("storage",),
+    "архітектура": ('architecture',),
+    "архітектурі": ('architecture',),
+    "архітектури": ('architecture',),
+    "бекенд": ('backend', 'storage'),
+    "майбутньому": ('future_behavior',),
+    "майбутніх": ('future_behavior',),
+    "змінили": ('change', 'historical'),
+    "змінилося": ('change', 'historical'),
+    "зміна": ('change', 'historical'),
+    "короткі": ('short', 'response_style'),
+    "коротким": ('short', 'response_style'),
+    "коротких": ('short', 'response_style'),
+    "стислі": ('concise', 'response_style'),
+    "стислим": ('concise', 'response_style'),
+    "лаконічним": ('concise', 'response_style'),
+    "лаконічно": ('concise', 'response_style'),
+    "модулі": ('module',),
+    "пояснювати": ('explanation', 'response_style'),
+    "пояснень": ('explanation', 'response_style'),
+    "відповіді": ('response_style',),
+    "відповідям": ('response_style',),
+    "відповідей": ('response_style',),
+    "пояснення": ('explanation', 'response_style'),
+    "відповідати": ('response_style',),
+    "пам'ять": ('memory',),
+    "пам'яті": ('memory',),
+    "пам'ятаєш": ('memory',),
+    "запам'ятай": ('memory',),
+    "уподобання": ('preference',),
+    "вподобання": ('preference',),
+    "перевагу": ('preference',),
+    "попередній": ('historical',),
+    "продовжимо": ('continuity',),
+    "продовжуємо": ('continuity',),
+    "проєкт": ('project',),
+    "проєкту": ('project',),
+    "проєкті": ('project',),
+    "проєктом": ('project',),
+    "проекту": ('project',),
+    "проекті": ('project',),
+    "раніше": ('historical',),
+    "рішення": ('decision',),
+    "рішень": ('decision',),
+    "вирішили": ('decision',),
+    "зараз": ('current',),
+    "стилі": ('style', 'response_style'),
+    "поточна": ('current',),
+    "поточне": ('current',),
+    "поточний": ('current',),
+    "зберігання": ('storage',),
+    "сховище": ('storage',),
+    "сховища": ('storage',),
 }
 
 
 def extract_topic_tags(text: str) -> list[str]:
-    lowered = text.lower()
+    lowered = normalize_text(text)
     found: list[str] = []
     seen: set[str] = set()
 
@@ -272,7 +354,7 @@ def extract_topic_tags(text: str) -> list[str]:
                     found.append(tag)
                     seen.add(tag)
 
-    tokens = re.findall(r"[a-zа-яё0-9-]+", lowered)
+    tokens = re.findall(r"[^\W_]+(?:['-][^\W_]+)*", lowered, flags=re.UNICODE)
     for token in tokens:
         if token in STOPWORDS:
             continue

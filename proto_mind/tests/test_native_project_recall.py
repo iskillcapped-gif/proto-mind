@@ -140,11 +140,47 @@ class ProjectRecallTests(TestCase):
                 self.assertEqual(auto.notes, [])
         self.assertEqual(tokens("ЁЛКА ёлка ELKA, elka!"), {"елка", "elka"})
 
-    def test_first_slice_does_not_claim_stemming_translation_or_semantic_matching(self):
-        self.save("Бирюзовый цвет интерфейса.")
-        self.assertEqual(self.recall("Turquoise interface").report["state"], "no_match")
-        self.assertEqual(self.recall("цвета").report["state"], "no_match")
-        self.assertEqual(self.recall("ЦВЕТ?").report["state"], "selected")
+    def test_supported_word_forms_and_translations_find_the_same_current_note(self):
+        note = self.save("Порт сервера: 4317.")
+        before = self.files()
+        for query in ("На каком порту работает сервер?", "На якому порту працює сервер?",
+                      "Which port does the server use?", "SERVER PORTS"):
+            with self.subTest(query=query):
+                auto = self.recall(query)
+                self.assertEqual(auto.report["selected_ids"], [note["id"]])
+                self.assertEqual(auto.report["algorithm"], "local_content_terms_v2")
+        self.assertEqual(self.files(), before)
+        self.assertEqual(self.backend.subscription.calls, [])
+
+    def test_aliases_cover_multiple_domains_without_inventing_stems_or_general_translation(self):
+        note = self.save("Бирюзовый цвет интерфейса.")
+        for query in ("ЦВЕТ?", "цвета", "Кольори інтерфейсу", "Interface colors"):
+            with self.subTest(query=query):
+                self.assertEqual(self.recall(query).report["selected_ids"], [note["id"]])
+        for query in ("Turquoise pigment", "цветение", "Портал", "Привіт брате, продовжимо роботу", "Будь ласка допоможи з цим проєктом"):
+            with self.subTest(query=query):
+                self.assertEqual(self.recall(query).report["state"], "no_match")
+        for left, right in (("налаштування кешу", "cache configuration"), ("ошибки сборки", "помилки збірки"),
+                            ("зависимости тестов", "test dependencies"), ("файлы журналов", "файли логів")):
+            with self.subTest(left=left):
+                self.assertEqual(tokens(left), tokens(right))
+
+    def test_repeating_aliases_does_not_inflate_relevance(self):
+        repeated = self.save("Port ports порт порта порту порте.")
+        specific = self.save("Порт сервера: 4317.")
+        auto = self.recall("Which server port?")
+        self.assertEqual(auto.report["selected_ids"], [specific["id"], repeated["id"]])
+
+    def test_legacy_algorithm_reports_remain_readable_without_relabeling(self):
+        self.save("Порт сервера: 4317.")
+        legacy = self.recall().report | {"algorithm": "local_content_token_overlap_v1"}
+        metadata = knowledge_metadata(self.recall().notes, recall=legacy)
+        before = deepcopy(metadata)
+        validate_knowledge_metadata(metadata)
+        self.assertEqual(metadata, before)
+        for algorithm in ("unknown", [], None):
+            with self.subTest(algorithm=algorithm), self.assertRaises(ValueError):
+                validate_project_recall(legacy | {"algorithm": algorithm})
 
     def test_manual_selection_overrides_auto_without_merging(self):
         self.save("Порт сервера: 4317.")

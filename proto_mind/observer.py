@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from proto_mind.models import ObserverState
 from proto_mind.topic_utils import extract_topic_tags
+from proto_mind.text_normalization import normalize_text
 
 
 class Observer:
@@ -14,6 +15,11 @@ class Observer:
         "напомни мне",
         "продолжим с",
         "продолжим работу",
+        "як ми обговорювали",
+        "як ми говорили",
+        "нагадай мені",
+        "продовжимо з",
+        "продовжимо роботу",
     )
     OVERRIDE_DECISION_MARKERS = (
         "actually",
@@ -30,6 +36,14 @@ class Observer:
         "замени",
         "заменить",
         "переходим на",
+        "насправді",
+        "замість",
+        "змінюємо напрям",
+        "тепер використовуємо",
+        "більше не",
+        "заміни",
+        "замінити",
+        "переходимо на",
     )
     MEMORY_INVENTORY_MARKERS = (
         "what do you remember",
@@ -74,6 +88,23 @@ class Observer:
         "всё ещё актуально",
         "все еще актуально",
         "что я предпочитаю",
+        "що ти пам'ятаєш",
+        "що ти зараз пам'ятаєш",
+        "що зберігається в пам'яті",
+        "які вподобання ти знаєш",
+        "які уподобання ти знаєш",
+        "які рішення ми прийняли",
+        "що ми вирішили",
+        "що використовуємо зараз",
+        "яку систему зберігання",
+        "який бекенд пам'яті",
+        "що використовували раніше",
+        "що змінилося",
+        "поточний архітектурний напрям",
+        "поточний напрям",
+        "поточна реалізація",
+        "досі актуально",
+        "чому я віддаю перевагу",
     )
     CONTINUITY_MARKERS = (
         "as we discussed earlier",
@@ -93,6 +124,17 @@ class Observer:
         "вернемся к",
         "уже есть",
         "до сих пор",
+        "як ми обговорювали",
+        "як ми говорили",
+        "нагадай",
+        "раніше",
+        "попередн",
+        "продовжимо",
+        "продовжуємо",
+        "повернімося до",
+        "повернемося до",
+        "вже є",
+        "досі",
     )
     PREFERENCE_MARKERS = (
         "i prefer",
@@ -103,6 +145,11 @@ class Observer:
         "мне нравится",
         "для будущего",
         "всегда используй",
+        "я віддаю перевагу",
+        "мені подобається",
+        "на майбутнє",
+        "завжди використовуй",
+        "моє уподобання",
     )
     PREFERENCE_BEHAVIOR_MARKERS = (
         "how should you explain",
@@ -126,6 +173,14 @@ class Observer:
         "в будущих обсуждениях",
         "отвечай мне в будущем",
         "объясняй позже",
+        "як тобі відповідати",
+        "як ти маєш відповідати",
+        "який стиль відповіді",
+        "чому я віддаю перевагу",
+        "у майбутніх відповідях",
+        "у майбутніх обговореннях",
+        "відповідай мені в майбутньому",
+        "пояснюй пізніше",
     )
     DECISION_MARKERS = (
         "we decided",
@@ -138,10 +193,16 @@ class Observer:
         "давай использовать",
         "теперь используем",
         "переходим на",
+        "ми вирішили",
+        "рішення",
+        "давай використовувати",
+        "нумо використовувати",
+        "тепер використовуємо",
+        "переходимо на",
     )
 
     def analyze(self, user_input: str) -> ObserverState:
-        lowered = user_input.lower()
+        lowered = normalize_text(user_input)
         tags = self._extract_tags(lowered)
         query_type = self._classify_query(lowered)
         needs_memory = self._needs_memory(query_type, lowered)
@@ -154,6 +215,8 @@ class Observer:
         )
 
     def _classify_query(self, text: str) -> str:
+        if text.startswith(("remember that", "запомни, что", "запомни что", "запам'ятай, що", "запам'ятай що")):
+            return "personal_context"
         if any(phrase in text for phrase in self.EXPLICIT_CONTINUITY_MARKERS):
             return "continuity_followup"
         if self._is_memory_inventory_query(text):
@@ -162,13 +225,13 @@ class Observer:
             return "decision_request"
         if self._has_continuity_signal(text):
             return "continuity_followup"
-        if any(phrase in text for phrase in ("remember that", "запомни, что", "запомни что", *self.PREFERENCE_MARKERS)):
+        if any(phrase in text for phrase in ("remember that", "запомни, что", "запомни что", "запам'ятай, що", "запам'ятай що", *self.PREFERENCE_MARKERS)):
             return "personal_context"
         if any(phrase in text for phrase in self.DECISION_MARKERS):
             return "decision_request"
-        if any(phrase in text for phrase in ("architecture", "module", "design", "reasoner", "memory", "архитектур", "модул", "дизайн", "ризонер", "памят")):
+        if any(phrase in text for phrase in ("architecture", "module", "design", "reasoner", "memory", "архитектур", "модул", "дизайн", "ризонер", "памят", "архітектур", "пам'ят")):
             return "meta_architecture"
-        if any(phrase in text for phrase in ("project", "roadmap", "mvp", "proto-mind", "проект", "дорожн", "прото-майнд")):
+        if any(phrase in text for phrase in ("project", "roadmap", "mvp", "proto-mind", "проект", "проєкт", "дорожн", "прото-майнд")):
             return "project_context"
         return "new_question"
 
@@ -200,7 +263,7 @@ class Observer:
             "memory_inventory": 0.8,
         }
         score = base_scores.get(query_type, 0.4)
-        if any(term in text for term in ("important", "remember", "decision", "preference", "always", "важн", "запомн", "решени", "предпоч", "всегда")):
+        if any(term in text for term in ("important", "remember", "decision", "preference", "always", "важн", "запомн", "решени", "предпоч", "всегда", "важлив", "запам'ят", "рішенн", "уподоб", "переваг", "завжди")):
             score += 0.1
         if self._is_preference_behavior_query(text):
             score += 0.1
@@ -220,20 +283,20 @@ class Observer:
         if not self._is_recall_question(text):
             return False
 
-        inventory_verbs = ("remember", "stored", "use", "using", "used", "decide", "decision", "pick", "change", "changed", "current", "помн", "хран", "использ", "реш", "выбра", "измен", "текущ")
-        inventory_topics = ("storage", "backend", "persistence", "preference", "decision", "json", "sqlite", "memory", "direction", "implementation", "хранил", "бэкенд", "постоян", "предпоч", "решени", "памят", "направлен", "реализац")
+        inventory_verbs = ("remember", "stored", "use", "using", "used", "decide", "decision", "pick", "change", "changed", "current", "помн", "хран", "использ", "реш", "выбра", "измен", "текущ", "пам'ята", "зберіг", "використ", "виріш", "обрал", "змін", "поточ")
+        inventory_topics = ("storage", "backend", "persistence", "preference", "decision", "json", "sqlite", "memory", "direction", "implementation", "хранил", "бэкенд", "постоян", "предпоч", "решени", "памят", "направлен", "реализац", "сховищ", "зберіган", "бекенд", "вподоб", "уподоб", "рішенн", "пам'ят", "напрям", "реалізац", "базу даних")
         return any(verb in text for verb in inventory_verbs) and any(topic in text for topic in inventory_topics)
 
     def _is_override_decision(self, text: str) -> bool:
         if not any(phrase in text for phrase in self.OVERRIDE_DECISION_MARKERS):
             return False
-        return any(signal in text for signal in ("should use", "use ", "replace", "instead of", "we now use", "использ", "замен", "вместо", "переходим"))
+        return any(signal in text for signal in ("should use", "use ", "replace", "instead of", "we now use", "использ", "замен", "вместо", "переходим", "використ", "замін", "замість", "переходимо"))
 
     def _is_preference_behavior_query(self, text: str) -> bool:
         if any(phrase in text for phrase in self.PREFERENCE_BEHAVIOR_MARKERS):
             return True
-        behavior_words = ("explain", "respond", "style", "future", "later", "объяс", "отвеч", "стиль", "будущ", "позже")
-        preference_words = ("should you", "should we", "use", "responses", "discussions", "должен", "использ", "ответ", "обсужден")
+        behavior_words = ("explain", "respond", "style", "future", "later", "объяс", "отвеч", "стиль", "будущ", "позже", "поясн", "відповід", "майбут", "пізніше")
+        preference_words = ("should you", "should we", "use", "responses", "discussions", "должен", "использ", "ответ", "обсужден", "маєш", "використ", "відповід", "обговор")
         return any(word in text for word in behavior_words) and any(word in text for word in preference_words)
 
     @staticmethod
@@ -261,5 +324,7 @@ class Observer:
             "повтори текущую",
             "уже",
             "до сих пор",
+            "що", "який", "яка", "які", "яку", "нагадай", "згадай",
+            "перевір поточ", "повтори поточ", "вже", "досі",
         )
-        return "?" in text or any(marker in text for marker in recall_markers)
+        return "?" in text or text.startswith("чи ") or any(marker in text for marker in recall_markers)

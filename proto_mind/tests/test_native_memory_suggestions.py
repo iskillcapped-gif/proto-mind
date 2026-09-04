@@ -13,6 +13,39 @@ from proto_mind.tests import test_native_project_memory as memory_fixture
 
 
 class StatementExtractionTests(TestCase):
+    def test_ukrainian_statements_preserve_all_kinds_and_exact_unicode_offsets(self):
+        cases = {
+            "Я віддаю перевагу коротким відповідям.": "preference",
+            "Ми вирішили використовувати SQLite для пам’яті.": "decision",
+            "У цьому проєкті використовуємо Python 3.11.": "project_fact",
+            "В проекті не використовуємо зовнішню базу даних.": "constraint",
+            "Висновок на майбутнє: перевіряти робочу папку.": "lesson",
+        }
+        for quote, kind in cases.items():
+            text = "Привіт 💙.\n  - брате, " + quote
+            with self.subTest(quote=quote):
+                records = explicit_statements(text)
+                self.assertEqual(len(records), 1)
+                self.assertEqual(records[0]["kind"], kind)
+                self.assertEqual(text[records[0]["start"]:records[0]["end"]], quote)
+                self.assertEqual(records[0]["content_sha256"], text_hash(quote))
+
+    def test_ukrainian_quotes_questions_hypotheses_opt_out_and_secrets_are_not_suggestions(self):
+        for text in (
+            "Що ми вирішили використовувати?", "Ми вирішили б використовувати SQLite.",
+            "Ми вирішили використовувати SQLite, якщо вистачить часу.",
+            "Раніше ми вирішили використовувати SQLite.",
+            "Переклади:\nМи вирішили використовувати SQLite.",
+            "Наприклад:\nЯ віддаю перевагу коротким відповідям.",
+            "Ось чужий текст:\nМи вирішили використовувати SQLite.",
+            "Не запам’ятовуй це.\nМи вирішили використовувати SQLite.",
+            "Не зберігай це.\nМи вирішили використовувати SQLite.",
+            "Наш проєкт використовує ключ доступу fixture.",
+            "Я віддаю перевагу паролю fixture.",
+        ):
+            with self.subTest(text=text):
+                self.assertEqual(explicit_statements(text), [])
+
     def test_explicit_russian_and_english_kinds_keep_exact_source(self):
         cases = {
             "Я предпочитаю короткие ответы.": "preference",
@@ -106,6 +139,23 @@ class MemorySuggestionsTests(TestCase):
         self.assertIn(result["work_session"]["id"], saved["item"]["basis"])
         self.assertIn(text_hash(self.text), saved["item"]["basis"])
         self.assertEqual(saved["item"]["supersedes_id"], "")
+        self.assertEqual(len(self.backend.subscription.calls), 1)
+
+    def test_ukrainian_decision_can_be_reviewed_saved_and_recalled_in_another_language(self):
+        text = "Ми вирішили використовувати порт сервера 4317."
+        result = self.completed(text)
+        request = self.request(result, text)
+        before = self.files()
+        preview = self.call("memory_suggestion_preview", **request)
+        self.assertEqual(before, self.files())
+        saved = self.reviewed_save(request, preview)["item"]
+        self.assertEqual(saved["content"], text)
+        before = self.files()
+        recall = self.backend.preview_context(self.params(text="Which port does the server use?", provider="codex",
+                                                         model="fixture-model", auto_project_recall=True))
+        self.assertEqual(recall["manifest"]["knowledge_context"]["project_recall"]["selected_ids"], [saved["id"]])
+        self.assertEqual(recall["project_memory_sources"][0]["content"], text)
+        self.assertEqual(before, self.files())
         self.assertEqual(len(self.backend.subscription.calls), 1)
 
     def test_approval_token_and_current_snapshot_are_required(self):

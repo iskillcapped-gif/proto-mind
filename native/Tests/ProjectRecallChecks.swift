@@ -43,7 +43,7 @@ extension NativeChecks {
             for (key, value) in [("permission_granted", JSONValue.bool(true)), ("automatic_learning", .bool(true)),
                                  ("model_call_performed", .bool(true)), ("read_only", .bool(false)), ("total_count", .bool(true)),
                                  ("source_snapshot_hash", .null), ("selected_ids", .array([])), ("characters", .number(6001)),
-                                 ("execute", .string("shell")), ("omitted_count", .number(1))] {
+                                 ("execute", .string("shell")), ("omitted_count", .number(1)), ("algorithm", .string("unknown"))] {
                 var changed = raw; changed[key] = value
                 try outcomeRefused("Project recall rejects invalid \(key)") { _ = try NativeProjectRecallReport(.object(changed)) }
             }
@@ -75,9 +75,16 @@ extension NativeChecks {
         try check(!String(decoding: bytes, as: UTF8.self).contains(fixture.source["content"].text)
                   && !chat.history[0]["content"].text.contains("source_snapshot_hash"),
                   "History metadata neither duplicates note text nor replays recall reports as instructions")
+        let legacyRecall = recallMetadata(conversation: originalID, workspace: root.path, algorithm: "local_content_token_overlap_v1")
+        try checkKnowledgeMetadata(legacyRecall.metadata)
+        chat.messages[0].knowledgeContext = legacyRecall.metadata
+        try store.save(ChatArchive(conversations: [chat], selectedID: chat.id))
+        let legacyBytes = try Data(contentsOf: store.url)
+        try check(try store.load().conversations[0].messages[0].knowledgeContext == legacyRecall.metadata && Data(contentsOf: store.url) == legacyBytes,
+                  "Legacy v1 recall survives restart without relabeling or rewriting its evidence")
     }
 
-    static func recallMetadata(conversation: UUID, workspace: String) -> (metadata: JSONValue, source: JSONValue) {
+    static func recallMetadata(conversation: UUID, workspace: String, algorithm: String = "local_content_terms_v2") -> (metadata: JSONValue, source: JSONValue) {
         func hash(_ text: String) -> JSONValue { .string(SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()) }
         let scope = JSONValue.object(["path": .string(workspace), "device": .number(1), "inode": .number(2)])
         let id = JSONValue.string(String(repeating: "a", count: 64)), recordHash = JSONValue.string(String(repeating: "b", count: 64))
@@ -87,7 +94,7 @@ extension NativeChecks {
             "verification": .string("operator_asserted_not_independently_verified")])
         let report: JSONValue = .object(["schema": .string("proto_mind.native_project_recall.v1"),
             "conversation_id": .string(conversation.uuidString.lowercased()), "workspace": scope, "goal_sha256": hash("Cobalt palette"),
-            "access_mode": .string("chat"), "state": .string("selected"), "algorithm": .string("local_content_token_overlap_v1"),
+            "access_mode": .string("chat"), "state": .string("selected"), "algorithm": .string(algorithm),
             "source_snapshot_hash": recordHash, "total_count": .number(1), "active_count": .number(1), "matching_count": .number(1),
             "selected_ids": .array([id]), "characters": .number(Double(content.unicodeScalars.count + basis.unicodeScalars.count)),
             "omitted_count": .number(0), "reason": .string("Current project content-word match."), "read_only": .bool(true),
@@ -115,7 +122,7 @@ extension NativeChecks {
                   "Real stdio empty recall preview needs no cloud, store initialization or mutation")
         await app.openProjectMemory()
         guard let panel = app.projectMemory else { throw NativeError.message("Project notes unavailable") }
-        panel.content = "Cobalt palette is used by this project."; panel.basis = "Explicit operator fixture requirement."
+        panel.content = "Cobalt palette is used by this project. Порт сервера: 4317."; panel.basis = "Explicit operator fixture requirement."
         await panel.prepare()
         guard let prepared = panel.preview else { throw NativeError.message(panel.error ?? "No note preview") }
         await panel.save(token: prepared["confirmation_token"].text, acknowledgement: true)
@@ -164,5 +171,14 @@ extension NativeChecks {
         try check(app.contextPreview?.manifest["knowledge_context"]["project_recall"]["selected_ids"] == .array([.string(note.id)])
                   && (try fileBytes(state.appendingPathComponent("project_memory"))) == noteBytes,
                   "New chat recalls the same explicitly saved project note without promoting or rewriting it")
+        for query in ["На каком порту работает сервер?", "На якому порту працює сервер?", "Which port does the server use?"] {
+            app.setComposer(query); app.flushDraft()
+            let before = try fileBytes(state)
+            await app.refreshContextPreview()
+            try check(app.contextPreview?.manifest["knowledge_context"]["project_recall"]["selected_ids"] == .array([.string(note.id)])
+                      && app.contextPreview?.manifest["knowledge_context"]["project_recall"]["algorithm"] == .string("local_content_terms_v2")
+                      && (try fileBytes(state)) == before && fileBytes(fixture) == core,
+                      "Real stdio recalls inflected RU/UK/EN port requests without writing state: \(query)")
+        }
     }
 }

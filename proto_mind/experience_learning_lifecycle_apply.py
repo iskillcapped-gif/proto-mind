@@ -150,7 +150,7 @@ class OperatorReviewedLearningLifecycleApplySession:
         events: Iterable[ExperienceEvent | dict[str, Any]],
         memory_store: MemoryStore,
     ) -> LearningLifecycleApplyReceipt:
-        with self._lock:
+        with self._lock, memory_store.transaction():
             review = self._review_locked(receipt, events=events, memory_store=memory_store)
             if not review.confirmable:
                 raise LearningLifecycleApplyError("; ".join(review.issues) or review.status)

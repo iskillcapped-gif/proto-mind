@@ -11,6 +11,7 @@ from proto_mind.models import (
     RetrievalTrace,
 )
 from proto_mind.memory_store import MemoryStore
+from proto_mind.text_normalization import normalize_text
 from proto_mind.memory_provenance import verify_memory_provenance
 from proto_mind.topic_utils import extract_topic_tags, topic_weight, weighted_topic_overlap
 
@@ -30,6 +31,14 @@ class MemoryKeeper:
         "больше не",
         "заменить",
         "переходим на",
+        "насправді",
+        "замість",
+        "змінюємо напрям",
+        "тепер використовуємо",
+        "більше не",
+        "заміни",
+        "замінити",
+        "переходимо на",
     )
     STABLE_PREFERENCE_MARKERS = (
         "i prefer",
@@ -38,6 +47,10 @@ class MemoryKeeper:
         "я предпочитаю",
         "всегда используй",
         "для будущего",
+        "я віддаю перевагу",
+        "завжди використовуй",
+        "на майбутнє",
+        "моє уподобання",
     )
     DECISION_STORAGE_MARKERS = (
         "we decided",
@@ -55,6 +68,15 @@ class MemoryKeeper:
         "меняем направление",
         "больше не",
         "переходим на",
+        "ми вирішили",
+        "давай використовувати",
+        "нумо використовувати",
+        "рішення",
+        "тепер використовуємо",
+        "замість",
+        "змінюємо напрям",
+        "більше не",
+        "переходимо на",
     )
     IMPORTANT_FACT_MARKERS = (
         "remember that",
@@ -64,6 +86,10 @@ class MemoryKeeper:
         "запомни что",
         "важный факт",
         "ключевой вывод",
+        "запам'ятай, що",
+        "запам'ятай що",
+        "важливий факт",
+        "ключовий висновок",
     )
 
     def __init__(self, store: MemoryStore) -> None:
@@ -213,13 +239,13 @@ class MemoryKeeper:
         observer_state: ObserverState,
         retrieved_memory: list[MemoryRecord],
     ) -> InteractionSummary:
-        lowered = user_input.lower()
+        lowered = normalize_text(user_input)
         stable_preference = observer_state.query_type == "personal_context" and any(
             phrase in lowered for phrase in self.STABLE_PREFERENCE_MARKERS
         ) and not self._is_recall_question(lowered)
         decision = observer_state.query_type == "decision_request" and any(
             phrase in lowered for phrase in self.DECISION_STORAGE_MARKERS
-        )
+        ) and not self._is_recall_question(lowered)
         important_fact = any(phrase in lowered for phrase in self.IMPORTANT_FACT_MARKERS)
         should_store = stable_preference or decision or important_fact
         preference_style_retrieval = observer_state.needs_memory and self._is_preference_style_query(observer_state)
@@ -271,86 +297,88 @@ class MemoryKeeper:
         summary: InteractionSummary,
         retrieved_memory: list[MemoryRecord] | None = None,
     ) -> InteractionSummary:
-        self._decay_working_memory()
-        if not summary.should_store:
-            if summary.should_promote_existing:
-                promoted_ids = self._promote_retrieved_records(retrieved_memory or [])
-                summary.promoted_record_ids = promoted_ids
-                if promoted_ids:
-                    summary.promotion_rationale = "Promoted existing memory because it has been reused multiple times."
+        with self.store.transaction():
+            self._decay_working_memory()
+            if not summary.should_store:
+                if summary.should_promote_existing:
+                    promoted_ids = self._promote_retrieved_records(retrieved_memory or [])
+                    summary.promoted_record_ids = promoted_ids
+                    if promoted_ids:
+                        summary.promotion_rationale = "Promoted existing memory because it has been reused multiple times."
+                    else:
+                        summary.should_promote_existing = False
+                        summary.promotion_rationale = "No existing memory was eligible for promotion."
                 else:
-                    summary.should_promote_existing = False
-                    summary.promotion_rationale = "No existing memory was eligible for promotion."
-            else:
-                summary.promotion_rationale = "No promotion happened for this retrieval turn."
-            return summary
+                    summary.promotion_rationale = "No promotion happened for this retrieval turn."
+                return summary
 
-        existing_working = self.store.load_working_memory()
-        matching = self._find_similar(existing_working, summary.content)
-        if matching:
-            matching.importance = max(matching.importance, summary.importance)
-            matching.tags = sorted(set(matching.tags + summary.tags))
-            self.store.upsert_working_record(matching)
-            summary.stored_record_id = matching.id
-            summary.stored_record_type = matching.type
-            if summary.override_detected and matching.type == "decision":
-                summary.superseded_record_ids = self._supersede_prior_decisions(matching)
+            existing_working = self.store.load_working_memory()
+            matching = self._find_similar(existing_working, summary.content)
+            if matching:
+                matching.importance = max(matching.importance, summary.importance)
+                matching.tags = sorted(set(matching.tags + summary.tags))
+                self.store.upsert_working_record(matching)
+                summary.stored_record_id = matching.id
+                summary.stored_record_type = matching.type
+                if summary.override_detected and matching.type == "decision":
+                    summary.superseded_record_ids = self._supersede_prior_decisions(matching)
+                    summary.override_rationale = (
+                        "Superseded prior active decisions with overlapping topics."
+                        if summary.superseded_record_ids
+                        else "Override detected, but no prior active decisions matched."
+                    )
+                if summary.should_promote_new and self._should_promote_record(matching):
+                    summary.promoted_record_ids = self._promote(matching)
+                    summary.promotion_rationale = "Promoted because this new memory is a durable decision or preference."
+                else:
+                    summary.should_promote_new = False
+                    summary.promotion_rationale = "Stored in working memory only."
+                return summary
+
+            record = MemoryRecord(
+                content=summary.content,
+                type=summary.memory_type,
+                importance=summary.importance,
+                source="interaction",
+                tags=summary.tags,
+            )
+            self.store.add_working_record(record)
+            summary.stored_record_id = record.id
+            summary.stored_record_type = record.type
+            if summary.override_detected and record.type == "decision":
+                summary.superseded_record_ids = self._supersede_prior_decisions(record)
                 summary.override_rationale = (
                     "Superseded prior active decisions with overlapping topics."
                     if summary.superseded_record_ids
                     else "Override detected, but no prior active decisions matched."
                 )
-            if summary.should_promote_new and self._should_promote_record(matching):
-                summary.promoted_record_ids = self._promote(matching)
+            if summary.should_promote_new and self._should_promote_record(record):
+                summary.promoted_record_ids = self._promote(record)
                 summary.promotion_rationale = "Promoted because this new memory is a durable decision or preference."
             else:
                 summary.should_promote_new = False
                 summary.promotion_rationale = "Stored in working memory only."
             return summary
 
-        record = MemoryRecord(
-            content=summary.content,
-            type=summary.memory_type,
-            importance=summary.importance,
-            source="interaction",
-            tags=summary.tags,
-        )
-        self.store.add_working_record(record)
-        summary.stored_record_id = record.id
-        summary.stored_record_type = record.type
-        if summary.override_detected and record.type == "decision":
-            summary.superseded_record_ids = self._supersede_prior_decisions(record)
-            summary.override_rationale = (
-                "Superseded prior active decisions with overlapping topics."
-                if summary.superseded_record_ids
-                else "Override detected, but no prior active decisions matched."
-            )
-        if summary.should_promote_new and self._should_promote_record(record):
-            summary.promoted_record_ids = self._promote(record)
-            summary.promotion_rationale = "Promoted because this new memory is a durable decision or preference."
-        else:
-            summary.should_promote_new = False
-            summary.promotion_rationale = "Stored in working memory only."
-        return summary
-
     def record_retrieval_usage(self, selected: list[MemoryRecord]) -> None:
-        working = self.store.load_working_memory()
-        persistent = self.store.load_persistent_memory()
-        working_map = {record.id: record for record in working}
-        persistent_map = {record.id: record for record in persistent}
-        working_changed = False
-        persistent_changed = False
-        for record in selected:
-            if record.id in working_map:
-                working_map[record.id].touch()
-                working_changed = True
-            if record.id in persistent_map:
-                persistent_map[record.id].touch()
-                persistent_changed = True
-        if working_changed:
-            self.store.save_working_memory(list(working_map.values()))
-        if persistent_changed:
-            self.store.save_persistent_memory(list(persistent_map.values()))
+        with self.store.transaction():
+            working = self.store.load_working_memory()
+            persistent = self.store.load_persistent_memory()
+            working_map = {record.id: record for record in working}
+            persistent_map = {record.id: record for record in persistent}
+            working_changed = False
+            persistent_changed = False
+            for record in selected:
+                if record.id in working_map:
+                    working_map[record.id].touch()
+                    working_changed = True
+                if record.id in persistent_map:
+                    persistent_map[record.id].touch()
+                    persistent_changed = True
+            if working_changed:
+                self.store.save_working_memory(list(working_map.values()))
+            if persistent_changed:
+                self.store.save_persistent_memory(list(persistent_map.values()))
 
     def _build_memory_content(self, user_input: str, response: str, memory_type: str) -> str:
         return user_input.strip()
@@ -386,7 +414,13 @@ class MemoryKeeper:
     def _promote_retrieved_records(self, retrieved_memory: list[MemoryRecord]) -> list[str]:
         promoted_ids: list[str] = []
         persistent = self.store.load_persistent_memory()
-        for record in retrieved_memory:
+        current = {record.id: record for record in self.store.load_working_memory() + persistent}
+        for selected in retrieved_memory:
+            # Retrieval happened before this mutation; a later deletion or
+            # supersession must not be undone by promoting that stale object.
+            record = current.get(selected.id)
+            if record is None:
+                continue
             if record.usage_count < 2 or record.type not in {"decision", "preference", "insight", "project"} or not record.active:
                 continue
             if self._find_similar(persistent, record.content):
@@ -425,7 +459,7 @@ class MemoryKeeper:
         existing_tags = set(existing.tags)
         new_tags = set(new_record.tags)
         lowered = new_record.content.lower()
-        return bool(existing_tags & new_tags) or "instead of" in lowered or "вместо" in lowered
+        return bool(existing_tags & new_tags) or "instead of" in lowered or "вместо" in lowered or "замість" in lowered
 
     def _decay_working_memory(self) -> None:
         records = self.store.load_working_memory()
@@ -448,7 +482,7 @@ class MemoryKeeper:
 
     @staticmethod
     def _normalize_content(content: str) -> str:
-        return " ".join(content.lower().split())
+        return normalize_text(content)
 
     @staticmethod
     def _record_topics(record: MemoryRecord) -> list[str]:
@@ -539,7 +573,7 @@ class MemoryKeeper:
     def _is_recall_question(text: str) -> bool:
         return "?" in text or any(
             text.strip().startswith(prefix)
-            for prefix in ("what ", "how ", "which ", "do ", "did ", "что ", "как ", "какой ", "какая ", "какие ", "помнишь ", "напомни ")
+            for prefix in ("what ", "how ", "which ", "do ", "did ", "что ", "как ", "какой ", "какая ", "какие ", "помнишь ", "напомни ", "що ", "як ", "який ", "яка ", "які ", "яку ", "чи ", "пам'ятаєш ", "нагадай ")
         )
 
     def _has_specific_topic_overlap(self, record: MemoryRecord, query_topics: list[str]) -> bool:
