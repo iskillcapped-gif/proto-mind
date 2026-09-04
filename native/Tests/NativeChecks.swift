@@ -79,6 +79,7 @@ struct NativeChecks {
         try personaActivationContracts(root: root)
         try instructionReceiptContracts()
         try turnLineageContracts(root: root)
+        try sessionSpineDurabilityContracts(root: root)
         if let fixture = LaunchConfiguration.argument("--session-spine-fixture"),
            let state = LaunchConfiguration.argument("--session-spine-state"),
            let python = LaunchConfiguration.argument("--python") {

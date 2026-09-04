@@ -42,6 +42,7 @@ MAX_HISTORY_BYTES = 50 * 1024 * 1024
 MAX_CONVERSATIONS = 10_000
 MAX_MESSAGES = 100_000
 HASH = re.compile(r"^[0-9a-f]{64}$")
+NATIVE_OWNER = re.compile(r"^native-session-spine:[0-9a-f]{32}$")
 
 
 class SessionSpineHandshakeError(RuntimeError):
@@ -889,7 +890,63 @@ def _apply_receipt(
         "native_activation": False,
     }
     receipt["receipt_hash"] = _sha256(_canonical(receipt))
-    return receipt
+    return validate_native_turn_apply_receipt(receipt)
+
+
+def validate_native_turn_apply_receipt(value: object) -> dict[str, Any]:
+    """Validate one P2h apply receipt without opening or changing any store."""
+    if not isinstance(value, Mapping):
+        raise SessionSpineHandshakeError("Native handshake apply receipt is invalid.")
+    receipt = dict(value)
+    digest = receipt.pop("receipt_hash", None)
+    expected = {
+        "schema", "format_version", "result", "handshake_hash", "owner_id",
+        "conversation_id", "run_id", "write_performed", "written_scope",
+        "forward_receipt_hash", "recovery_report_hash", "post_state",
+        "idempotent_replay", "history_write_performed",
+        "work_session_write_performed", "legacy_history_modified",
+        "model_call_performed", "provider_call_performed", "command_executed",
+        "permission_changed", "native_activation",
+    }
+    if set(receipt) != expected or digest != _sha256(_canonical(receipt)):
+        raise SessionSpineHandshakeError("Native handshake apply receipt hash or field set does not verify.")
+    if receipt["schema"] != APPLY_SCHEMA or receipt["format_version"] != 1:
+        raise SessionSpineHandshakeError("Native handshake apply receipt schema is unsupported.")
+    result = receipt.get("result")
+    if result not in {"COMMITTED", "ALREADY_COMMITTED"}:
+        raise SessionSpineHandshakeError("Native handshake apply receipt result is unsupported.")
+    _digest(receipt.get("handshake_hash"), "Apply receipt handshake digest")
+    _digest(receipt.get("recovery_report_hash"), "Apply receipt recovery digest")
+    if not isinstance(receipt.get("owner_id"), str) or not NATIVE_OWNER.fullmatch(receipt["owner_id"]):
+        raise SessionSpineHandshakeError("Native handshake apply receipt owner is invalid.")
+    _uuid(receipt.get("conversation_id"), "Apply receipt conversation ID")
+    _uuid(receipt.get("run_id"), "Apply receipt run ID")
+    fixed_false = (
+        "history_write_performed", "work_session_write_performed",
+        "legacy_history_modified", "model_call_performed", "provider_call_performed",
+        "command_executed", "permission_changed", "native_activation",
+    )
+    if any(receipt.get(field) is not False for field in fixed_false):
+        raise SessionSpineHandshakeError("Native handshake apply receipt widens its safety boundary.")
+    if result == "COMMITTED":
+        forward_hash = receipt.get("forward_receipt_hash")
+        if (
+            receipt.get("write_performed") is not True
+            or receipt.get("written_scope") != "explicit_session_spine_store_only"
+            or receipt.get("idempotent_replay") is not False
+            or receipt.get("post_state") != "COMMITTED"
+        ):
+            raise SessionSpineHandshakeError("Native committed apply receipt is internally inconsistent.")
+        _digest(forward_hash, "Apply receipt forward digest")
+    elif (
+        receipt.get("write_performed") is not False
+        or receipt.get("written_scope") != "none"
+        or receipt.get("forward_receipt_hash") is not None
+        or receipt.get("idempotent_replay") is not True
+        or receipt.get("post_state") not in {"COMMITTED", "COMMITTED_WITH_SOURCE_DRIFT"}
+    ):
+        raise SessionSpineHandshakeError("Native replay apply receipt is internally inconsistent.")
+    return {**receipt, "receipt_hash": digest}
 
 
 def apply_native_turn_handshake(

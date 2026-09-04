@@ -275,17 +275,40 @@ content-free/tamper-resistant envelopes, independently rechecked source fields, 
 create and append, lost-response replay, missing history/run evidence, changed messages, stale preimages,
 unknown tails, different installations, store-only conflicts, review-time drift and strict legacy refusal.
 
-P2a/P2b/P2c/P2d/P2e/P2f/P2g/P2h are not production activation. P2h closes the detached owner,
-ordering and recovery-state design gap, but it does not prove live-source completeness, persist a production
-handshake journal, change Swift history error propagation or perform personal-history migration. Before any
-authoritative Native use, a separate checkpoint must still provide:
+P2i is delivered as dormant durability preparation in `proto_mind/session_spine_intent.py`,
+`native/Sources/SessionSpineDurability.swift` and `ChatStore`:
 
-- a private one-time installation identity and durable handshake-intent lifecycle;
-- a throwable Native history save plus exact readback before any Spine call;
+- Native has one canonical installation UUID record whose owner derivation exactly matches P2h. Explicit
+  creation publishes private `0600` bytes under a private `0700` directory; missing-state reads create nothing,
+  and malformed, symlinked or unknown recovery evidence is never overwritten or cleaned automatically;
+- `ChatStore.saveAndReadBack` exposes a throwable save boundary that returns the exact post-save bytes, decoded
+  archive, byte count and SHA-256. Failure or mismatch blocks further writes on that store instance. `AppModel`
+  does not call it yet, so current Send and persistence behavior remains unchanged;
+- the explicit Python intent store writes immutable prepared and committed records only. A prepared record binds
+  the full content-free P2h handshake to both opaque store scopes. A committed marker binds a strictly validated
+  P2h apply receipt; rehashing inconsistent receipt fields does not create authority;
+- relaunch inspection distinguishes first apply, marker-only recovery after a lost response, and closed replay.
+  Recovery of a missing marker replays P2h as `ALREADY_COMMITTED`, writes no Spine bytes, then records only the
+  immutable marker. A closed replay writes neither store;
+- all paths are explicit and detached. There is no bridge method, UI control, default personal Spine/intent path,
+  automatic retry, repair, migration, legacy backfill, provider/model/tool call or permission change.
+
+Twelve P2i regressions bring the mandatory Python suite to 2,095 tests, the detached P2a-P2i set to 194 tests
+and the broader Session Spine set including Live Preview to 201. Twelve Native assertions bring the dependency-free Native suite to 905 checks. A fresh owner-only,
+credential-excluding Native backup revalidates the existing personal baseline as 30 legacy-unlinked assistant
+turns and 27 legacy/incomplete runs with zero incompatible or orphaned lineage evidence. It is acceptance of the
+forward-only boundary, not a live personal writer test.
+
+P2a/P2b/P2c/P2d/P2e/P2f/P2g/P2h/P2i are not production activation. P2i closes the detached identity,
+intent-journal and throwable history-readback design gap, but does not wire those primitives into the live
+cross-store sequence or prove production source completeness. Before authoritative Native use, a separate
+checkpoint must still provide:
+
+- explicit opt-in activation that wires exact history readback to intent preparation without widening authority;
 - bridge/UI recovery surfaces for blocked, orphaned and `UNKNOWN` states;
 - versioned pure projections for chat, work timeline, turn outline, memory candidates, and telemetry;
 - bounded retention/export before any compaction;
-- a fresh credential-excluding personal-state checkpoint and live opt-in acceptance before authority changes.
+- a new exact-linked personal turn and live opt-in acceptance before authority changes.
 
 Do not make the new store authoritative until old/new parity is proven on isolated fixtures
 and a separate private backup is created.

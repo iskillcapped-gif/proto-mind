@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 indirect enum JSONValue: Codable, Equatable, Sendable {
@@ -172,34 +173,33 @@ enum NativeError: LocalizedError {
     var errorDescription: String? { if case .message(let message) = self { return message }; return nil }
 }
 
+struct ChatStoreReadback {
+    let archive: ChatArchive
+    let data: Data
+    let sha256: String
+    let sizeBytes: Int
+}
+
 final class ChatStore {
     let url: URL
     private(set) var writeBlocked = false
+    private let dataReader: (URL) throws -> Data
 
-    init(directory: URL) { url = directory.appendingPathComponent("conversations.json") }
-
-    func load() throws -> ChatArchive {
-        guard FileManager.default.fileExists(atPath: url.path) else {
-            return ChatArchive(conversations: [], selectedID: nil)
-        }
-        do {
-            let size = try FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber
-            guard let size, size.int64Value < 50 * 1024 * 1024 else { throw NativeError.message("История слишком велика для автоматической загрузки.") }
-            let data = try Data(contentsOf: url)
-            guard data.count < 50 * 1024 * 1024 else { throw NativeError.message("История слишком велика для автоматической загрузки.") }
-            let archive = try JSONDecoder().decode(ChatArchive.self, from: data)
-            guard [1, 2, 3, 4, 5].contains(archive.version), Set(archive.conversations.map(\.id)).count == archive.conversations.count else {
-                throw NativeError.message("Неизвестная версия или повторяющиеся ID истории.")
-            }
-            return archive
-        } catch {
-            writeBlocked = true
-            throw NativeError.message("Не удалось прочитать локальную историю. Файл сохранён без изменений: \(url.path)")
-        }
+    init(directory: URL, dataReader: @escaping (URL) throws -> Data = { try Data(contentsOf: $0) }) {
+        url = directory.appendingPathComponent("conversations.json")
+        self.dataReader = dataReader
     }
 
-    func save(_ archive: ChatArchive) throws {
-        guard !writeBlocked else { throw NativeError.message("Запись истории заблокирована, чтобы не перезаписать повреждённый файл.") }
+    private func decode(_ data: Data) throws -> ChatArchive {
+        guard data.count < 50 * 1024 * 1024 else { throw NativeError.message("История слишком велика для автоматической загрузки.") }
+        let archive = try JSONDecoder().decode(ChatArchive.self, from: data)
+        guard [1, 2, 3, 4, 5].contains(archive.version), Set(archive.conversations.map(\.id)).count == archive.conversations.count else {
+            throw NativeError.message("Неизвестная версия или повторяющиеся ID истории.")
+        }
+        return archive
+    }
+
+    private func encoded(_ archive: ChatArchive) throws -> Data {
         for conversation in archive.conversations {
             try validateMemorySuggestionHistory(conversation.messages, conversation: conversation.id)
             try validateTurnLineageHistory(conversation.messages, conversation: conversation.id)
@@ -209,14 +209,55 @@ final class ChatStore {
             for message in conversation.messages { try NativePDFAttachment.validate(message.pdfContext ?? []) }
             for message in conversation.messages { try NativeImageAttachment.validate(message.imageContext ?? []) }
         }
-        let directory = url.deletingLastPathComponent()
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         let data = try encoder.encode(archive)
         guard data.count < 50 * 1024 * 1024 else { throw NativeError.message("История достигла локального лимита 50 MB; существующий файл не перезаписан.") }
+        return data
+    }
+
+    private func write(_ data: Data) throws {
+        let directory = url.deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         try data.write(to: url, options: .atomic)
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+    }
+
+    func load() throws -> ChatArchive {
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            return ChatArchive(conversations: [], selectedID: nil)
+        }
+        do {
+            let size = try FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber
+            guard let size, size.int64Value < 50 * 1024 * 1024 else { throw NativeError.message("История слишком велика для автоматической загрузки.") }
+            return try decode(dataReader(url))
+        } catch {
+            writeBlocked = true
+            throw NativeError.message("Не удалось прочитать локальную историю. Файл сохранён без изменений: \(url.path)")
+        }
+    }
+
+    func save(_ archive: ChatArchive) throws {
+        guard !writeBlocked else { throw NativeError.message("Запись истории заблокирована, чтобы не перезаписать повреждённый файл.") }
+        try write(encoded(archive))
+    }
+
+    func saveAndReadBack(_ archive: ChatArchive) throws -> ChatStoreReadback {
+        guard !writeBlocked else { throw NativeError.message("Запись истории заблокирована, чтобы не перезаписать повреждённый файл.") }
+        let expected = try encoded(archive)
+        try write(expected)
+        do {
+            let actual = try dataReader(url)
+            guard actual == expected else {
+                throw NativeError.message("Сохранённые байты истории отличаются от подготовленного снимка.")
+            }
+            let restored = try decode(actual)
+            let digest = SHA256.hash(data: actual).map { String(format: "%02x", $0) }.joined()
+            return ChatStoreReadback(archive: restored, data: actual, sha256: digest, sizeBytes: actual.count)
+        } catch {
+            writeBlocked = true
+            throw NativeError.message("История была записана, но точное чтение после сохранения не подтвердилось. Дальнейшая запись заблокирована до ручной проверки: \(url.path)")
+        }
     }
 }
 
