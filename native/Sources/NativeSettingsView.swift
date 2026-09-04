@@ -98,6 +98,33 @@ struct NativeSettingsView: View {
                 Text("Один проверенный Brother snapshot использует уже выбранную ядром память в существующем model call. Persona не выдаёт инструменты, не меняет Context Injection и не добавляет скрытых записей.")
                     .font(.caption).foregroundStyle(.secondary)
             }
+            Section("Session Spine pilot") {
+                HStack {
+                    Label(model.sessionSpinePilotArmed ? "Один точный ход подготовлен" : "Writer выключен",
+                          systemImage: model.sessionSpinePilotArmed ? "checkmark.shield" : "lock.shield")
+                    Spacer()
+                    Text(model.sessionSpinePilotArmed ? "до перезапуска" : "inactive")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                if let readiness = model.sessionSpineReadiness {
+                    Text("Readiness: \(readiness.state) · identity \(readiness.identityState) · candidate \(String(readiness.candidateHash.prefix(12)))")
+                        .font(.caption.monospaced())
+                        .foregroundStyle(readiness.recoveryRequired ? .orange : .secondary)
+                    if readiness.recoveryRequired {
+                        Text("Существующая identity требует ручной проверки. Автоматического ремонта, удаления или пересоздания нет.")
+                            .font(.caption).foregroundStyle(.orange)
+                    }
+                } else {
+                    Text("Откройте Session Spine у exact-linked ответа и выберите «Проверить readiness…». Legacy-ответы без Turn Lineage не подходят.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                if model.sessionSpinePilotArmed {
+                    Button("Снять локальную подготовку") { model.revokeSessionSpinePilot() }
+                        .disabled(model.busy)
+                }
+                Text("Opt-in не сохраняется, не создаёт installation identity или intent и не активирует writer. Любая будущая запись требует отдельного milestone и персональной приёмки нового точного хода.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             Section("Подписка ChatGPT / Codex") {
                 HStack {
                     Label(model.account.isNull ? "Вход ещё не проверен" : model.account["connected"].flag ? "Подключено" : "Не подключено", systemImage: model.account["connected"].flag ? "checkmark.circle" : "person.crop.circle")

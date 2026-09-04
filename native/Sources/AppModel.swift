@@ -44,6 +44,7 @@ final class AppModel: ObservableObject {
             guard !initializing, !restoringPreferences else { return }
             do {
                 try savePreferences()
+                invalidateSessionSpinePilot()
                 if !cloudConsent { discardAgentGrants() }
             }
             catch {
@@ -60,6 +61,7 @@ final class AppModel: ObservableObject {
             do {
                 try savePreferences()
                 invalidateContextPreview()
+                invalidateSessionSpinePilot()
             }
             catch {
                 restoringPreferences = true
@@ -129,6 +131,8 @@ final class AppModel: ObservableObject {
     @Published private(set) var loadingWorkSessions = false
     @Published var sessionSpinePreview: NativeSessionSpinePreview?
     @Published private(set) var loadingSessionSpinePreview = false
+    @Published var sessionSpineReadiness: NativeSessionSpineActivationReadiness?
+    @Published private(set) var sessionSpinePilotGrant: NativeSessionSpinePilotGrant?
     @Published var conversationSearch = ""
     @Published var showArchived = false
     @Published var workspaceStatus: JSONValue = .null
@@ -551,6 +555,7 @@ final class AppModel: ObservableObject {
                 "confirmation": .string("ALLOW FULL MAC ACCESS")])
             guard result["mode"].text == "full_access", !result["token"].text.isEmpty,
                   result["workspace_root"].text == request.workspace else { throw NativeError.message("Не удалось проверить разрешение агента.") }
+            invalidateSessionSpinePilot()
             agentGrants[request.conversationID] = AgentAccessGrant(token: result["token"].text, workspace: request.workspace)
             invalidateContextPreview()
             error = nil
@@ -562,6 +567,7 @@ final class AppModel: ObservableObject {
 
     func disableAgentAccess() async {
         guard !busy, let id = selectedID else { return }
+        invalidateSessionSpinePilot()
         agentGrants.removeValue(forKey: id)
         invalidateContextPreview()
         busy = true
@@ -676,6 +682,9 @@ final class AppModel: ObservableObject {
         defer { if sessionSpinePreviewRequest == request { loadingSessionSpinePreview = false } }
         do {
             let reference = try NativeTurnReference(rawReference)
+            if sessionSpinePilotGrant?.runID != reference.value["run_id"].text {
+                invalidateSessionSpinePilot()
+            }
             guard reference.matches(source: source, assistant: message, conversation: conversationID) else {
                 throw NativeError.message("Связь сообщения с запуском изменилась. Ничего не открыто.")
             }
@@ -697,6 +706,103 @@ final class AppModel: ObservableObject {
         } catch {
             if sessionSpinePreviewRequest == request && selectedID == conversationID { report(error) }
         }
+    }
+
+    func openSessionSpineReadiness(_ preview: NativeSessionSpinePreview) {
+        do {
+            sessionSpineReadiness = try buildSessionSpineReadiness(preview, grant: sessionSpinePilotGrant)
+            error = nil
+            status = sessionSpineReadiness?.recoveryRequired == true
+                ? "Session Spine · нужна ручная recovery-проверка"
+                : "Session Spine · writer выключен, readiness проверена"
+        } catch {
+            invalidateSessionSpinePilot()
+            report(error)
+        }
+    }
+
+    func armSessionSpinePilot(candidateHash: String) {
+        do {
+            guard let preview = sessionSpinePreview else {
+                throw NativeError.message("Точный Session Spine preview закрыт или изменился. Проверьте ход заново.")
+            }
+            let refreshed = try buildSessionSpineReadiness(preview, grant: nil)
+            guard refreshed.candidateHash == candidateHash, refreshed.canArm else {
+                throw NativeError.message("Session Spine readiness изменилась. Ничего не подготовлено.")
+            }
+            let grant = try NativeSessionSpinePilotGrant(readiness: refreshed)
+            let armed = try buildSessionSpineReadiness(preview, grant: grant)
+            guard armed.armed else {
+                throw NativeError.message("Session Spine per-launch opt-in не прошёл повторную проверку.")
+            }
+            sessionSpinePilotGrant = grant
+            sessionSpineReadiness = armed
+            error = nil
+            status = "Session Spine · один точный ход подготовлен, writer выключен"
+        } catch {
+            invalidateSessionSpinePilot()
+            report(error)
+        }
+    }
+
+    func revokeSessionSpinePilot() {
+        sessionSpinePilotGrant = nil
+        if let preview = sessionSpinePreview {
+            do { sessionSpineReadiness = try buildSessionSpineReadiness(preview, grant: nil) }
+            catch { sessionSpineReadiness = nil; report(error); return }
+        } else {
+            sessionSpineReadiness = nil
+        }
+        error = nil
+        status = "Session Spine · локальная подготовка снята, writer выключен"
+    }
+
+    var sessionSpinePilotArmed: Bool { sessionSpinePilotGrant != nil }
+
+    private func buildSessionSpineReadiness(
+        _ preview: NativeSessionSpinePreview,
+        grant: NativeSessionSpinePilotGrant?
+    ) throws -> NativeSessionSpineActivationReadiness {
+        guard let conversation = selected, let conversationID = selectedID,
+              conversation.id == conversationID,
+              UUID(uuidString: preview.source["conversation_id"].text) == conversationID,
+              let sourceID = UUID(uuidString: preview.source["user_message_id"].text),
+              let assistantID = UUID(uuidString: preview.source["assistant_message_id"].text) else {
+            throw NativeError.message("Session Spine readiness относится к другому диалогу. Ничего не подготовлено.")
+        }
+        let assistantMatches = conversation.messages.indices.filter { conversation.messages[$0].id == assistantID }
+        guard assistantMatches.count == 1, let assistantIndex = assistantMatches.first, assistantIndex > 0,
+              conversation.messages[assistantIndex - 1].id == sourceID,
+              let rawReference = conversation.messages[assistantIndex].turnReference else {
+            throw NativeError.message("Точная пара сообщений Session Spine больше не существует. Ничего не подготовлено.")
+        }
+        let source = conversation.messages[assistantIndex - 1]
+        let assistant = conversation.messages[assistantIndex]
+        let reference = try NativeTurnReference(rawReference)
+        let run = try reference.resolve(in: workSessions, conversation: conversationID)
+        let checked = try NativeSessionSpinePreview(
+            preview.value, source: source, assistant: assistant,
+            conversation: conversationID, reference: reference, run: run
+        )
+        let identityStore = NativeSessionSpineInstallationStore(stateDirectory: client.configuration.stateDirectory)
+        let identity: NativeSessionSpineInstallationIdentity?
+        do {
+            identity = try identityStore.load()
+        } catch {
+            return try NativeSessionSpineActivationReadiness.inspect(
+                preview: checked, identity: nil, identityPath: identityStore.url,
+                identityError: error.localizedDescription, grant: nil
+            )
+        }
+        return try NativeSessionSpineActivationReadiness.inspect(
+            preview: checked, identity: identity,
+            identityPath: identityStore.url, grant: grant
+        )
+    }
+
+    private func invalidateSessionSpinePilot() {
+        sessionSpinePilotGrant = nil
+        sessionSpineReadiness = nil
     }
 
     func setWorkSessionWarningHidden(_ run: NativeWorkSession, hidden: Bool) throws {
@@ -761,6 +867,7 @@ final class AppModel: ObservableObject {
 
     func newConversation() {
         guard !busy else { return }
+        invalidateSessionSpinePilot()
         closeLearningReview()
         memoryWorkshop = nil; showMemoryWorkshop = false
         skillAuthoring = nil
@@ -792,6 +899,7 @@ final class AppModel: ObservableObject {
 
     func select(_ id: UUID) {
         guard !busy else { return }
+        invalidateSessionSpinePilot()
         closeLearningReview()
         memoryWorkshop = nil; showMemoryWorkshop = false
         skillAuthoring = nil
@@ -838,6 +946,7 @@ final class AppModel: ObservableObject {
         guard !busy, ["ollama", "codex", "mock"].contains(value), selected?.provider != value,
               let index = conversations.firstIndex(where: { $0.id == selectedID }) else { return }
         discardAgentGrants(for: selectedID)
+        invalidateSessionSpinePilot()
         pendingPersonaActivation = nil
         conversations[index].provider = value
         conversations[index].model = ""
@@ -850,6 +959,7 @@ final class AppModel: ObservableObject {
     func setModel(_ value: String) {
         guard !busy, let index = conversations.firstIndex(where: { $0.id == selectedID }) else { return }
         if selected?.provider == "codex", !value.isEmpty, !codexModels.contains(where: { $0.id == value }) { return }
+        if selected?.model != value { invalidateSessionSpinePilot() }
         conversations[index].model = value
         pendingPersonaActivation = nil
         modelSelectionNotice = nil
@@ -898,6 +1008,7 @@ final class AppModel: ObservableObject {
     func setReasoningEffort(_ value: String) {
         guard !busy, selected?.provider == "codex", let index = conversations.firstIndex(where: { $0.id == selectedID }),
               value.isEmpty || availableReasoningEfforts.contains(where: { $0.rawValue == value }) else { return }
+        if selected?.reasoningEffort != value { invalidateSessionSpinePilot() }
         conversations[index].reasoningEffort = value
         modelSelectionNotice = nil
         persist()
@@ -905,6 +1016,7 @@ final class AppModel: ObservableObject {
 
     func resetCodexSelection() {
         guard !busy, selected?.provider == "codex", let index = conversations.firstIndex(where: { $0.id == selectedID }) else { return }
+        invalidateSessionSpinePilot()
         conversations[index].model = ""
         conversations[index].reasoningEffort = ""
         modelSelectionNotice = nil
@@ -1043,6 +1155,7 @@ final class AppModel: ObservableObject {
 
     private func perform(_ text: String, conversationID: UUID, confirmed: Bool, operatorInput: Bool) async {
         guard let index = conversations.firstIndex(where: { $0.id == conversationID }) else { busy = false; return }
+        invalidateSessionSpinePilot()
         let conversation = conversations[index]
         let history = conversation.history
         let files = operatorInput ? [] : conversation.pendingFiles
@@ -1278,6 +1391,7 @@ final class AppModel: ObservableObject {
         do {
             let value = try await client.request("workspace_status", ["workspace_root": .string(path)])
             guard let index = conversations.firstIndex(where: { $0.id == id }) else { return }
+            invalidateSessionSpinePilot()
             conversations[index].workspacePath = value["root"].text
             projectNoteSelections[id] = nil; projectMemory = nil; memorySuggestion = nil; invalidateContextPreview()
             preparedSkillTasks[id] = nil; skillTask = nil

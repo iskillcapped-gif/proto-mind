@@ -31,7 +31,7 @@ extension NativeChecks {
         try check(preview.events.allSatisfy { $0.type != "tool/result" || $0.value["tool_kind"].text.isEmpty == false }
                   && preview.value["no_tool_replay"].flag,
                   "Live Session Spine exposes bounded evidence metadata without replay authority")
-        let size = NSHostingController(rootView: SessionSpinePreviewView(preview: preview))
+        let size = NSHostingController(rootView: SessionSpinePreviewView(model: app, preview: preview))
             .sizeThatFits(in: CGSize(width: 900, height: 760))
         try check(size.width <= 800 && size.height <= 700,
                   "Live Session Spine stays inside a bounded scrollable Native sheet")
@@ -73,8 +73,62 @@ extension NativeChecks {
         await app.openSessionSpine(for: assistant)
         try check(app.sessionSpinePreview?.value == preview.value,
                   "Repeated read-only preview is deterministic for unchanged exact evidence")
+
+        app.openSessionSpineReadiness(preview)
+        guard let inactive = app.sessionSpineReadiness else {
+            throw NativeError.message(app.error ?? "Session Spine readiness missing")
+        }
+        try check(inactive.state == "INACTIVE" && inactive.identityState == "missing"
+                  && inactive.recoveryState == "clean_uninitialized" && inactive.canArm,
+                  "Missing pilot identity is a clean uninitialized state, not inferred recovery evidence")
+        try check(inactive.value["read_only"].flag && inactive.value["no_write"].flag
+                  && !inactive.value["writer_active"].flag && !inactive.value["write_authority_granted"].flag
+                  && !inactive.value["legacy_backfill_allowed"].flag,
+                  "Readiness keeps the writer, authority, migration and legacy backfill disabled")
+        try check(!FileManager.default.fileExists(atPath: inactive.identityPath)
+                  && !inactive.value.pretty.contains(source.text) && !inactive.value.pretty.contains(assistant.raw),
+                  "Readiness inspection creates no identity and returns content-free evidence")
+        let candidate = inactive.candidateHash
+        app.openSessionSpineReadiness(preview)
+        try check(app.sessionSpineReadiness?.candidateHash == candidate,
+                  "Unchanged exact evidence produces one deterministic readiness candidate")
+
+        app.armSessionSpinePilot(candidateHash: candidate)
+        guard let armed = app.sessionSpineReadiness else {
+            throw NativeError.message(app.error ?? "Armed Session Spine readiness missing")
+        }
+        try check(armed.state == "ARMED" && armed.value["gate"]["armed_for_exact_candidate"].flag
+                  && armed.value["gate"]["resets_on_relaunch"].flag && app.sessionSpinePilotArmed,
+                  "Explicit opt-in arms only the exact candidate until relaunch")
+        try check(!armed.value["writer_active"].flag && !armed.value["persistent_opt_in"].flag
+                  && armed.nextAction == "run_separate_personal_acceptance_before_any_writer_activation",
+                  "Armed readiness still cannot activate a writer and requires separate acceptance")
+        let readinessSize = NSHostingController(rootView: SessionSpineReadinessView(model: app, readiness: armed))
+            .sizeThatFits(in: CGSize(width: 900, height: 760))
+        try check(readinessSize.width <= 780 && readinessSize.height <= 710,
+                  "Session Spine readiness and recovery UI stays bounded")
+
+        let restarted = AppModel(configuration: LaunchConfiguration(projectRoot: fixture, python: python, stateDirectory: state))
+        defer { restarted.client.shutdown() }
+        try check(!restarted.sessionSpinePilotArmed && restarted.sessionSpineReadiness == nil,
+                  "Per-launch Session Spine opt-in never survives relaunch")
+        let recovered = try NativeSessionSpineActivationReadiness.inspect(
+            preview: preview, identity: nil,
+            identityPath: state.appendingPathComponent("session_spine_identity/installation.json"),
+            identityError: "synthetic unknown recovery evidence"
+        )
+        try check(recovered.state == "RECOVERY_REQUIRED" && !recovered.canArm
+                  && recovered.nextAction == "inspect_identity_bytes_manually_no_cleanup",
+                  "Unknown identity evidence blocks the pilot and exposes manual no-cleanup recovery")
+
+        app.revokeSessionSpinePilot()
+        try check(!app.sessionSpinePilotArmed && app.sessionSpineReadiness?.state == "INACTIVE",
+                  "Operator can revoke the in-memory preparation without changing persisted state")
+        app.armSessionSpinePilot(candidateHash: String(repeating: "0", count: 64))
+        try check(!app.sessionSpinePilotArmed && app.sessionSpineReadiness == nil,
+                  "Stale or incorrect readiness input clears all in-memory pilot state")
         app.sessionSpinePreview = nil
         try check(try fileBytes(state) == before && app.messages == messagesBefore && !app.cloudConsent && !app.fullAccessEnabled,
-                  "Opening and closing Live Session Spine changes no history, run, preference or permission bytes")
+                  "Preview, readiness, opt-in, relaunch and revoke change no history, run, preference or permission bytes")
     }
 }

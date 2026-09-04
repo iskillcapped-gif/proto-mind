@@ -233,6 +233,7 @@ struct NativeSessionSpinePreview: Identifiable, Equatable {
 }
 
 struct SessionSpinePreviewView: View {
+    @ObservedObject var model: AppModel
     let preview: NativeSessionSpinePreview
     @Environment(\.dismiss) private var dismiss
 
@@ -283,12 +284,25 @@ struct SessionSpinePreviewView: View {
                     }
                     Label("Текст сообщения и ответа не возвращался вторым payload-ом; в preview есть только размеры, SHA-256, типы и provenance событий.", systemImage: "checkmark.shield")
                         .font(.callout).foregroundStyle(.secondary)
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Следующий безопасный рубеж").font(.headline)
+                            Text("Проверить opt-in и recovery-состояние для этого точного хода, не включая writer.")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Button("Проверить readiness…") { model.openSessionSpineReadiness(preview) }
+                            .buttonStyle(.bordered).nativeHoverSurface()
+                    }.padding(14).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
                     Text("Открытие и закрытие этого окна не пишет Session Spine, не экспортирует данные, не вызывает модель или команды, не повторяет инструменты и не меняет разрешения либо Context Injection. Проекция не доказывает выполнение задачи или доставку ответа провайдером.")
                         .font(.caption).foregroundStyle(.secondary)
                 }.padding(22).frame(maxWidth: .infinity, alignment: .leading)
             }
         }.frame(width: 780, height: 680).background(NativeTheme.canvas)
             .font(NativeTheme.interfaceFont).buttonStyle(.nativeHover)
+            .sheet(item: $model.sessionSpineReadiness) {
+                SessionSpineReadinessView(model: model, readiness: $0)
+            }
     }
 
     private func badge(_ text: String, icon: String) -> some View {

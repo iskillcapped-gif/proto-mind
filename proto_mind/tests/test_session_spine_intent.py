@@ -299,11 +299,13 @@ class SessionSpineIntentTests(unittest.TestCase):
         self.assertFalse(report["boundaries"]["native_activation"])
         self.assertEqual(self.files(self.fixture.base), before)
 
-    def test_no_native_or_bridge_production_caller_exists(self):
+    def test_production_readiness_can_only_inspect_identity(self):
         root = Path(__file__).resolve().parents[2]
         app_model = (root / "native/Sources/AppModel.swift").read_text(encoding="utf-8")
         bridge = (root / "proto_mind/native_bridge.py").read_text(encoding="utf-8")
-        self.assertNotIn("NativeSessionSpineInstallationStore", app_model)
+        self.assertIn("NativeSessionSpineInstallationStore", app_model)
+        self.assertEqual(app_model.count("identityStore.load()"), 1)
+        self.assertNotIn("loadOrCreate()", app_model)
         self.assertNotIn("saveAndReadBack(", app_model)
         self.assertNotIn("session_spine_intent", bridge)
         self.assertNotIn("apply_native_turn_intent", bridge)

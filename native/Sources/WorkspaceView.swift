@@ -88,7 +88,7 @@ struct WorkspaceView: View {
         }
         .sheet(item: $model.pendingAgentAccess) { request in AgentAccessSheet(model: model, request: request) }
         .sheet(isPresented: $model.showWorkSessions) { WorkSessionsView(model: model) }
-        .sheet(item: $model.sessionSpinePreview) { SessionSpinePreviewView(preview: $0) }
+        .sheet(item: $model.sessionSpinePreview) { SessionSpinePreviewView(model: model, preview: $0) }
         .sheet(isPresented: $model.showContextDesk) { ContextDeskView(model: model) }
         .sheet(isPresented: $model.showPersonaInspector) { PersonaInspectorView(model: model) }
         .sheet(isPresented: $model.showMemoryWorkshop) { MemoryWorkshopView(model: model) }
