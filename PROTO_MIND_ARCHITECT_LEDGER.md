@@ -6,6 +6,8 @@ Last updated: 2026-09-04
 
 ## Current Stable State
 
+- Native 0.43.1 fixes ordinary chat-history save failures: failed pre-dispatch saves restore the draft and prevent a turn; completed but unsaved replies remain visible and can be saved again without re-running the provider; quitting with unsaved changes requires an explicit decision. Recovery status is separate from dismissible errors.
+
 - Proto-Mind is a personal cognitive-agent architecture and native macOS workspace. The current implementation is bounded and evidence-oriented; it is not a model-training or consciousness claim.
 - Current operator direction: reach Codex-quality daily usability while preserving and strengthening Proto-Mind's cognitive core. ChatGPT/Codex subscription models, optional local models, Full Mac tools, Computer Use, network access and progressively more autonomous multi-step work are all valid product paths. Local ownership, visible controls and evidence remain important, but cloud use is not an exception that requires repeated permission when the selected mode already authorizes it. There is no commercial requirement. See `NATIVE_MACOS_ROADMAP.md`.
 - Current product priority: dependable Native work sessions and Codex parity first, then stronger continuity, memory, skills, Session Spine and governed autonomy. External reviews and roadmaps are inputs to engineering judgment, not implicit feature activation or permanent restrictions.
@@ -303,20 +305,9 @@ Last updated: 2026-09-04
 
 ## Current Working Agreements
 
-These are engineering defaults, not personality instructions or absolute limits. The current user request, selected application mode and actual implementation contract determine what work is appropriate.
+Current development guidance lives in [`AGENTS.md`](AGENTS.md). The operator explicitly authorized autonomous improvements, architectural changes and removal of unnecessary project restrictions on 2026-09-04. Prior milestones describe their implementation and evidence at that time; they do not require repeating old approval rituals or retaining pilot limits indefinitely.
 
-- Rule 0: create a recoverable checkpoint before source changes or operations that can alter persistent state, permissions or integrations. Pure read-only inspection does not require a new backup.
-- Prefer local ownership and privacy, while treating configured subscription/cloud processing as a first-class supported path.
-- Dependencies may be added when they materially improve the product and have a clear maintenance, privacy, licensing and rollback story. Routine engineering choices do not require repeated operator approval.
-- Persistent schemas may evolve when versioning, backward compatibility or migration behavior and recovery are designed and tested.
-- Memory and skill updates may be automatic when the product explicitly exposes that policy, preserves provenance and offers meaningful inspection, correction and disable controls. They must not masquerade as user-confirmed facts.
-- Shell, network, Computer Use and multi-step agent actions are allowed when the user's task and selected access mode authorize them. Consequential side effects should be visible and bounded; authority must not silently expand beyond that mode.
-- Use deterministic logic where exactness matters and model reasoning where it adds value. Diagnostics, fixes and verification should match the actual problem rather than follow a mandatory sequence.
-- Choose patch or rewrite scope according to the best architecture. Favor recoverability and tests, but do not preserve a weak design merely to keep a patch small.
-- Existing CLI, PySide, tkinter, natural routing and storage formats are compatibility surfaces, not untouchable constraints. Intentional replacement or migration is allowed when its user impact and transition are handled.
-- `read_only` remains a literal runtime guarantee: a feature carrying that label must not mutate state. Mutating features should state their effects honestly.
-- Context assembly may be manual or automatic under explicit product configuration. It should remain inspectable, bounded and disable-able, and retrieved material must not become hidden authority over the operator.
-- This ledger does not prescribe the assistant's tone, verbosity, personality or degree of initiative.
+Use the current task, product value and measured behavior to choose scope. Preserve personal data, keep actual access and memory behavior visible, and verify changes proportionally. A Git checkpoint is sufficient for code-only work; state-changing migrations need an affected-state backup and recovery plan.
 
 ## Historical Milestone Record
 
@@ -566,7 +557,7 @@ This is a non-binding idea pool, not a locked sequence or permission boundary. R
 - Native Codex parity: keep improving the everyday chat, project, tool, Computer Use, streaming, Stop/recovery and source-inspection experience until switching between Codex and Proto-Mind feels natural.
 - Cognitive continuity: make memory selection, source attribution, correction, consolidation and session resume useful without requiring the operator to manage internal records manually.
 - Autonomous skills: let Proto-Mind select and apply verified procedures under the chosen access mode, with visible outcomes and learning from evidence rather than a growing operator command ritual.
-- Session Spine next decision: only after P2k evidence and an explicit new milestone, decide whether a single forward-only personal writer pilot should exist. Any pilot must revalidate exact history/intent/path preimages at write time, retain run-once recovery and preserve P2f legacy without inferred backfill.
+- Session Spine evolution: P2l already exposes one confirmed forward writer. Decide further integration from practical continuity and recovery needs, retaining deliberate handling of history, intent and source identity when evolving its current pilot contract.
 - Cognitive Turn Inspection: expose useful per-message trace and memory references without presenting private chain-of-thought or fabricated certainty.
 - Capability architecture: converge command metadata, policy, execution and verification toward typed capability declarations instead of expanding parallel registries.
 - Memory evolution: design migration or archival treatment for legacy response-coupled records when it materially improves retrieval quality.
@@ -574,7 +565,7 @@ This is a non-binding idea pool, not a locked sequence or permission boundary. R
 
 ## Open Risks
 
-- Session Spine v0.1/P1/P2a-P2k remains deliberately non-authoritative. Native 0.42.0 derives one exact linked turn as an ephemeral preview, exposes content-free readiness and permits only a second process-memory acceptance of exact path/recovery evidence; P2g writes only explicit detached stores, P2h proves the owner/order handshake and P2i persists only caller-directed disposable intent evidence. `AppModel` calls `load()` for identity inspection but never `loadOrCreate()`, history save/readback, intent prepare/apply or a writer. P2f's personal history remains entirely pre-lineage legacy and is never backfilled. P2k does not wire the live cross-store sequence, create a personal Spine/intent path, repair an `UNKNOWN` tail, provide multi-store atomicity, migrate history, prove authenticity/provider delivery/task success, compact data or establish production-scale performance. Its filesystem view is a readiness snapshot, so any future writer must revalidate immediately before a write. The earlier P2f backup remains mode `0644`; the fresh P2i acceptance copy is `0600`. P2b/P2d bundles preserve exact private content and are not publication-safe.
+- Session Spine P2l is production-reachable for one explicitly confirmed exact-linked turn. It revalidates history, Work Session, Turn Lineage, identity and fixed paths before the write, and uses P2i intent recovery. Earlier P2j/P2k readiness alone remains non-authorizing. The current implementation does not provide multi-store atomicity, automatic repair of UNKNOWN tails, history migration or production-scale performance evidence. Private exact-content bundles are not publication-safe. These are current implementation limits, not permanent restrictions on future development.
 - Native subscription mode sends selected conversation/context to OpenAI; it is not an offline substitute for local inference. OAuth/model availability and quotas belong to the account and installed Codex client. Codex Desktop tokens and notification hooks are not supported integration credentials.
 - Native UI state is outside the project backup scope and can contain private chat/evidence. It needs separate recovery coverage when persistence changes and remains excluded from public artifacts. No transcript import, automatic history/journal rotation, or independent runtime packaging exists yet. Journal capacity/corruption blocks new normal turns for review rather than silently dropping evidence.
 - Native uses durable Codex thread bindings and bounded EV-01 dispatch/evidence checkpoints, not a complete filesystem audit, transactional rollback or global exactly-once guarantee. Attachments are bounded inputs, not a full-project index or secret detector. Full Mac shell and Computer Use can read/change content beyond those previews. Computer Use receipts intentionally omit screenshots, UI trees, coordinates and entered text, so they are not forensic audit logs. Stop/Esc cannot undo side effects or guarantee cleanup of detached processes; unknown historical outcomes remain visible. No automatic sync, voice or background execution yet.

@@ -2,6 +2,8 @@
 
 This record explains the human/AI collaboration for the OpenAI Build Week submission. It complements the machine-readable baseline diff in `contest/provenance/`.
 
+This is a historical record of the submitted build, including its then-current approval rules and pilot limits. Current development follows [`AGENTS.md`](AGENTS.md); the workflow below does not impose continuing restrictions on later work.
+
 ## Collaboration Model
 
 The operator defined the product direction, accepted or rejected milestones, set safety boundaries, and approved each work block. Codex/GPT-5.6 inspected the local project, proposed scoped implementations, wrote code and tests, ran verification, diagnosed regressions, and maintained the architecture ledger.

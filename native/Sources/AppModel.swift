@@ -75,6 +75,7 @@ final class AppModel: ObservableObject {
     @Published var stream = ""
     @Published var status = "Запускаем локальное ядро"
     @Published var error: String?
+    @Published private(set) var historyPersistence = HistoryPersistenceState()
     @Published var showInspector = false
     @Published var inspectedMessageID: UUID?
     @Published var pendingAction: PendingOperatorAction?
@@ -190,15 +191,18 @@ final class AppModel: ObservableObject {
     private var personaPreviewRequest = UUID()
     private var personaReadinessRequest = UUID()
 
-    init(configuration: LaunchConfiguration = .load()) {
+    init(configuration: LaunchConfiguration = .load(), historyStore: ChatStore? = nil) {
         client = BridgeClient(configuration: configuration)
-        store = ChatStore(directory: configuration.stateDirectory)
+        store = historyStore ?? ChatStore(directory: configuration.stateDirectory)
         preferences = PreferenceStore(directory: configuration.stateDirectory)
         do {
             let archive = try store.load()
             conversations = archive.conversations
             selectedID = conversations.first { $0.id == archive.selectedID }?.id ?? conversations.first?.id
-        } catch { self.error = error.localizedDescription }
+        } catch {
+            self.error = error.localizedDescription
+            historyPersistence = HistoryPersistenceState(failure: error.localizedDescription, requiresRecovery: store.writeBlocked)
+        }
         do {
             let saved = try preferences.load()
             cloudConsent = saved.cloudProcessingAllowed
@@ -486,8 +490,7 @@ final class AppModel: ObservableObject {
         let previous = conversations[index].pendingCriteria
         conversations[index].pendingCriteria = items
         do {
-            try store.save(ChatArchive(conversations: conversations, selectedID: selectedID))
-            draftSave?.cancel(); dirtyDraft = false
+            try saveHistory()
         } catch {
             conversations[index].pendingCriteria = previous
             throw error
@@ -913,6 +916,8 @@ final class AppModel: ObservableObject {
             let archive = ChatArchive(conversations: conversations, selectedID: selectedID)
             durableWriteStarted = true
             let readback = try store.saveAndReadBack(archive)
+            draftSave?.cancel(); dirtyDraft = false
+            historyPersistence = HistoryPersistenceState()
             guard readback.sha256 == preview.source["history_sha256"].text,
                   readback.sizeBytes == preview.source["history_bytes"].integer else {
                 throw NativeError.message("История была сохранена, но exact candidate изменился. Writer не вызван; проверьте history вручную.")
@@ -936,6 +941,9 @@ final class AppModel: ObservableObject {
             status = "Session Spine · один exact-linked ход записан и закрыт"
         } catch {
             if durableWriteStarted { invalidateSessionSpinePilot() }
+            if store.writeBlocked {
+                historyPersistence = HistoryPersistenceState(hasUnsavedChanges: true, failure: error.localizedDescription, requiresRecovery: true)
+            }
             report(error)
         }
     }
@@ -1058,8 +1066,7 @@ final class AppModel: ObservableObject {
         guard next != previous else { return }
         conversations[index].dismissedWorkSessionWarnings = next
         do {
-            try store.save(ChatArchive(conversations: conversations, selectedID: selectedID))
-            draftSave?.cancel(); dirtyDraft = false
+            try saveHistory()
         } catch {
             conversations[index].dismissedWorkSessionWarnings = previous
             throw error
@@ -1353,6 +1360,7 @@ final class AppModel: ObservableObject {
         conversations[index].draft = composer
         if composer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { conversations[index].draftContinuation = nil }
         dirtyDraft = true
+        historyPersistence.hasUnsavedChanges = true
         draftSave?.cancel()
         draftSave = Task { [weak self] in
             do { try await Task.sleep(nanoseconds: 500_000_000) }
@@ -1368,6 +1376,11 @@ final class AppModel: ObservableObject {
         guard !text.isEmpty, !busy, !loadingDroppedAttachments, !loadingImagePreview, !loadingPDFPreview,
               imagePreview == nil, pdfPreview == nil, attachmentDropPreview == nil,
               selected?.archived != true, let conversationID = selectedID else { return }
+        guard !historyPersistence.blocksSubmission, !store.writeBlocked else {
+            if composer.isEmpty { setComposer(text, preservingContinuation: true) }
+            status = "Сначала восстановите сохранение истории"
+            return
+        }
         busy = true
         do {
             let description = try await client.request("describe", ["text": .string(text)])
@@ -1384,6 +1397,10 @@ final class AppModel: ObservableObject {
 
     func confirmPending() async {
         guard let action = pendingAction else { return }
+        guard !historyPersistence.blocksSubmission, !store.writeBlocked else {
+            status = "Сначала восстановите сохранение истории"
+            return
+        }
         pendingAction = nil
         busy = true
         await perform(action.text, conversationID: action.conversationID, confirmed: true, operatorInput: true)
@@ -1418,7 +1435,17 @@ final class AppModel: ObservableObject {
         setComposer(""); stream = ""; agentItems = []; agentReceipt = .null; workLog = .null; autoSkillsReport = nil
         turnStartedAt = Date(); section = .chat
         status = grant == nil ? "Proto-Mind думает" : "Агент подключается · полный доступ + интернет"
-        persist()
+        guard persist() else {
+            // The provider has not been called. Restore the draft and attachments;
+            // a local save failure must not create a failed or duplicate turn.
+            conversations[index] = conversation
+            if selectedID == conversationID {
+                restoreComposer()
+                if composer.isEmpty { setComposer(text, preservingContinuation: true) }
+            }
+            busy = false; turnStartedAt = nil
+            return
+        }
         do {
             let requestedRunID = operatorInput ? nil : UUID()
             var params: [String: JSONValue] = [
@@ -1763,8 +1790,7 @@ final class AppModel: ObservableObject {
         let previous = conversations[index].pendingImages
         conversations[index].pendingImages = next
         do {
-            try store.save(ChatArchive(conversations: conversations, selectedID: selectedID))
-            draftSave?.cancel(); dirtyDraft = false
+            try saveHistory()
         } catch {
             conversations[index].pendingImages = previous
             throw error
@@ -1854,8 +1880,7 @@ final class AppModel: ObservableObject {
         conversations[index].pendingImages = next.images
         conversations[index].pendingFiles = next.files
         do {
-            try store.save(ChatArchive(conversations: conversations, selectedID: selectedID))
-            draftSave?.cancel(); dirtyDraft = false
+            try saveHistory()
         } catch {
             conversations[index] = previous
             throw error
@@ -1958,8 +1983,7 @@ final class AppModel: ObservableObject {
         let previous = conversations[index].pendingPDFs
         conversations[index].pendingPDFs = next
         do {
-            try store.save(ChatArchive(conversations: conversations, selectedID: selectedID))
-            draftSave?.cancel(); dirtyDraft = false
+            try saveHistory()
         } catch { conversations[index].pendingPDFs = previous; throw error }
     }
 
@@ -2212,9 +2236,36 @@ final class AppModel: ObservableObject {
     }
 
     private func report(_ error: Error) { self.error = error.localizedDescription; status = "Нужна проверка" }
-    private func persist() {
+    private func saveHistory() throws {
         draftSave?.cancel()
-        do { try store.save(ChatArchive(conversations: conversations, selectedID: selectedID)); dirtyDraft = false }
-        catch { report(error) }
+        do {
+            try store.save(ChatArchive(conversations: conversations, selectedID: selectedID))
+            dirtyDraft = false
+            if error == historyPersistence.failure { error = nil }
+            historyPersistence = HistoryPersistenceState()
+        } catch {
+            historyPersistence = HistoryPersistenceState(hasUnsavedChanges: true, failure: error.localizedDescription,
+                                                         requiresRecovery: store.writeBlocked)
+            throw error
+        }
+    }
+
+    @discardableResult
+    private func persist() -> Bool {
+        do { try saveHistory(); return true }
+        catch { status = "История не сохранена"; return false }
+    }
+
+    @discardableResult
+    func retryHistorySave() -> Bool {
+        guard !busy, !client.turnOutstanding, !store.writeBlocked else { return false }
+        guard persist() else { return false }
+        status = "История сохранена"
+        return true
+    }
+
+    func saveBeforeExit() -> Bool {
+        guard dirtyDraft || historyPersistence.hasUnsavedChanges else { return true }
+        return persist()
     }
 }

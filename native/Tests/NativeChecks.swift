@@ -104,6 +104,7 @@ struct NativeChecks {
         try markdown()
 
         if let fixture = LaunchConfiguration.argument("--fixture"), let python = LaunchConfiguration.argument("--python") {
+            try await historyPersistence(fixture: URL(fileURLWithPath: fixture), python: URL(fileURLWithPath: python), root: root)
             try await integration(fixture: URL(fileURLWithPath: fixture), python: URL(fileURLWithPath: python), root: root)
         }
         print("Native checks: \(passed) OK")

@@ -184,10 +184,13 @@ final class ChatStore {
     let url: URL
     private(set) var writeBlocked = false
     private let dataReader: (URL) throws -> Data
+    private let dataWriter: ((Data, URL) throws -> Void)?
 
-    init(directory: URL, dataReader: @escaping (URL) throws -> Data = { try Data(contentsOf: $0) }) {
+    init(directory: URL, dataReader: @escaping (URL) throws -> Data = { try Data(contentsOf: $0) },
+         dataWriter: ((Data, URL) throws -> Void)? = nil) {
         url = directory.appendingPathComponent("conversations.json")
         self.dataReader = dataReader
+        self.dataWriter = dataWriter
     }
 
     private func decode(_ data: Data) throws -> ChatArchive {
@@ -217,6 +220,7 @@ final class ChatStore {
     }
 
     private func write(_ data: Data) throws {
+        if let dataWriter { try dataWriter(data, url); return }
         let directory = url.deletingLastPathComponent()
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         try data.write(to: url, options: .atomic)

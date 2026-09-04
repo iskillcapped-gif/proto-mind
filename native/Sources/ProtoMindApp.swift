@@ -14,7 +14,15 @@ final class NativeAppDelegate: NSObject, NSApplicationDelegate {
             alert.runModal()
             return .terminateCancel
         }
-        model?.flushDraft()
+        if model?.saveBeforeExit() == false {
+            let alert = NSAlert()
+            alert.alertStyle = .warning
+            alert.messageText = "Есть несохранённые сообщения или черновики"
+            alert.informativeText = "Сохранение истории не удалось. Вернитесь в приложение, чтобы сохранить или скопировать нужный текст. При выходе несохранённые изменения будут потеряны."
+            alert.addButton(withTitle: "Вернуться в Proto-Mind")
+            alert.addButton(withTitle: "Выйти без сохранения")
+            guard alert.runModal() == .alertSecondButtonReturn else { return .terminateCancel }
+        }
         model?.client.shutdown()
         return .terminateNow
     }

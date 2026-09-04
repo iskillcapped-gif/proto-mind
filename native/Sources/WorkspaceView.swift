@@ -15,7 +15,8 @@ struct WorkspaceView: View {
                 .navigationSplitViewColumnWidth(min: 225, ideal: 260, max: 320)
         } detail: {
             VStack(spacing: 0) {
-                if let error = model.error {
+                HistoryPersistenceNotice(model: model)
+                if let error = model.error, error != model.historyPersistence.failure {
                     HStack(alignment: .top, spacing: 10) {
                         Image(systemName: "exclamationmark.circle").foregroundStyle(.orange)
                         Text(error).font(.callout).textSelection(.enabled)
@@ -636,9 +637,9 @@ struct ComposerView: View {
                     } else {
                         Button { Task { await model.submit() } } label: {
                             Image(systemName: "arrow.up").font(.system(size: 16, weight: .medium)).foregroundStyle(canvas)
-                                .frame(width: 32, height: 32).background(Color.primary.opacity(model.composer.isEmpty ? 0.25 : 1), in: Circle())
-                        }.buttonStyle(.nativeHover).disabled(model.composer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.selected?.archived == true || model.loadingDroppedAttachments || model.loadingImagePreview || model.loadingPDFPreview)
-                            .help("Отправить · Return")
+                                .frame(width: 32, height: 32).background(Color.primary.opacity(model.composer.isEmpty || model.historyPersistence.blocksSubmission ? 0.25 : 1), in: Circle())
+                        }.buttonStyle(.nativeHover).disabled(model.composer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.selected?.archived == true || model.loadingDroppedAttachments || model.loadingImagePreview || model.loadingPDFPreview || model.historyPersistence.blocksSubmission)
+                            .help(model.historyPersistence.blocksSubmission ? "Сначала восстановите сохранение истории" : "Отправить · Return")
                     }
                 }.padding(.horizontal, 15).padding(.top, 5).padding(.bottom, 13)
             }
