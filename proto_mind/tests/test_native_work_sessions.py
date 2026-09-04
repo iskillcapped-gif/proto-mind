@@ -379,10 +379,28 @@ class WorkSessionBridgeTests(unittest.TestCase):
     def test_bridge_persists_once_and_duplicate_request_never_calls_model(self):
         result = self.process()
         self.assertEqual(result["work_session"]["display_status"], "completed")
+        receipt = result["work_session"]["instruction_receipt"]
+        self.assertEqual(receipt["schema"], "proto_mind.native_instruction_receipt.v1")
+        self.assertTrue(receipt["content_free"])
+        self.assertFalse(receipt["instruction_text_stored"])
         self.assertEqual(len(self.backend.subscription.calls), 1)
         with self.assertRaisesRegex(sessions.WorkSessionError, "already used"):
             self.process()
         self.assertEqual(len(self.backend.subscription.calls), 1)
+
+    def test_tampered_instruction_receipt_is_visible_and_never_rewritten(self):
+        result = self.process()
+        path = self.state / "work_sessions" / f"{result['work_session']['id']}.json"
+        record = json.loads(path.read_text())
+        record["instruction_receipt"]["receipt_hash"] = "0" * 64
+        path.write_text(json.dumps(record))
+        before = path.read_bytes()
+
+        page = self.backend.work_sessions.page(self.params["conversation_id"])
+
+        self.assertEqual(page["runs"], [])
+        self.assertTrue(page["warnings"])
+        self.assertEqual(path.read_bytes(), before)
 
     def test_operator_and_readonly_journal_methods_never_create_run_or_call_provider(self):
         self.process(text="/commands status")

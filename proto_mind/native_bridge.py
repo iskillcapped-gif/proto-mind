@@ -34,6 +34,7 @@ from proto_mind.native_codex import (
     validate_reasoning_effort,
 )
 from proto_mind.native_instructions import (
+    build_instruction_receipt,
     build_instruction_preview,
     prepare_local_instructions,
 )
@@ -151,6 +152,7 @@ class NativeOllamaReasoner(OllamaReasoner):
         self.criteria = validate_criteria([] if criteria is None else criteria)
         self.persona_activation = persona_activation
         self.last_persona_receipt: dict | None = None
+        self.last_instruction_receipt: dict | None = None
         self.project_notes = project_notes or []
         self.skill_task, self.before_provider_call = skill_task, before_provider_call
 
@@ -161,15 +163,24 @@ class NativeOllamaReasoner(OllamaReasoner):
     def respond(self, user_input, retrieved_memory, observer_state, correction_hints=None) -> str:
         if self.before_provider_call:
             self.before_provider_call()
+        hints = correction_hints or []
         prepared = prepare_local_instructions(
             "ollama",
             observer_state,
             retrieved_memory,
-            correction_hints or [],
+            hints,
             persona_activation=self.persona_activation,
         )
         instructions = prepared.text
         self.last_persona_receipt = prepared.persona_receipt
+        self.last_instruction_receipt = build_instruction_receipt(
+            provider="ollama",
+            mode="chat",
+            prepared=prepared,
+            developer_instructions=None,
+            selected_memory=retrieved_memory,
+            correction_hints=hints,
+        )
         payload = {
             "model": self.config.ollama_model,
             "messages": [
@@ -678,6 +689,10 @@ class NativeBackend:
                 self.sessions.pop(session_id, None)
             serialized = output.to_dict()
             persona_receipt = getattr(coordinator.reasoner, "last_persona_receipt", None)
+            instruction_receipt = getattr(coordinator.reasoner, "last_instruction_receipt", None)
+            if (not description["operator"] and provider in {"codex", "ollama"}
+                    and not isinstance(instruction_receipt, dict)):
+                raise ValueError("Provider instruction assembly did not produce a validated content-free receipt.")
             if persona_activation is not None:
                 if not isinstance(persona_receipt, dict):
                     raise ValueError("Brother Persona did not produce a validated turn receipt.")
@@ -705,7 +720,11 @@ class NativeBackend:
             if work_session is not None:
                 reader = self._artifact_workspace(params, work_session.record)
                 artifacts = capture_artifacts(work_session.record, reader)
-                saved_session = work_session.complete(serialized.get("text") or "", artifacts=artifacts)
+                saved_session = work_session.complete(
+                    serialized.get("text") or "",
+                    artifacts=artifacts,
+                    instruction_receipt=instruction_receipt,
+                )
             suggestions_report = None
             if params.get("memory_suggestions") is True and provider == "codex" and saved_session and logical_workspace:
                 try:

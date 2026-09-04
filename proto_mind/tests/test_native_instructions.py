@@ -17,9 +17,11 @@ from proto_mind.native_agent import AGENT_INSTRUCTIONS
 from proto_mind.native_codex import CHAT_DEVELOPER_INSTRUCTIONS
 from proto_mind.native_instructions import (
     NativeInstructionError,
+    build_instruction_receipt,
     build_instruction_preview,
     legacy_subscription_instructions,
     prepare_local_instructions,
+    validate_instruction_receipt,
     validate_instruction_preview,
 )
 from proto_mind.observer import Observer
@@ -181,6 +183,100 @@ class NativeInstructionContractTests(unittest.TestCase):
         )
         self.assertEqual(self.prepared().text, legacy_subscription_instructions(raw))
 
+    def test_instruction_receipt_matches_projection_without_storing_instruction_content(self):
+        prepared = self.prepared()
+        preview = build_instruction_preview(
+            provider="codex",
+            mode="chat",
+            operator=False,
+            prepared=prepared,
+            developer_instructions=CHAT_DEVELOPER_INSTRUCTIONS,
+            selected_memory=[self.memory],
+            correction_hints=["State uncertainty explicitly."],
+            retrieval_performed=True,
+        )
+        receipt = build_instruction_receipt(
+            provider="codex",
+            mode="chat",
+            prepared=prepared,
+            developer_instructions=CHAT_DEVELOPER_INSTRUCTIONS,
+            selected_memory=[self.memory],
+            correction_hints=["State uncertainty explicitly."],
+        )
+
+        self.assertIs(validate_instruction_receipt(receipt), receipt)
+        self.assertTrue(receipt["content_free"] and receipt["assembled_for_provider_call"])
+        self.assertFalse(receipt["instruction_text_stored"] or receipt["provider_delivery_verified"])
+        self.assertEqual(receipt["selected_memory_ids"], [self.memory.id])
+        self.assertEqual(
+            [item["sha256"] for item in receipt["layers"]],
+            [item["sha256"] for item in preview["layers"]],
+        )
+        serialized = json.dumps(receipt, ensure_ascii=False)
+        self.assertNotIn(self.memory.content, serialized)
+        self.assertNotIn("State uncertainty explicitly.", serialized)
+        self.assertNotIn(CHAT_DEVELOPER_INSTRUCTIONS, serialized)
+        self.assertTrue(all("text" not in layer for layer in receipt["layers"]))
+
+    def test_instruction_receipt_refuses_tampering_and_non_provider_routes(self):
+        receipt = build_instruction_receipt(
+            provider="codex",
+            mode="full_access",
+            prepared=self.prepared(),
+            developer_instructions=AGENT_INSTRUCTIONS,
+            selected_memory=[self.memory],
+            correction_hints=["State uncertainty explicitly."],
+        )
+        mutations = (
+            ("stored text", lambda row: row["layers"][0].__setitem__("text", "hidden")),
+            ("layer count", lambda row: row.__setitem__("layer_count", 1)),
+            ("delivery claim", lambda row: row.__setitem__("provider_delivery_verified", True)),
+            ("private reasoning", lambda row: row.__setitem__("private_reasoning_included", True)),
+            ("receipt hash", lambda row: row.__setitem__("receipt_hash", "0" * 64)),
+            ("material", lambda row: row.__setitem__("hash_material", "{}")),
+        )
+        for label, mutate in mutations:
+            changed = deepcopy(receipt)
+            mutate(changed)
+            with self.subTest(label=label), self.assertRaises(NativeInstructionError):
+                validate_instruction_receipt(changed)
+        with self.assertRaisesRegex(NativeInstructionError, "real supported provider"):
+            build_instruction_receipt(
+                provider="mock",
+                mode="chat",
+                prepared=self.prepared(),
+                developer_instructions=None,
+            )
+
+    def test_actual_ollama_reasoner_receipt_matches_sent_system_message(self):
+        reasoner = bridge.NativeOllamaReasoner(ProtoMindConfig(), [])
+        with patch.object(
+            bridge,
+            "local_ollama_request",
+            return_value={"message": {"content": "Local answer."}},
+        ) as request:
+            answer = reasoner.respond(
+                "Current question",
+                [self.memory],
+                self.observer,
+                ["State uncertainty explicitly."],
+            )
+
+        receipt = reasoner.last_instruction_receipt
+        system_message = request.call_args.args[2]["messages"][0]["content"]
+        self.assertEqual(answer, "Local answer.")
+        self.assertIs(validate_instruction_receipt(receipt), receipt)
+        self.assertEqual(receipt["provider"], "ollama")
+        self.assertEqual(receipt["mode"], "chat")
+        self.assertEqual(receipt["layer_count"], 1)
+        self.assertEqual(
+            receipt["layers"][0]["sha256"],
+            hashlib.sha256(system_message.encode()).hexdigest(),
+        )
+        serialized = json.dumps(receipt, ensure_ascii=False)
+        self.assertNotIn(self.memory.content, serialized)
+        self.assertNotIn("State uncertainty explicitly.", serialized)
+
 
 class NativeInstructionBridgeTests(unittest.TestCase):
     def setUp(self):
@@ -239,6 +335,42 @@ class NativeInstructionBridgeTests(unittest.TestCase):
         self.assertEqual(self.backend.subscription.calls, [])
         self.assertFalse(self.state.exists())
         self.assertEqual(before, self.files())
+
+    def test_actual_send_persists_only_content_free_instruction_receipt(self):
+        conversation = str(uuid4())
+        coordinator = self.backend._coordinator(conversation)
+        coordinator.pending_correction_hints = ["Carry this verified correction once."]
+
+        result = self.backend.process({
+            "text": "What do you remember about my response preference?",
+            "conversation_id": conversation,
+            "run_id": str(uuid4()),
+            "provider": "codex",
+            "model": "fixture-model",
+            "cloud_consent": True,
+            "persona_enabled": False,
+            "history": [],
+        }, lambda _: None, "instruction-receipt")
+
+        receipt = result["work_session"]["instruction_receipt"]
+        self.assertIs(validate_instruction_receipt(receipt), receipt)
+        self.assertEqual(receipt["selected_memory_ids"], [self.memory.id])
+        self.assertEqual(receipt["correction_hint_count"], 1)
+        self.assertEqual(
+            receipt["layers"][0]["sha256"],
+            hashlib.sha256(self.backend.subscription.calls[0][1].encode()).hexdigest(),
+        )
+        self.assertEqual(
+            receipt["layers"][1]["sha256"],
+            hashlib.sha256(CHAT_DEVELOPER_INSTRUCTIONS.encode()).hexdigest(),
+        )
+        stored = json.loads(
+            (self.state / "work_sessions" / f"{result['work_session']['id']}.json").read_text()
+        )["instruction_receipt"]
+        stored_receipt = json.dumps(stored, ensure_ascii=False)
+        self.assertNotIn(self.memory.content, stored_receipt)
+        self.assertNotIn("Carry this verified correction once.", stored_receipt)
+        self.assertNotIn(CHAT_DEVELOPER_INSTRUCTIONS, stored_receipt)
 
 
 if __name__ == "__main__":

@@ -97,6 +97,81 @@ struct NativeInstructionPreview: Equatable {
     }
 }
 
+struct NativeInstructionReceipt: Equatable {
+    private static let fields: Set<String> = [
+        "schema", "content_free", "instruction_text_stored", "assembled_for_provider_call",
+        "provider_delivery_verified", "provider_owned_instructions_included", "private_reasoning_included",
+        "scope", "provider", "mode", "persona_state", "selected_memory_count", "selected_memory_ids",
+        "correction_hint_count", "layer_count", "layers", "receipt_hash", "hash_material",
+    ]
+    private static let materialFields = fields.subtracting(["schema", "receipt_hash", "hash_material"])
+    private static let layerFields: Set<String> = [
+        "id", "owner", "placement", "source", "characters", "sha256", "dynamic", "provider_visible_at_send",
+    ]
+    let value: JSONValue
+    var layers: [JSONValue] { value["layers"].items }
+
+    init(_ value: JSONValue) throws {
+        guard case .object(let fields) = value, Set(fields.keys) == Self.fields,
+              value["schema"] == .string("proto_mind.native_instruction_receipt.v1"),
+              value["content_free"] == .bool(true), value["instruction_text_stored"] == .bool(false),
+              value["assembled_for_provider_call"] == .bool(true), value["provider_delivery_verified"] == .bool(false),
+              value["provider_owned_instructions_included"] == .bool(false), value["private_reasoning_included"] == .bool(false),
+              value["scope"] == .string("proto_mind_authored_instruction_metadata"),
+              ["codex", "ollama"].contains(value["provider"].text), ["chat", "full_access"].contains(value["mode"].text),
+              value["provider"].text != "ollama" || value["mode"].text == "chat",
+              ["brother", "legacy"].contains(value["persona_state"].text),
+              case .array(let memoryIDs) = value["selected_memory_ids"], memoryIDs.count <= 10,
+              memoryIDs.allSatisfy({ !$0.text.isEmpty && $0.text.unicodeScalars.count <= 160 }),
+              Set(memoryIDs.map(\.text)).count == memoryIDs.count,
+              value["selected_memory_count"] == .number(Double(memoryIDs.count)),
+              case .number(let correctionCount) = value["correction_hint_count"], correctionCount.rounded() == correctionCount,
+              correctionCount >= 0, correctionCount <= 5,
+              case .array(let layers) = value["layers"], (1...2).contains(layers.count),
+              value["layer_count"] == .number(Double(layers.count)) else { throw Self.error() }
+        for layer in layers {
+            guard case .object(let body) = layer, Set(body.keys) == Self.layerFields,
+                  layer["owner"] == .string("proto_mind"), layer["provider_visible_at_send"] == .bool(true),
+                  case .bool = layer["dynamic"], case .number(let characters) = layer["characters"],
+                  characters.rounded() == characters, characters >= 1, characters <= 24_512,
+                  Self.isHash(layer["sha256"].text) else { throw Self.error() }
+        }
+        let identifiers = layers.map { $0["id"].text }
+        if value["provider"] == .string("codex") {
+            guard identifiers == ["base_instructions", "developer_instructions"],
+                  layers[0]["placement"] == .string("codex_base_instructions"),
+                  ["legacy_cognitive_core_current_projection", "brother_persona_current_projection"].contains(layers[0]["source"].text),
+                  layers[0]["dynamic"] == .bool(true), layers[1]["placement"] == .string("codex_developer_instructions"),
+                  layers[1]["source"] == .string(value["mode"].text == "full_access" ? "full_mac_static_contract" : "chat_static_contract"),
+                  layers[1]["dynamic"] == .bool(false) else { throw Self.error() }
+        } else {
+            guard identifiers == ["system_instructions"], layers[0]["placement"] == .string("ollama_system_message"),
+                  ["legacy_cognitive_core_current_projection", "brother_persona_current_projection"].contains(layers[0]["source"].text),
+                  layers[0]["dynamic"] == .bool(true) else { throw Self.error() }
+        }
+        let expectedPersona = layers[0]["source"].text == "brother_persona_current_projection" ? "brother" : "legacy"
+        guard value["persona_state"] == .string(expectedPersona) else { throw Self.error() }
+        let material = JSONValue.object(fields.filter { Self.materialFields.contains($0.key) })
+        guard case .string(let materialText) = value["hash_material"],
+              let bytes = materialText.data(using: .utf8), bytes.count <= 64 * 1024,
+              (try? JSONDecoder().decode(JSONValue.self, from: bytes)) == material,
+              value["receipt_hash"] == .string(Self.hash(materialText)) else { throw Self.error() }
+        self.value = value
+    }
+
+    private static func isHash(_ value: String) -> Bool {
+        value.range(of: "^[a-f0-9]{64}$", options: .regularExpression) != nil
+    }
+
+    private static func hash(_ text: String) -> String {
+        SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()
+    }
+
+    private static func error() -> NativeError {
+        .message("Квитанция локальных инструкций не прошла проверку. Историческая запись не изменена.")
+    }
+}
+
 struct NativeContextPreview: Equatable {
     let value: JSONValue
     let instructionPreview: NativeInstructionPreview

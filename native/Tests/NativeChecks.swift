@@ -1,4 +1,5 @@
 import AppKit
+import CryptoKit
 import Foundation
 import SwiftUI
 
@@ -76,6 +77,7 @@ struct NativeChecks {
 
         try preferencesAndLegacyHistory(root: root)
         try personaActivationContracts(root: root)
+        try instructionReceiptContracts()
         try conversationManagement(root: root)
         try modelSelection(root: root)
         try modelMenuLayout(root: root)
@@ -148,6 +150,72 @@ struct NativeChecks {
         let rolledBack = try PreferenceStore(directory: state).load()
         try check(!app.personaEnabled && !rolledBack.personaEnabled && !app.fullAccessEnabled,
                   "Persona rollback returns the next turn to legacy without granting tools")
+    }
+
+    static func instructionReceiptFixture() throws -> JSONValue {
+        let layers: [JSONValue] = [
+            .object([
+                "id": .string("base_instructions"), "owner": .string("proto_mind"),
+                "placement": .string("codex_base_instructions"), "source": .string("legacy_cognitive_core_current_projection"),
+                "characters": .number(1_396), "sha256": .string(String(repeating: "a", count: 64)),
+                "dynamic": .bool(true), "provider_visible_at_send": .bool(true),
+            ]),
+            .object([
+                "id": .string("developer_instructions"), "owner": .string("proto_mind"),
+                "placement": .string("codex_developer_instructions"), "source": .string("chat_static_contract"),
+                "characters": .number(94), "sha256": .string(String(repeating: "b", count: 64)),
+                "dynamic": .bool(false), "provider_visible_at_send": .bool(true),
+            ]),
+        ]
+        let materialFields: [String: JSONValue] = [
+            "content_free": .bool(true), "instruction_text_stored": .bool(false),
+            "assembled_for_provider_call": .bool(true), "provider_delivery_verified": .bool(false),
+            "provider_owned_instructions_included": .bool(false), "private_reasoning_included": .bool(false),
+            "scope": .string("proto_mind_authored_instruction_metadata"), "provider": .string("codex"),
+            "mode": .string("chat"), "persona_state": .string("legacy"),
+            "selected_memory_count": .number(0), "selected_memory_ids": .array([]),
+            "correction_hint_count": .number(0), "layer_count": .number(2), "layers": .array(layers),
+        ]
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let material = JSONValue.object(materialFields)
+        let bytes = try encoder.encode(material)
+        guard let text = String(data: bytes, encoding: .utf8) else { throw NativeError.message("Receipt fixture encoding failed") }
+        let hash = SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
+        return .object(materialFields.merging([
+            "schema": .string("proto_mind.native_instruction_receipt.v1"),
+            "receipt_hash": .string(hash), "hash_material": .string(text),
+        ]) { _, new in new })
+    }
+
+    static func instructionReceiptContracts() throws {
+        let receipt = try instructionReceiptFixture()
+        let parsed = try NativeInstructionReceipt(receipt)
+        try check(parsed.layers.count == 2 && parsed.value["instruction_text_stored"] == .bool(false),
+                  "Native validates a content-free production instruction receipt")
+        guard case .object(let valid) = receipt else { throw NativeError.message("Expected instruction receipt fixture") }
+        for (field, replacement) in [
+            ("content_free", JSONValue.bool(false)),
+            ("provider_delivery_verified", .bool(true)),
+            ("private_reasoning_included", .bool(true)),
+            ("receipt_hash", .string(String(repeating: "0", count: 64))),
+            ("hash_material", .string("{}")),
+        ] {
+            var changed = valid
+            changed[field] = replacement
+            var refused = false
+            do { _ = try NativeInstructionReceipt(.object(changed)) } catch { refused = true }
+            try check(refused, "Native rejects tampered instruction receipt \(field)")
+        }
+        var withText = valid
+        if case .array(var layers) = withText["layers"], case .object(var first) = layers[0] {
+            first["text"] = .string("must never persist")
+            layers[0] = .object(first)
+            withText["layers"] = .array(layers)
+        }
+        var textRefused = false
+        do { _ = try NativeInstructionReceipt(.object(withText)) } catch { textRefused = true }
+        try check(textRefused, "Native instruction receipt refuses persisted instruction text")
     }
 
     @MainActor
@@ -1127,6 +1195,17 @@ struct NativeChecks {
             do { _ = try NativeWorkSession(.object(invalid)) } catch { rejected = true }
             try check(rejected, "Run card rejects invalid \(key)")
         }
+        var codexRun = valid
+        codexRun["provider"] = .string("codex")
+        codexRun["access_mode"] = .string("chat")
+        codexRun["instruction_receipt"] = try instructionReceiptFixture()
+        let receiptRun = try NativeWorkSession(.object(codexRun))
+        try check(receiptRun.instructionReceipt?.layers.count == 2,
+                  "Run card accepts a verified content-free instruction receipt")
+        codexRun["access_mode"] = .string("full_access")
+        var mismatchRefused = false
+        do { _ = try NativeWorkSession(.object(codexRun)) } catch { mismatchRefused = true }
+        try check(mismatchRefused, "Run card rejects instruction evidence from another access mode")
         app.setComposer("existing unsent draft"); app.flushDraft()
         let beforeRefused = try fileBytes(state)
         await app.prepareContinuation(parent)

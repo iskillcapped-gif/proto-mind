@@ -6,6 +6,7 @@ struct NativeWorkSession: Identifiable, Equatable {
     var state: String { value["display_status"].text }
     var needsReview: Bool { ["unknown", "not_started"].contains(state) }
     var canPrepare: Bool { !["running", "preparing"].contains(state) }
+    var instructionReceipt: NativeInstructionReceipt? { try? NativeInstructionReceipt(value["instruction_receipt"]) }
     var reference: JSONValue { .object(["run_id": .string(id), "fingerprint": value["fingerprint"]]) }
     var title: String {
         switch state {
@@ -46,6 +47,13 @@ struct NativeWorkSession: Identifiable, Equatable {
                   value["agent_contract"]["provider"].text == "codex_subscription",
                   value["agent_contract"]["access_mode"].text == "full_access" else {
                 throw NativeError.message("Контракт сохранённого запуска не прошёл проверку. Файл не изменён.")
+            }
+        }
+        if !value["instruction_receipt"].isNull {
+            let receipt = try NativeInstructionReceipt(value["instruction_receipt"])
+            guard value["status"] == .string("completed"), receipt.value["provider"] == value["provider"],
+                  receipt.value["mode"] == value["access_mode"] else {
+                throw NativeError.message("Квитанция инструкций не соответствует сохранённому запуску. Файл не изменён.")
             }
         }
         self.value = value
@@ -166,6 +174,30 @@ struct WorkSessionsView: View {
             }
             if !run.value["agent_contract"].isNull {
                 Text("Контракт фиксирует провайдера, доступные инструменты, лимиты, stop conditions и отсутствие автоповтора до запуска Codex. Runtime-инвентарь проверяется отдельно; это не доказательство достижения цели.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            if let receipt = run.instructionReceipt {
+                VStack(alignment: .leading, spacing: 9) {
+                    Label("Квитанция локальных инструкций", systemImage: "checkmark.seal").font(.headline)
+                    metadata("Провайдер и режим", "\(receipt.value["provider"].text) · \(receipt.value["mode"].text)")
+                    metadata("Persona", receipt.value["persona_state"].text)
+                    metadata("Выбрано записей памяти", String(receipt.value["selected_memory_count"].integer))
+                    metadata("Correction hints", String(receipt.value["correction_hint_count"].integer))
+                    ForEach(Array(receipt.layers.enumerated()), id: \.offset) { _, layer in
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(layer["id"].text).font(.callout.weight(.medium))
+                            metadata("Размещение", layer["placement"].text)
+                            metadata("Источник", layer["source"].text)
+                            metadata("Размер", "\(layer["characters"].integer) символов")
+                            metadata("SHA-256", layer["sha256"].text)
+                        }.padding(.vertical, 3)
+                    }
+                    metadata("Receipt SHA-256", receipt.value["receipt_hash"].text)
+                    Text("Сохранены только размеры, источники и SHA-256 фактически собранных Proto-Mind слоёв. Текст инструкций, provider-owned prompt и приватные рассуждения не сохранены. Квитанция подтверждает локальную сборку для provider call, но не является независимым подтверждением доставки или интерпретации провайдером.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }.padding(14).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
+            } else if run.state == "completed" && ["codex", "ollama"].contains(run.value["provider"].text) {
+                Label("Исторический запуск: content-free квитанция инструкций ещё не сохранялась.", systemImage: "clock")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Text("Автоматическая проверка достижения цели: не выполнялась. \(NativeManualReview.label(run.value["acceptance"].text)). Ответ модели и успешный exit code сами по себе не доказывают завершение задачи.")

@@ -21,6 +21,7 @@ from proto_mind.native_images import validate_image_metadata
 from proto_mind.native_pdf import validate_pdf_metadata
 from proto_mind.native_review import ACCEPTANCE, criteria_contract, make_review, valid_reviews
 from proto_mind.native_knowledge import validate_knowledge_metadata
+from proto_mind.native_instructions import validate_instruction_receipt
 from proto_mind.native_agent_contract import (
     contract_hash,
     public_agent_contract,
@@ -187,6 +188,12 @@ class WorkSessionStore:
                 _id(record["parent_run_id"])
             if record.get("status") == "completed" and not record.get("finished_at"):
                 raise ValueError()
+            receipt = record.get("instruction_receipt")
+            if receipt is not None:
+                validate_instruction_receipt(receipt)
+                if (record.get("status") != "completed" or receipt["provider"] != record.get("provider")
+                        or receipt["mode"] != record.get("access_mode")):
+                    raise ValueError()
             if "auto_skills" in record:
                 validate_auto_skills(record["auto_skills"], record)
             if "artifact_snapshot" in record and not valid_artifact_snapshot(record["artifact_snapshot"], record):
@@ -568,10 +575,21 @@ class WorkSession:
         if force or time.monotonic() - self.last_publish >= 0.5:
             self._save()
 
-    def complete(self, answer: str, *, artifacts: dict | None = None) -> dict:
+    def complete(self, answer: str, *, artifacts: dict | None = None,
+                 instruction_receipt: dict | None = None) -> dict:
         if artifacts is not None:
             if not valid_artifact_snapshot(artifacts, self.record):
                 raise WorkSessionError("Invalid artifact evidence; no invented success was saved.")
+        if instruction_receipt is not None:
+            try:
+                validate_instruction_receipt(instruction_receipt)
+            except ValueError:
+                raise WorkSessionError("Invalid instruction receipt. Nothing was saved.") from None
+            if (instruction_receipt["provider"] != self.record.get("provider")
+                    or instruction_receipt["mode"] != self.record.get("access_mode")):
+                raise WorkSessionError("Instruction receipt does not match this work session. Nothing was saved.")
+            self.record["instruction_receipt"] = deepcopy(instruction_receipt)
+        if artifacts is not None:
             self.record["artifact_snapshot"] = deepcopy(artifacts)
         self.record.update(status="completed", finished_at=timestamp(), updated_at=timestamp(),
                            answer_preview=display_text(answer, 1600))

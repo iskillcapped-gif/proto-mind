@@ -35,6 +35,7 @@ from proto_mind.native_agent_contract import build_agent_contract
 from proto_mind.persona_activation import PersonaTurnActivation
 from proto_mind.native_instructions import (
     MAX_INSTRUCTION_CHARS,
+    build_instruction_receipt,
     legacy_subscription_instructions as _legacy_subscription_instructions,
     prepare_local_instructions,
 )
@@ -886,6 +887,7 @@ class SubscriptionReasoner(BaseReasoner):
         self.reasoning_effort = validate_reasoning_effort(reasoning_effort)
         self.persona_activation = persona_activation
         self.last_persona_receipt: dict | None = None
+        self.last_instruction_receipt: dict | None = None
         self.project_notes = project_notes or []
         self.project_notes_automatic = project_notes_automatic
         self.project_note_history_boundary = project_note_history_boundary
@@ -896,15 +898,30 @@ class SubscriptionReasoner(BaseReasoner):
                 correction_hints: list[str] | None = None) -> str:
         if self.before_provider_call:
             self.before_provider_call()
+        hints = correction_hints or []
         prepared = prepare_local_instructions(
             "codex",
             observer_state,
             retrieved_memory,
-            correction_hints or [],
+            hints,
             persona_activation=self.persona_activation,
         )
         instructions = prepared.text
         self.last_persona_receipt = prepared.persona_receipt
+        mode = "full_access" if self.agent_workspace is not None else "chat"
+        if mode == "full_access":
+            from proto_mind.native_agent import AGENT_INSTRUCTIONS
+            developer_instructions = AGENT_INSTRUCTIONS
+        else:
+            developer_instructions = CHAT_DEVELOPER_INSTRUCTIONS
+        self.last_instruction_receipt = build_instruction_receipt(
+            provider="codex",
+            mode=mode,
+            prepared=prepared,
+            developer_instructions=developer_instructions,
+            selected_memory=retrieved_memory,
+            correction_hints=hints,
+        )
         prompt = user_input
         prompt = criteria_context_message(self.criteria) + file_context_message(self.files) + image_context_message(self.images) + pdf_context_message(self.pdfs) + knowledge_context_message(self.project_notes, self.skill_task, automatic=self.project_notes_automatic) + self.auto_skill_guidance + prompt
         if self.project_note_history_boundary:

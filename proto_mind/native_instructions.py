@@ -19,6 +19,7 @@ from proto_mind.reasoners.ollama_reasoner import OllamaReasoner
 
 
 INSTRUCTION_PREVIEW_SCHEMA = "proto_mind.native_instruction_preview.v1"
+INSTRUCTION_RECEIPT_SCHEMA = "proto_mind.native_instruction_receipt.v1"
 MAX_INSTRUCTION_CHARS = 24_000
 MAX_PROJECTED_INSTRUCTION_CHARS = MAX_INSTRUCTION_CHARS + 512
 MAX_INSTRUCTION_LAYERS = 2
@@ -68,6 +69,30 @@ _PREVIEW_FIELDS = {
     "schema",
     *_MATERIAL_FIELDS,
     "projection_hash",
+    "hash_material",
+}
+_RECEIPT_LAYER_FIELDS = _LAYER_FIELDS - {"text"}
+_RECEIPT_MATERIAL_FIELDS = {
+    "content_free",
+    "instruction_text_stored",
+    "assembled_for_provider_call",
+    "provider_delivery_verified",
+    "provider_owned_instructions_included",
+    "private_reasoning_included",
+    "scope",
+    "provider",
+    "mode",
+    "persona_state",
+    "selected_memory_count",
+    "selected_memory_ids",
+    "correction_hint_count",
+    "layer_count",
+    "layers",
+}
+_RECEIPT_FIELDS = {
+    "schema",
+    *_RECEIPT_MATERIAL_FIELDS,
+    "receipt_hash",
     "hash_material",
 }
 
@@ -418,4 +443,162 @@ def validate_instruction_preview(value: object) -> dict[str, Any]:
         or projection_hash != hashlib.sha256(encoded).hexdigest()
     ):
         raise NativeInstructionError("Local instruction projection hash does not verify.")
+    return value
+
+
+def build_instruction_receipt(
+    *,
+    provider: str,
+    mode: str,
+    prepared: PreparedLocalInstructions,
+    developer_instructions: str | None,
+    selected_memory: Sequence[MemoryRecord] = (),
+    correction_hints: Sequence[str] = (),
+) -> dict[str, Any]:
+    """Fingerprint the production instruction assembly without retaining its text."""
+    if provider not in {"codex", "ollama"}:
+        raise NativeInstructionError("Only a real supported provider can produce an instruction receipt.")
+    memory = list(selected_memory)
+    hints = list(correction_hints)
+    preview = build_instruction_preview(
+        provider=provider,
+        mode=mode,
+        operator=False,
+        prepared=prepared,
+        developer_instructions=developer_instructions,
+        selected_memory=memory,
+        correction_hints=hints,
+        retrieval_performed=bool(memory),
+    )
+    layers = [
+        {key: layer[key] for key in _RECEIPT_LAYER_FIELDS}
+        for layer in preview["layers"]
+    ]
+    material = {
+        "content_free": True,
+        "instruction_text_stored": False,
+        "assembled_for_provider_call": True,
+        "provider_delivery_verified": False,
+        "provider_owned_instructions_included": False,
+        "private_reasoning_included": False,
+        "scope": "proto_mind_authored_instruction_metadata",
+        "provider": provider,
+        "mode": mode,
+        "persona_state": preview["persona_state"],
+        "selected_memory_count": len(memory),
+        "selected_memory_ids": [record.id for record in memory],
+        "correction_hint_count": len(hints),
+        "layer_count": len(layers),
+        "layers": layers,
+    }
+    encoded = _canonical(material)
+    receipt = {
+        "schema": INSTRUCTION_RECEIPT_SCHEMA,
+        **material,
+        "receipt_hash": hashlib.sha256(encoded).hexdigest(),
+        "hash_material": encoded.decode("utf-8"),
+    }
+    return validate_instruction_receipt(receipt)
+
+
+def validate_instruction_receipt(value: object) -> dict[str, Any]:
+    """Validate content-free evidence produced by the actual Native Send assembler."""
+    if not isinstance(value, dict) or set(value) != _RECEIPT_FIELDS:
+        raise NativeInstructionError("Native instruction receipt has an invalid shape.")
+    if value["schema"] != INSTRUCTION_RECEIPT_SCHEMA:
+        raise NativeInstructionError("Native instruction receipt schema is unsupported.")
+    for field, expected in {
+        "content_free": True,
+        "instruction_text_stored": False,
+        "assembled_for_provider_call": True,
+        "provider_delivery_verified": False,
+        "provider_owned_instructions_included": False,
+        "private_reasoning_included": False,
+    }.items():
+        if value[field] is not expected:
+            raise NativeInstructionError(f"Native instruction receipt {field} is invalid.")
+    if value["scope"] != "proto_mind_authored_instruction_metadata":
+        raise NativeInstructionError("Native instruction receipt scope is invalid.")
+    if value["provider"] not in {"codex", "ollama"}:
+        raise NativeInstructionError("Native instruction receipt provider is invalid.")
+    if value["mode"] not in {"chat", "full_access"}:
+        raise NativeInstructionError("Native instruction receipt mode is invalid.")
+    if value["provider"] == "ollama" and value["mode"] != "chat":
+        raise NativeInstructionError("Ollama instruction receipt cannot claim Full Mac mode.")
+    if value["persona_state"] not in {"brother", "legacy"}:
+        raise NativeInstructionError("Native instruction receipt Persona state is invalid.")
+
+    memory_ids = value["selected_memory_ids"]
+    if (
+        not isinstance(memory_ids, list)
+        or len(memory_ids) > 10
+        or len(set(memory_ids)) != len(memory_ids)
+        or any(not isinstance(item, str) or not item or len(item) > 160 for item in memory_ids)
+        or type(value["selected_memory_count"]) is not int
+        or value["selected_memory_count"] != len(memory_ids)
+    ):
+        raise NativeInstructionError("Native instruction receipt memory evidence is invalid.")
+    if type(value["correction_hint_count"]) is not int or not 0 <= value["correction_hint_count"] <= 5:
+        raise NativeInstructionError("Native instruction receipt correction evidence is invalid.")
+
+    layers = value["layers"]
+    if (
+        not isinstance(layers, list)
+        or not 1 <= len(layers) <= MAX_INSTRUCTION_LAYERS
+        or type(value["layer_count"]) is not int
+        or value["layer_count"] != len(layers)
+    ):
+        raise NativeInstructionError("Native instruction receipt layers are invalid.")
+    for layer in layers:
+        if not isinstance(layer, dict) or set(layer) != _RECEIPT_LAYER_FIELDS:
+            raise NativeInstructionError("Native instruction receipt layer has an invalid shape.")
+        if (
+            layer["owner"] != "proto_mind"
+            or layer["provider_visible_at_send"] is not True
+            or type(layer["dynamic"]) is not bool
+            or type(layer["characters"]) is not int
+            or not 1 <= layer["characters"] <= MAX_PROJECTED_INSTRUCTION_CHARS
+            or not isinstance(layer["sha256"], str)
+            or not _SHA256_RE.fullmatch(layer["sha256"])
+        ):
+            raise NativeInstructionError("Native instruction receipt layer metadata is invalid.")
+
+    identifiers = [layer["id"] for layer in layers]
+    if value["provider"] == "codex":
+        if identifiers != ["base_instructions", "developer_instructions"]:
+            raise NativeInstructionError("Codex instruction receipt layers are incomplete or out of order.")
+        base, developer = layers
+        expected_developer_source = "full_mac_static_contract" if value["mode"] == "full_access" else "chat_static_contract"
+        if (
+            base["placement"] != "codex_base_instructions"
+            or base["source"] not in {"legacy_cognitive_core_current_projection", "brother_persona_current_projection"}
+            or base["dynamic"] is not True
+            or developer["placement"] != "codex_developer_instructions"
+            or developer["source"] != expected_developer_source
+            or developer["dynamic"] is not False
+        ):
+            raise NativeInstructionError("Codex instruction receipt metadata is invalid.")
+    else:
+        if (
+            identifiers != ["system_instructions"]
+            or layers[0]["placement"] != "ollama_system_message"
+            or layers[0]["source"] not in {"legacy_cognitive_core_current_projection", "brother_persona_current_projection"}
+            or layers[0]["dynamic"] is not True
+        ):
+            raise NativeInstructionError("Ollama instruction receipt metadata is invalid.")
+    expected_persona = "brother" if layers[0]["source"] == "brother_persona_current_projection" else "legacy"
+    if value["persona_state"] != expected_persona:
+        raise NativeInstructionError("Native instruction receipt Persona source does not match its state.")
+
+    material = {key: value[key] for key in _RECEIPT_MATERIAL_FIELDS}
+    encoded = _canonical(material)
+    receipt_hash = value["receipt_hash"]
+    if (
+        not isinstance(value["hash_material"], str)
+        or value["hash_material"] != encoded.decode("utf-8")
+        or not isinstance(receipt_hash, str)
+        or not _SHA256_RE.fullmatch(receipt_hash)
+        or receipt_hash != hashlib.sha256(encoded).hexdigest()
+    ):
+        raise NativeInstructionError("Native instruction receipt hash does not verify.")
     return value
