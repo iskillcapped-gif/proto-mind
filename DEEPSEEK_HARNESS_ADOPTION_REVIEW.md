@@ -245,22 +245,47 @@ P2g is delivered as an isolated forward-only writer/read pilot in
   forward-stored turns, exact recovery candidates and store-only/source-copy-incomplete evidence stay
   separate. It never treats timestamps/order/proximity as lineage or upgrades legacy records.
 
-Fifteen disposable P2g regressions bring the mandatory suite to 2,065 tests; the full selected Session
+Fifteen disposable P2g regressions brought the mandatory suite to 2,065 tests; the full selected Session
 Spine set passes 171 tests. They cover create/append, byte-prefix preservation, stable ownership, stale
 create/append fencing, exact replay, conflicting IDs, work-session/reference drift, partial-write rollback,
 dual-read separation, exact recovery candidates, incomplete-copy warnings and report tamper refusal.
 
-P2a/P2b/P2c/P2d/P2e/P2f/P2g are not production activation. P2g closes the isolated
-forward-write, ordinary rollback and dual-read contract gaps, but it does not prove live-source completeness,
-perform personal-history migration, or create a cross-store commit handshake. Before any authoritative
-Native use, a separate checkpoint must still provide:
+P2h is delivered as the detached Native commit/recovery contract in
+`proto_mind/session_spine_handshake.py`:
 
-- explicit production owner/session lifecycle binding;
-- an explicit Native owner identity and chat/work-session/spine lifecycle handshake;
-- restart-safe reconstruction or operator-directed recovery of interrupted cross-store turns;
+- an explicit owner identity is derived from the fixed `local.proto-mind.native` application ID and one
+  caller-supplied canonical installation UUID. It remains stable across relaunch, is not derived from PID,
+  username or path, and grants no permission or execution authority;
+- preparation accepts exact caller-supplied history and Work Session bytes plus one explicit P2g store.
+  It requires the linked assistant to be the latest saved message, verifies the canonical run, immutable
+  receipt and adjacent message pair, then binds the exact history readback and CAS plan into a content-free
+  self-hashed envelope;
+- the ordering contract is fixed: complete Work Session, save history, read history back, prepare the
+  handshake, then CAS-append Spine. Spine-before-history is forbidden because the Work Session's bounded
+  answer preview cannot reconstruct a full response after process loss;
+- a pure recovery inspector classifies exact READY/COMMITTED state, source or preimage drift, orphaned
+  completed runs, store-only conflicts, owner conflicts and non-appendable `UNKNOWN` tails. It never repairs,
+  retries, backfills or guesses. A gated apply can write only the explicit detached Spine store;
+- a lost apply response is an exact no-write replay. A later operator review can change mutable run bytes and
+  the whole-record fingerprint without invalidating an already committed turn's stable receipt. The same
+  change before commit invalidates the prepared authority and requires a fresh handshake.
+
+Eighteen disposable P2h regressions bring the mandatory suite to 2,083 tests. They cover owner stability,
+content-free/tamper-resistant envelopes, independently rechecked source fields, serialized relaunch,
+create and append, lost-response replay, missing history/run evidence, changed messages, stale preimages,
+unknown tails, different installations, store-only conflicts, review-time drift and strict legacy refusal.
+
+P2a/P2b/P2c/P2d/P2e/P2f/P2g/P2h are not production activation. P2h closes the detached owner,
+ordering and recovery-state design gap, but it does not prove live-source completeness, persist a production
+handshake journal, change Swift history error propagation or perform personal-history migration. Before any
+authoritative Native use, a separate checkpoint must still provide:
+
+- a private one-time installation identity and durable handshake-intent lifecycle;
+- a throwable Native history save plus exact readback before any Spine call;
+- bridge/UI recovery surfaces for blocked, orphaned and `UNKNOWN` states;
 - versioned pure projections for chat, work timeline, turn outline, memory candidates, and telemetry;
 - bounded retention/export before any compaction;
-- crash-window, relaunch and dual-read recovery evidence against an isolated Native copy.
+- a fresh credential-excluding personal-state checkpoint and live opt-in acceptance before authority changes.
 
 Do not make the new store authoritative until old/new parity is proven on isolated fixtures
 and a separate private backup is created.

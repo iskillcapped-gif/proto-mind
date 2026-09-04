@@ -490,6 +490,15 @@ def _validate_plan(store: SessionSpineStore, plan: ForwardNativeTurnPlan) -> Non
         raise SessionSpineForwardError("Forward plan cannot reproduce its exact candidate bytes.")
 
 
+def validate_forward_native_turn_plan(
+    store: SessionSpineStore,
+    plan: ForwardNativeTurnPlan,
+) -> ForwardNativeTurnPlan:
+    """Publicly revalidate one in-memory P2g plan without writing its store."""
+    _validate_plan(store, plan)
+    return plan
+
+
 def _apply_receipt(
     plan: ForwardNativeTurnPlan,
     *,
@@ -531,7 +540,7 @@ def apply_forward_native_turn(
     plan: ForwardNativeTurnPlan,
 ) -> dict[str, Any]:
     """Apply one validated plan to only its explicit detached Session Spine store."""
-    _validate_plan(store, plan)
+    validate_forward_native_turn_plan(store, plan)
     try:
         current = store.inspect(plan.session_id)
     except SessionSpineStoreMissing:
