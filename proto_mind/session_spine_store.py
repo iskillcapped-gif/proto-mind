@@ -217,6 +217,46 @@ class SessionSpineAppendReceipt:
         }
 
 
+@dataclass(frozen=True)
+class SessionSpineTurnAppendReceipt:
+    session_id: str
+    owner_id: str
+    first_event_seq: int
+    last_event_seq: int
+    event_count: int
+    previous_commit_hash: str
+    final_commit_hash: str
+    before_file_sha256: str
+    after_file_sha256: str
+    before_file_bytes: int
+    after_file_bytes: int
+    post_state_verified: bool
+    rollback_performed: bool
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema": "proto_mind.session_spine_store_turn_append_receipt.v1",
+            "session_id": self.session_id,
+            "owner_id": self.owner_id,
+            "first_event_seq": self.first_event_seq,
+            "last_event_seq": self.last_event_seq,
+            "event_count": self.event_count,
+            "previous_commit_hash": self.previous_commit_hash,
+            "final_commit_hash": self.final_commit_hash,
+            "before_file_sha256": self.before_file_sha256,
+            "after_file_sha256": self.after_file_sha256,
+            "before_file_bytes": self.before_file_bytes,
+            "after_file_bytes": self.after_file_bytes,
+            "durable_commit_requested": True,
+            "post_state_verified": self.post_state_verified,
+            "in_process_rollback_available": True,
+            "rollback_performed": self.rollback_performed,
+            "crash_atomic": False,
+            "automatic_recovery": False,
+            "target_command_executed": False,
+        }
+
+
 def _event_records(
     *,
     session_id: str,
@@ -474,6 +514,80 @@ def build_store_image(
     return raw
 
 
+def extend_store_image(
+    raw: bytes,
+    *,
+    session_id: str,
+    owner_id: str,
+    events: Iterable[SessionEvent],
+) -> bytes:
+    """Return exact bytes for one complete forward turn without touching a path."""
+    if type(raw) is not bytes:
+        raise SessionSpineStoreError("Session extension requires immutable current store bytes.")
+    session = _uuid(session_id, "Session ID")
+    owner = _owner(owner_id)
+    parsed = _parse(raw, session)
+    snapshot = _snapshot(parsed)
+    if not snapshot.appendable or snapshot.recovery_state not in {"idle", "closed"}:
+        raise SessionSpineStoreError("Session is not at a verified appendable turn boundary.")
+    try:
+        rows = tuple(islice(iter(events), MAX_EVENTS + 1))
+    except TypeError:
+        raise SessionSpineStoreError("Session turn events must be an iterable of validated events.") from None
+    if not rows:
+        raise SessionSpineStoreError("Session turn append requires one non-empty complete turn.")
+    if len(parsed.events) + len(rows) > MAX_EVENTS:
+        raise SessionSpineStoreError("Session store exceeds its bounded event count.")
+    first = len(parsed.events)
+    for index, event in enumerate(rows):
+        if not isinstance(event, SessionEvent) or event.seq != first + index:
+            raise SessionSpineStoreError("Session turn append requires contiguous validated next events.")
+        if index and event.time_ms < rows[index - 1].time_ms:
+            raise SessionSpineStoreError("Session turn event times must be monotonic.")
+    if rows[0].event_type != "turn/start" or rows[-1].event_type != "turn/end":
+        raise SessionSpineStoreError("Session turn append must start and end at exact turn boundaries.")
+    if sum(event.event_type == "turn/start" for event in rows) != 1 or sum(
+        event.event_type == "turn/end" for event in rows
+    ) != 1:
+        raise SessionSpineStoreError("Session turn append must contain exactly one complete turn.")
+    if parsed.events and rows[0].time_ms < parsed.events[-1].time_ms:
+        raise SessionSpineStoreError("Session turn predates the current committed boundary.")
+
+    prospective = (*parsed.events, *rows)
+    try:
+        fold_surface(prospective)
+        if _turn_state(prospective, False) != "closed":
+            raise SessionSpineStoreError("Session turn append did not produce a closed boundary.")
+    except SessionSpineStoreError:
+        raise
+    except ValueError as error:
+        raise SessionSpineStoreError(f"Session turn events do not replay: {error}") from None
+
+    candidate = raw
+    previous = parsed.last_commit_hash
+    for event in rows:
+        prepare_line, commit_line, _, committed = _event_records(
+            session_id=session,
+            owner_id=owner,
+            event=event,
+            previous_commit_hash=previous,
+        )
+        if len(candidate) + len(prepare_line) + len(commit_line) > MAX_FILE_BYTES:
+            raise SessionSpineStoreError("Session store file limit reached; no automatic cleanup.")
+        candidate += prepare_line + commit_line
+        previous = committed["commit_hash"]
+
+    checked = inspect_store_image(candidate, session)
+    if (
+        not candidate.startswith(raw)
+        or checked.events != prospective
+        or checked.last_commit_hash != previous
+        or checked.recovery_state != "closed"
+    ):
+        raise SessionSpineStoreError("Extended Session Spine image did not survive exact replay.")
+    return candidate
+
+
 class SessionSpineStore:
     """Explicit detached store; constructing or inspecting it performs no writes."""
 
@@ -570,7 +684,8 @@ class SessionSpineStore:
             raise SessionSpineStoreError("Session store exceeds its bounded session count.")
         return sessions
 
-    def inspect(self, session_id: str) -> SessionSpineStoreSnapshot:
+    def read_image(self, session_id: str) -> tuple[bytes, SessionSpineStoreSnapshot]:
+        """Return exact immutable bytes and their snapshot under one stable shared lock."""
         data_name, lock_name = self._names(session_id)
         with self._directory() as directory:
             if directory is None:
@@ -601,11 +716,14 @@ class SessionSpineStore:
                     if (stable != (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns)
                             or stable != (current.st_dev, current.st_ino, current.st_size, current.st_mtime_ns)):
                         raise SessionSpineStoreError("Session data changed during inspection; no unstable view was returned.")
-                    return _snapshot(_parse(raw, _uuid(session_id, "Session ID")))
+                    return raw, _snapshot(_parse(raw, _uuid(session_id, "Session ID")))
                 finally:
                     os.close(data)
             finally:
                 os.close(lock)
+
+    def inspect(self, session_id: str) -> SessionSpineStoreSnapshot:
+        return self.read_image(session_id)[1]
 
     def retention_preview(self, session_id: str) -> dict[str, Any]:
         snapshot = self.inspect(session_id)
@@ -886,6 +1004,74 @@ class SessionSpineWriter:
             raise SessionSpineStoreError(
                 f"Session append did not reach a confirmed commit boundary: {error}. Do not retry; inspect first."
             ) from None
+
+    def append_turn(self, events: Iterable[SessionEvent]) -> SessionSpineTurnAppendReceipt:
+        """Append one complete turn and rollback ordinary in-process write failures."""
+        if self.failed:
+            raise SessionSpineStoreError("A previous append outcome is unknown; close and inspect without retrying.")
+        before = self.raw
+        before_hash = hashlib.sha256(before).hexdigest()
+        write_started = False
+        rollback_performed = False
+        try:
+            self._identity()
+            candidate = extend_store_image(
+                before,
+                session_id=self.session_id,
+                owner_id=self.owner_id,
+                events=events,
+            )
+            checked = inspect_store_image(candidate, self.session_id)
+            appended = checked.events[len(self.events):]
+            previous = self.last_commit_hash
+            write_started = True
+            self._write_and_sync(candidate[len(before):])
+            self._identity()
+            if self.store._raw(self.data) != candidate:
+                raise SessionSpineStoreError("Session turn readback does not match the exact committed bytes.")
+            self.raw = candidate
+            self.events = checked.events
+            self.last_commit_hash = checked.last_commit_hash
+            return SessionSpineTurnAppendReceipt(
+                session_id=self.session_id,
+                owner_id=self.owner_id,
+                first_event_seq=appended[0].seq,
+                last_event_seq=appended[-1].seq,
+                event_count=len(appended),
+                previous_commit_hash=previous,
+                final_commit_hash=checked.last_commit_hash,
+                before_file_sha256=before_hash,
+                after_file_sha256=checked.file_sha256,
+                before_file_bytes=len(before),
+                after_file_bytes=len(candidate),
+                post_state_verified=True,
+                rollback_performed=False,
+            )
+        except (SessionSpineStoreError, OSError, ValueError) as error:
+            if write_started:
+                self.failed = True
+                try:
+                    self._identity()
+                    if self.data is None:
+                        raise OSError("session writer is not open")
+                    os.ftruncate(self.data, len(before))
+                    os.fsync(self.data)
+                    self._identity()
+                    rollback_performed = self.store._raw(self.data) == before
+                except (OSError, SessionSpineStoreError):
+                    rollback_performed = False
+                if rollback_performed:
+                    raise SessionSpineStoreError(
+                        f"Session turn append failed and its exact preimage was restored: {error} "
+                        "Close and inspect before any retry."
+                    ) from None
+                raise SessionSpineStoreError(
+                    f"Session turn append outcome is unknown after writing began: {error} "
+                    "Do not retry; inspect first."
+                ) from None
+            if isinstance(error, SessionSpineStoreError):
+                raise
+            raise SessionSpineStoreError(f"Session turn append was rejected before writing: {error}.") from None
 
     def close(self) -> None:
         if self.data is not None:

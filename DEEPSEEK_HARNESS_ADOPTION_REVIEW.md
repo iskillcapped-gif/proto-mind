@@ -226,17 +226,41 @@ credential-named members, link/special members, bounded AppleDouble/PAX handling
 legacy empty copies, invalid run evidence and explicit non-authority. The one real acceptance run emits
 aggregates only; no personal report or digest is committed.
 
-P2a/P2b/P2c/P2d/P2e/P2f are not production activation. P2e closes the structural whole-supplied-copy
-audit gap and P2f closes the first explicitly authorized real-copy compatibility review, but neither
-proves live-source completeness nor performs personal-history migration. Before any
-authoritative Native use, a separate checkpoint must still provide:
+P2g is delivered as an isolated forward-only writer/read pilot in
+`proto_mind/session_spine_forward.py` plus a complete-turn extension in
+`proto_mind/session_spine_store.py`:
+
+- one explicit absolute detached store, canonical conversation/session ID and stable owner are required;
+  there is no personal default path, discovery, batch-all operation or Native caller;
+- preview revalidates the inspected work-session fingerprint, completed receipt, persisted exact
+  `turnReference`, immediate message pair and existing P1 projection. It emits a content-free self-hashed
+  plan bound to the opaque store-scope hash, exact preimage and exact candidate;
+- apply uses the existing no-follow session/catalog locks and compare-and-swap fencing. One complete
+  turn is written as a single bounded batch and independently replayed. Repeating the exact committed
+  turn, including after a lost response, is a no-write `ALREADY_COMMITTED`; identity/content conflicts fail;
+- an ordinary in-process partial batch failure truncates and fsyncs the file back to its exact preimage,
+  then blocks retry on that writer. This is not process-crash or power-loss atomicity: an interrupted tail
+  remains `UNKNOWN`, non-appendable and manually inspectable with no automatic repair;
+- the P2g dual-read audit compares exact conversation, run and both message IDs. Legacy unlinked history,
+  forward-stored turns, exact recovery candidates and store-only/source-copy-incomplete evidence stay
+  separate. It never treats timestamps/order/proximity as lineage or upgrades legacy records.
+
+Fifteen disposable P2g regressions bring the mandatory suite to 2,065 tests; the full selected Session
+Spine set passes 171 tests. They cover create/append, byte-prefix preservation, stable ownership, stale
+create/append fencing, exact replay, conflicting IDs, work-session/reference drift, partial-write rollback,
+dual-read separation, exact recovery candidates, incomplete-copy warnings and report tamper refusal.
+
+P2a/P2b/P2c/P2d/P2e/P2f/P2g are not production activation. P2g closes the isolated
+forward-write, ordinary rollback and dual-read contract gaps, but it does not prove live-source completeness,
+perform personal-history migration, or create a cross-store commit handshake. Before any authoritative
+Native use, a separate checkpoint must still provide:
 
 - explicit production owner/session lifecycle binding;
-- an authorized migration/restore writer with exact post-write and rollback verification;
-- restart-safe reconstruction of interrupted turns;
+- an explicit Native owner identity and chat/work-session/spine lifecycle handshake;
+- restart-safe reconstruction or operator-directed recovery of interrupted cross-store turns;
 - versioned pure projections for chat, work timeline, turn outline, memory candidates, and telemetry;
 - bounded retention/export before any compaction;
-- a forward-only ownership and dual-read strategy that preserves legacy history without invented links.
+- crash-window, relaunch and dual-read recovery evidence against an isolated Native copy.
 
 Do not make the new store authoritative until old/new parity is proven on isolated fixtures
 and a separate private backup is created.
