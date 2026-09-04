@@ -222,6 +222,40 @@ def _reference_count(archive: Mapping[str, Any], run_id: str) -> int:
     return count
 
 
+def inspect_native_history_turn_copy(
+    raw: bytes,
+    *,
+    conversation_id: str,
+    user_message_id: str,
+    assistant_message_id: str,
+) -> dict[str, Any]:
+    """Validate one latest exact Native history pair and return content-free evidence."""
+    history = _history_turn(
+        raw,
+        conversation_id=conversation_id,
+        user_message_id=user_message_id,
+        assistant_message_id=assistant_message_id,
+        require_latest=True,
+    )
+    reference = validate_turn_reference(history["reference"])
+    response = history["assistant"].get("raw") or history["assistant"]["text"]
+    return {
+        "conversation_id": _uuid(conversation_id, "Handshake conversation ID"),
+        "user_message_id": _uuid(user_message_id, "Handshake user message ID"),
+        "assistant_message_id": _uuid(assistant_message_id, "Handshake assistant message ID"),
+        "run_id": reference["run_id"],
+        "reference_hash": reference["reference_hash"],
+        "input_sha256": _sha256(history["user"]["text"].encode("utf-8")),
+        "displayed_answer_sha256": _sha256(history["assistant"]["text"].encode("utf-8")),
+        "raw_answer_sha256": _sha256(response.encode("utf-8")),
+        "turn_sha256": history["turn_sha256"],
+        "file_sha256": history["file_sha256"],
+        "file_bytes": history["file_bytes"],
+        "latest_exact_pair": True,
+        "content_returned": False,
+    }
+
+
 def build_native_owner_identity(
     installation_id: str,
     *,

@@ -212,5 +212,167 @@ extension NativeChecks {
         app.sessionSpinePreview = nil
         try check(try fileBytes(state) == before && app.messages == messagesBefore && !app.cloudConsent && !app.fullAccessEnabled,
                   "Preview, readiness, opt-in, acceptance, relaunch and revoke change no history, run, preference or permission bytes")
+
+        await app.openSessionSpine(for: assistant)
+        guard let writerLive = app.sessionSpinePreview else {
+            throw NativeError.message(app.error ?? "P2l Live Session Spine source missing")
+        }
+        app.openSessionSpineReadiness(writerLive)
+        guard let writerInactive = app.sessionSpineReadiness else {
+            throw NativeError.message(app.error ?? "P2l readiness missing")
+        }
+        app.armSessionSpinePilot(candidateHash: writerInactive.candidateHash)
+        guard let writerArmed = app.sessionSpineReadiness else {
+            throw NativeError.message(app.error ?? "P2l exact candidate did not arm")
+        }
+        app.openSessionSpineAcceptance(writerArmed)
+        guard let writerRehearsal = app.sessionSpineAcceptance else {
+            throw NativeError.message(app.error ?? "P2l personal rehearsal missing")
+        }
+        app.acceptSessionSpineRehearsal(rehearsalHash: writerRehearsal.rehearsalHash)
+        guard let writerAccepted = app.sessionSpineAcceptance, writerAccepted.accepted else {
+            throw NativeError.message(app.error ?? "P2l personal rehearsal was not accepted")
+        }
+        let beforeWriter = try fileBytes(state)
+        await app.openSessionSpineWriter(writerAccepted)
+        guard let writerPreview = app.sessionSpineWriterPreview else {
+            throw NativeError.message(app.error ?? "P2l exact writer preview missing")
+        }
+        try check(writerPreview.state == "READY" && writerPreview.canApply
+                  && writerPreview.value["read_only"].flag
+                  && writerPreview.confirmationToken.hasPrefix("CONFIRM-SESSION-SPINE-"),
+                  "P2l opens one content-free read-only preview with an exact confirmation phrase")
+        try check(!writerPreview.value.pretty.contains(source.text) && !writerPreview.value.pretty.contains(assistant.raw)
+                  && (try fileBytes(state)) == beforeWriter,
+                  "P2l preview exposes hashes and paths without message text or writes")
+        let writerSize = NSHostingController(rootView: SessionSpineWriterView(model: app, preview: writerPreview))
+            .sizeThatFits(in: CGSize(width: 900, height: 760))
+        try check(writerSize.width <= 800 && writerSize.height <= 700,
+                  "P2l writer gate stays inside a bounded scrollable sheet")
+
+        await app.applySessionSpineWriter(
+            writerPreview, token: "CONFIRM-SESSION-SPINE-0000000000000000", acknowledgement: true
+        )
+        try check(app.sessionSpineWriterReceipt == nil && (try fileBytes(state)) == beforeWriter,
+                  "An incorrect P2l phrase writes no history, identity, intent or Spine event")
+        await app.applySessionSpineWriter(
+            writerPreview, token: writerPreview.confirmationToken, acknowledgement: true
+        )
+        let stabilizedHistory = try fileBytes(state)
+        let historyPath = state.appendingPathComponent("conversations.json").path
+        let stabilizedKeys = Set(beforeWriter.keys).union(stabilizedHistory.keys)
+        let changedByReadback = Set(stabilizedKeys.filter { beforeWriter[$0] != stabilizedHistory[$0] })
+        let changedHistoryOnly = changedByReadback.count == 1
+            && URL(fileURLWithPath: changedByReadback.first!).resolvingSymlinksInPath()
+                == URL(fileURLWithPath: historyPath).resolvingSymlinksInPath()
+        try check(app.sessionSpineWriterReceipt == nil && app.sessionSpineWriterPreview == nil
+                  && !app.sessionSpinePilotArmed && !app.sessionSpineAcceptanceAccepted
+                  && changedHistoryOnly
+                  && !FileManager.default.fileExists(atPath: state.appendingPathComponent("session_spine_identity").path)
+                  && !FileManager.default.fileExists(atPath: state.appendingPathComponent("session_spine_store").path)
+                  && !FileManager.default.fileExists(atPath: state.appendingPathComponent("session_spine_intents").path),
+                  "A changed history readback invalidates the one-time grants before identity, intent or Spine writes "
+                    + "(changed=\(changedByReadback.sorted()); history=\(historyPath); writer=\(app.sessionSpineWriterPreview != nil); "
+                    + "identity=\(FileManager.default.fileExists(atPath: state.appendingPathComponent("session_spine_identity").path)))")
+
+        await app.openSessionSpine(for: assistant)
+        guard let stableLive = app.sessionSpinePreview else {
+            throw NativeError.message(app.error ?? "P2l stable Live Session Spine source missing")
+        }
+        app.openSessionSpineReadiness(stableLive)
+        guard let stableInactive = app.sessionSpineReadiness else {
+            throw NativeError.message(app.error ?? "P2l stable readiness missing")
+        }
+        app.armSessionSpinePilot(candidateHash: stableInactive.candidateHash)
+        guard let stableArmed = app.sessionSpineReadiness else {
+            throw NativeError.message(app.error ?? "P2l stable exact candidate did not arm")
+        }
+        app.openSessionSpineAcceptance(stableArmed)
+        guard let stableRehearsal = app.sessionSpineAcceptance else {
+            throw NativeError.message(app.error ?? "P2l stable rehearsal missing")
+        }
+        app.acceptSessionSpineRehearsal(rehearsalHash: stableRehearsal.rehearsalHash)
+        guard let stableAccepted = app.sessionSpineAcceptance, stableAccepted.accepted else {
+            throw NativeError.message(app.error ?? "P2l stable rehearsal was not accepted")
+        }
+        await app.openSessionSpineWriter(stableAccepted)
+        guard let committedPreview = app.sessionSpineWriterPreview else {
+            throw NativeError.message(app.error ?? "P2l stable writer preview missing")
+        }
+        let beforeCommittedWriter = try fileBytes(state)
+        await app.applySessionSpineWriter(
+            committedPreview, token: committedPreview.confirmationToken, acknowledgement: true
+        )
+        guard let writerReceipt = app.sessionSpineWriterReceipt else {
+            throw NativeError.message(app.error ?? "P2l verified writer receipt missing")
+        }
+        try check(writerReceipt.result == "COMMITTED"
+                  && writerReceipt.value["identity_created"].flag
+                  && writerReceipt.value["intent_prepare_write_performed"].flag
+                  && writerReceipt.value["spine_write_performed"].flag
+                  && writerReceipt.value["intent_commit_write_performed"].flag,
+                  "P2l commits exactly one fresh identity-bound intent and Session Spine event")
+        try check(writerReceipt.value["target_execution_performed"] == .bool(false)
+                  && writerReceipt.value["model_call_performed"] == .bool(false)
+                  && writerReceipt.value["command_executed"] == .bool(false)
+                  && writerReceipt.value["permission_changed"] == .bool(false)
+                  && writerReceipt.value["context_injection_changed"] == .bool(false),
+                  "P2l receipt proves no target, model, command, permission or Context Injection action")
+        let afterWriter = try fileBytes(state)
+        let addedPaths = Set(afterWriter.keys).subtracting(beforeCommittedWriter.keys)
+        let allowedPrefixes = [
+            state.appendingPathComponent("session_spine_identity", isDirectory: true).resolvingSymlinksInPath().path + "/",
+            state.appendingPathComponent("session_spine_store", isDirectory: true).resolvingSymlinksInPath().path + "/",
+            state.appendingPathComponent("session_spine_intents", isDirectory: true).resolvingSymlinksInPath().path + "/",
+        ]
+        try check(beforeCommittedWriter.allSatisfy { afterWriter[$0.key] == $0.value }
+                  && !addedPaths.isEmpty
+                  && addedPaths.allSatisfy { path in
+                      let resolved = URL(fileURLWithPath: path).resolvingSymlinksInPath().path
+                      return allowedPrefixes.contains { resolved.hasPrefix($0) }
+                  },
+                  "P2l preserves every existing byte and adds files only under three fixed private namespaces")
+        let afterFirstApply = try fileBytes(state)
+        await app.applySessionSpineWriter(
+            committedPreview, token: committedPreview.confirmationToken, acknowledgement: true
+        )
+        try check(try fileBytes(state) == afterFirstApply,
+                  "P2l removes repeat-run reachability after the first verified receipt")
+
+        let recoveredApp = AppModel(
+            configuration: LaunchConfiguration(projectRoot: fixture, python: python, stateDirectory: state)
+        )
+        defer { recoveredApp.client.shutdown() }
+        await recoveredApp.start()
+        guard let recoveredAssistant = recoveredApp.messages.last else {
+            throw NativeError.message("P2l restart history did not load")
+        }
+        await recoveredApp.openSessionSpine(for: recoveredAssistant)
+        guard let recoveredLive = recoveredApp.sessionSpinePreview else {
+            throw NativeError.message(recoveredApp.error ?? "P2l restart source missing")
+        }
+        recoveredApp.openSessionSpineReadiness(recoveredLive)
+        guard let recoveredInactive = recoveredApp.sessionSpineReadiness else {
+            throw NativeError.message(recoveredApp.error ?? "P2l restart readiness missing")
+        }
+        recoveredApp.armSessionSpinePilot(candidateHash: recoveredInactive.candidateHash)
+        guard let recoveredArmed = recoveredApp.sessionSpineReadiness else {
+            throw NativeError.message(recoveredApp.error ?? "P2l restart exact candidate did not arm")
+        }
+        recoveredApp.openSessionSpineAcceptance(recoveredArmed)
+        guard let recoveryRehearsal = recoveredApp.sessionSpineAcceptance else {
+            throw NativeError.message(recoveredApp.error ?? "P2l recovery evidence missing")
+        }
+        try check(recoveryRehearsal.recoveryRequired && !recoveryRehearsal.canAccept,
+                  "Relaunch exposes durable P2l evidence as recovery-only rather than persisting acceptance")
+        let beforeClosedPreview = try fileBytes(state)
+        await recoveredApp.openSessionSpineWriter(recoveryRehearsal)
+        guard let closedPreview = recoveredApp.sessionSpineWriterPreview else {
+            throw NativeError.message(recoveredApp.error ?? "P2l closed-state preview missing")
+        }
+        try check(closedPreview.closed && !closedPreview.canApply && closedPreview.confirmationToken.isEmpty
+                  && recoveredApp.sessionSpineWriterReceipt == nil
+                  && (try fileBytes(state)) == beforeClosedPreview,
+                  "P2l restart verifies CLOSED evidence without restoring a token or writing again")
     }
 }

@@ -365,6 +365,10 @@ class WorkSessionStore:
         return parent
 
     def inspect(self, reference: object, conversation_id: str) -> dict:
+        return self.inspect_copy(reference, conversation_id)["record"]
+
+    def inspect_copy(self, reference: object, conversation_id: str) -> dict:
+        """Return one exact canonical record copy without creating or changing state."""
         if not isinstance(reference, dict):
             raise WorkSessionError("Invalid saved-run reference.")
         run_id, conversation = _id(reference.get("run_id")), _id(conversation_id)
@@ -376,7 +380,13 @@ class WorkSessionStore:
             if (record["project_root"] != self.project_root or record["conversation_id"] != conversation
                     or fingerprint(record) != reference.get("fingerprint")):
                 raise WorkSessionError("Saved run changed or belongs to another conversation/project. Reopen the journal.")
-            return self._view(record, self._active(directory))
+            return {
+                "record": self._view(record, self._active(directory)),
+                "raw": raw,
+                "name": run_id + ".json",
+                "sha256": hashlib.sha256(raw).hexdigest(),
+                "bytes": len(raw),
+            }
 
     def continuation(self, reference: dict, conversation_id: str, workspace: dict | None) -> dict:
         with self._directory() as directory:

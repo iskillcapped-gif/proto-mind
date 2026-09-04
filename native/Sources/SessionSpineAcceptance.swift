@@ -366,15 +366,26 @@ struct SessionSpineAcceptanceView: View {
                     }
 
                     if current.recoveryRequired {
-                        Label("Обнаружены существующие или небезопасные path-evidence. Нужна ручная проверка без очистки и повтора.", systemImage: "exclamationmark.triangle")
-                            .foregroundStyle(.orange).padding(14)
-                            .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
+                        VStack(alignment: .leading, spacing: 10) {
+                            Label("Обнаружены существующие path-evidence. Только точный P2l intent может быть показан как recovery; неизвестные байты останутся заблокированы.", systemImage: "exclamationmark.triangle")
+                                .foregroundStyle(.orange)
+                            Button(model.loadingSessionSpineWriter ? "Проверяем evidence…" : "Проверить P2l evidence без записи") {
+                                Task { await model.openSessionSpineWriter(current) }
+                            }
+                            .buttonStyle(.bordered).nativeHoverSurface()
+                            .disabled(model.loadingSessionSpineWriter)
+                        }.padding(14).background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
                     } else if current.accepted {
                         VStack(alignment: .leading, spacing: 10) {
                             Label("Этот точный rehearsal принят до перезапуска", systemImage: "checkmark.circle")
                                 .foregroundStyle(.green)
                             Text("Это подтверждает только понятность будущей последовательности. Writer, identity и stores не созданы, следующий milestone не авторизован.")
                                 .font(.callout).foregroundStyle(.secondary)
+                            Button(model.loadingSessionSpineWriter ? "Проверяем exact sources…" : "Открыть P2l writer gate…") {
+                                Task { await model.openSessionSpineWriter(current) }
+                            }
+                            .buttonStyle(.borderedProminent).nativeHoverSurface()
+                            .disabled(model.loadingSessionSpineWriter)
                             Button("Снять acceptance") { model.revokeSessionSpineAcceptance() }
                         }.padding(14).background(Color.green.opacity(0.07), in: RoundedRectangle(cornerRadius: 12))
                     } else {
@@ -396,6 +407,9 @@ struct SessionSpineAcceptanceView: View {
             }
         }.frame(width: 790, height: 720).background(NativeTheme.canvas)
             .font(NativeTheme.interfaceFont).buttonStyle(.nativeHover)
+            .sheet(item: $model.sessionSpineWriterPreview) {
+                SessionSpineWriterView(model: model, preview: $0)
+            }
     }
 
     private var statusColor: Color {

@@ -299,14 +299,20 @@ class SessionSpineIntentTests(unittest.TestCase):
         self.assertFalse(report["boundaries"]["native_activation"])
         self.assertEqual(self.files(self.fixture.base), before)
 
-    def test_production_readiness_can_only_inspect_identity(self):
+    def test_production_writer_is_reachable_only_after_the_exact_native_gates(self):
         root = Path(__file__).resolve().parents[2]
         app_model = (root / "native/Sources/AppModel.swift").read_text(encoding="utf-8")
         bridge = (root / "proto_mind/native_bridge.py").read_text(encoding="utf-8")
+        readiness = app_model[app_model.index("func openSessionSpineReadiness"):app_model.index("func openSessionSpineWriter")]
+        writer = app_model[app_model.index("func openSessionSpineWriter"):app_model.index("private func invalidateSessionSpinePilot")]
         self.assertIn("NativeSessionSpineInstallationStore", app_model)
-        self.assertEqual(app_model.count("identityStore.load()"), 1)
-        self.assertNotIn("loadOrCreate()", app_model)
-        self.assertNotIn("saveAndReadBack(", app_model)
+        self.assertNotIn("loadOrCreate()", readiness)
+        self.assertNotIn("saveAndReadBack(", readiness)
+        self.assertIn("loadOrCreate()", writer)
+        self.assertIn("saveAndReadBack(", writer)
+        self.assertIn('client.request("session_spine_writer_preview"', writer)
+        self.assertIn('client.request("session_spine_writer_apply"', writer)
+        self.assertIn('method in {"session_spine_writer_preview", "session_spine_writer_apply"}', bridge)
         self.assertNotIn("session_spine_intent", bridge)
         self.assertNotIn("apply_native_turn_intent", bridge)
         self.assertFalse(self.handshake["boundaries"]["native_activation"])

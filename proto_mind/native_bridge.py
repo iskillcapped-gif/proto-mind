@@ -77,6 +77,10 @@ from proto_mind.native_persona import (
     build_native_persona_runtime,
 )
 from proto_mind.native_session_spine_live import build_live_session_spine_preview
+from proto_mind.native_session_spine_writer import (
+    apply_native_session_spine_writer,
+    preview_native_session_spine_writer,
+)
 from proto_mind.persona_engine import validate_persona_snapshot
 from proto_mind.native_work_sessions import WorkSessionStore, WorkSessionError, workspace_identity
 from proto_mind.native_desk import context_manifest, context_preview, capture_artifacts, artifact_page, artifact_preview, review_observations
@@ -1220,6 +1224,15 @@ class NativeBackend:
                 raise ValueError("Wait for the active turn before opening its Session Spine preview.")
             try:
                 return build_live_session_spine_preview(self.work_sessions, params)
+            finally:
+                self.busy.release()
+        if method in {"session_spine_writer_preview", "session_spine_writer_apply"}:
+            if self.closing.is_set() or not self.busy.acquire(blocking=False):
+                raise ValueError("Wait for the active turn before opening the Session Spine writer pilot.")
+            try:
+                if method == "session_spine_writer_preview":
+                    return preview_native_session_spine_writer(self.work_sessions, self.state_dir, params)
+                return apply_native_session_spine_writer(self.work_sessions, self.state_dir, params)
             finally:
                 self.busy.release()
         if method == "context_preview":

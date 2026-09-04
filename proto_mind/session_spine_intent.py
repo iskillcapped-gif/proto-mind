@@ -604,6 +604,51 @@ class SessionSpineIntentStore:
             except SessionSpineIntentMissing:
                 raise
 
+    def find_by_source(
+        self,
+        *,
+        owner_id: str,
+        conversation_id: str,
+        run_id: str,
+    ) -> tuple[SessionSpineIntentSnapshot | None, int]:
+        """Find one exact source-bound intent while validating the whole bounded catalog."""
+        matches: list[SessionSpineIntentSnapshot] = []
+        with self._directory() as directory:
+            if directory is None:
+                return None, 0
+            with self._lock(directory, write=False):
+                prepared_ids, committed_ids = self._catalog(directory)
+                for identifier in sorted(prepared_ids):
+                    prepared_name, committed_name = self._names(identifier)
+                    prepared = validate_prepared_intent(_decode(self._read(directory, prepared_name), "Prepared intent"))
+                    if (
+                        prepared["intent_id"] != identifier
+                        or prepared["identity"]["intent_store_scope_sha256"] != self.scope_sha256
+                    ):
+                        raise SessionSpineIntentError("Prepared intent filename or store scope does not verify.")
+                    committed = None
+                    if identifier in committed_ids:
+                        committed = validate_committed_intent(
+                            _decode(self._read(directory, committed_name), "Committed intent"),
+                            prepared=prepared,
+                        )
+                    identity = prepared["identity"]
+                    if (
+                        identity["owner_id"] == owner_id
+                        and identity["conversation_id"] == conversation_id
+                        and identity["run_id"] == run_id
+                    ):
+                        matches.append(SessionSpineIntentSnapshot(
+                            intent_id=identifier,
+                            state="committed" if committed is not None else "prepared",
+                            prepared=prepared,
+                            committed=committed,
+                            store_scope_sha256=self.scope_sha256,
+                        ))
+        if len(matches) > 1:
+            raise SessionSpineIntentError("Multiple durable intents claim the same exact Native turn.")
+        return (matches[0] if matches else None), len(prepared_ids)
+
     def commit(self, intent_id: str, apply_receipt: Mapping[str, Any]) -> dict[str, Any]:
         identifier = _intent_id(intent_id)
         prepared_name, committed_name = self._names(identifier)

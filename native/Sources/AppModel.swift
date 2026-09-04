@@ -135,6 +135,10 @@ final class AppModel: ObservableObject {
     @Published private(set) var sessionSpinePilotGrant: NativeSessionSpinePilotGrant?
     @Published var sessionSpineAcceptance: NativeSessionSpineAcceptanceRehearsal?
     @Published private(set) var sessionSpineAcceptanceGrant: NativeSessionSpineAcceptanceGrant?
+    @Published var sessionSpineWriterPreview: NativeSessionSpineWriterPreview?
+    @Published private(set) var sessionSpineWriterReceipt: NativeSessionSpineWriterReceipt?
+    @Published private(set) var loadingSessionSpineWriter = false
+    @Published private(set) var applyingSessionSpineWriter = false
     @Published var conversationSearch = ""
     @Published var showArchived = false
     @Published var workspaceStatus: JSONValue = .null
@@ -851,6 +855,142 @@ final class AppModel: ObservableObject {
         }
     }
 
+    func openSessionSpineWriter(_ rehearsal: NativeSessionSpineAcceptanceRehearsal) async {
+        guard !busy, !client.turnOutstanding, !loadingSessionSpineWriter else { return }
+        loadingSessionSpineWriter = true
+        defer { loadingSessionSpineWriter = false }
+        do {
+            await refreshWorkSessions()
+            let context = try buildSessionSpineWriterContext(rehearsal)
+            let raw = try await client.request("session_spine_writer_preview", context.parameters)
+            sessionSpineWriterPreview = try NativeSessionSpineWriterPreview(
+                raw, live: context.preview, readiness: context.readiness,
+                rehearsal: context.rehearsal, stateDirectory: client.configuration.stateDirectory
+            )
+            sessionSpineWriterReceipt = nil
+            error = nil
+            status = sessionSpineWriterPreview?.closed == true
+                ? "Session Spine · этот exact turn уже закрыт"
+                : sessionSpineWriterPreview?.canApply == true
+                    ? "Session Spine · P2l ждёт точную ручную фразу"
+                    : "Session Spine · P2l заблокирован evidence"
+        } catch {
+            sessionSpineWriterPreview = nil
+            sessionSpineWriterReceipt = nil
+            report(error)
+        }
+    }
+
+    func applySessionSpineWriter(
+        _ preview: NativeSessionSpineWriterPreview,
+        token: String,
+        acknowledgement: Bool
+    ) async {
+        guard !busy, !client.turnOutstanding, !applyingSessionSpineWriter,
+              sessionSpineWriterReceipt == nil else { return }
+        guard preview.accepts(token: token, acknowledgement: acknowledgement) else {
+            report(NativeError.message("Точная фраза P2l или acknowledgement не совпали. Ни один файл не записан."))
+            return
+        }
+        applyingSessionSpineWriter = true
+        busy = true
+        var durableWriteStarted = false
+        defer { applyingSessionSpineWriter = false; busy = false }
+        do {
+            guard let rehearsal = sessionSpineAcceptance else {
+                throw NativeError.message("P2l acceptance context исчез. Ничего не записано.")
+            }
+            let context = try buildSessionSpineWriterContext(rehearsal)
+            let refreshedRaw = try await client.request("session_spine_writer_preview", context.parameters)
+            let refreshed = try NativeSessionSpineWriterPreview(
+                refreshedRaw, live: context.preview, readiness: context.readiness,
+                rehearsal: context.rehearsal, stateDirectory: client.configuration.stateDirectory
+            )
+            guard refreshed.value == preview.value, refreshed.accepts(token: token, acknowledgement: acknowledgement) else {
+                throw NativeError.message("P2l preview изменился перед первой записью. Повторите проверку; ничего не записано.")
+            }
+
+            let archive = ChatArchive(conversations: conversations, selectedID: selectedID)
+            durableWriteStarted = true
+            let readback = try store.saveAndReadBack(archive)
+            guard readback.sha256 == preview.source["history_sha256"].text,
+                  readback.sizeBytes == preview.source["history_bytes"].integer else {
+                throw NativeError.message("История была сохранена, но exact candidate изменился. Writer не вызван; проверьте history вручную.")
+            }
+            let identityStore = NativeSessionSpineInstallationStore(stateDirectory: client.configuration.stateDirectory)
+            let existingIdentity = try identityStore.load()
+            let identity = try identityStore.loadOrCreate()
+            var parameters = context.parameters
+            parameters["preview"] = preview.value
+            parameters["confirmation_token"] = .string(token)
+            parameters["owner_identity"] = identity.value
+            parameters["history_sha256"] = .string(readback.sha256)
+            parameters["history_bytes"] = .number(Double(readback.sizeBytes))
+            parameters["history_write_performed"] = .bool(true)
+            parameters["identity_created"] = .bool(existingIdentity == nil)
+            let result = try await client.request("session_spine_writer_apply", parameters)
+            sessionSpineWriterReceipt = try NativeSessionSpineWriterReceipt(
+                result, preview: preview, identity: identity, readback: readback
+            )
+            error = nil
+            status = "Session Spine · один exact-linked ход записан и закрыт"
+        } catch {
+            if durableWriteStarted { invalidateSessionSpinePilot() }
+            report(error)
+        }
+    }
+
+    private func buildSessionSpineWriterContext(
+        _ rehearsal: NativeSessionSpineAcceptanceRehearsal
+    ) throws -> (
+        preview: NativeSessionSpinePreview,
+        readiness: NativeSessionSpineActivationReadiness,
+        rehearsal: NativeSessionSpineAcceptanceRehearsal,
+        parameters: [String: JSONValue]
+    ) {
+        guard let preview = sessionSpinePreview, let pilot = sessionSpinePilotGrant,
+              let conversation = selected, let conversationID = selectedID,
+              let sourceID = UUID(uuidString: preview.source["user_message_id"].text),
+              let assistantID = UUID(uuidString: preview.source["assistant_message_id"].text) else {
+            throw NativeError.message("P2l требует свежие Live Preview и ARMED P2j evidence. Ничего не записано.")
+        }
+        let readiness = try buildSessionSpineReadiness(preview, grant: pilot)
+        let currentRehearsal = try NativeSessionSpineAcceptanceRehearsal.inspect(
+            readiness: readiness,
+            stateDirectory: client.configuration.stateDirectory,
+            grant: rehearsal.accepted ? sessionSpineAcceptanceGrant : nil
+        )
+        guard readiness.armed, currentRehearsal.value == rehearsal.value,
+              currentRehearsal.accepted || currentRehearsal.recoveryRequired else {
+            throw NativeError.message("P2j/P2k evidence изменилось. Writer не получил управление.")
+        }
+        let matches = conversation.messages.indices.filter { conversation.messages[$0].id == assistantID }
+        guard matches.count == 1, let assistantIndex = matches.first, assistantIndex > 0,
+              conversation.messages[assistantIndex - 1].id == sourceID,
+              let referenceValue = conversation.messages[assistantIndex].turnReference else {
+            throw NativeError.message("Exact-linked пара P2l больше не существует. Ничего не записано.")
+        }
+        let source = conversation.messages[assistantIndex - 1]
+        let assistant = conversation.messages[assistantIndex]
+        let reference = try NativeTurnReference(referenceValue)
+        let run = try reference.resolve(in: workSessions, conversation: conversationID)
+        let checked = try NativeSessionSpinePreview(
+            preview.value, source: source, assistant: assistant,
+            conversation: conversationID, reference: reference, run: run
+        )
+        var parameters = try NativeSessionSpinePreview.parameters(
+            source: source, assistant: assistant, conversation: conversationID, reference: reference, run: run
+        )
+        parameters["gate"] = .object([
+            "acceptance_state": .string(currentRehearsal.state),
+            "candidate_hash": .string(readiness.candidateHash),
+            "readiness_report_hash": readiness.value["report_hash"],
+            "rehearsal_hash": .string(currentRehearsal.rehearsalHash),
+            "acceptance_report_hash": currentRehearsal.value["report_hash"],
+        ])
+        return (checked, readiness, currentRehearsal, parameters)
+    }
+
     private func buildSessionSpineReadiness(
         _ preview: NativeSessionSpinePreview,
         grant: NativeSessionSpinePilotGrant?
@@ -897,6 +1037,8 @@ final class AppModel: ObservableObject {
         sessionSpineReadiness = nil
         sessionSpineAcceptanceGrant = nil
         sessionSpineAcceptance = nil
+        sessionSpineWriterPreview = nil
+        sessionSpineWriterReceipt = nil
     }
 
     func setWorkSessionWarningHidden(_ run: NativeWorkSession, hidden: Bool) throws {

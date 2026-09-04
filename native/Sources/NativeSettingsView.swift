@@ -100,10 +100,13 @@ struct NativeSettingsView: View {
             }
             Section("Session Spine pilot") {
                 HStack {
-                    Label(model.sessionSpinePilotArmed ? "Один точный ход подготовлен" : "Writer выключен",
-                          systemImage: model.sessionSpinePilotArmed ? "checkmark.shield" : "lock.shield")
+                    Label(model.sessionSpineWriterReceipt != nil ? "Один точный ход записан"
+                          : model.sessionSpinePilotArmed ? "Один точный ход подготовлен" : "Writer закрыт",
+                          systemImage: model.sessionSpineWriterReceipt != nil ? "checkmark.seal"
+                            : model.sessionSpinePilotArmed ? "checkmark.shield" : "lock.shield")
                     Spacer()
-                    Text(model.sessionSpinePilotArmed ? "до перезапуска" : "inactive")
+                    Text(model.sessionSpineWriterReceipt != nil ? "closed"
+                         : model.sessionSpinePilotArmed ? "до перезапуска" : "inactive")
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 if let readiness = model.sessionSpineReadiness {
@@ -127,7 +130,7 @@ struct NativeSettingsView: View {
                     Button("Снять локальную подготовку") { model.revokeSessionSpinePilot() }
                         .disabled(model.busy)
                 }
-                Text("P2j opt-in и P2k acceptance не сохраняются, не создают installation identity или intent и не активируют writer. Любая будущая запись требует отдельного milestone после принятого exact rehearsal.")
+                Text("P2j opt-in и P2k acceptance не сохраняются и сами ничего не записывают. P2l отдельно требует свежий exact preview, acknowledgement и точную фразу; он может закрыть только один новый связанный ход, без модели, команд, инструментов, смены разрешений или legacy backfill.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("Подписка ChatGPT / Codex") {
