@@ -864,7 +864,7 @@ def _parse_doctor_output(output: str) -> dict[str, Any]:
 
 
 def _read_identity_profile(project_root: Path) -> dict[str, str]:
-    fallback = {"name": "Proto-Mind", "role": "local-first cognitive assistant", "operator_name": ""}
+    fallback = {"name": "Proto-Mind", "role": "personal cognitive agent and operational partner", "operator_name": ""}
     path = project_root / "proto_mind" / "data" / "identity.json"
     if not path.exists():
         return fallback

@@ -172,7 +172,7 @@ class ContestShowcase:
             f"Showcase readiness: {state['showcase_status']}",
             "",
             "1. CONTINUITY",
-            f"- Identity: {identity.get('name') or 'Proto-Mind'} | {identity.get('role') or 'local-first cognitive assistant'}",
+            f"- Identity: {identity.get('name') or 'Proto-Mind'} | {identity.get('role') or 'personal cognitive agent and operational partner'}",
             f"- Focused goal: {_goal_line(state['focused_goal'])}",
             f"- Next task: {_task_line(state['next_task'])}",
             f"- Active explicit memory: {memory.get('active_explicit', 0)} records",

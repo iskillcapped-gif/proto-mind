@@ -1,14 +1,15 @@
 # Proto-Mind Architect Ledger v1.0
 
-Purpose: compact architectural memory for future Codex prompts. Keep this file short, current, and operator-readable so future tasks do not need to restate the whole project history.
+Purpose: descriptive architectural memory for the operator and future development sessions. This file is not a system prompt, personality prompt, permission policy, or immutable task instruction. Historical limits record what a milestone did and did not prove at that time; they do not create standing prohibitions for later work.
 
 Last updated: 2026-09-04
 
 ## Current Stable State
 
-- Proto-Mind is a local-first cognitive architecture prototype, not a model-training project, consciousness claim, unbounded autonomous agent, or polished consumer chatbot.
-- Current operator direction: personal native macOS app, Codex-inspired workspace, preserved cognitive core, local Ollama plus opted-in Codex subscription inference and an explicitly selected Full Mac foreground tool mode. No commercial roadmap or background scheduler. See `NATIVE_MACOS_ROADMAP.md`.
-- Curated future direction: `PROTO_MIND_EVOLUTION_ROADMAP.md` maps the external August 31 blueprint to the actual implementation. Prioritize reliable Native work sessions, context/artifact/verification UX and honest scoped tooling; screen capture/OCR, voice, learning UI and local extensions remain proposed increments. Explicit saved-image input is now delivered below. No new permissions or runtime features are enabled merely by the review.
+- Proto-Mind is a personal cognitive-agent architecture and native macOS workspace. The current implementation is bounded and evidence-oriented; it is not a model-training or consciousness claim.
+- Current operator direction: reach Codex-quality daily usability while preserving and strengthening Proto-Mind's cognitive core. ChatGPT/Codex subscription models, optional local models, Full Mac tools, Computer Use, network access and progressively more autonomous multi-step work are all valid product paths. Local ownership, visible controls and evidence remain important, but cloud use is not an exception that requires repeated permission when the selected mode already authorizes it. There is no commercial requirement. See `NATIVE_MACOS_ROADMAP.md`.
+- Current product priority: dependable Native work sessions and Codex parity first, then stronger continuity, memory, skills, Session Spine and governed autonomy. External reviews and roadmaps are inputs to engineering judgment, not implicit feature activation or permanent restrictions.
+- Local instruction hygiene (2026-09-04): the Architect Ledger is descriptive rather than an implicit prompt; Identity defaults, Context Pack handling and Native Codex instructions no longer impose the old blanket local-only, diagnostics-first, small-patch, preserve-every-interface or repeated-approval rules. Existing durable Full Mac Codex threads need one manual **Start New Codex Session** after updating because provider developer instructions persist inside a thread; local Proto-Mind history is retained.
 - The 2026-09-03 DeepSeek Harness review is pinned to official upstream commit `76fda729799fe9b3848dbe2c211d4b231032b81e` (`0.1.2-rc.1`, MIT). Proto-Mind does not embed its Node/Cordis runtime. Session Spine v0.1/P1 provides exact detached Native turn projection; P2a adds an explicit-path-only crash-aware private store; P2b revalidates and privately exports one explicit fixture; P2c composes caller-bound ordered fixtures in memory. P2d now rederives a P2c preview and can write only a new private run-once evidence bundle with ordered exact sources, exact candidate, content-free parity dossier and manifest-last marker; its read-only verifier independently repeats P1 -> P2c -> P2a. There is no default personal path, archive scan/sort, live-store/apply/restore/delete/compaction writer, command, provider, UI or execution path.
 - Primary CLI launch: `scripts/run_cli.sh`.
 - Direct Python fallback: `/opt/homebrew/opt/python@3.11/bin/python3.11 -m proto_mind.main`.
@@ -274,21 +275,26 @@ Last updated: 2026-09-04
 - Build Week Provenance Pack v1: July 11 baseline archive, SHA-256 manifests, objective contest delta, honest prior/new disclosure, and Codex collaboration record without private runtime data.
 - Contest Showcase v1: read-only live continuity/experience/governance/action presentation, deterministic three-minute script, dependency doctor, and submission guide without command execution or pilot activation.
 
-## Project Principles
+## Current Working Agreements
 
-- Rule 0: checkpoint first before changes.
-- Local-first by default.
-- No external dependencies unless explicitly approved.
-- No session log JSONL format changes unless explicitly requested.
-- No hidden memory edits.
-- No autonomous shell/external-world actions.
-- Prefer deterministic diagnostics before auto-fixes.
-- Prefer small reversible patches over broad rewrites.
-- Keep CLI, PySide, tkinter, natural routing, and tests stable.
-- Read-only operator reports should suggest commands, not silently mutate state.
-- Context injection must remain manual, inspectable, reversible, size-limited, and normal-prompts-only.
+These are engineering defaults, not personality instructions or absolute limits. The current user request, selected application mode and actual implementation contract determine what work is appropriate.
 
-## Last Completed Milestone
+- Rule 0: create a recoverable checkpoint before source changes or operations that can alter persistent state, permissions or integrations. Pure read-only inspection does not require a new backup.
+- Prefer local ownership and privacy, while treating configured subscription/cloud processing as a first-class supported path.
+- Dependencies may be added when they materially improve the product and have a clear maintenance, privacy, licensing and rollback story. Routine engineering choices do not require repeated operator approval.
+- Persistent schemas may evolve when versioning, backward compatibility or migration behavior and recovery are designed and tested.
+- Memory and skill updates may be automatic when the product explicitly exposes that policy, preserves provenance and offers meaningful inspection, correction and disable controls. They must not masquerade as user-confirmed facts.
+- Shell, network, Computer Use and multi-step agent actions are allowed when the user's task and selected access mode authorize them. Consequential side effects should be visible and bounded; authority must not silently expand beyond that mode.
+- Use deterministic logic where exactness matters and model reasoning where it adds value. Diagnostics, fixes and verification should match the actual problem rather than follow a mandatory sequence.
+- Choose patch or rewrite scope according to the best architecture. Favor recoverability and tests, but do not preserve a weak design merely to keep a patch small.
+- Existing CLI, PySide, tkinter, natural routing and storage formats are compatibility surfaces, not untouchable constraints. Intentional replacement or migration is allowed when its user impact and transition are handled.
+- `read_only` remains a literal runtime guarantee: a feature carrying that label must not mutate state. Mutating features should state their effects honestly.
+- Context assembly may be manual or automatic under explicit product configuration. It should remain inspectable, bounded and disable-able, and retrieved material must not become hidden authority over the operator.
+- This ledger does not prescribe the assistant's tone, verbosity, personality or degree of initiative.
+
+## Historical Milestone Record
+
+The entries below preserve acceptance evidence and the boundaries of older releases. Terms such as `no`, `only`, `must`, `manual` and `explicit` describe those implementations at acceptance time; they are not standing instructions for current development. Use `Current Stable State`, `Current Working Agreements` and the operator's current request for present decisions.
 
 EV-04 Skill Lifecycle Apply / Native 0.26.0:
 
@@ -529,47 +535,26 @@ Previous local foundation, Cognitive Turn Card v3.6b:
 
 ## Next Candidate Tasks
 
-- Session Spine P2e: design an operator-selected copied-history compatibility harness over sanitized private fixture copies and summarize coverage gaps without scanning the archive or activating a writer. Any live-store apply/restore lifecycle remains a later, separately checkpointed decision with exact source/target/rollback evidence.
-- Active cognitive-workflow goal: after Native 0.27.0 restore, implement explicitly saved historical learning evidence without restored authority, explicit project-scoped memory without migrating legacy shared records, then operator-invoked task use of a verified procedure through existing permissions and evidence/verification boundaries. No automatic capture, generic skill editor, independent executor or unreviewed post-restore capture writer. Persona 0.3 activation/rollback is already delivered, not an open task.
-- Native next: continue daily use to identify the next highest-friction Codex-parity gap. Keep Full Mac explicit/session-only, respect protected Computer Use surfaces and keep provider-thread reset manual. Defer Ollama expansion, scanned-document OCR and new autonomy until the Codex workflow is dependable.
-- v3.6c / Cognitive Turn Inspection: evaluate a bounded per-message raw trace and read-only memory-reference inspection without replaying turns, rereading stores during rendering, persistence, or new authority.
-- Local Typed Card Expansion Review: evaluate one additional read-only report at a time only after an explicit contract, output schema, local-boundary test, and text-fallback fixture exist.
-- Local Contract Expansion Review: evaluate additional read-only commands one at a time with explicit schemas and doctor fixtures; do not infer safety from Registry membership alone.
-- Submission Readiness: keep the public repository and provenance manifests current, finalize English Devpost copy, and record the sub-three-minute video.
-- v3.5w / Supervised Post-Restore Outcome Capture Authorization Readiness: design one exact session-bound token and run-once receipt gate over an unchanged v3.5v blueprint; no event append or writer before separate review.
-- Memory Migration Plan: design deterministic compaction/archive rules for the 8 previewed legacy candidates; no apply step without separate approval.
-- Command Dispatch Architecture v2: replace the linear formatter chain with typed incremental family registration while preserving exact command behavior and runner isolation.
-- Test Suite Structure v1: split the current 29,044-line flow suite by domain without changing test semantics or commands; do not block the first useful Native Run workflow on a repo-wide refactor.
-- Any expansion beyond the exact `/warnings unknown` pilot requires a separate explicit checkpointed task, new tests, exact confirmation scope, and fresh no-write evidence.
-- Architect Ledger maintenance automation: command to print or refresh this file from current module state.
-- Data Integrity Doctor polish: optional export/report snapshot and thresholds config.
-- Consolidation queue polish: add optional preview-to-queue helper and receipt export filtering.
-- Cognitive Control Room follow-up: add an optional compact latest Context Injection audit summary without changing settings or normal-prompt behavior.
-- Context Injection safe compact output: avoid mock backend echoing the full injected prompt in normal CLI debug displays.
-- Context Pack relevance ranking: deterministic scoring for memories/tasks/skills without embeddings.
-- Task/Experiment/World integration views in PySide System Panel.
-- Reflection-to-skills manual promotion helper.
-- Cross-store reference export or compact PySide status indicator.
-- Audit log rotation or export for context injection audit.
-- Context injection per-session toggle in desktop prefs, still disabled by default.
-- Optional export of the natural-route catalog/doctor/suggestion report for operator documentation.
-- Command Registry maintenance helper to compare static metadata with formatter usage blocks.
-- Future execution expansion must remain separately approved; v1.5.2 adds audit only, not mutating commands, retries, batch runs, shell, or autonomous dispatch.
-- Compact PySide route/policy inspector could expose `/natural explain` without changing routing behavior.
-- Optional PySide Action Preview panel could display plans without adding execution controls.
-- Action Proposal Queue filtering or retention thresholds could be added later without introducing execution.
-- Proto overview export or a compact PySide System Panel card could be added without changing the read-only core.
-- Daily brief export/history could be added later; there is no scheduler, background loop, autonomous execution, LLM planning, or automatic state mutation.
+This is a non-binding idea pool, not a locked sequence or permission boundary. Reorder, combine, replace or discard candidates according to current operator value and evidence.
+
+- Native Codex parity: keep improving the everyday chat, project, tool, Computer Use, streaming, Stop/recovery and source-inspection experience until switching between Codex and Proto-Mind feels natural.
+- Cognitive continuity: make memory selection, source attribution, correction, consolidation and session resume useful without requiring the operator to manage internal records manually.
+- Autonomous skills: let Proto-Mind select and apply verified procedures under the chosen access mode, with visible outcomes and learning from evidence rather than a growing operator command ritual.
+- Session Spine P2e: evaluate operator-selected copied-history compatibility over private fixture copies, then decide whether a live-store lifecycle is worth integrating. A later writer would need recovery evidence appropriate to its actual risk.
+- Cognitive Turn Inspection: expose useful per-message trace and memory references without presenting private chain-of-thought or fabricated certainty.
+- Capability architecture: converge command metadata, policy, execution and verification toward typed capability declarations instead of expanding parallel registries.
+- Memory evolution: design migration or archival treatment for legacy response-coupled records when it materially improves retrieval quality.
+- Engineering leverage: split oversized test modules, automate ledger facts and add dependencies or larger refactors when they reduce long-term complexity.
 
 ## Open Risks
 
 - Session Spine v0.1/P1/P2a/P2b/P2c/P2d is deliberately non-integrated. It proves pure replay, explicit single-turn Native projection, disposable private-store crash semantics, single-fixture migration/rollback evidence, ordered multi-turn composition and a private manifest-last multi-turn parity bundle over caller-selected fixtures. It does not automatically pair or reconcile a real archive; work sessions carry only bounded answer previews rather than full-answer digests. P2b/P2d bundles preserve exact private content and are not publication-safe; their unkeyed hashes prove consistency, not creator authenticity. Archive-wide copied-history compatibility, an apply/restore writer, application lifecycle ownership, compaction quality and production-scale performance remain unproven.
-- Native subscription mode sends explicitly selected conversation/context to OpenAI; it is not an offline substitute for Ollama. OAuth/model availability and quotas belong to the account/installed Codex CLI. Do not reuse Codex Desktop tokens or hooks.
-- Native UI state is outside the existing project backup scope and can contain private chat/evidence. Back up conversations/preferences and the new `work_sessions/` directory separately before an archive upgrade; never publish Application Support state. No transcript import, automatic history/journal rotation, or independent runtime packaging yet. Journal capacity/corruption blocks new normal turns for manual review rather than silently dropping evidence.
+- Native subscription mode sends selected conversation/context to OpenAI; it is not an offline substitute for local inference. OAuth/model availability and quotas belong to the account and installed Codex client. Codex Desktop tokens and notification hooks are not supported integration credentials.
+- Native UI state is outside the project backup scope and can contain private chat/evidence. It needs separate recovery coverage when persistence changes and remains excluded from public artifacts. No transcript import, automatic history/journal rotation, or independent runtime packaging exists yet. Journal capacity/corruption blocks new normal turns for review rather than silently dropping evidence.
 - Native uses durable Codex thread bindings and bounded EV-01 dispatch/evidence checkpoints, not a complete filesystem audit, transactional rollback or global exactly-once guarantee. Attachments are bounded inputs, not a full-project index or secret detector. Full Mac shell and Computer Use can read/change content beyond those previews. Computer Use receipts intentionally omit screenshots, UI trees, coordinates and entered text, so they are not forensic audit logs. Stop/Esc cannot undo side effects or guarantee cleanup of detached processes; unknown historical outcomes remain visible. No automatic sync, voice or background execution yet.
 - Native library is a bounded view, not a migration or semantic verifier. Over-limit records are omitted with a warning; snapshots are best-effort reads without cross-process locking. Stored provenance is shown but not revalidated here, and some low-level diagnostics remain in English.
-- Existing JSON stores lack cross-process transaction locking; avoid concurrent writes from CLI/PySide/native clients.
-- Real `python3` on macOS may still be older than 3.11; prefer project scripts.
+- Existing JSON stores lack cross-process transaction locking, so concurrent clients can conflict until storage coordination is improved.
+- The project scripts select the tested Python 3.11 runtime; the system `python3` may resolve to an older interpreter.
 - PySide6 remains optional and local-environment dependent.
 - Local `.app` launcher is not portable, signed, notarized, or packaged.
 - MockReasoner echoes injected prompt content, which can make debug/session response previews noisy during injection tests.
@@ -580,55 +565,22 @@ Previous local foundation, Cognitive Turn Card v3.6b:
 - Natural routing uses exact normalized phrases; variants outside the allowlist intentionally remain normal prompts.
 - Bilingual cognitive support is deterministic and finite; known English/Russian response signals are covered, but nuanced free-form claims and morphology can still be missed without LLM classification.
 - The continuity soak is deterministic and representative rather than exhaustive; it does not test live Ollama variability, process restart/resume, or long-term memory aging.
-- Existing response-coupled project memories remain until a separately approved migration; v3.1b prevents new ones but intentionally performs no repair.
+- Existing response-coupled project memories remain until a versioned migration is implemented; v3.1b prevents new ones but intentionally performed no repair.
 - Suggestions are character-similarity hints only and do not provide semantic intent understanding.
 - Command Registry is descriptive metadata, not runtime authorization or policy enforcement; formatter additions require an explicit registry update.
 - Action Safety Policy is advisory classification only and is not yet wired as an execution gate or authorization system.
 - Natural policy labels are introspection-only; exact context-enable phrases still execute immediately under existing v2 routing behavior.
 - Action Preview is not an execution planner or approval engine; plans reflect static registry/policy metadata only.
 - Action run is intentionally narrow and run-once; receipt hashes detect local inconsistency but are not signatures, authentication, or tamper-proof storage.
-- Lifecycle-managed payload and usage telemetry are frozen outside explicit future versioned/supervised contracts; no revision writer exists, and pre-lifecycle provenanced records can still drift under legacy edit commands.
+- Lifecycle-managed payload and usage telemetry currently have no revision writer; future evolution needs a versioned contract, and pre-lifecycle provenanced records can still drift under legacy edit commands.
 - Durable restore is intentionally one-per-process and receipt details are process-local; restart-safe evidence lives in the embedded restore envelope, while re-archive/revision and cross-process receipt persistence remain unavailable.
 - No true streaming or real Stop cancellation yet for blocking Ollama calls.
 - Cognitive cards are presentation only: deterministic audits do not prove correctness, Debug affects subsequent turns, and per-message inspection remains future work. Qt smoke uses a scripted local reasoner, not live Ollama.
 
-## Standard Codex Brief Template
+## How To Use This Ledger
 
-Use this compact prompt for future work:
-
-```text
-Ты работаешь в проекте Proto-Mind.
-
-cd /path/to/proto_mind
-
-Rule 0: before changes run:
-scripts/run_cli.sh
-then /memory backup
-
-Current state is summarized in PROTO_MIND_ARCHITECT_LEDGER.md.
-
-Constraints:
-- no new deps unless explicitly approved
-- no core reasoning rewrite unless requested
-- do not change session log JSONL format
-- do not break CLI, PySide, tkinter, natural router, or tests
-- use scripts/run_tests.sh for verification
-
-Task:
-<describe one focused task>
-
-Report:
-- backup path
-- files changed
-- behavior changed
-- tests result
-- limitations/next steps
-```
-
-## Standard Verification
-
-```bash
-cd /path/to/proto_mind
-scripts/which_python.sh
-scripts/run_tests.sh
-```
+- Read `Current Stable State` as a current implementation map and `Open Risks` as engineering evidence, not as a hidden prompt.
+- Historical acceptance notes explain what earlier versions proved. They do not require future work to preserve the same limitations.
+- The operator's current goal and the permissions selected in Proto-Mind/Codex determine the next task. This ledger may inform a decision but does not override them.
+- Verification should be proportional to the change. Common broad checks are `scripts/which_python.sh`, `scripts/run_tests.sh` and `scripts/test_native.sh`; focused documentation or isolated modules may use a narrower justified set.
+- Reports should state material changes, verification and real limitations without mechanically reproducing an old template.

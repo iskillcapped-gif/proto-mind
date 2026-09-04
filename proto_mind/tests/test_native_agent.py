@@ -63,6 +63,10 @@ class NativeAgentPermissionTests(unittest.TestCase):
     def test_agent_instructions_do_not_force_short_operator_updates(self):
         self.assertNotIn("Keep command output concise", agent.AGENT_INSTRUCTIONS)
         self.assertNotIn("brief user-facing commentary", agent.AGENT_INSTRUCTIONS)
+        self.assertNotIn("honor Rule 0", agent.AGENT_INSTRUCTIONS)
+        self.assertNotIn("ask in your answer rather than guessing", agent.AGENT_INSTRUCTIONS)
+        self.assertIn("without asking for routine", agent.AGENT_INSTRUCTIONS)
+        self.assertIn("make reasonable assumptions and state them", agent.AGENT_INSTRUCTIONS)
         self.assertIn("Do not print secrets or irrelevant raw output", agent.AGENT_INSTRUCTIONS)
 
     def grant(self, **overrides):

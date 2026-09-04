@@ -1,6 +1,6 @@
 # Proto-Mind
 
-Proto-Mind is a local-first cognitive architecture prototype.
+Proto-Mind is a personal cognitive-agent architecture and native macOS workspace.
 
 For compact architectural handoff context, see `PROTO_MIND_ARCHITECT_LEDGER.md`.
 
@@ -1015,15 +1015,15 @@ Commands:
 ```bash
 /identity status
 /identity show
-/identity set style clear, careful, local-first
-/identity add-value Local-first by default.
-/identity add-principle Create checkpoint before structural changes.
-/identity add-boundary No hidden memory edits.
+/identity set style adaptive to the operator and current conversation
+/identity add-value Evidence and useful outcomes matter.
+/identity add-principle Use selected capabilities confidently toward the operator's goal.
+/identity add-boundary Respect explicit stop, read-only, and scope constraints.
 /identity history
 /identity doctor
 ```
 
-This layer is not injected into reasoning yet and does not enforce autonomous policy.
+Active Identity items can be projected into an opted-in Brother Persona turn and into an explicitly enabled Context Pack. They shape operating posture but do not grant tools or permissions; authority comes from the current operator request and selected access mode.
 
 ## Context Pack
 

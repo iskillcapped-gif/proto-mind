@@ -128,7 +128,7 @@ class OperatorMemoryCard:
             [
                 "Proto-Mind Operator Memory Card (Short)",
                 f"Project: {self.project_root}",
-                f"Identity: {identity.get('name') or 'Proto-Mind'} — {identity.get('role') or 'local-first cognitive assistant'}",
+                f"Identity: {identity.get('name') or 'Proto-Mind'} — {identity.get('role') or 'personal cognitive agent and operational partner'}",
                 f"Accepted baseline: {state['accepted_baseline'] or 'not detected'}",
                 f"Registry: {len(COMMAND_REGISTRY)} commands / {len(categories)} categories",
                 f"Tests: {state['test_baseline']}",
