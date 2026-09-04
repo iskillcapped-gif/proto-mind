@@ -245,10 +245,43 @@ struct SidebarView: View {
     }
 }
 
+enum TranscriptRenderingPolicy {
+    static let initialMessageLimit = 80
+    static let pageSize = 60
+
+    static func renderedRange(totalCount: Int, messageLimit: Int) -> Range<Int> {
+        let total = max(0, totalCount)
+        let limit = min(total, max(0, messageLimit))
+        return (total - limit)..<total
+    }
+
+    static func expandedLimit(totalCount: Int, messageLimit: Int) -> Int {
+        min(max(0, totalCount), max(0, messageLimit) + pageSize)
+    }
+
+    static func adjustedLimit(oldCount: Int, newCount: Int, messageLimit: Int, followingLatest: Bool) -> Int {
+        let current = min(max(0, newCount), max(0, messageLimit))
+        guard newCount > oldCount, !followingLatest else { return current }
+        return min(newCount, current + newCount - oldCount)
+    }
+}
+
 private struct ChatView: View {
     @ObservedObject var model: AppModel
     @State private var nearBottom = true
     @State private var followOutput = true
+    @State private var renderedMessageLimit = TranscriptRenderingPolicy.initialMessageLimit
+
+    private var renderedMessages: ArraySlice<ChatMessage> {
+        model.messages[TranscriptRenderingPolicy.renderedRange(
+            totalCount: model.messages.count,
+            messageLimit: renderedMessageLimit
+        )]
+    }
+
+    private var hiddenMessageCount: Int {
+        max(0, model.messages.count - renderedMessages.count)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -261,7 +294,22 @@ private struct ChatView: View {
                             // Variable-height selectable rows can enter a retained layout loop
                             // in macOS SwiftUI's lazy stack after a long-lived window resumes.
                             VStack(alignment: .leading, spacing: 34) {
-                                ForEach(model.messages) { message in
+                                if hiddenMessageCount > 0 {
+                                    Button {
+                                        loadEarlier(using: proxy)
+                                    } label: {
+                                        Label(
+                                            "Показать предыдущие \(min(TranscriptRenderingPolicy.pageSize, hiddenMessageCount)) · скрыто \(hiddenMessageCount)",
+                                            systemImage: "arrow.up.to.line"
+                                        )
+                                        .font(.system(size: 12))
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 8)
+                                    }
+                                    .buttonStyle(.nativeHover)
+                                    .help("История хранится полностью; загружается только следующая часть интерфейса")
+                                }
+                                ForEach(renderedMessages) { message in
                                     MessageView(message: message, model: model).id(message.id)
                                 }
                                 if model.busy {
@@ -287,11 +335,23 @@ private struct ChatView: View {
                             if #unavailable(macOS 15), followOutput != next { followOutput = next }
                         }
                         .onAppear { scrollToLatest(proxy) }
-                        .onChange(of: model.selectedID) { _, _ in followOutput = true; scrollToLatest(proxy) }
+                        .onChange(of: model.selectedID) { _, _ in
+                            renderedMessageLimit = TranscriptRenderingPolicy.initialMessageLimit
+                            followOutput = true
+                            scrollToLatest(proxy)
+                        }
                         .onChange(of: model.turnStartedAt) { _, value in
                             if value != nil { followOutput = true; scrollToLatest(proxy) }
                         }
-                        .onChange(of: model.messages.count) { _, _ in if followOutput { scrollToLatest(proxy) } }
+                        .onChange(of: model.messages.count) { oldCount, newCount in
+                            renderedMessageLimit = TranscriptRenderingPolicy.adjustedLimit(
+                                oldCount: oldCount,
+                                newCount: newCount,
+                                messageLimit: renderedMessageLimit,
+                                followingLatest: followOutput
+                            )
+                            if followOutput { scrollToLatest(proxy) }
+                        }
                         .onChange(of: model.stream.count) { _, _ in if followOutput { scrollToLatest(proxy) } }
                         .onChange(of: model.workLog) { _, _ in if followOutput { scrollToLatest(proxy) } }
                         .onChange(of: model.busy) { _, _ in if followOutput { scrollToLatest(proxy) } }
@@ -314,6 +374,19 @@ private struct ChatView: View {
         Task { @MainActor in
             await Task.yield()
             if followOutput { proxy.scrollTo("bottom", anchor: .bottom) }
+        }
+    }
+
+    private func loadEarlier(using proxy: ScrollViewProxy) {
+        let previousFirstID = renderedMessages.first?.id
+        renderedMessageLimit = TranscriptRenderingPolicy.expandedLimit(
+            totalCount: model.messages.count,
+            messageLimit: renderedMessageLimit
+        )
+        guard let previousFirstID else { return }
+        Task { @MainActor in
+            await Task.yield()
+            proxy.scrollTo(previousFirstID, anchor: .top)
         }
     }
 

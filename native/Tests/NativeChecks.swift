@@ -284,7 +284,7 @@ struct NativeChecks {
             "entries": .array([.object(["kind": .string("commentary"), "text": .string("Checked the local fixture.")])])
         ])
         var messages: [ChatMessage] = []
-        for index in 0..<48 {
+        for index in 0..<500 {
             messages.append(ChatMessage(role: "user", text: "Question \(index)\n" + String(repeating: "variable text ", count: index % 7 + 1)))
             messages.append(ChatMessage(
                 role: "assistant",
@@ -294,12 +294,38 @@ struct NativeChecks {
         }
         app.conversations[0].messages = messages
 
+        let initialRange = TranscriptRenderingPolicy.renderedRange(
+            totalCount: messages.count,
+            messageLimit: TranscriptRenderingPolicy.initialMessageLimit
+        )
+        try check(initialRange.count == 80 && initialRange.lowerBound == 920,
+                  "Transcript initially renders only the latest bounded message window")
+        let expanded = TranscriptRenderingPolicy.expandedLimit(
+            totalCount: messages.count,
+            messageLimit: TranscriptRenderingPolicy.initialMessageLimit
+        )
+        try check(expanded == 140 && TranscriptRenderingPolicy.renderedRange(totalCount: messages.count, messageLimit: expanded).lowerBound == 860,
+                  "Loading an earlier page expands the window without dropping current messages")
+        try check(TranscriptRenderingPolicy.expandedLimit(totalCount: 90, messageLimit: 80) == 90,
+                  "Transcript paging clamps to the complete persisted conversation")
+        let readingLimit = TranscriptRenderingPolicy.adjustedLimit(
+            oldCount: 1_000, newCount: 1_001, messageLimit: expanded, followingLatest: false
+        )
+        try check(readingLimit == 141
+                  && TranscriptRenderingPolicy.renderedRange(totalCount: 1_001, messageLimit: readingLimit).lowerBound == initialRange.lowerBound - 60,
+                  "A new reply cannot evict the earliest rendered message while the operator reads history")
+        try check(TranscriptRenderingPolicy.adjustedLimit(
+            oldCount: 1_000, newCount: 1_001, messageLimit: expanded, followingLatest: true
+        ) == expanded, "Following the latest reply keeps the bounded window size")
+
         let workspace = NSHostingController(rootView: WorkspaceView(model: app))
         for _ in 0..<3 {
             let size = workspace.sizeThatFits(in: CGSize(width: 1200, height: 860))
             try check(size.width <= 1200 && size.height <= 860,
                       "Long variable-height transcript stays bounded during repeated layout")
         }
+        try check(app.messages.count == 1_000,
+                  "Transcript paging never truncates or rewrites the in-memory conversation")
         try check(!FileManager.default.fileExists(atPath: state.path) && !app.client.connected,
                   "Long transcript layout does not write state or connect a provider")
     }
