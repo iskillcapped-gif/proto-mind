@@ -156,7 +156,7 @@ struct PDFAttachmentPreviewView: View {
                                 error = nil
                             } catch { self.error = error.localizedDescription }
                         }
-                    }.disabled(model.loadingPDFPreview || model.busy)
+                    }.disabled(model.loadingPDFPreview || !model.canEditMessageAttachments)
                     if model.loadingPDFPreview { ProgressView().controlSize(.small) }
                 }
             }
@@ -189,7 +189,7 @@ struct PDFAttachmentPreviewView: View {
                     Button("Прикрепить выбранный текст") {
                         do { try model.attachPDF(preview); dismiss() }
                         catch { self.error = error.localizedDescription }
-                    }.disabled(!preview.hasText || !selectionMatches || model.loadingPDFPreview || model.busy)
+                    }.disabled(!preview.hasText || !selectionMatches || model.loadingPDFPreview || !model.canEditMessageAttachments)
                 }
             }
         }.padding(22).frame(width: 760, height: 650).buttonStyle(.nativeHover)
@@ -211,6 +211,6 @@ struct PendingPDFAttachmentsView: View {
             }.font(.caption).padding(10).frame(height: 42)
                 .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 10))
                 .padding(.horizontal, 12).padding(.top, 10)
-        }.buttonStyle(.nativeHover).disabled(model.busy || model.loadingPDFPreview || model.loadingDroppedAttachments)
+        }.buttonStyle(.nativeHover).disabled(!model.canEditMessageAttachments || model.loadingPDFPreview || model.loadingDroppedAttachments)
     }
 }

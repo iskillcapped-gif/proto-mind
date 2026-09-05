@@ -8,7 +8,7 @@ enforce_python_version()
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack, nullcontext, redirect_stdout
-from proto_mind.native_steering import LiveSteering
+from proto_mind.native_steering import LiveSteering, SteeringAttachments
 from dataclasses import asdict, replace
 import hashlib
 import json
@@ -33,6 +33,8 @@ from proto_mind.native_codex import (
     CodexSubscription,
     SubscriptionReasoner,
     validate_reasoning_effort,
+    resolve_model_selection,
+    require_image_model,
 )
 from proto_mind.native_instructions import (
     build_instruction_receipt,
@@ -98,6 +100,7 @@ BRIDGE_VERSION = 1
 MAX_INPUT_CHARS = 32_000
 MAX_REQUEST_BYTES = 512 * 1024
 MAX_LIVE_SESSIONS = 32
+ATTACHMENT_READ_METHODS = {"image_preview", "pdf_preview", "workspace_status", "workspace_list", "workspace_read"}
 RESET_CODEX_THREAD_CONFIRMATION = "START NEW CODEX SESSION"
 
 
@@ -624,7 +627,12 @@ class NativeBackend:
                         provider_thread=provider_thread, knowledge_context=knowledge_metadata(project_notes, skill_task, recall=recall_report))))
             if provider == "codex" and not description["operator"]:
                 self.subscription.prepare_turn()
-                self.active_steering = LiveSteering(request_id, session_id, emit)
+                def require_steering_vision():
+                    options = self.subscription.models()
+                    resolved, _ = resolve_model_selection(options, model, reasoning_effort)
+                    require_image_model(options, resolved)
+                self.active_steering = LiveSteering(request_id, session_id, emit, attachments=SteeringAttachments(
+                    self.workspace(params) if logical_workspace else None, self.image_reader(), self.pdf_reader(), require_steering_vision))
                 self.subscription.on_main_turn = self.active_steering.set_active
             self.active_request, self.active_provider = request_id, provider if not description["operator"] else "operator"
             if self.closing.is_set():
@@ -1412,7 +1420,7 @@ def serve(backend: NativeBackend, source, destination) -> None:
         try:
             # stdout redirection is process-wide. The account-only reader has
             # no console output and must not nest a redirect from another thread.
-            with (nullcontext() if message["method"] in {"account_limits", "steer"} else redirect_stdout(sys.stderr)):
+            with (nullcontext() if message["method"] in {"account_limits", "steer"} | ATTACHMENT_READ_METHODS else redirect_stdout(sys.stderr)):
                 result = backend.dispatch(message["method"], message.get("params", {}), emit, request_id)
             emit({"id": request_id, "result": result})
         except Exception as exc:
@@ -1422,7 +1430,8 @@ def serve(backend: NativeBackend, source, destination) -> None:
 
     with (ThreadPoolExecutor(max_workers=1, thread_name_prefix="proto-native") as executor,
           ThreadPoolExecutor(max_workers=1, thread_name_prefix="proto-limits") as limits_executor,
-          ThreadPoolExecutor(max_workers=1, thread_name_prefix="proto-steer") as steering_executor):
+          ThreadPoolExecutor(max_workers=1, thread_name_prefix="proto-steer") as steering_executor,
+          ThreadPoolExecutor(max_workers=1, thread_name_prefix="proto-attachments") as attachment_executor):
         while True:
             raw = source.readline(MAX_REQUEST_BYTES + 1)
             if not raw:
@@ -1441,7 +1450,8 @@ def serve(backend: NativeBackend, source, destination) -> None:
                 if message["method"] == "cancel":
                     emit({"id": request_id, "result": backend.cancel(str(message.get("params", {}).get("request_id", "")))})
                 else:
-                    target = {"account_limits": limits_executor, "steer": steering_executor}.get(message["method"], executor)
+                    target = (attachment_executor if message["method"] in ATTACHMENT_READ_METHODS else
+                              {"account_limits": limits_executor, "steer": steering_executor}.get(message["method"], executor))
                     target.submit(run, message)
             except (ValueError, TypeError) as exc:
                 emit({"id": request_id, "error": {"message": str(exc)[:200]}})

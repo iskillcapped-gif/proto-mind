@@ -98,7 +98,8 @@ extension NativeChecks {
 
         app.setProvider("codex"); app.cloudConsent = false
         let preCloud = try fileBytes(fixture)
-        await app.submit("Summarize this PDF")
+        app.setComposer("Summarize this PDF")
+        await app.submit()
         try check(app.messages.last?.isError == true && app.selected?.pendingPDFs == [selected.source.value]
                   && app.workSessions.isEmpty && !app.cloudConsent && (try fileBytes(fixture)) == preCloud,
                   "PDF does not grant cloud, fall back or create a run without consent")

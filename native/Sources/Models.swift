@@ -142,7 +142,7 @@ struct Conversation: Codable, Identifiable, Equatable {
                 }
                 let primary = JSONValue.object(["role": .string(message.role), "content": .string(String((note + message.text).prefix(2000)))])
                 return [primary] + (message.taskUpdates ?? []).filter { $0.state == .accepted }.map {
-                    .object(["role": .string("user"), "content": .string(String($0.text.prefix(2000)))])
+                    .object(["role": .string("user"), "content": .string(String($0.historyText.prefix(2000)))])
                 }
             }.suffix(12).map { $0 }
     }

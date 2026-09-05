@@ -177,7 +177,7 @@ struct AttachmentDropPreviewView: View {
                 Button("Прикрепить \(preview.count)") {
                     do { try model.attachDrop(preview); dismiss() }
                     catch { self.error = error.localizedDescription }
-                }.keyboardShortcut(.defaultAction).disabled(model.busy)
+                }.keyboardShortcut(.defaultAction).disabled(!model.canEditMessageAttachments)
             }
         }.padding(22).frame(width: 720, height: 570).buttonStyle(.nativeHover)
     }

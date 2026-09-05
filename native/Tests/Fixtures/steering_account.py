@@ -46,6 +46,7 @@ class FixtureSubscription(CodexSubscription):
 
     def models(self):
         return model_options([{"id": "gpt-6-astra", "model": "gpt-6-astra", "displayName": "GPT-6 Astra",
+            "inputModalities": ["text", "image"],
             "isDefault": True, "defaultReasoningEffort": "medium",
             "supportedReasoningEfforts": [{"reasoningEffort": "medium", "description": "Medium"}]}])
 

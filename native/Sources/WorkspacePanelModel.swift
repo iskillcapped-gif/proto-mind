@@ -133,7 +133,7 @@ extension AppModel {
     }
 
     func chooseWorkspaceDocument() {
-        guard !busy, let conversationID = selectedID else { return }
+        guard canEditMessageAttachments, let conversationID = selectedID else { return }
         let picker = NSOpenPanel()
         picker.canChooseDirectories = false; picker.allowsMultipleSelection = false; picker.resolvesAliases = false
         picker.prompt = "Открыть"
@@ -166,7 +166,7 @@ extension AppModel {
     }
 
     func refreshWorkspacePDF(_ preview: NativePDFPreview, page: Int, tabID: UUID) async {
-        guard !busy, !loadingPDFPreview, let conversation = selected,
+        guard canEditMessageAttachments, !loadingPDFPreview, let conversation = selected,
               conversation.id == preview.conversationID, conversation.workspacePath == preview.workspace,
               (1...preview.source.value["page_count"].integer).contains(page) else { return }
         loadingPDFPreview = true

@@ -48,7 +48,7 @@ struct WorkspacePanelView: View {
                 }
                 Menu {
                     Button("Новая страница", systemImage: "globe") { panel.openBrowser() }
-                    Button("Открыть файл…", systemImage: "doc") { model.chooseWorkspaceDocument() }.disabled(model.busy)
+                    Button("Открыть файл…", systemImage: "doc") { model.chooseWorkspaceDocument() }.disabled(!model.canEditMessageAttachments)
                     Button("Файлы проекта", systemImage: "folder") { model.showProjectFiles() }
                 } label: { Image(systemName: "plus").frame(width: 24, height: 28) }
                     .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().help("Новая вкладка").accessibilityLabel("Новая вкладка")
@@ -94,7 +94,7 @@ private struct WorkspaceTextView: View {
     let file: WorkspaceTextPreview
     @State private var showSource = false
     private var markdown: Bool { ["md", "markdown"].contains(file.url.pathExtension.lowercased()) }
-    private var canAttach: Bool { !model.busy && model.selectedID == file.conversationID && model.selected?.workspacePath == file.root && model.selected?.archived != true }
+    private var canAttach: Bool { model.canEditMessageAttachments && model.selectedID == file.conversationID && model.selected?.workspacePath == file.root && model.selected?.archived != true }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -147,7 +147,7 @@ private struct WorkspaceImageView: View {
                     Button {
                         do { try model.attachImage(preview) } catch { model.workspacePanel.error = error.localizedDescription }
                     } label: { Image(systemName: "paperclip") }
-                        .disabled(model.busy || model.selectedID != preview.conversationID || model.selected?.archived == true)
+                        .disabled(!model.canEditMessageAttachments || model.selectedID != preview.conversationID || model.selected?.archived == true)
                         .help("Прикрепить к сообщению").accessibilityLabel("Прикрепить изображение к сообщению")
                 }
                 documentMenu(URL(fileURLWithPath: preview.source.path))
@@ -179,7 +179,7 @@ private struct WorkspacePDFView: View {
                     Button {
                         do { try model.attachPDF(preview) } catch { model.workspacePanel.error = error.localizedDescription }
                     } label: { Image(systemName: "paperclip") }
-                        .disabled(model.busy || model.loadingPDFPreview || !currentConversation || !preview.hasText || model.selected?.archived == true)
+                        .disabled(!model.canEditMessageAttachments || model.loadingPDFPreview || !currentConversation || !preview.hasText || model.selected?.archived == true)
                         .help("Прикрепить выбранные страницы").accessibilityLabel("Прикрепить страницы PDF")
                 }
                 documentMenu(URL(fileURLWithPath: preview.source.path))
@@ -189,11 +189,11 @@ private struct WorkspacePDFView: View {
                 Text("Текст PDF").font(.caption).foregroundStyle(.secondary)
                 Spacer()
                 Button { changePage(page - 1) } label: { Image(systemName: "chevron.left") }
-                    .disabled(page <= 1 || model.loadingPDFPreview || model.busy || !currentConversation)
+                    .disabled(page <= 1 || model.loadingPDFPreview || !model.canEditMessageAttachments || !currentConversation)
                     .accessibilityLabel("Предыдущая страница PDF")
                 Text("\(preview.source.pageLabel) / \(total)").font(.caption.monospacedDigit())
                 Button { changePage((preview.source.pages.last ?? page) + 1) } label: { Image(systemName: "chevron.right") }
-                    .disabled((preview.source.pages.last ?? page) >= total || model.loadingPDFPreview || model.busy || !currentConversation)
+                    .disabled((preview.source.pages.last ?? page) >= total || model.loadingPDFPreview || !model.canEditMessageAttachments || !currentConversation)
                     .accessibilityLabel("Следующая страница PDF")
                 if model.loadingPDFPreview { ProgressView().controlSize(.small) }
             }.padding(12)

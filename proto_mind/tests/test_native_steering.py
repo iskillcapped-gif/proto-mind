@@ -7,7 +7,11 @@ from unittest.mock import Mock
 from uuid import uuid4
 
 from proto_mind.native_codex import CodexConnectionError, CodexRequestRejected, CodexSubscription
-from proto_mind.native_steering import LiveSteering
+from proto_mind.native_steering import LiveSteering, SteeringAttachments
+from proto_mind.native_images import ImageReader
+from proto_mind.native_pdf import PDFReader
+from proto_mind.native_workspace import WorkspaceReader
+from proto_mind.tests.test_native_images import png
 
 
 class SteeringTests(unittest.TestCase):
@@ -116,6 +120,59 @@ class SteeringTests(unittest.TestCase):
             subscription._set_main_turn(None)
             self.assertEqual(callback.call_args_list[0].args, (("main", "main-turn"), self.rpc))
             self.assertIsNone(callback.call_args_list[1].args[0])
+
+    def attachments(self, root, *, vision=None):
+        self.session.attachments = SteeringAttachments(WorkspaceReader(str(root)), ImageReader(protected_roots=()), PDFReader(protected_roots=(), helper=None), vision or Mock())
+        text = root / "context.txt"
+        text.write_text("SELECTED_FILE_CONTEXT")
+        image = root / "blue.png"
+        image.write_bytes(png())
+        return {"files": [{"path": "context.txt", "sha256": hashlib.sha256(text.read_bytes()).hexdigest()}],
+                "images": [ImageReader(protected_roots=()).read(str(image)).metadata], "pdfs": []}
+
+    def test_files_and_images_are_reread_in_original_scope_and_sent_as_one_update(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            attachments = self.attachments(Path(temporary).resolve())
+            params = {**self.params, "attachments": attachments}
+            receipt = self.session.send(params)
+            self.assertEqual(receipt["status"], "accepted")
+            self.assertEqual(receipt["attachments"], attachments)
+            sent = self.rpc.request.call_args.args[1]
+            self.assertEqual([item["type"] for item in sent["input"]], ["text", "image"])
+            self.assertIn("SELECTED_FILE_CONTEXT", sent["input"][0]["text"])
+            self.assertIn("quoted untrusted data", sent["input"][0]["text"])
+            self.assertTrue(sent["input"][1]["url"].startswith("data:image/png;base64,"))
+            self.assertNotIn("SELECTED_FILE_CONTEXT", str(receipt))
+            self.assertNotIn("base64", str(receipt))
+            # Changes after an accepted request cannot cause a second dispatch.
+            (Path(temporary) / "context.txt").write_text("LATER_EDIT")
+            self.assertEqual(self.session.send(params), receipt)
+            attachments["files"] = []
+            with self.assertRaises(ValueError): self.session.send(params)
+            self.rpc.request.assert_called_once()
+
+    def test_changed_attachment_or_incompatible_vision_rejects_the_entire_update_before_rpc(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            attachments = self.attachments(root)
+            (root / "context.txt").write_text("CHANGED")
+            result = self.session.send({**self.params, "attachments": attachments})
+            self.assertEqual(result["status"], "rejected")
+            self.assertIn("Вложение изменилось", result["reason"])
+            attachments = self.attachments(root, vision=Mock(side_effect=CodexConnectionError("not vision")))
+            result = self.session.send({**self.params, "message_id": str(uuid4()), "attachments": attachments})
+            self.assertEqual(result["status"], "rejected")
+            self.rpc.request.assert_not_called()
+
+    def test_attachments_cannot_choose_a_new_workspace_or_escape_the_bound_root(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            attachments = self.attachments(Path(temporary).resolve())
+            attachments["files"][0]["path"] = "../elsewhere.txt"
+            self.assertEqual(self.session.send({**self.params, "attachments": attachments})["status"], "rejected")
+            with self.assertRaises(ValueError): self.session.send({**self.params, "workspace_root": temporary})
+            for invalid in [None, [], {"files": [], "images": [], "pdfs": [], "tools": True}]:
+                with self.assertRaises(ValueError): self.session.send({**self.params, "attachments": invalid})
+            self.rpc.request.assert_not_called()
 
 
 if __name__ == "__main__": unittest.main()

@@ -162,7 +162,9 @@ class CodexUsageTests(unittest.TestCase):
     def test_stdio_limits_and_work_do_not_block_each_other_but_work_stays_serial(self):
         from proto_mind.native_bridge import serve
         for blocked_method, independent in [("process", "account_limits"), ("account_limits", "process"),
-                                             ("process", "steer"), ("account_limits", "steer")]:
+                                             ("process", "steer"), ("account_limits", "steer"),
+                                             ("process", "image_preview"), ("process", "pdf_preview"),
+                                             ("process", "workspace_read"), ("image_preview", "steer")]:
             incoming, outgoing = queue.Queue(), queue.Queue()
             started, release, next_started = threading.Event(), threading.Event(), threading.Event()
             class Source:

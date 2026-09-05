@@ -8,11 +8,7 @@ struct ComposerView: View {
     @State private var attachmentsOpen = false
     @State private var starterSkillsOpen = false
 
-    private var cannotSend: Bool {
-        model.composer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            || model.selected?.archived == true || model.loadingDroppedAttachments
-            || model.loadingImagePreview || model.loadingPDFPreview || model.historyPersistence.blocksSubmission
-    }
+    private var cannotSend: Bool { !model.canSendComposer }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
@@ -53,6 +49,7 @@ struct ComposerView: View {
                     }
                     NativeComposer(text: $model.composer, revision: model.composerRevision, enabled: model.selected?.archived != true,
                                    focusOnRevision: model.transcriptDestination?.messageID == nil,
+                                   onStop: { if model.busy { Task { await model.stop() } } },
                                    canDrop: model.canReceiveAttachments, onDrop: { model.receiveAttachmentDrop($0) },
                                    onDropHover: { model.attachmentDropTargeted = $0 }, onDropError: { model.error = $0 }) { Task { await model.submit() } }
                         .frame(height: min(160, max(66, CGFloat(model.composer.components(separatedBy: "\n").count) * 23 + 30)))
@@ -98,6 +95,7 @@ struct ComposerView: View {
                     attachment("Файл проекта…", icon: "doc.text") { model.showProjectFiles() }
                     Divider().padding(.vertical, 4)
                     attachment("Заметка проекта…", icon: "brain.head.profile") { Task { await model.openProjectMemory() } }
+                        .disabled(model.busy)
                 }.padding(6)
             }
     }
@@ -169,14 +167,7 @@ struct ComposerView: View {
     }
 
     @ViewBuilder private var sendButton: some View {
-        if model.busy {
-            if model.canUpdateTask {
-                Button { Task { await model.submit() } } label: {
-                    Image(systemName: "arrow.up").font(.system(size: 15, weight: .semibold)).foregroundStyle(NativeTheme.canvas)
-                        .frame(width: 32, height: 32).background(NativeTheme.accent.opacity(cannotSend ? 0.28 : 1), in: Circle())
-                }.buttonStyle(.nativeHover).disabled(cannotSend).accessibilityLabel("Отправить уточнение")
-                    .help("Добавить текст к текущей задаче · Return")
-            }
+        if model.composerShowsStop {
             Button { Task { await model.stop() } } label: {
                 Image(systemName: "stop.fill").font(.system(size: 12)).foregroundStyle(NativeTheme.canvas)
                     .frame(width: 32, height: 32).background(Color.primary, in: Circle())
@@ -187,8 +178,9 @@ struct ComposerView: View {
             Button { Task { await model.submit() } } label: {
                 Image(systemName: "arrow.up").font(.system(size: 16, weight: .semibold)).foregroundStyle(NativeTheme.canvas)
                     .frame(width: 32, height: 32).background(NativeTheme.accent.opacity(cannotSend ? 0.28 : 1), in: Circle())
-            }.buttonStyle(.nativeHover).disabled(cannotSend).accessibilityLabel("Отправить сообщение")
-                .help(model.historyPersistence.blocksSubmission ? "Сначала восстановите сохранение истории" : "Отправить · Return")
+            }.buttonStyle(.nativeHover).disabled(cannotSend).accessibilityLabel(model.busy ? "Отправить уточнение" : "Отправить сообщение")
+                .help(model.historyPersistence.blocksSubmission ? "Сначала восстановите сохранение истории"
+                      : model.busy ? "Добавить к текущей задаче · Return. Остановить · Esc" : "Отправить · Return")
         }
     }
 
@@ -200,7 +192,7 @@ struct ComposerView: View {
                         Image(systemName: "doc.text")
                         Text(URL(fileURLWithPath: file["path"].text).lastPathComponent).lineLimit(1)
                         Button { model.removePendingFile(file["path"].text) } label: { Image(systemName: "xmark") }
-                            .buttonStyle(.nativeHover).disabled(model.busy).help("Убрать вложение")
+                            .buttonStyle(.nativeHover).disabled(!model.canEditMessageAttachments).help("Убрать вложение")
                     }.font(.system(size: 11)).padding(8).background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
                         .help(file["path"].text + " · до 6 000 символов для следующего сообщения")
                 }

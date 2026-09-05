@@ -4,9 +4,14 @@ import Foundation
 // Main-actor transitions for this domain; stored state remains in AppModel.
 extension AppModel {
     func submit(_ supplied: String? = nil) async {
-        let text = (supplied ?? composer).trimmingCharacters(in: .whitespacesAndNewlines)
+        let draftText = (supplied ?? composer).trimmingCharacters(in: .whitespacesAndNewlines)
+        let text = draftText.isEmpty && hasPendingMessageAttachments
+            ? (busy ? "Учти вложения в текущей задаче." : "Посмотри вложения.") : draftText
         if busy {
-            if !text.isEmpty { await enqueueTaskUpdate(text) }
+            if canSendComposer || (supplied != nil && !text.isEmpty && canUpdateTask && !loadingDroppedAttachments
+                && !loadingImagePreview && !loadingPDFPreview && imagePreview == nil && pdfPreview == nil && attachmentDropPreview == nil) {
+                await enqueueTaskUpdate(text)
+            }
             return
         }
         guard !text.isEmpty, !busy, !loadingDroppedAttachments, !loadingImagePreview, !loadingPDFPreview,
@@ -64,6 +69,9 @@ extension AppModel {
         let continuation = operatorInput ? nil : conversation.draftContinuation
         let userMessage = ChatMessage(role: "user", text: text, operatorInput: operatorInput, fileContext: files, imageContext: images, pdfContext: pdfs)
         conversations[index].messages.append(userMessage)
+        if !operatorInput {
+            conversations[index].pendingFiles = []; conversations[index].pendingImages = []; conversations[index].pendingPDFs = []
+        }
         if conversations[index].title == "Новый диалог" {
             conversations[index].title = String(text.split(whereSeparator: \.isWhitespace).joined(separator: " ").prefix(54))
         }
@@ -197,9 +205,6 @@ extension AppModel {
                                       turnReference: turnReference)
             append(message, to: conversationID)
             if !operatorInput, let current = conversations.firstIndex(where: { $0.id == conversationID }) {
-                conversations[current].pendingFiles = []
-                conversations[current].pendingImages = []
-                conversations[current].pendingPDFs = []
                 conversations[current].pendingCriteria = []
                 projectNoteSelections[conversationID] = nil
                 preparedSkillTasks[conversationID] = nil
@@ -217,6 +222,16 @@ extension AppModel {
                                agentRun: agentReceipt.isNull ? nil : agentReceipt,
                                workLog: workLog.isNull ? nil : workLog, autoSkills: autoSkillsReport?.value), to: conversationID)
             if grant != nil { discardAgentGrants(for: conversationID) }
+            if let current = conversations.firstIndex(where: { $0.id == conversationID }),
+               conversations[current].pendingFiles.isEmpty, conversations[current].pendingImages.isEmpty,
+               conversations[current].pendingPDFs.isEmpty,
+               selectedID != conversationID || composer.isEmpty || composer == conversation.draft {
+                // Restore the failed request's selection without adding its files
+                // to a different message the user has started drafting meanwhile.
+                conversations[current].pendingFiles = files
+                conversations[current].pendingImages = images
+                conversations[current].pendingPDFs = pdfs
+            }
             if selectedID == conversationID && composer.isEmpty {
                 if let current = conversations.firstIndex(where: { $0.id == conversationID }) {
                     conversations[current].draftContinuation = continuation

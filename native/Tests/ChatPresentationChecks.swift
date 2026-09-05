@@ -78,6 +78,12 @@ extension NativeChecks {
                 try check(frame.minY > anchor.maxY && screen.contains(frame) && frame.height < 1000,
                           "Composer popup stays above the anchor and scrolls within the current screen, including offset displays")
             }
+            let sidebarButton = CGRect(x: screen.minX + 30, y: screen.minY + 20, width: 185, height: 54)
+            let menu = ComposerPopoverPlacement.frame(anchor: sidebarButton, screen: screen, size: CGSize(width: 290, height: 1200),
+                                                       trailing: false, confinedToColumn: true)
+            try check(menu.minX >= sidebarButton.minX && menu.maxX <= sidebarButton.maxX
+                      && menu.minY > sidebarButton.maxY && screen.contains(menu),
+                      "The sidebar popup stays inside its narrow column and scrolls above the menu button")
         }
         let message = ChatMessage(role: "assistant", text: "Ответ", notices: ["Служебное пояснение"])
         try check(message.hasResponseDetails && !ChatMessage(role: "assistant", text: "Ответ").hasResponseDetails,

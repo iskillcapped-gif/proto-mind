@@ -22,7 +22,7 @@ struct SidebarMenuView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Меню").font(.system(size: 13))
                         HStack(spacing: 4) {
-                            Text(compactLabel).lineLimit(1).minimumScaleFactor(0.85)
+                            Text((usage.summary?.compactBucket == nil ? "" : "Исп. ") + compactLabel).lineLimit(1).minimumScaleFactor(0.85)
                             if stale(at: context.date), usage.summary?.compactBucket != nil {
                                 Image(systemName: "clock").font(.system(size: 9))
                             }
@@ -35,7 +35,7 @@ struct SidebarMenuView: View {
                 .accessibilityValue("Использовано: \(compactLabel)\(stale(at: context.date) ? ", требуется обновление" : "")")
                 .help("Настройки и лимиты Codex. Показана использованная доля лимитов аккаунта.")
         }
-        .composerPopover(isPresented: $open, width: 290) {
+        .composerPopover(isPresented: $open, width: 290, confinedToColumn: true) {
             menuContent
         }
         .task(id: autoRefresh) {
@@ -78,6 +78,12 @@ struct SidebarMenuView: View {
             }
             Divider().padding(.horizontal, 8).padding(.vertical, 5)
             VStack(alignment: .leading, spacing: 12) {
+                if let value = usage.summary, value.connected {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("ChatGPT · \(value.plan.capitalized)").font(.system(size: 12, weight: .medium))
+                        if !value.email.isEmpty { Text(value.email).font(.system(size: 10.5)).lineLimit(2).textSelection(.enabled) }
+                    }.foregroundStyle(.secondary)
+                }
                 HStack {
                     Text("Использовано").font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
                     Spacer()
@@ -104,6 +110,10 @@ struct SidebarMenuView: View {
                                         ProgressView(value: min(used, 100), total: 100)
                                             .tint(used >= 90 ? .orange : .secondary).controlSize(.mini)
                                     }
+                                    if let remaining = window.remaining {
+                                        Text("Осталось \(remaining.formatted(.number.precision(.fractionLength(0...1))))%")
+                                            .font(.system(size: 10.5)).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .trailing)
+                                    }
                                 }.accessibilityElement(children: .combine)
                             }
                         }
@@ -120,7 +130,7 @@ struct SidebarMenuView: View {
                             Text("\(stale(at: context.date) ? "Данные устарели" : "Обновлено") · \(Date(timeIntervalSince1970: updated).formatted(date: .omitted, time: .shortened))")
                         }
                         if let error = usage.summaryError { Text(error) }
-                        Text("Общие лимиты аккаунта Codex")
+                        Text("Лимиты аккаунта, подключённого в Proto-Mind")
                     }.font(.system(size: 10.5)).foregroundStyle(.secondary)
                 }
             }.padding(.horizontal, 12).padding(.bottom, 10)

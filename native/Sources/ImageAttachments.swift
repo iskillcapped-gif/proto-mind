@@ -115,7 +115,7 @@ struct ImageAttachmentPreviewView: View {
                     Button("Прикрепить к сообщению") {
                         do { try model.attachImage(preview); dismiss() }
                         catch { self.error = error.localizedDescription }
-                    }.keyboardShortcut(.defaultAction).disabled(model.busy)
+                    }.keyboardShortcut(.defaultAction).disabled(!model.canEditMessageAttachments)
                 }
             }
         }.padding(22).frame(width: 740, height: 620).buttonStyle(.nativeHover)
@@ -152,6 +152,6 @@ struct PendingImageAttachmentsView: View {
             // tall fixedSize column and push the whole window outside its bounds.
             Text(model.imageDestinationNotice).font(.caption).foregroundStyle(.secondary)
                 .lineLimit(3).help(model.imageDestinationNotice)
-        }.buttonStyle(.nativeHover).disabled(model.busy || model.loadingImagePreview || model.loadingDroppedAttachments).padding(.horizontal, 12).padding(.top, 10)
+        }.buttonStyle(.nativeHover).disabled(!model.canEditMessageAttachments || model.loadingImagePreview || model.loadingDroppedAttachments).padding(.horizontal, 12).padding(.top, 10)
     }
 }

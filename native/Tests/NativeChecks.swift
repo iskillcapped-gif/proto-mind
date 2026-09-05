@@ -723,7 +723,8 @@ struct NativeChecks {
         try await memorySuggestionIntegration(fixture: fixture, python: python, root: root)
         app.setProvider("codex")
         app.cloudConsent = false
-        await app.submit("retry draft")
+        app.setComposer("retry draft")
+        await app.submit()
         try check(app.messages.last?.isError == true && app.composer == "retry draft", "Unsent cloud turn remains a draft without silent fallback")
         try check(!app.selected!.history.contains { $0["content"].text == "retry draft" }, "Failed send is excluded from subsequent model history")
     }
@@ -916,7 +917,8 @@ struct NativeChecks {
         await app.submit("/data doctor")
         try check(app.selected?.pendingImages == [preview.source.value] && app.messages.last?.imageContext?.isEmpty == true,
                   "Operator command bypasses images and preserves pending attachment")
-        await app.submit("Inspect this selected image.")
+        app.setComposer("Inspect this selected image.")
+        await app.submit()
         try check(app.messages.last?.isError == true && app.selected?.pendingImages == [preview.source.value]
                   && app.composer == "Inspect this selected image." && app.workSessions.isEmpty,
                   "Unsupported local-provider image send preserves draft and creates no run")

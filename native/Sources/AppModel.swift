@@ -752,7 +752,7 @@ final class AppModel: ObservableObject {
     }
 
     func refreshWorkspace(_ path: String = "") async {
-        guard !busy, !loadingWorkspace, let root = selected?.workspacePath, let id = selectedID else { return }
+        guard canEditMessageAttachments, !loadingWorkspace, let root = selected?.workspacePath, let id = selectedID else { return }
         loadingWorkspace = true; workspaceError = nil
         defer { loadingWorkspace = false }
         do {
@@ -764,7 +764,7 @@ final class AppModel: ObservableObject {
 
     func openWorkspaceEntry(_ entry: JSONValue) async {
         if entry["directory"].flag { await refreshWorkspace(entry["path"].text); return }
-        guard !busy, !loadingWorkspace, let root = selected?.workspacePath, let id = selectedID else { return }
+        guard canEditMessageAttachments, !loadingWorkspace, let root = selected?.workspacePath, let id = selectedID else { return }
         let suffix = URL(fileURLWithPath: entry["path"].text).pathExtension.lowercased()
         if ["png", "jpg", "jpeg", "pdf"].contains(suffix) {
             do {
@@ -796,7 +796,7 @@ final class AppModel: ObservableObject {
     }
 
     func attachPreview() {
-        guard !busy, !filePreview.isNull, let index = conversations.firstIndex(where: { $0.id == selectedID }) else { return }
+        guard canEditMessageAttachments, !filePreview.isNull, let index = conversations.firstIndex(where: { $0.id == selectedID }) else { return }
         let path = filePreview["path"].text
         let existing = conversations[index].pendingFiles.firstIndex { $0["path"].text == path }
         guard existing != nil || conversations[index].pendingFiles.count < 3 else {
@@ -811,7 +811,7 @@ final class AppModel: ObservableObject {
     }
 
     func removePendingFile(_ path: String) {
-        guard !busy, let index = conversations.firstIndex(where: { $0.id == selectedID }) else { return }
+        guard canEditMessageAttachments, let index = conversations.firstIndex(where: { $0.id == selectedID }) else { return }
         conversations[index].pendingFiles.removeAll { $0["path"].text == path }
         persist()
     }
@@ -846,7 +846,7 @@ final class AppModel: ObservableObject {
     }
 
     func previewImage(_ path: String, expectedSHA: String? = nil, canAttach: Bool = true, inWorkspacePanel: Bool = false) async {
-        guard !busy, !loadingImagePreview, !loadingDroppedAttachments, !loadingPDFPreview,
+        guard canEditMessageAttachments, !loadingImagePreview, !loadingDroppedAttachments, !loadingPDFPreview,
               pdfPreview == nil, attachmentDropPreview == nil,
               let conversationID = selectedID else { return }
         loadingImagePreview = true
@@ -855,7 +855,7 @@ final class AppModel: ObservableObject {
             var params: [String: JSONValue] = ["path": .string(path)]
             if let expectedSHA { params["expected_sha256"] = .string(expectedSHA) }
             let result = try await client.request("image_preview", params)
-            guard selectedID == conversationID, !busy else { return }
+            guard selectedID == conversationID, canEditMessageAttachments else { return }
             let preview = try NativeImagePreview(result, conversationID: conversationID, canAttach: canAttach)
             guard preview.source.path == path, expectedSHA == nil || preview.source.sha256 == expectedSHA else {
                 throw NativeError.message("Предпросмотр относится к другому изображению. Ничего не прикреплено.")
@@ -868,7 +868,7 @@ final class AppModel: ObservableObject {
     }
 
     func attachImage(_ preview: NativeImagePreview) throws {
-        guard preview.canAttach, !busy, selectedID == preview.conversationID, selected?.archived != true,
+        guard preview.canAttach, canEditMessageAttachments, selectedID == preview.conversationID, selected?.archived != true,
               let index = conversations.firstIndex(where: { $0.id == preview.conversationID }) else {
             throw NativeError.message("Диалог изменился или занят. Изображение не прикреплено.")
         }
@@ -879,7 +879,7 @@ final class AppModel: ObservableObject {
     }
 
     func removePendingImage(_ path: String) {
-        guard !busy, let index = conversations.firstIndex(where: { $0.id == selectedID }) else { return }
+        guard canEditMessageAttachments, let index = conversations.firstIndex(where: { $0.id == selectedID }) else { return }
         do { try updatePendingImages(conversations[index].pendingImages.filter { $0["path"].text != path }, index: index) }
         catch { report(error) }
     }
@@ -897,7 +897,7 @@ final class AppModel: ObservableObject {
     }
 
     var canReceiveAttachments: Bool {
-        selected != nil && selected?.archived != true && !busy && !client.turnOutstanding
+        selected != nil && selected?.archived != true && canEditMessageAttachments
             && !loadingDroppedAttachments && !loadingImagePreview && !loadingPDFPreview
             && imagePreview == nil && pdfPreview == nil && attachmentDropPreview == nil
             && pendingAction == nil && pendingAgentAccess == nil
@@ -948,7 +948,7 @@ final class AppModel: ObservableObject {
             }
             var images: [NativeImagePreview] = [], files: [NativeDroppedFile] = []
             for url in urls {
-                guard selectedID == conversation.id, selected?.workspacePath == conversation.workspacePath, !busy else { return }
+                guard selectedID == conversation.id, selected?.workspacePath == conversation.workspacePath, canEditMessageAttachments else { return }
                 if NativeAttachmentDrop.isImage(url) {
                     let value = try await client.request("image_preview", ["path": .string(url.path)])
                     let preview = try NativeImagePreview(value, conversationID: conversation.id, canAttach: true)
@@ -960,7 +960,7 @@ final class AppModel: ObservableObject {
                     files.append(try NativeDroppedFile(value, path: path))
                 }
             }
-            guard selectedID == conversation.id, let current = selected, !busy else { return }
+            guard selectedID == conversation.id, let current = selected, canEditMessageAttachments else { return }
             let preview = NativeAttachmentDropPreview(conversationID: conversation.id, workspace: conversation.workspacePath, images: images, files: files)
             _ = try preview.merged(with: current)
             attachmentDropPreview = preview
@@ -970,7 +970,7 @@ final class AppModel: ObservableObject {
     }
 
     func attachDrop(_ preview: NativeAttachmentDropPreview) throws {
-        guard !busy, !loadingDroppedAttachments, selectedID == preview.conversationID,
+        guard canEditMessageAttachments, !loadingDroppedAttachments, selectedID == preview.conversationID,
               let index = conversations.firstIndex(where: { $0.id == preview.conversationID }) else {
             throw NativeError.message("Диалог изменился или занят. Файлы не прикреплены.")
         }
@@ -1021,7 +1021,7 @@ final class AppModel: ObservableObject {
         var params: [String: JSONValue] = ["path": .string(path), "pages": .array(pages.map { .number(Double($0)) })]
         if let expectedSHA { params["expected_sha256"] = .string(expectedSHA) }
         let result = try await client.request("pdf_preview", params)
-        guard !busy, !client.turnOutstanding, selectedID == conversation.id,
+        guard canEditMessageAttachments, selectedID == conversation.id,
               selected?.workspacePath == conversation.workspacePath, selected?.archived != true else {
             throw NativeError.message("Диалог изменился или занят. PDF не прикреплён и не отправлен.")
         }
@@ -1050,7 +1050,7 @@ final class AppModel: ObservableObject {
     }
 
     func reloadPDFPreview(_ preview: NativePDFPreview, pages: [Int]) async throws -> NativePDFPreview {
-        guard !busy, !loadingPDFPreview, preview.canAttach, let conversation = selected,
+        guard canEditMessageAttachments, !loadingPDFPreview, preview.canAttach, let conversation = selected,
               conversation.id == preview.conversationID, conversation.workspacePath == preview.workspace,
               pdfPreview?.source.path == preview.source.path else {
             throw NativeError.message("Выбор PDF изменился или занят. Ничего не отправлено.")
@@ -1062,7 +1062,7 @@ final class AppModel: ObservableObject {
     }
 
     func attachPDF(_ preview: NativePDFPreview) throws {
-        guard preview.canAttach, preview.hasText, !busy, !client.turnOutstanding, !loadingPDFPreview,
+        guard preview.canAttach, preview.hasText, canEditMessageAttachments, !loadingPDFPreview,
               !loadingDroppedAttachments, selectedID == preview.conversationID,
               selected?.workspacePath == preview.workspace, selected?.archived != true,
               let index = conversations.firstIndex(where: { $0.id == preview.conversationID }) else {
@@ -1074,7 +1074,7 @@ final class AppModel: ObservableObject {
     }
 
     func removePendingPDF() {
-        guard !busy, let index = conversations.firstIndex(where: { $0.id == selectedID }) else { return }
+        guard canEditMessageAttachments, let index = conversations.firstIndex(where: { $0.id == selectedID }) else { return }
         do { try updatePendingPDFs([], index: index) } catch { report(error) }
     }
 

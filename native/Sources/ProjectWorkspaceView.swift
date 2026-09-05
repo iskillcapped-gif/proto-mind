@@ -19,12 +19,12 @@ struct ProjectWorkspaceView: View {
                 Spacer()
                 if model.loadingWorkspace { ProgressView().controlSize(.small) }
                 Button { Task { await model.refreshWorkspace(model.workspaceListing["directory"].text) } } label: { Image(systemName: "arrow.clockwise") }
-                    .disabled(model.busy || model.loadingWorkspace || model.selected?.workspacePath == nil).help("Обновить файлы").accessibilityLabel("Обновить файлы")
+                    .disabled(!model.canEditMessageAttachments || model.loadingWorkspace || model.selected?.workspacePath == nil).help("Обновить файлы").accessibilityLabel("Обновить файлы")
                 Menu {
                     Button("Открыть файл…") { model.chooseWorkspaceDocument() }
-                    Button("Выбрать папку…") { model.chooseWorkspace() }
+                    Button("Выбрать папку…") { model.chooseWorkspace() }.disabled(model.busy)
                 } label: { Image(systemName: "ellipsis") }
-                    .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().disabled(model.busy)
+                    .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().disabled(!model.canEditMessageAttachments)
                     .accessibilityLabel("Действия с файлами")
             }.padding(16)
             Divider()
@@ -38,7 +38,7 @@ struct ProjectWorkspaceView: View {
                     Text("Выберите папку, чтобы читать документы и код.\nФайлы попадут в запрос только после прикрепления.")
                         .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
                     Button("Выбрать папку…") { model.chooseWorkspace() }.buttonStyle(.bordered).disabled(model.busy)
-                    Button("Открыть изображение или PDF…") { model.chooseWorkspaceDocument() }.disabled(model.busy)
+                    Button("Открыть изображение или PDF…") { model.chooseWorkspaceDocument() }.disabled(!model.canEditMessageAttachments)
                 }.padding(24).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 HStack(spacing: 9) {
@@ -46,7 +46,7 @@ struct ProjectWorkspaceView: View {
                         let parent = (model.workspaceListing["directory"].text as NSString).deletingLastPathComponent
                         Task { await model.refreshWorkspace(parent) }
                     } label: { Image(systemName: "chevron.left") }
-                        .disabled(["", "."].contains(model.workspaceListing["directory"].text) || model.busy || model.loadingWorkspace)
+                        .disabled(["", "."].contains(model.workspaceListing["directory"].text) || !model.canEditMessageAttachments || model.loadingWorkspace)
                         .accessibilityLabel("Родительская папка")
                     TextField("Найти в этой папке", text: $search).textFieldStyle(.roundedBorder)
                     if !search.isEmpty { Button { search = "" } label: { Image(systemName: "xmark.circle.fill") }.accessibilityLabel("Очистить фильтр файлов") }
@@ -64,7 +64,7 @@ struct ProjectWorkspaceView: View {
                                     Spacer(minLength: 4)
                                     if entry["directory"].flag { Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.secondary) }
                                 }.font(.system(size: 13)).padding(10).contentShape(Rectangle())
-                            }.buttonStyle(.nativeHover).disabled(model.loadingWorkspace || model.busy).help(entry["path"].text)
+                            }.buttonStyle(.nativeHover).disabled(model.loadingWorkspace || !model.canEditMessageAttachments).help(entry["path"].text)
                         }
                         if entries.isEmpty && !model.loadingWorkspace {
                             Text(search.isEmpty ? "В этой папке нет доступных файлов." : "Ничего не найдено.")

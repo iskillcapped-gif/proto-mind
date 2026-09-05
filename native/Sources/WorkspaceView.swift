@@ -513,6 +513,7 @@ struct NativeComposer: NSViewRepresentable {
     var revision: Int
     var enabled: Bool
     var focusOnRevision = true
+    var onStop: () -> Void = {}
     var canDrop = false
     var onDrop: ([URL]) -> Bool = { _ in false }
     var onDropHover: (Bool) -> Void = { _ in }
@@ -553,6 +554,7 @@ struct NativeComposer: NSViewRepresentable {
         }
 
         var onSend: (() -> Void)?
+        var onStop: (() -> Void)?
         var canDrop = false
         var onFiles: (([URL]) -> Bool)?
         var onDropHover: ((Bool) -> Void)?
@@ -588,7 +590,9 @@ struct NativeComposer: NSViewRepresentable {
             catch { onDropError?(error.localizedDescription); return false }
         }
         override func keyDown(with event: NSEvent) {
-            if [36, 76].contains(event.keyCode) && !event.modifierFlags.contains(.shift) && !hasMarkedText() {
+            if event.keyCode == 53 && !hasMarkedText() {
+                onStop?()
+            } else if [36, 76].contains(event.keyCode) && !event.modifierFlags.contains(.shift) && !hasMarkedText() {
                 onSend?()
             } else { super.keyDown(with: event) }
         }
@@ -640,6 +644,7 @@ struct NativeComposer: NSViewRepresentable {
             if revision > 0, focusOnRevision { editor.requestProgrammaticFocus() }
         }
         editor.onSend = onSend
+        editor.onStop = onStop
         // A prepared draft can arrive while the RPC still marks the composer
         // disabled. Keep its request until both the field and parent window are ready.
         if enabled, editor.pendingProgrammaticFocus { editor.requestProgrammaticFocus() }
