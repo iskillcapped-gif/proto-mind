@@ -83,17 +83,6 @@ struct ComposerView: View {
             }
             .background(NativeTheme.composer, in: RoundedRectangle(cornerRadius: 20))
             .overlay(RoundedRectangle(cornerRadius: 20).stroke(NativeTheme.hairline))
-            HStack(spacing: 7) {
-                if model.busy {
-                    Text(model.status).lineLimit(1)
-                } else if let path = model.selected?.workspacePath {
-                    Label(URL(fileURLWithPath: path).lastPathComponent, systemImage: "folder").lineLimit(1).help(path)
-                } else {
-                    Text(model.selected?.provider == "codex" ? "ChatGPT" : model.selected?.provider == "mock" ? "Тестовый режим" : "На этом Mac")
-                }
-                Spacer(minLength: 8)
-                Text("⇧↵ новая строка").lineLimit(1)
-            }.font(.system(size: 10)).foregroundStyle(.secondary).padding(.horizontal, 6)
         }.frame(maxWidth: NativeTheme.columnWidth).frame(maxWidth: .infinity)
             .sheet(isPresented: $starterSkillsOpen) { StarterSkillsView(client: model.client) }
     }
@@ -183,14 +172,14 @@ struct ComposerView: View {
         if model.busy {
             Button { Task { await model.stop() } } label: {
                 Image(systemName: "stop.fill").font(.system(size: 12)).foregroundStyle(NativeTheme.canvas)
-                    .frame(width: 36, height: 36).background(Color.primary, in: Circle())
+                    .frame(width: 32, height: 32).background(Color.primary, in: Circle())
             }.buttonStyle(.nativeHover).keyboardShortcut(.cancelAction)
                 .help("Запросить остановку Codex · Esc. Локальные операции завершаются без прерывания; выполненные действия не откатываются.")
                 .accessibilityLabel("Запросить остановку")
         } else {
             Button { Task { await model.submit() } } label: {
-                Image(systemName: "arrow.up").font(.system(size: 17, weight: .semibold)).foregroundStyle(NativeTheme.canvas)
-                    .frame(width: 36, height: 36).background(NativeTheme.accent.opacity(cannotSend ? 0.28 : 1), in: Circle())
+                Image(systemName: "arrow.up").font(.system(size: 16, weight: .semibold)).foregroundStyle(NativeTheme.canvas)
+                    .frame(width: 32, height: 32).background(NativeTheme.accent.opacity(cannotSend ? 0.28 : 1), in: Circle())
             }.buttonStyle(.nativeHover).disabled(cannotSend).accessibilityLabel("Отправить сообщение")
                 .help(model.historyPersistence.blocksSubmission ? "Сначала восстановите сохранение истории" : "Отправить · Return")
         }

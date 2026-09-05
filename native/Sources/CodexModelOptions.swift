@@ -40,7 +40,7 @@ struct CodexModelOption: Identifiable, Equatable {
         guard name.lowercased().hasPrefix("gpt-") else { return name }
         let words = name.dropFirst(4).split(separator: "-")
         return words.map { word in
-            ["sol", "terra", "luna", "mini", "codex", "spark"].contains(word.lowercased()) ? word.capitalized : String(word)
+            ["astra", "sol", "terra", "luna", "mini", "codex", "spark"].contains(word.lowercased()) ? word.capitalized : String(word)
         }.joined(separator: " ")
     }
 }

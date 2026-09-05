@@ -330,7 +330,7 @@ private struct ChatView: View {
                         }
                 }
             }
-            ComposerView(model: model).padding(.horizontal, NativeTheme.conversationInset).padding(.top, 7).padding(.bottom, 12).background(canvas)
+            ComposerView(model: model).padding(.horizontal, NativeTheme.conversationInset).padding(.top, 7).padding(.bottom, 8).background(canvas)
         }.modifier(AttachmentDropTarget(model: model))
     }
 

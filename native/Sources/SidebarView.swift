@@ -122,7 +122,8 @@ struct SidebarView: View {
     }
 
     private func conversationRow(_ chat: Conversation) -> some View {
-        Button {
+        let isWorking = model.busy && model.turnStartedAt != nil && model.selectedID == chat.id
+        return Button {
             let query = model.conversationSearch.trimmingCharacters(in: .whitespacesAndNewlines)
             let match = query.isEmpty ? nil : chat.messages.last { $0.text.localizedCaseInsensitiveContains(query) }
             model.returnToConversation(chat.id, messageID: match?.id)
@@ -131,13 +132,16 @@ struct SidebarView: View {
                 if chat.archived { Image(systemName: "archivebox").font(.system(size: 12)).foregroundStyle(.secondary) }
                 Text(chat.title).font(.system(size: 14)).lineLimit(1)
                 Spacer(minLength: 0)
-                if !chat.draft.isEmpty {
+                if isWorking {
+                    WorkingIndicator()
+                } else if !chat.draft.isEmpty {
                     Image(systemName: "pencil").font(.system(size: 10)).foregroundStyle(.secondary).help("Есть черновик")
                 }
             }.padding(.leading, 30).padding(.trailing, 10).padding(.vertical, 9).frame(maxWidth: .infinity, alignment: .leading)
                 .background(model.selectedID == chat.id && model.section == .chat ? NativeTheme.selection : .clear,
                             in: RoundedRectangle(cornerRadius: 9))
         }.buttonStyle(.nativeHover).disabled(model.busy).help(chat.title)
+            .accessibilityLabel(chat.title + (isWorking ? " · Выполняется задача" : ""))
             .contextMenu {
                 Button("Переименовать…") { newTitle = chat.title; renaming = chat }
                 Button(chat.archived ? "Вернуть из архива" : "В архив") { model.archiveConversation(chat.id, archived: !chat.archived) }

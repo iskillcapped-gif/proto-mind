@@ -17,11 +17,17 @@ struct ModelSelectionMenu: View {
     private var title: String {
         isCodex ? "\(model.codexModelLabel) · \(model.reasoningEffortLabel)" : localModelLabel
     }
+    private var styledTitle: Text {
+        let effort = Text(" · \(model.reasoningEffortLabel)").foregroundColor(.secondary)
+        return isCodex
+            ? Text("\(model.codexModelLabel)\(effort)")
+            : Text(localModelLabel)
+    }
 
     var body: some View {
         Button { open.toggle() } label: {
             HStack(spacing: 5) {
-                Text(title).lineLimit(1).truncationMode(.middle)
+                styledTitle.lineLimit(1).truncationMode(.middle)
                 Image(systemName: "chevron.up").font(.system(size: 9, weight: .semibold))
             }.font(.system(size: 12, weight: .medium))
                 .padding(.horizontal, 5)

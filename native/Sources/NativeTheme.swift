@@ -16,8 +16,8 @@ enum NativeTheme {
     static let selection = color((0.88, 0.88, 0.88), (0.275, 0.275, 0.275))
     static let accent = color((0.16, 0.16, 0.16), (0.95, 0.95, 0.95))
     static let hairline = Color.primary.opacity(0.07)
-    static let columnWidth: CGFloat = 760
-    static let conversationInset: CGFloat = 48
+    static let columnWidth: CGFloat = 752
+    static let conversationInset: CGFloat = 50
     static let interfaceSize: CGFloat = 14
     static let codeSize: CGFloat = 12
     static let interfaceFont = Font.system(size: interfaceSize)

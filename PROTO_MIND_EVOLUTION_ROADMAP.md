@@ -1,6 +1,6 @@
 # Proto-Mind: Current Direction
 
-Updated: 2026-09-05. Current release: Native **0.51.0 (58)**.
+Updated: 2026-09-05. Current release: Native **0.51.1 (59)**.
 
 Proto-Mind is a personal macOS assistant. The immediate goal is a dependable, approachable application that can support the operator's planned expansion. The everyday layout and working panel are delivered. The operator returned to conversation polish on September 5: a calmer work timeline, narrower reading column, upward composer menus and final file-change summaries. Memory and continuity workflows remain delivered.
 
@@ -35,6 +35,8 @@ Release 0.48.0 follows the operator's Codex screenshots: neutral gray/charcoal s
 
 Release 0.51.0 refines the conversation after the operator's second screenshot review: aligned 760-point input/transcript columns with larger margins, 15-point body/input text, composer panels that stay above their anchors, adaptive model-control width, compact grouped activity, and final-only edited-file cards. Skills, project-recall reports and service notices move to answer details. Line totals come from complete observed diffs, never truncated preview text; older counts may be absent. See the [release contract](NATIVE_MACOS_ROADMAP.md#quieter-conversation--native-0510).
 
+Release 0.51.1 adds the operator's final composer refinements and subtle activity animations. The local Codex CLI was updated from 0.151.0 to 0.153.4; Astra then appeared in Proto-Mind's account catalog. See the [release contract](NATIVE_MACOS_ROADMAP.md#conversation-polish--native-0511).
+
 ## Project Memory Controls Delivered
 
 Release 0.49.0 makes explicitly saved project knowledge manageable through ordinary actions: **Сохранить**, **Изменить**, **Убрать из памяти проекта** and **Вернуть в память проекта**. Removing a note excludes it from new recall and attachment; history retains the original bytes and supports search and restoration. Exact preview, scope and writer checks happen internally after the user's action. Stale pending note selections and context previews are cleared after edits/removal. **Библиотека** separates project notes from legacy shared memory. See the [release contract](NATIVE_MACOS_ROADMAP.md#project-memory-controls--native-0490).
@@ -47,7 +49,7 @@ Release 0.50.0 closes the missing navigation step: **История диалог
 
 The current recovery UI exports dialogs, while useful personal state also lives in project notes, shared core memory, the work journal and local provider/session links. The next candidate is one clearly scoped, verified backup and recovery flow for that local private state. Begin with an inventory and a consistent snapshot/preview; preserve existing recovery copies and separately identify original attachments or remote provider history that a local copy cannot contain. Do not treat a dialog export as a full backup or silently restore authority from old state.
 
-The requested eight-point conversation refinement is delivered in 0.51.0; additional visual changes can follow actual use. The planned substantial functional expansion remains for the operator to scope.
+The requested conversation refinements and follow-up polish are delivered through 0.51.1; additional visual changes can follow actual use. The planned substantial functional expansion remains for the operator to scope.
 
 ## Later Candidates
 
