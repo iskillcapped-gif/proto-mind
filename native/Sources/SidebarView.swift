@@ -87,13 +87,7 @@ struct SidebarView: View {
             }.frame(minHeight: 0, maxHeight: .infinity).padding(.bottom, 10)
             Divider().padding(.horizontal, 17)
             HStack(spacing: 4) {
-                Button(action: openSettings) {
-                    HStack(spacing: 10) {
-                        Image(systemName: "gearshape").font(.system(size: 16)).foregroundStyle(.secondary)
-                        Text("Настройки").font(.system(size: 13))
-                        Spacer(minLength: 0)
-                    }.padding(10)
-                }.accessibilityLabel("Настройки")
+                SidebarMenuView(app: model, usage: model.codexUsage, client: model.client, openSettings: openSettings)
                 Menu {
                     Button("Команды", systemImage: "command") { model.section = .commands }
                     Button("Диагностика", systemImage: "waveform.path.ecg") { model.section = .overview }
@@ -126,7 +120,7 @@ struct SidebarView: View {
         let isWorking = model.busy && model.turnStartedAt != nil && model.selectedID == chat.id
         return Button {
             let query = model.conversationSearch.trimmingCharacters(in: .whitespacesAndNewlines)
-            let match = query.isEmpty ? nil : chat.messages.last { $0.text.localizedCaseInsensitiveContains(query) }
+            let match = query.isEmpty ? nil : chat.messages.last { $0.searchableText.localizedCaseInsensitiveContains(query) }
             model.returnToConversation(chat.id, messageID: match?.id)
         } label: {
             HStack(spacing: 8) {

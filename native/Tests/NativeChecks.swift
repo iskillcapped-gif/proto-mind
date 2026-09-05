@@ -26,9 +26,17 @@ struct NativeChecks {
             print("Native history checks: \(passed) OK")
             return
         }
+        if CommandLine.arguments.contains("--task-updates-only"),
+           let fixture = LaunchConfiguration.argument("--fixture"), let python = LaunchConfiguration.argument("--python"),
+           let service = LaunchConfiguration.argument("--steering-service") {
+            try await taskUpdatesIntegration(fixture: URL(fileURLWithPath: fixture), service: URL(fileURLWithPath: service),
+                                             python: URL(fileURLWithPath: python), root: root)
+            print("Native task update checks: \(passed) OK")
+            return
+        }
         if CommandLine.arguments.contains("--account-access-only"),
            let fixture = LaunchConfiguration.argument("--fixture"), let python = LaunchConfiguration.argument("--python") {
-            try codexUsageContracts(root: root)
+            try await codexUsageContracts(root: root)
             try await projectlessAccess(fixture: URL(fileURLWithPath: fixture), python: URL(fileURLWithPath: python), root: root)
             print("Native account/access checks: \(passed) OK")
             return
@@ -36,7 +44,7 @@ struct NativeChecks {
         if CommandLine.arguments.contains("--private-backup-only"),
            let fixture = LaunchConfiguration.argument("--fixture"), let python = LaunchConfiguration.argument("--python") {
             try privateBackupContracts(root: root)
-            try codexUsageContracts(root: root)
+            try await codexUsageContracts(root: root)
             try await privateBackupIntegration(fixture: URL(fileURLWithPath: fixture), python: URL(fileURLWithPath: python), root: root)
             print("Native private backup checks: \(passed) OK")
             return
@@ -127,7 +135,7 @@ struct NativeChecks {
 
         try preferencesAndLegacyHistory(root: root)
         try privateBackupContracts(root: root)
-        try codexUsageContracts(root: root)
+        try await codexUsageContracts(root: root)
         try personaActivationContracts(root: root)
         try instructionReceiptContracts()
         try turnLineageContracts(root: root)
@@ -170,6 +178,10 @@ struct NativeChecks {
             try await privateBackupIntegration(fixture: URL(fileURLWithPath: fixture), python: URL(fileURLWithPath: python), root: root)
             try await historyPersistence(fixture: URL(fileURLWithPath: fixture), python: URL(fileURLWithPath: python), root: root)
             try await integration(fixture: URL(fileURLWithPath: fixture), python: URL(fileURLWithPath: python), root: root)
+            if let service = LaunchConfiguration.argument("--steering-service") {
+                try await taskUpdatesIntegration(fixture: URL(fileURLWithPath: fixture), service: URL(fileURLWithPath: service),
+                                                 python: URL(fileURLWithPath: python), root: root)
+            }
         }
         print("Native checks: \(passed) OK")
     }

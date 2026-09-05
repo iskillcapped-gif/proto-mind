@@ -5,6 +5,10 @@ import Foundation
 extension AppModel {
     func submit(_ supplied: String? = nil) async {
         let text = (supplied ?? composer).trimmingCharacters(in: .whitespacesAndNewlines)
+        if busy {
+            if !text.isEmpty { await enqueueTaskUpdate(text) }
+            return
+        }
         guard !text.isEmpty, !busy, !loadingDroppedAttachments, !loadingImagePreview, !loadingPDFPreview,
               imagePreview == nil, pdfPreview == nil, attachmentDropPreview == nil,
               selected?.archived != true, let conversationID = selectedID else { return }
@@ -64,7 +68,10 @@ extension AppModel {
             conversations[index].title = String(text.split(whereSeparator: \.isWhitespace).joined(separator: " ").prefix(54))
         }
         conversations[index].updatedAt = Date()
-        setComposer(""); stream = ""; agentItems = []; agentReceipt = .null; workLog = .null; autoSkillsReport = nil
+        // The editor stays live while the initial request is being prepared.
+        // Clear only the submitted text, never a newer draft typed meanwhile.
+        if composer.trimmingCharacters(in: .whitespacesAndNewlines) == text { setComposer("") }
+        stream = ""; agentItems = []; agentReceipt = .null; workLog = .null; autoSkillsReport = nil
         turnStartedAt = Date(); section = .chat
         status = grant == nil ? "Proto-Mind думает" : "Агент подключается · полный доступ + интернет"
         guard persist() else {
@@ -78,6 +85,8 @@ extension AppModel {
             busy = false; turnStartedAt = nil
             return
         }
+        activeTaskMessageID = !operatorInput && conversation.provider == "codex" ? userMessage.id : nil
+        taskUpdateTarget = nil; taskUpdatesStopped = false
         do {
             let requestedRunID = operatorInput ? nil : UUID()
             var params: [String: JSONValue] = [
@@ -216,6 +225,7 @@ extension AppModel {
             }
             status = "Запрос не завершён"
         }
+        closeTaskUpdateQueue(); activeTaskMessageID = nil
         busy = false; stream = ""; activeRequest = nil; agentItems = []; agentReceipt = .null; workLog = .null; turnStartedAt = nil; autoSkillsReport = nil
         persist()
         await refreshCodexThreadStatus()
@@ -224,6 +234,7 @@ extension AppModel {
 
     func stop() async {
         guard let request = activeRequest else { return }
+        closeTaskUpdateQueue(); persist()
         do { status = try await client.request("cancel", ["request_id": .string(request)])["notice"].text }
         catch { report(error) }
     }

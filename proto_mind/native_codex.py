@@ -67,6 +67,10 @@ class CodexConnectionError(RuntimeError):
     pass
 
 
+class CodexRequestRejected(CodexConnectionError):
+    """The server explicitly rejected an RPC, rather than losing its reply."""
+
+
 class TurnCancelled(CodexConnectionError):
     pass
 
@@ -375,7 +379,7 @@ class CodexRPC:
             if response is None:
                 raise CodexConnectionError(self._closed_message(method))
             if "error" in response:
-                raise CodexConnectionError(f"Codex could not complete {method}; reconnect or check sign-in.")
+                raise CodexRequestRejected(f"Codex could not complete {method}; reconnect or check sign-in.")
             result = response.get("result")
             if not isinstance(result, dict):
                 raise CodexConnectionError("Codex returned an invalid response.")
@@ -456,6 +460,7 @@ class CodexSubscription:
         self.threads = CodexThreadStore(state_dir)
         self.rpc: CodexRPC | None = None
         self.active_turn: tuple[str, str] | None = None
+        self.on_main_turn = None
         self.last_thread_info: dict | None = None
         self.cancelled = threading.Event()
 
@@ -540,6 +545,11 @@ class CodexSubscription:
     def prepare_turn(self) -> None:
         self.cancelled.clear()
         self.last_thread_info = None
+
+    def _set_main_turn(self, value):
+        if self.on_main_turn is not None:
+            self.on_main_turn(value, self.rpc)
+        self.active_turn = value
 
     def thread_status(self, conversation: object, workspace: object, *, mode: str | None = None) -> dict:
         try:
@@ -763,7 +773,7 @@ class CodexSubscription:
         if reasoning_effort:
             turn_params["effort"] = reasoning_effort
         turn = rpc.request("turn/start", turn_params)
-        self.active_turn = (thread_id, turn["turn"]["id"])
+        self._set_main_turn((thread_id, turn["turn"]["id"]))
         messages = PublicMessages(on_delta, progress, limit=MAX_ANSWER_CHARS, error_type=CodexConnectionError)
         progress.stage("working")
         deadline = time.monotonic() + 180
@@ -797,7 +807,7 @@ class CodexSubscription:
             self.interrupt()
             raise
         finally:
-            self.active_turn = None
+            self._set_main_turn(None)
 
     def agent_answer(self, prompt: str, instructions: str, model: str, on_delta,
                      *, conversation: str, logical_workspace: dict | None, history: list[dict] | None = None,
@@ -856,7 +866,7 @@ class CodexSubscription:
             if computer_use.get("available") is True:
                 prompt = computer_use_turn_prompt(prompt)
             return run_agent_turn(self.rpc, workspace, thread_id, prompt, self.cancelled,
-                                  on_delta, run, lambda value: setattr(self, "active_turn", value), self.interrupt, progress,
+                                  on_delta, run, self._set_main_turn, self.interrupt, progress,
                                   reasoning_effort=reasoning_effort, images=images)
         finally:
             if "finished_at" not in run.receipt:

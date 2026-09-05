@@ -1,5 +1,8 @@
 from pathlib import Path
+import json
+import queue
 import tempfile
+import threading
 from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock
@@ -102,6 +105,96 @@ class CodexUsageTests(unittest.TestCase):
                 with self.assertRaises(ValueError): backend.dispatch("account_usage", {}, lambda _: None, "usage")
                 backend.busy.release()
             finally: backend.close()
+
+    def test_compact_read_omits_activity_and_reset_journal(self):
+        request = Mock(return_value={"rateLimits": {"primary": window(12)}})
+        client = SimpleNamespace(account=lambda: {"connected": True, "plan": "plus", "email": "qa@example.invalid"},
+                                 connect=lambda: SimpleNamespace(request=request))
+        result = read_usage(client, include_activity=False)
+        request.assert_called_once_with("account/rateLimits/read", {}, timeout=15)
+        self.assertEqual(result["buckets"][0]["windows"][0]["used_percent"], 12)
+        self.assertIsNone(result["activity"]); self.assertIsNone(result["reset"])
+
+    def test_background_read_uses_and_closes_an_independent_client_while_core_busy(self):
+        from proto_mind.native_bridge import NativeBackend
+        for fails in [False, True]:
+            clients = []
+            def factory(state):
+                account = Mock(return_value={"connected": True, "plan": "plus", "email": "qa@example.invalid"})
+                if fails: account.side_effect = RuntimeError("account unavailable")
+                client = SimpleNamespace(account=account, close=Mock(),
+                    connect=lambda: SimpleNamespace(request=Mock(return_value={"rateLimits": {"primary": window()}})))
+                clients.append(client)
+                return client
+            with tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                backend = NativeBackend(root, root / "state", subscription_factory=factory)
+                try:
+                    with backend.busy:
+                        if fails:
+                            with self.assertRaises(RuntimeError): backend.dispatch("account_limits", {}, lambda _: None, "limits")
+                        else:
+                            result = backend.dispatch("account_limits", {}, lambda _: None, "limits")
+                            self.assertTrue(result["connected"])
+                        self.assertTrue(backend.busy.locked())
+                    self.assertEqual(len(clients), 2)
+                    clients[0].account.assert_not_called(); clients[0].close.assert_not_called()
+                    clients[1].close.assert_called_once()
+                    self.assertFalse(backend._limits_read_lock.locked())
+                    self.assertFalse((root / "state/codex-reset-attempts.json").exists())
+                finally: backend.close()
+
+    def test_background_read_rejects_parameters_concurrent_reads_and_shutdown(self):
+        from proto_mind.native_bridge import NativeBackend
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            factory = Mock(return_value=SimpleNamespace(close=Mock()))
+            backend = NativeBackend(root, root / "state", subscription_factory=factory)
+            try:
+                with self.assertRaises(ValueError): backend.dispatch("account_limits", {"reset": True}, lambda _: None, "limits")
+                with backend._limits_read_lock:
+                    with self.assertRaises(ValueError): backend.dispatch("account_limits", {}, lambda _: None, "limits")
+                backend.disconnect()
+                with self.assertRaises(ValueError): backend.dispatch("account_limits", {}, lambda _: None, "limits")
+                self.assertEqual(factory.call_count, 1)
+            finally: backend.close()
+
+    def test_stdio_limits_and_work_do_not_block_each_other_but_work_stays_serial(self):
+        from proto_mind.native_bridge import serve
+        for blocked_method, independent in [("process", "account_limits"), ("account_limits", "process"),
+                                             ("process", "steer"), ("account_limits", "steer")]:
+            incoming, outgoing = queue.Queue(), queue.Queue()
+            started, release, next_started = threading.Event(), threading.Event(), threading.Event()
+            class Source:
+                def readline(self, maximum): return incoming.get(timeout=5)
+            class Destination:
+                def write(self, value): outgoing.put(json.loads(value))
+                def flush(self): pass
+            def dispatch(method, params, emit, request_id):
+                if request_id == "blocked":
+                    started.set()
+                    if not release.wait(5): raise RuntimeError("fixture timeout")
+                if request_id == "next": next_started.set()
+                return {"done": True}
+            backend = SimpleNamespace(dispatch=dispatch, disconnect=Mock(), close=Mock())
+            worker = threading.Thread(target=serve, args=(backend, Source(), Destination()))
+            worker.start()
+            def send(identifier, method): incoming.put(json.dumps({"id": identifier, "method": method}) + "\n")
+            try:
+                send("blocked", blocked_method)
+                self.assertTrue(started.wait(2))
+                send("independent", independent)
+                self.assertEqual(outgoing.get(timeout=2)["id"], "independent")
+                if blocked_method == "process":
+                    send("next", "account_reset")
+                    self.assertFalse(next_started.wait(0.05))
+                release.set()
+                self.assertEqual(outgoing.get(timeout=2)["id"], "blocked")
+                if blocked_method == "process": self.assertEqual(outgoing.get(timeout=2)["id"], "next")
+            finally:
+                release.set(); incoming.put(""); worker.join(5)
+            self.assertFalse(worker.is_alive())
+            backend.disconnect.assert_called_once(); backend.close.assert_called_once()
 
 
 if __name__ == "__main__": unittest.main()

@@ -48,10 +48,10 @@ struct ComposerView: View {
                 if let files = model.selected?.pendingFiles, !files.isEmpty { fileAttachments(files) }
                 ZStack(alignment: .topLeading) {
                     if model.composer.isEmpty {
-                        Text("Сообщение Proto-Mind…").font(NativeTheme.messageFont).foregroundStyle(.secondary.opacity(0.7))
+                        Text(model.canUpdateTask ? "Уточнение к текущей задаче…" : "Сообщение Proto-Mind…").font(NativeTheme.messageFont).foregroundStyle(.secondary.opacity(0.7))
                             .padding(.horizontal, 17).padding(.top, 16)
                     }
-                    NativeComposer(text: $model.composer, revision: model.composerRevision, enabled: !model.busy && model.selected?.archived != true,
+                    NativeComposer(text: $model.composer, revision: model.composerRevision, enabled: model.selected?.archived != true,
                                    focusOnRevision: model.transcriptDestination?.messageID == nil,
                                    canDrop: model.canReceiveAttachments, onDrop: { model.receiveAttachmentDrop($0) },
                                    onDropHover: { model.attachmentDropTargeted = $0 }, onDropError: { model.error = $0 }) { Task { await model.submit() } }
@@ -170,6 +170,13 @@ struct ComposerView: View {
 
     @ViewBuilder private var sendButton: some View {
         if model.busy {
+            if model.canUpdateTask {
+                Button { Task { await model.submit() } } label: {
+                    Image(systemName: "arrow.up").font(.system(size: 15, weight: .semibold)).foregroundStyle(NativeTheme.canvas)
+                        .frame(width: 32, height: 32).background(NativeTheme.accent.opacity(cannotSend ? 0.28 : 1), in: Circle())
+                }.buttonStyle(.nativeHover).disabled(cannotSend).accessibilityLabel("Отправить уточнение")
+                    .help("Добавить текст к текущей задаче · Return")
+            }
             Button { Task { await model.stop() } } label: {
                 Image(systemName: "stop.fill").font(.system(size: 12)).foregroundStyle(NativeTheme.canvas)
                     .frame(width: 32, height: 32).background(Color.primary, in: Circle())

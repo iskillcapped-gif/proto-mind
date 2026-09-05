@@ -47,7 +47,7 @@ final class AppModel: ObservableObject {
             do {
                 try savePreferences()
                 invalidateSessionSpinePilot()
-                if !cloudConsent { discardAgentGrants() }
+                if !cloudConsent { discardAgentGrants(); codexUsage.clear() }
             }
             catch {
                 restoringPreferences = true
@@ -101,6 +101,10 @@ final class AppModel: ObservableObject {
     @Published var computerUsePermissionIssue = false
     @Published var workLog: JSONValue = .null
     @Published var turnStartedAt: Date?
+    @Published var activeTaskMessageID: UUID?
+    @Published var taskUpdateTarget: String?
+    @Published var sendingTaskUpdate = false
+    @Published var taskUpdatesStopped = false
     @Published var showWorkSessions = false
     @Published var showConversationHistory = false
     @Published var transcriptDestination: TranscriptDestination?
@@ -238,6 +242,8 @@ final class AppModel: ObservableObject {
         client.onEvent = { [weak self] event in
             guard let self, event["request_id"].text == self.activeRequest else { return }
             if event["event"].text == "answer_delta" { self.stream += event["delta"].text }
+            if event["event"].text == "answer_reset" { self.stream = "" }
+            if event["event"].text == "steering_ready" { self.receiveTaskUpdateTarget(event) }
             if event["event"].text == "auto_skills", let report = try? NativeAutoSkillsReport(event["report"]) {
                 self.autoSkillsReport = report
                 if report.state == "selecting" { self.status = "Подбираю навык · без инструментов" }
@@ -283,7 +289,7 @@ final class AppModel: ObservableObject {
         let query = conversationSearch.trimmingCharacters(in: .whitespacesAndNewlines)
         return conversations.filter { chat in
             chat.archived == showArchived && (query.isEmpty || chat.title.localizedCaseInsensitiveContains(query)
-                || chat.messages.contains { $0.text.localizedCaseInsensitiveContains(query) })
+                || chat.messages.contains { $0.searchableText.localizedCaseInsensitiveContains(query) })
         }.sorted { $0.updatedAt == $1.updatedAt ? $0.id.uuidString < $1.id.uuidString : $0.updatedAt > $1.updatedAt }
     }
     var messages: [ChatMessage] { selected?.messages ?? [] }
@@ -664,6 +670,7 @@ final class AppModel: ObservableObject {
     func login() async {
         guard !busy, !connecting else { return }
         connecting = true
+        codexUsage.clear()
         defer { connecting = false }
         do {
             let result = try await client.request("account_login")
@@ -691,7 +698,9 @@ final class AppModel: ObservableObject {
     }
 
     func logout() async {
-        guard !busy else { return }
+        guard !busy, !connecting else { return }
+        connecting = true
+        defer { connecting = false }
         codexUsage.clear()
         do { account = try await client.request("account_logout"); models = []; cloudConsent = false; loginPending = false }
         catch { report(error) }

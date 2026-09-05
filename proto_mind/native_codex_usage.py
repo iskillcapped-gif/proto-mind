@@ -66,7 +66,7 @@ def activity(value: dict) -> dict:
     return {"summary": summary, "daily": [{"date": day, "tokens": days[day]} for day in sorted(days, reverse=True)[:7]]}
 
 
-def read_usage(subscription, reset_store=None) -> dict:
+def read_usage(subscription, reset_store=None, *, include_activity=True) -> dict:
     # Use the same managed ChatGPT login as PM. Never inspect credentials or the
     # Desktop profile, and never send a model turn to measure quota.
     account = subscription.account()
@@ -77,10 +77,10 @@ def read_usage(subscription, reset_store=None) -> dict:
     if not account["connected"]: return result
     rpc = subscription.connect()
     # Partial endpoint failure must not erase a successfully read independent section.
-    for method, parser, field, timestamp in [
-        ("account/rateLimits/read", limits, "limits_error", "limits_updated_at"),
-        ("account/usage/read", activity, "activity_error", "activity_updated_at"),
-    ]:
+    sections = [("account/rateLimits/read", limits, "limits_error", "limits_updated_at")]
+    if include_activity:
+        sections.append(("account/usage/read", activity, "activity_error", "activity_updated_at"))
+    for method, parser, field, timestamp in sections:
         try:
             raw = rpc.request(method, {}, timeout=15)
             value = parser(raw)

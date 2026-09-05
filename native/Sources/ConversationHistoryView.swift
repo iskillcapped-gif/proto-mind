@@ -180,8 +180,8 @@ struct ConversationHistoryView: View {
                 Spacer()
                 Text(message.createdAt.formatted(date: .abbreviated, time: .shortened)).font(.caption).foregroundStyle(.secondary)
             }
-            Text(String(message.text.prefix(3000))).font(.system(size: 13)).lineSpacing(4).textSelection(.enabled)
-            if message.text.count > 3000 { Text("Фрагмент · полный текст в диалоге").font(.caption).foregroundStyle(.secondary) }
+            Text(String(message.searchableText.prefix(3000))).font(.system(size: 13)).lineSpacing(4).textSelection(.enabled)
+            if message.searchableText.count > 3000 { Text("Фрагмент · полный текст в диалоге").font(.caption).foregroundStyle(.secondary) }
         }.frame(maxWidth: .infinity, alignment: .leading).padding(14)
             .background(NativeTheme.composer, in: RoundedRectangle(cornerRadius: 12))
     }

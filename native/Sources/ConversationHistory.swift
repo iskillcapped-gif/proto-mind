@@ -61,12 +61,12 @@ enum ConversationHistorySearch {
                 for (index, message) in chat.messages.enumerated().reversed() {
                     if index.isMultiple(of: 128) { await Task.yield() }
                     guard !Task.isCancelled else { return [] }
-                    if contains(message.text) { matches.append(message.id) }
+                    if contains(message.searchableText) { matches.append(message.id) }
                 }
                 guard !matches.isEmpty || contains(chat.title) || contains(chat.workspacePath ?? "") || contains(chat.draft) else { continue }
             }
             let matched = matches.first.flatMap { id in chat.messages.first { $0.id == id } }
-            let preview = matched?.text ?? (!query.isEmpty && contains(chat.draft) ? chat.draft : chat.messages.last?.text ?? chat.draft)
+            let preview = matched?.searchableText ?? (!query.isEmpty && contains(chat.draft) ? chat.draft : chat.messages.last?.searchableText ?? chat.draft)
             results.append(ConversationHistoryResult(conversation: chat, matches: matches,
                                                       snippet: excerpt(preview, query: query)))
         }

@@ -267,7 +267,13 @@ private struct ChatView: View {
                                     .help("История хранится полностью; загружается только следующая часть интерфейса")
                                 }
                                 ForEach(renderedMessages) { message in
-                                    MessageView(message: message, model: model).id(message.id)
+                                    VStack(alignment: .leading, spacing: 16) {
+                                        MessageView(message: message, model: model)
+                                        if let updates = message.taskUpdates, !updates.isEmpty {
+                                            TaskUpdatesView(updates: updates, active: model.activeTaskMessageID == message.id,
+                                                            copy: model.copy)
+                                        }
+                                    }.id(message.id)
                                         .background(model.transcriptDestination?.conversationID == model.selectedID
                                             && model.transcriptDestination?.messageID == message.id ? NativeTheme.selection : .clear,
                                             in: RoundedRectangle(cornerRadius: 10))
@@ -320,6 +326,7 @@ private struct ChatView: View {
                             if followOutput { scrollToLatest(proxy) }
                         }
                         .onChange(of: model.stream.count) { _, _ in if followOutput { scrollToLatest(proxy) } }
+                        .onChange(of: model.messages.last?.taskUpdates) { _, _ in if followOutput { scrollToLatest(proxy) } }
                         .onChange(of: model.workLog) { _, _ in if followOutput { scrollToLatest(proxy) } }
                         .onChange(of: model.busy) { _, _ in if followOutput { scrollToLatest(proxy) } }
                         .overlay(alignment: .bottom) {

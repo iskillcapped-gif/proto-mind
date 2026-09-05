@@ -65,6 +65,9 @@ struct ChatMessage: Codable, Identifiable, Equatable {
     var memorySuggestions: JSONValue? = nil
     var memorySuggestionSourceID: UUID? = nil
     var turnReference: JSONValue? = nil
+    var taskUpdates: [TaskUpdate]? = nil
+
+    var searchableText: String { ([text] + (taskUpdates ?? []).map(\.text)).joined(separator: "\n\n") }
 }
 
 struct Conversation: Codable, Identifiable, Equatable {
@@ -122,6 +125,7 @@ struct Conversation: Codable, Identifiable, Equatable {
         for message in messages { try checkKnowledgeMetadata(message.knowledgeContext ?? .null) }
         try validateMemorySuggestionHistory(messages, conversation: id)
         try validateTurnLineageHistory(messages, conversation: id)
+        try TaskUpdate.validate(messages)
         pendingCriteria = try NativeTaskCriteria.validate(values.decodeIfPresent([String].self, forKey: .pendingCriteria) ?? [])
         draftContinuation = try values.decodeIfPresent(JSONValue.self, forKey: .draftContinuation)
         dismissedWorkSessionWarnings = try values.decodeIfPresent([NativeWorkSessionNotice].self, forKey: .dismissedWorkSessionWarnings) ?? []
@@ -130,14 +134,17 @@ struct Conversation: Codable, Identifiable, Equatable {
 
     var history: [JSONValue] {
         messages.filter { ["user", "assistant"].contains($0.role) && !$0.isError && $0.operatorInput != true && !($0.role == "user" && $0.text.hasPrefix("/")) }
-            .suffix(12).map { message in
+            .flatMap { message -> [JSONValue] in
                 var note = message.role == "user" && message.imageContext?.isEmpty == false
                     ? "[Earlier image bytes are NOT included in this turn. Reattach the image to inspect it again.]\n" : ""
                 if message.role == "user" && message.pdfContext?.isEmpty == false {
                     note += "[Earlier PDF page text is NOT included in this turn. Reattach selected pages to inspect them again.]\n"
                 }
-                return .object(["role": .string(message.role), "content": .string(String((note + message.text).prefix(2000)))])
-            }
+                let primary = JSONValue.object(["role": .string(message.role), "content": .string(String((note + message.text).prefix(2000)))])
+                return [primary] + (message.taskUpdates ?? []).filter { $0.state == .accepted }.map {
+                    .object(["role": .string("user"), "content": .string(String($0.text.prefix(2000)))])
+                }
+            }.suffix(12).map { $0 }
     }
 }
 

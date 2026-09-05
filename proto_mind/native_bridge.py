@@ -7,7 +7,8 @@ enforce_python_version()
 
 import argparse
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import ExitStack, redirect_stdout
+from contextlib import ExitStack, nullcontext, redirect_stdout
+from proto_mind.native_steering import LiveSteering
 from dataclasses import asdict, replace
 import hashlib
 import json
@@ -255,7 +256,9 @@ class NativeBackend:
                  pdf_helper: Path | None = None) -> None:
         self.root, self.state_dir = project_root.resolve(), state_dir.resolve()
         self.pdf_helper = pdf_helper
+        self._subscription_factory = subscription_factory
         self.subscription = subscription_factory(self.state_dir)
+        self._limits_read_lock = threading.Lock()
         self.sessions: dict[str, Coordinator] = {}
         self._native_learning_apply_used = False
         self._native_skill_apply_used = False
@@ -265,6 +268,7 @@ class NativeBackend:
         self.logger = SessionOperatorLogger.from_project_root(self.root)
         self.active_request: str | None = None
         self.active_provider: str | None = None
+        self.active_steering: LiveSteering | None = None
         self.busy = threading.Lock()
         self.agent_grants = AgentGrants()
         self.github = GitHubConnection(self.state_dir)
@@ -620,6 +624,8 @@ class NativeBackend:
                         provider_thread=provider_thread, knowledge_context=knowledge_metadata(project_notes, skill_task, recall=recall_report))))
             if provider == "codex" and not description["operator"]:
                 self.subscription.prepare_turn()
+                self.active_steering = LiveSteering(request_id, session_id, emit)
+                self.subscription.on_main_turn = self.active_steering.set_active
             self.active_request, self.active_provider = request_id, provider if not description["operator"] else "operator"
             if self.closing.is_set():
                 raise ValueError("Native disconnected before processing; no new work started.")
@@ -637,6 +643,8 @@ class NativeBackend:
 
             def progress(event: dict) -> None:
                 nonlocal work_log
+                if event.get("event") == "answer_reset":
+                    emit({"event": "answer_reset", "request_id": request_id})
                 if event.get("event") == "work_log":
                     work_log = event["log"]
                     if work_session is not None:
@@ -767,6 +775,11 @@ class NativeBackend:
             try:
                 lifecycle.close()
             finally:
+                if self.active_steering is not None:
+                    self.active_steering.stop()
+                    self.active_steering.set_active(None)
+                    self.subscription.on_main_turn = None
+                    self.active_steering = None
                 self.active_request = self.active_provider = None
                 self.busy.release()
 
@@ -1267,6 +1280,21 @@ class NativeBackend:
             return self.pdf_reader().preview(params.get("path"), params.get("pages"), params.get("expected_sha256"))
         if method == "account_status":
             return self.subscription.account()
+        if method == "steer":
+            steering = self.active_steering
+            if steering is None or self.closing.is_set():
+                raise ValueError("Задача уже завершилась. Уточнение не отправлено.")
+            return steering.send(params)
+        if method == "account_limits":
+            if params or self.closing.is_set() or not self._limits_read_lock.acquire(blocking=False):
+                raise ValueError("Обновление лимитов сейчас недоступно.")
+            try:
+                # A separate account-only connection cannot interrupt or wait on
+                # the live turn's RPC client. It never reads reset journals.
+                reader = self._subscription_factory(self.state_dir)
+                try: return read_usage(reader, include_activity=False)
+                finally: reader.close()
+            finally: self._limits_read_lock.release()
         if method in {"account_usage", "account_reset"}:
             if (method == "account_usage" and params) or self.closing.is_set() or not self.busy.acquire(blocking=False):
                 raise ValueError("Дождитесь завершения текущей работы перед обновлением лимитов.")
@@ -1355,6 +1383,7 @@ class NativeBackend:
             return {"cancel_requested": False, "notice": "No matching active turn."}
         if self.active_provider != "codex":
             return {"cancel_requested": False, "notice": "This operation must finish safely; no process was killed."}
+        if self.active_steering is not None: self.active_steering.stop()
         self.subscription.interrupt()
         return {"cancel_requested": True, "notice": "Codex stop requested."}
 
@@ -1364,6 +1393,7 @@ class NativeBackend:
 
     def disconnect(self) -> None:
         self.closing.set()
+        if self.active_steering is not None: self.active_steering.stop()
         self.agent_grants.revoke()
         if self.active_provider == "codex":
             self.subscription.interrupt()
@@ -1380,7 +1410,9 @@ def serve(backend: NativeBackend, source, destination) -> None:
     def run(message: dict) -> None:
         request_id = message["id"]
         try:
-            with redirect_stdout(sys.stderr):
+            # stdout redirection is process-wide. The account-only reader has
+            # no console output and must not nest a redirect from another thread.
+            with (nullcontext() if message["method"] in {"account_limits", "steer"} else redirect_stdout(sys.stderr)):
                 result = backend.dispatch(message["method"], message.get("params", {}), emit, request_id)
             emit({"id": request_id, "result": result})
         except Exception as exc:
@@ -1388,7 +1420,9 @@ def serve(backend: NativeBackend, source, destination) -> None:
             safe = str(exc) if isinstance(exc, (ValueError, RuntimeError)) else "Native bridge operation failed. No automatic retry."
             emit({"id": request_id, "error": {"message": safe[:600]}})
 
-    with ThreadPoolExecutor(max_workers=1, thread_name_prefix="proto-native") as executor:
+    with (ThreadPoolExecutor(max_workers=1, thread_name_prefix="proto-native") as executor,
+          ThreadPoolExecutor(max_workers=1, thread_name_prefix="proto-limits") as limits_executor,
+          ThreadPoolExecutor(max_workers=1, thread_name_prefix="proto-steer") as steering_executor):
         while True:
             raw = source.readline(MAX_REQUEST_BYTES + 1)
             if not raw:
@@ -1407,7 +1441,8 @@ def serve(backend: NativeBackend, source, destination) -> None:
                 if message["method"] == "cancel":
                     emit({"id": request_id, "result": backend.cancel(str(message.get("params", {}).get("request_id", "")))})
                 else:
-                    executor.submit(run, message)
+                    target = {"account_limits": limits_executor, "steer": steering_executor}.get(message["method"], executor)
+                    target.submit(run, message)
             except (ValueError, TypeError) as exc:
                 emit({"id": request_id, "error": {"message": str(exc)[:200]}})
     backend.close()

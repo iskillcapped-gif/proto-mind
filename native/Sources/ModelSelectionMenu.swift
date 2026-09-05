@@ -70,12 +70,6 @@ struct ModelSelectionMenu: View {
                         Text(localModelLabel).font(.system(size: 13)).padding(10)
                     }
                     Divider().padding(.vertical, 4)
-                    if isCodex {
-                        ComposerMenuRow(title: "Использование и лимиты…", icon: "gauge.with.dots.needle.50percent") {
-                            open = false
-                            Task { @MainActor in await Task.yield(); model.showCodexUsage = true }
-                        }
-                    }
                     ComposerMenuRow(title: "Настройки модели…", icon: "slider.horizontal.3") {
                         open = false
                         Task { @MainActor in await Task.yield(); model.settingsSection = .models; openSettings() }

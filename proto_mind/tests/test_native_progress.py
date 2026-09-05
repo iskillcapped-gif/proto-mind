@@ -76,6 +76,27 @@ class PublicWorkLogTests(unittest.TestCase):
         self.assertEqual(self.deltas, ["Legacy answer"])
         self.assertEqual(self.messages.answer(), "Legacy answer")
 
+    def test_steering_keeps_the_updated_final_and_archives_the_earlier_public_answer(self):
+        self.feed([event("item/started", item={"type": "userMessage", "id": "initial"}),
+                   message("item/completed", "old", "Original answer", "final_answer"),
+                   event("item/started", item={"type": "userMessage", "id": "correction"}),
+                   event("item/completed", item={"type": "userMessage", "id": "correction"}),
+                   message("item/completed", "new", "Corrected answer", "final_answer")])
+        self.assertEqual(self.messages.answer(), "Corrected answer")
+        self.assertEqual(len([row for row in self.events if row["event"] == "answer_reset"]), 1)
+        self.assertIn("Original answer", str(self.log.entries))
+
+    def test_late_superseded_deltas_cannot_return_to_the_corrected_answer(self):
+        self.feed([message("item/started", "old", phase="final_answer"),
+                   event("item/agentMessage/delta", itemId="old", delta="Before"),
+                   event("item/started", item={"type": "userMessage", "id": "correction"}),
+                   event("item/agentMessage/delta", itemId="old", delta="obsolete"),
+                   message("item/completed", "old", "Before obsolete", "final_answer")])
+        self.assertEqual(self.messages.answer(), "")
+        self.assertNotIn("obsolete", "".join(self.deltas))
+        self.feed([message("item/completed", "new", "After correction", "final_answer")])
+        self.assertEqual(self.messages.answer(), "After correction")
+
     def test_reasoning_summaries_raw_reasoning_and_hooks_are_not_forwarded(self):
         self.feed(public_events())
         self.log.finish("completed")

@@ -4,7 +4,7 @@ import SwiftUI
 
 extension NativeChecks {
     @MainActor
-    static func codexUsageContracts(root: URL) throws {
+    static func codexUsageContracts(root: URL) async throws {
         let raw = Data("""
         {"schema":"proto_mind.codex_usage.v1","connected":true,"email":"fixture@example.invalid","plan":"plus",
          "buckets":[{"id":"codex","name":"Codex","plan":"plus","windows":[
@@ -55,6 +55,7 @@ extension NativeChecks {
             _ = try CodexUsageSnapshot.parse(JSONDecoder().decode(JSONValue.self, from: Data(invalid.utf8)))
             throw NativeError.message("Unknown usage schema accepted")
         } catch { try check(error.localizedDescription != "Unknown usage schema accepted", "Unknown usage report schema is refused") }
+        try await codexLimitsRefresh(root: root)
     }
 
     @MainActor

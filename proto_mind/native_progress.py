@@ -105,6 +105,8 @@ class PublicMessages:
         self.completed: dict[str, str] = {}
         self.finals: dict[str, str] = {}
         self.streamed: set[str] = set()
+        self.user_items: set[str] = set()
+        self.superseded: set[str] = set()
 
     def _text(self, item_id: object, text: object) -> str:
         if not isinstance(item_id, str) or not item_id or len(item_id) > 160 or not isinstance(text, str):
@@ -120,6 +122,20 @@ class PublicMessages:
         self.progress.observe(method, params)
         if method in {"item/started", "item/completed"}:
             item = params.get("item") or {}
+            if item.get("type") == "userMessage":
+                identifier = item.get("id")
+                if not isinstance(identifier, str) or not identifier or len(identifier) > 160:
+                    raise self.error_type("Invalid public user-message identity.")
+                if identifier not in self.user_items:
+                    if len(self.user_items) >= 64: raise self.error_type("Too many user updates in one turn.")
+                    self.user_items.add(identifier)
+                    if self.texts:
+                        for key, text in self.finals.items():
+                            self.progress.commentary("earlier-answer:" + key, "Ответ до уточнения:\n\n" + text, True)
+                        self.superseded.update(self.texts)
+                        self.finals.clear(); self.completed.clear()
+                        self.progress.emit({"event": "answer_reset"})
+                return
             if item.get("type") != "agentMessage":
                 return
             item_id = self._text(item.get("id"), item.get("text", ""))
@@ -127,6 +143,7 @@ class PublicMessages:
             if phase not in {None, "commentary", "final_answer"}:
                 raise self.error_type("Unknown public message phase; no internal text was displayed.")
             self.phases[item_id] = phase
+            if item_id in self.superseded: return
             if phase == "commentary":
                 self.progress.commentary(item_id, self.texts[item_id], method == "item/completed")
             elif method == "item/completed":
@@ -146,6 +163,7 @@ class PublicMessages:
             if not isinstance(item_id, str):
                 raise self.error_type("Invalid public answer stream.")
             item_id = self._text(item_id, self.texts.get(item_id, "") + delta)
+            if item_id in self.superseded: return
             phase = self.phases.get(item_id)
             if phase == "commentary":
                 self.progress.commentary(item_id, self.texts[item_id], False)
@@ -160,5 +178,5 @@ class PublicMessages:
         candidates = self.finals or dict(list(self.completed.items())[-1:])
         if not candidates:
             candidates = dict([(key, text) for key, text in self.texts.items()
-                               if self.phases.get(key) != "commentary"][-1:])
+                               if self.phases.get(key) != "commentary" and key not in self.superseded][-1:])
         return "\n\n".join(candidates.values()).strip()

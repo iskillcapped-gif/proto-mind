@@ -22,5 +22,6 @@ swiftc -parse-as-library "${SOURCES[@]}" native/Tests/*.swift -o "${TEMP_DIR}/na
   --session-spine-state "${TEMP_DIR}/session-spine-state"
 "${TEMP_DIR}/native-checks" --fixture "${TEMP_DIR}/project" --python "${PYTHON_BIN}" --pdf-helper "${PDF_HELPER}" \
   --icon-source "${PROJECT_DIR}/assets/proto_mind_native_icon.png" \
+  --steering-service "${PROJECT_DIR}/native/Tests/Fixtures/steering_account.py" \
   --session-spine-fixture "${TEMP_DIR}/session-spine-project" \
   --session-spine-state "${TEMP_DIR}/session-spine-state" "$@"
