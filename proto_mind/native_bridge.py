@@ -47,6 +47,7 @@ from proto_mind.local_knowledge_capabilities import (
 from proto_mind.native_agent import AGENT_INSTRUCTIONS, AgentGrants, FULL_ACCESS_CONFIRMATION
 from proto_mind.native_library import NativeLibrary
 from proto_mind.native_codex_usage import read_usage
+from proto_mind.native_codex_reset import CodexResetStore, consume_reset
 from proto_mind.native_memory_workshop import build_native_memory_workshop
 from proto_mind.native_learning_review import NativeLearningReview, parse_learning_request
 from proto_mind.native_skill_authoring import NativeSkillAuthoring, NativeSkillSession, parse_skill_request
@@ -344,6 +345,10 @@ class NativeBackend:
     def workspace(self, params: dict) -> WorkspaceReader:
         return WorkspaceReader(params.get("workspace_root"), protected_roots=self.protected_input_roots)
 
+    def agent_workspace(self, params: dict) -> Path | None:
+        # Absence is an explicit projectless scope, never the app's own project.
+        return self.workspace(params).root if params.get("workspace_root") is not None else None
+
     def image_reader(self) -> ImageReader:
         return ImageReader(protected_roots=self.protected_input_roots)
 
@@ -355,8 +360,8 @@ class NativeBackend:
         grant_verified = False
         computer_use_available = False
         if request.access_mode == "full_access":
-            if request.provider != "codex" or request.cloud_consent is not True or workspace is None:
-                raise ValueError("Full Mac Persona preview requires Codex, cloud consent, and a selected workspace.")
+            if request.provider != "codex" or request.cloud_consent is not True:
+                raise ValueError("Full Mac Persona preview requires Codex and cloud consent.")
             self.agent_grants.validate(
                 request.conversation_id,
                 workspace,
@@ -535,8 +540,8 @@ class NativeBackend:
             if mode == "full_access":
                 if provider != "codex":
                     raise ValueError("Full Mac tools currently require the explicitly selected Codex provider.")
-                agent_workspace = self.workspace(params).root
-                self.agent_grants.validate(session_id, agent_workspace, params.get("access_token"))
+                grant = self.agent_grants.validate(session_id, self.agent_workspace(params), params.get("access_token"))
+                agent_workspace = Path(grant["execution_root"])
         persona_activation = None
         if persona_enabled:
             persona_activation = self._prepare_persona_activation(
@@ -579,7 +584,7 @@ class NativeBackend:
             if auto_skills and auto_skills.report["state"] in {"selected", "no_match"}:
                 auto_skills.revalidate()
             if agent_workspace is not None:
-                self.agent_grants.validate(session_id, agent_workspace, params.get("access_token"))
+                self.agent_grants.validate(session_id, self.agent_workspace(params), params.get("access_token"))
         provider_thread = (self.subscription.thread_status(session_id, logical_workspace, mode=mode)
                            if provider == "codex" and not description["operator"] else None)
         provider_history = ([] if provider_thread and provider_thread["linked"] else history)
@@ -1262,16 +1267,21 @@ class NativeBackend:
             return self.pdf_reader().preview(params.get("path"), params.get("pages"), params.get("expected_sha256"))
         if method == "account_status":
             return self.subscription.account()
-        if method == "account_usage":
-            if params or self.closing.is_set() or not self.busy.acquire(blocking=False):
+        if method in {"account_usage", "account_reset"}:
+            if (method == "account_usage" and params) or self.closing.is_set() or not self.busy.acquire(blocking=False):
                 raise ValueError("Дождитесь завершения текущей работы перед обновлением лимитов.")
-            try: return read_usage(self.subscription)
+            try:
+                store = CodexResetStore(self.state_dir)
+                return read_usage(self.subscription, store) if method == "account_usage" else consume_reset(self.subscription, store, params)
             finally: self.busy.release()
-        if method == "account_login":
-            return self.subscription.login()
-        if method == "account_logout":
-            self.agent_grants.revoke()
-            return self.subscription.logout()
+        if method in {"account_login", "account_logout"}:
+            if self.closing.is_set() or not self.busy.acquire(blocking=False):
+                raise ValueError("Дождитесь завершения текущей работы перед сменой аккаунта.")
+            try:
+                if method == "account_login": return self.subscription.login()
+                self.agent_grants.revoke()
+                return self.subscription.logout()
+            finally: self.busy.release()
         if method == "codex_thread_status":
             conversation = str(UUID(str(params.get("conversation_id", ""))))
             workspace = workspace_identity(self.workspace(params).root) if params.get("workspace_root") else None
@@ -1293,7 +1303,7 @@ class NativeBackend:
                 return {"mode": "chat", "token": ""}
             if params.get("mode") != "full_access" or params.get("cloud_consent") is not True:
                 raise ValueError("Full Mac is a separate explicit grant and requires cloud consent.")
-            workspace = self.workspace(params).root
+            workspace = self.agent_workspace(params)
             return self.agent_grants.enable(conversation, workspace, params.get("confirmation"))
         if method == "models":
             return {"models": self.subscription.models()}

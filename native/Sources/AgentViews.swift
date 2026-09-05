@@ -3,12 +3,12 @@ import SwiftUI
 struct PendingAgentAccess: Identifiable {
     let id = UUID()
     let conversationID: UUID
-    let workspace: String
+    let workspace: String?
 }
 
 struct AgentAccessGrant {
     let token: String
-    let workspace: String
+    let workspace: String?
 }
 
 struct AgentAccessSheet: View {
@@ -24,7 +24,9 @@ struct AgentAccessSheet: View {
             Text(model.computerUseAvailable
                  ? "Модель сможет читать и менять файлы, запускать команды, использовать Web Search и официальный локальный Computer Use OpenAI: видеть содержимое приложений, нажимать, вводить текст и прокручивать экран. Подтверждения каждого действия не будет."
                  : "Модель сможет читать и менять файлы, запускать команды, использовать встроенный Web Search и обращаться к сети с правами вашего пользователя. Подтверждения каждой команды или поиска не будет. Computer Use сейчас недоступен.")
-            Text("Рабочая папка: \(request.workspace)").font(.system(.callout, design: .monospaced)).textSelection(.enabled)
+            Text(request.workspace.map { "Начальная папка: \($0)" }
+                 ?? "Без проекта · команды начнут работу в домашней папке.")
+                .font(.callout).textSelection(.enabled)
             Text(model.computerUseAvailable
                  ? "Это начальная папка, не граница доступа. Доступны и другие файлы Mac и видимое содержимое экрана, включая личные данные. Запросы, страницы, скриншоты, прочитанный контекст и вывод инструментов могут обрабатываться OpenAI. Веб-страницы и экран считаются недоверенными данными. Это не root; macOS всё ещё управляет системными разрешениями."
                  : "Это начальная папка, не граница доступа. Доступны и другие файлы Mac, включая личные данные. Запросы, открытые страницы, прочитанный контекст и вывод инструментов могут передаваться OpenAI. Веб-страницы считаются недоверенными данными. Это не root; macOS всё ещё управляет системными разрешениями.")

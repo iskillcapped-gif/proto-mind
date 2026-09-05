@@ -223,8 +223,8 @@ def build_native_persona_runtime(
         model = request.model or "account_default_unresolved"
         access_mode = request.access_mode
         if access_mode == "full_access":
-            if request.cloud_consent is not True or not full_access_grant_verified or workspace is None:
-                raise ValueError("Full Mac Persona preview requires the current explicit grant and workspace.")
+            if request.cloud_consent is not True or not full_access_grant_verified:
+                raise ValueError("Full Mac Persona preview requires the current explicit grant.")
             tools = ["shell_and_files", "web_search"]
             if computer_use_available:
                 tools.append("computer_use")

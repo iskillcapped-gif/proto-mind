@@ -66,13 +66,13 @@ def activity(value: dict) -> dict:
     return {"summary": summary, "daily": [{"date": day, "tokens": days[day]} for day in sorted(days, reverse=True)[:7]]}
 
 
-def read_usage(subscription) -> dict:
+def read_usage(subscription, reset_store=None) -> dict:
     # Use the same managed ChatGPT login as PM. Never inspect credentials or the
     # Desktop profile, and never send a model turn to measure quota.
     account = subscription.account()
     result = {"schema": SCHEMA, "connected": account["connected"], "plan": label(account["plan"]),
               "email": label(account["email"]), "buckets": [], "reset_credits": None,
-              "activity": None, "limits_error": "", "activity_error": "", "checked_at": int(time.time()),
+              "activity": None, "limits_error": "", "activity_error": "", "reset": None, "reset_error": "", "checked_at": int(time.time()),
               "limits_updated_at": None, "activity_updated_at": None}
     if not account["connected"]: return result
     rpc = subscription.connect()
@@ -82,10 +82,15 @@ def read_usage(subscription) -> dict:
         ("account/usage/read", activity, "activity_error", "activity_updated_at"),
     ]:
         try:
-            value = parser(rpc.request(method, {}, timeout=15))
+            raw = rpc.request(method, {}, timeout=15)
+            value = parser(raw)
             if field == "limits_error": result.update(value)
             else: result["activity"] = value
             result[timestamp] = int(time.time())
+            if field == "limits_error" and reset_store is not None:
+                try: result["reset"] = reset_store.inspect(raw, account)
+                except (ValueError, RuntimeError, OSError):
+                    result["reset_error"] = "Не удалось проверить предыдущую попытку сброса. Новый сброс недоступен."
         except (ValueError, RuntimeError, OSError):
             result[field] = "Codex сейчас не вернул эти данные. Попробуйте обновить позже."
     return result

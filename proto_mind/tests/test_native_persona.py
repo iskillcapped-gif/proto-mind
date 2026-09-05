@@ -136,6 +136,15 @@ class NativePersonaPreviewTests(unittest.TestCase):
         self.assertEqual(before, self.files())
         self.assertEqual(self.backend.subscription.calls, [])
 
+    def test_projectless_full_access_persona_keeps_unbound_project(self):
+        grant = self.backend.agent_grants.enable(self.conversation, None, FULL_ACCESS_CONFIRMATION)
+        params = self.params(provider="codex", model="gpt-5.6-sol", cloud_consent=True,
+                             access_mode="full_access", workspace_root=None, access_token=grant["token"])
+        result = self.backend.preview_persona(params)
+        self.assertEqual(result["snapshot"]["self_model"]["workspace_id"], "unbound")
+        self.assertEqual(result["snapshot"]["self_model"]["access_mode"], "full_access")
+        self.assertEqual(self.backend.subscription.calls, [])
+
     def test_invalid_or_widened_requests_fail_without_writes(self):
         cases = (
             {"provider": "unknown"},

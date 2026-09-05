@@ -105,7 +105,7 @@ extension AppModel {
             if let grant {
                 params["access_mode"] = .string("full_access")
                 params["access_token"] = .string(grant.token)
-                params["workspace_root"] = .string(grant.workspace)
+                if let workspace = grant.workspace { params["workspace_root"] = .string(workspace) }
             }
             if !files.isEmpty, let root = conversation.workspacePath {
                 params["workspace_root"] = .string(root)

@@ -3,6 +3,18 @@ import Foundation
 import SwiftUI
 
 struct CodexUsageSnapshot: Decodable {
+    struct Reset: Decodable {
+        let accountRef: String
+        let attemptKey: String
+        let outcome: String
+        let creditId: String?
+        var pending: Bool { outcome == "pending" }
+        var valid: Bool {
+            accountRef.count == 64 && accountRef.allSatisfy { "0123456789abcdef".contains($0) }
+                && ((attemptKey.isEmpty && outcome.isEmpty)
+                    || (UUID(uuidString: attemptKey) != nil && ["pending", "reset", "alreadyRedeemed", "nothingToReset", "noCredit"].contains(outcome)))
+        }
+    }
     struct Window: Decodable, Identifiable {
         let kind: String
         let usedPercent: Double?
@@ -48,12 +60,19 @@ struct CodexUsageSnapshot: Decodable {
     let email: String
     let buckets: [Bucket]
     let resetCredits: Int?
+    let reset: Reset?
+    let resetError: String?
     let activity: Activity?
     let limitsError: String
     let activityError: String
     let checkedAt: Double
     let limitsUpdatedAt: Double?
     let activityUpdatedAt: Double?
+
+    var canReset: Bool {
+        guard connected, (resetError ?? "").isEmpty, let reset, reset.valid else { return false }
+        return reset.pending || ((resetCredits ?? 0) > 0 && limitsError.isEmpty)
+    }
 
     static func parse(_ raw: JSONValue) throws -> Self {
         let decoder = JSONDecoder()
@@ -66,22 +85,71 @@ struct CodexUsageSnapshot: Decodable {
     }
 }
 
+struct CodexResetAttempt {
+    let key: String
+    let accountRef: String
+    let previousKey: String
+    let creditId: String?
+
+    init(_ reset: CodexUsageSnapshot.Reset) {
+        key = reset.pending ? reset.attemptKey : UUID().uuidString.lowercased()
+        accountRef = reset.accountRef; previousKey = reset.attemptKey; creditId = reset.creditId
+    }
+
+    var parameters: [String: JSONValue] {
+        ["account_ref": .string(accountRef), "expected_attempt": .string(previousKey),
+         "idempotency_key": .string(key), "credit_id": creditId.map(JSONValue.string) ?? .null,
+         "confirmation": .string("USE ONE CODEX RESET")]
+    }
+}
+
 @MainActor
 final class CodexUsageModel: ObservableObject {
     @Published private(set) var snapshot: CodexUsageSnapshot?
     @Published private(set) var refreshing = false
+    @Published private(set) var resetting = false
     @Published private(set) var error: String?
+    @Published private(set) var resetMessage: String?
 
-    func clear() { snapshot = nil; error = nil }
+    func clear() { snapshot = nil; error = nil; resetMessage = nil }
+
+    static func message(for outcome: String) -> String {
+        switch outcome {
+        case "reset": return "Сброс использован."
+        case "alreadyRedeemed": return "Этот сброс уже был применён. Повторно он не расходуется."
+        case "nothingToReset": return "Сейчас нет лимита, который можно сбросить. Сброс не потрачен."
+        case "noCredit": return "Доступных сбросов больше нет."
+        default: return "Результат сброса пока неизвестен. Проверьте эту попытку повторно."
+        }
+    }
+
+    func consume(_ attempt: CodexResetAttempt, app: AppModel) async {
+        guard !refreshing, !resetting, !app.busy, !app.connecting, !app.client.turnOutstanding,
+              !app.privateBackupRestartRequired, let snapshot, snapshot.canReset,
+              snapshot.reset?.accountRef == attempt.accountRef,
+              snapshot.reset?.attemptKey == attempt.previousKey else { return }
+        resetting = true; app.busy = true; error = nil; resetMessage = nil
+        defer { resetting = false; app.busy = false }
+        do {
+            let result = try await app.client.request("account_reset", attempt.parameters)
+            resetMessage = Self.message(for: result["outcome"].text)
+            self.snapshot = result["usage"].isNull ? nil : try CodexUsageSnapshot.parse(result["usage"])
+            if !result["refresh_error"].text.isEmpty { error = result["refresh_error"].text }
+        } catch {
+            self.snapshot = nil
+            self.error = "Не удалось подтвердить результат. Обновите лимиты: незавершённую попытку можно проверить повторно."
+        }
+    }
 
     func refresh(app: AppModel) async {
-        guard !refreshing, !app.busy, !app.connecting, !app.client.turnOutstanding, !app.privateBackupRestartRequired else { return }
-        refreshing = true; app.busy = true; error = nil
+        guard !refreshing, !resetting, !app.busy, !app.connecting, !app.client.turnOutstanding, !app.privateBackupRestartRequired else { return }
+        refreshing = true; app.busy = true; error = nil; resetMessage = nil
         defer { refreshing = false; app.busy = false }
         do {
             let value = try await app.client.request("account_usage")
             guard !Task.isCancelled else { return }
             snapshot = try CodexUsageSnapshot.parse(value)
+            if let reset = snapshot?.reset, !reset.outcome.isEmpty { resetMessage = Self.message(for: reset.outcome) }
         } catch {
             // Do not show another account's old totals after a failed auth refresh.
             snapshot = nil
@@ -93,13 +161,18 @@ final class CodexUsageModel: ObservableObject {
 struct CodexUsageView: View {
     @ObservedObject var app: AppModel
     @ObservedObject var usage: CodexUsageModel
+    @State private var confirmingReset = false
+    @State private var proposedReset: CodexResetAttempt?
+
+    private var blocked: Bool { usage.refreshing || usage.resetting || app.busy || app.connecting || app.client.turnOutstanding }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack {
                 Text("Использование Codex").font(.system(size: 22, weight: .semibold))
                 Spacer()
-                Button { app.showCodexUsage = false } label: { Image(systemName: "xmark") }.keyboardShortcut(.cancelAction)
+                Button { app.showCodexUsage = false } label: { Image(systemName: "xmark") }
+                    .keyboardShortcut(.cancelAction).disabled(usage.resetting)
             }
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
@@ -118,8 +191,22 @@ struct CodexUsageView: View {
                                     ForEach(bucket.windows) { window in quota(window) }
                                 }.padding(16).background(.quaternary, in: RoundedRectangle(cornerRadius: 12))
                             }
-                            if let count = value.resetCredits {
-                                Text("Доступно сбросов лимита: \(count)").font(.callout).foregroundStyle(.secondary)
+                            HStack {
+                                if let count = value.resetCredits {
+                                    Text("Доступно сбросов: \(count)").font(.callout).foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                if value.canReset, let reset = value.reset {
+                                    Button(reset.pending ? "Проверить попытку" : "Сбросить лимит…") {
+                                        let attempt = CodexResetAttempt(reset)
+                                        if reset.pending { Task { await usage.consume(attempt, app: app) } }
+                                        else { proposedReset = attempt; confirmingReset = true }
+                                    }.disabled(blocked)
+                                }
+                            }
+                            if let message = value.resetError, !message.isEmpty { unavailable(message) }
+                            if (value.resetCredits ?? 0) > 0 && value.reset == nil && (value.resetError ?? "").isEmpty {
+                                unavailable("Сброс недоступен, пока Codex не подтвердит аккаунт. Попробуйте обновить данные.")
                             }
                             if let timestamp = value.limitsUpdatedAt {
                                 Text("Лимиты проверены: \(Date(timeIntervalSince1970: timestamp).formatted(date: .abbreviated, time: .shortened))")
@@ -148,16 +235,25 @@ struct CodexUsageView: View {
                         unavailable(app.busy ? "Лимиты можно обновить после завершения текущей задачи." : "Нажмите «Обновить», чтобы проверить лимиты аккаунта Proto-Mind.")
                     }
                     if let error = usage.error { unavailable(error) }
+                    if let message = usage.resetMessage { unavailable(message) }
                 }.frame(maxWidth: .infinity, alignment: .leading)
             }
             HStack {
                 if usage.refreshing { ProgressView().controlSize(.small); Text("Проверяю аккаунт…").foregroundStyle(.secondary) }
+                if usage.resetting { ProgressView().controlSize(.small); Text("Проверяю сброс…").foregroundStyle(.secondary) }
                 Spacer()
                 Button("Обновить") { Task { await usage.refresh(app: app) } }
-                    .disabled(usage.refreshing || app.busy || app.connecting || app.client.turnOutstanding)
+                    .disabled(blocked)
             }.font(.callout)
         }.padding(24).frame(width: 560, height: 610)
             .task { await usage.refresh(app: app) }
+            .interactiveDismissDisabled(usage.resetting)
+            .alert("Использовать один сброс?", isPresented: $confirmingReset, presenting: proposedReset) { attempt in
+                Button("Отмена", role: .cancel) { proposedReset = nil }
+                Button("Сбросить лимит") { Task { await usage.consume(attempt, app: app) } }
+            } message: { _ in
+                Text("Codex использует один доступный сброс для аккаунта \(usage.snapshot?.email ?? "ChatGPT"). Это действие нельзя отменить. Если подходящего лимита нет, сброс не расходуется.")
+            }
     }
 
     @ViewBuilder private func quota(_ window: CodexUsageSnapshot.Window) -> some View {

@@ -22,6 +22,27 @@ extension NativeChecks {
         try check(value.activity?.summary.lifetimeTokens == 0 && value.activity?.summary.peakDailyTokens == nil,
                   "Native distinguishes zero account activity from missing metrics")
         try check(value.resetCredits == 0, "Zero earned resets is explicit and does not invoke a reset action")
+        try check(!value.canReset, "Missing reset identity never enables redemption")
+        let reference = String(repeating: "a", count: 64)
+        guard case .object(var actionable) = json else { throw NativeError.message("Invalid usage fixture") }
+        actionable["reset_credits"] = .number(3)
+        actionable["reset"] = .object(["account_ref": .string(reference), "attempt_key": .string(""),
+                                        "outcome": .string(""), "credit_id": .string("fixture-credit")])
+        let ready = try CodexUsageSnapshot.parse(.object(actionable))
+        try check(ready.canReset, "Available resets with verified account enable the explicit action")
+        let attempt = CodexResetAttempt(ready.reset!)
+        try check(UUID(uuidString: attempt.key) != nil && attempt.parameters["credit_id"] == .string("fixture-credit")
+                  && attempt.parameters["account_ref"] == .string(reference), "Confirmation freezes the account, exact credit and one attempt key")
+        actionable["reset_credits"] = .number(0)
+        try check(try !CodexUsageSnapshot.parse(.object(actionable)).canReset, "No credits hides a new reset action")
+        actionable["reset"] = .object(["account_ref": .string(reference), "attempt_key": .string(attempt.key),
+                                        "outcome": .string("pending"), "credit_id": .string("fixture-credit")])
+        let pending = try CodexUsageSnapshot.parse(.object(actionable))
+        try check(pending.canReset && CodexResetAttempt(pending.reset!).key == attempt.key,
+                  "An uncertain attempt remains recoverable at zero credits and reuses its original key")
+        try check(CodexUsageModel.message(for: "reset") != CodexUsageModel.message(for: "pending")
+                  && CodexUsageModel.message(for: "nothingToReset").contains("не потрачен"),
+                  "Known success, uncertainty and an unused reset have distinct user messages")
         let state = root.appendingPathComponent("usage-layout")
         let app = AppModel(configuration: LaunchConfiguration(projectRoot: root, python: root, stateDirectory: state))
         let view = NSHostingController(rootView: CodexUsageView(app: app, usage: app.codexUsage))
@@ -34,5 +55,32 @@ extension NativeChecks {
             _ = try CodexUsageSnapshot.parse(JSONDecoder().decode(JSONValue.self, from: Data(invalid.utf8)))
             throw NativeError.message("Unknown usage schema accepted")
         } catch { try check(error.localizedDescription != "Unknown usage schema accepted", "Unknown usage report schema is refused") }
+    }
+
+    @MainActor
+    static func projectlessAccess(fixture: URL, python: URL, root: URL) async throws {
+        let state = root.appendingPathComponent("projectless-access")
+        let app = AppModel(configuration: LaunchConfiguration(projectRoot: fixture, python: python, stateDirectory: state))
+        defer { app.client.shutdown() }
+        await app.start()
+        app.setProvider("codex")
+        app.cloudConsent = true
+        app.requestAgentAccess()
+        try check(app.selected?.workspacePath == nil && app.pendingAgentAccess != nil
+                  && app.pendingAgentAccess?.workspace == nil && !app.fullAccessEnabled,
+                  "An unbound conversation can ask for Full Mac without a folder picker")
+        await app.confirmAgentAccess()
+        try check(app.fullAccessEnabled && app.selected?.workspacePath == nil && app.error == nil,
+                  "Explicit projectless grant keeps the conversation unbound")
+        try check(app.contextRequestParameters?["workspace_root"] == nil
+                  && app.contextRequestParameters?["access_mode"] == .string("full_access")
+                  && app.contextRequestParameters?["access_token"] != nil,
+                  "Projectless context uses a real grant without substituting the application project")
+        let restart = AppModel(configuration: LaunchConfiguration(projectRoot: fixture, python: python, stateDirectory: state))
+        try check(!restart.fullAccessEnabled && restart.selected?.workspacePath == nil,
+                  "Projectless Full Mac authority does not survive an application restart")
+        await app.bindWorkspace(fixture.path)
+        try check(app.selected?.workspacePath != nil && !app.fullAccessEnabled,
+                  "Choosing a project revokes the earlier projectless grant")
     }
 }

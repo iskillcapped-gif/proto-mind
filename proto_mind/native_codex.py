@@ -800,7 +800,7 @@ class CodexSubscription:
             self.active_turn = None
 
     def agent_answer(self, prompt: str, instructions: str, model: str, on_delta,
-                     *, conversation: str, logical_workspace: dict, history: list[dict] | None = None,
+                     *, conversation: str, logical_workspace: dict | None, history: list[dict] | None = None,
                      workspace: Path, on_activity, on_progress=None, reasoning_effort: str = "",
                      images: list[SelectedImage] | None = None, criteria: list[str] | None = None) -> str:
         from proto_mind.native_agent import AGENT_INSTRUCTIONS, AgentRun, computer_use_turn_prompt, run_agent_turn

@@ -566,10 +566,10 @@ final class AppModel: ObservableObject {
 
     func requestAgentAccess() {
         guard !busy, selected?.archived != true, selected?.provider == "codex", cloudConsent,
-              let id = selectedID, let workspace = selected?.workspacePath else {
-            report(NativeError.message("Сначала выберите Codex, разрешите облачную обработку и подключите рабочую папку.")); return
+              let id = selectedID else {
+            report(NativeError.message("Сначала выберите Codex и разрешите облачную обработку.")); return
         }
-        pendingAgentAccess = PendingAgentAccess(conversationID: id, workspace: workspace)
+        pendingAgentAccess = PendingAgentAccess(conversationID: id, workspace: selected?.workspacePath)
     }
 
     func confirmAgentAccess() async {
@@ -580,11 +580,15 @@ final class AppModel: ObservableObject {
         pendingAgentAccess = nil; busy = true
         defer { busy = false }
         do {
-            let result = try await client.request("agent_access", ["conversation_id": .string(request.conversationID.uuidString),
-                "mode": .string("full_access"), "workspace_root": .string(request.workspace), "cloud_consent": .bool(cloudConsent),
-                "confirmation": .string("ALLOW FULL MAC ACCESS")])
+            var params: [String: JSONValue] = ["conversation_id": .string(request.conversationID.uuidString),
+                "mode": .string("full_access"), "cloud_consent": .bool(cloudConsent),
+                "confirmation": .string("ALLOW FULL MAC ACCESS")]
+            if let workspace = request.workspace { params["workspace_root"] = .string(workspace) }
+            let result = try await client.request("agent_access", params)
             guard result["mode"].text == "full_access", !result["token"].text.isEmpty,
-                  result["workspace_root"].text == request.workspace else { throw NativeError.message("Не удалось проверить разрешение агента.") }
+                  result["workspace_root"] == (request.workspace.map(JSONValue.string) ?? .null),
+                  request.conversationID == selectedID, request.workspace == selected?.workspacePath,
+                  cloudConsent, selected?.provider == "codex" else { throw NativeError.message("Не удалось проверить разрешение агента.") }
             invalidateSessionSpinePilot()
             agentGrants[request.conversationID] = AgentAccessGrant(token: result["token"].text, workspace: request.workspace)
             invalidateContextPreview()

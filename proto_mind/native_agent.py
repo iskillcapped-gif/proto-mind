@@ -55,11 +55,13 @@ class AgentGrants:
     def __init__(self) -> None:
         self._grants: dict[str, dict] = {}
 
-    def enable(self, conversation: str, workspace: Path, confirmation: object) -> dict:
+    def enable(self, conversation: str, workspace: Path | None, confirmation: object) -> dict:
         if confirmation != FULL_ACCESS_CONFIRMATION:
             raise ValueError("Explicit Full Mac confirmation is required; cloud consent alone grants no tools.")
-        stat = workspace.stat()
-        grant = {"token": secrets.token_urlsafe(32), "workspace_root": str(workspace),
+        execution_root = workspace if workspace is not None else Path.home().resolve(strict=True)
+        stat = execution_root.stat()
+        grant = {"token": secrets.token_urlsafe(32), "workspace_root": str(workspace) if workspace is not None else None,
+                 "execution_root": str(execution_root),
                  "mode": "full_access", "granted_at": timestamp(),
                  "identity": (stat.st_dev, stat.st_ino)}
         self._grants[conversation] = grant
@@ -71,13 +73,13 @@ class AgentGrants:
         else:
             self._grants.pop(conversation, None)
 
-    def validate(self, conversation: str, workspace: Path, token: object) -> dict:
+    def validate(self, conversation: str, workspace: Path | None, token: object) -> dict:
         grant = self._grants.get(conversation)
         if (not grant or not isinstance(token, str) or len(token) > 100
                 or not hmac.compare_digest(grant["token"], token)
-                or grant["workspace_root"] != str(workspace)):
-            raise ValueError("Full Mac permission is missing or expired. Enable it explicitly for this conversation and folder.")
-        stat = workspace.stat()
+                or grant["workspace_root"] != (str(workspace) if workspace is not None else None)):
+            raise ValueError("Full Mac permission is missing or expired. Enable it explicitly for this conversation.")
+        stat = Path(grant["execution_root"]).stat()
         if grant["identity"] != (stat.st_dev, stat.st_ino):
             self.revoke(conversation)
             raise ValueError("The granted workspace was replaced. Review the folder and grant access again.")

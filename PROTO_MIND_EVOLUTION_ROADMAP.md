@@ -1,8 +1,8 @@
 # Proto-Mind: Current Direction
 
-Updated: 2026-09-05. Current release: Native **0.53.0 (61)**.
+Updated: 2026-09-06. Current release: Native **0.54.0 (62)**.
 
-Proto-Mind is a personal macOS assistant. The immediate goal is a dependable, approachable application that can support the operator's planned expansion. The everyday layout, working panel and conversation polish are delivered. On September 5 the operator requested useful service connections, starting with GitHub. GitHub, complete local private-state backups and subscription usage views are now delivered; memory and continuity workflows remain available.
+Proto-Mind is a personal macOS assistant. The immediate goal is a dependable, approachable application that can support the operator's planned expansion. The everyday layout, working panel and conversation polish are delivered. On September 5 the operator requested useful service connections, starting with GitHub. GitHub, complete local private-state backups, subscription usage with explicit earned resets, and Full Mac access without a selected project are now delivered; memory and continuity workflows remain available.
 
 This is the current priority map. [AGENTS.md](AGENTS.md) describes how to work in the project; [Native releases](NATIVE_MACOS_ROADMAP.md) preserve delivered contracts and verification; [Architect Ledger](PROTO_MIND_ARCHITECT_LEDGER.md) preserves architectural evidence. Earlier versions of this document remain in Git history. Historical EV/P2 numbering and imported blueprints do not determine the next task.
 

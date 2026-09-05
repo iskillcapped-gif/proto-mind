@@ -26,6 +26,13 @@ struct NativeChecks {
             print("Native history checks: \(passed) OK")
             return
         }
+        if CommandLine.arguments.contains("--account-access-only"),
+           let fixture = LaunchConfiguration.argument("--fixture"), let python = LaunchConfiguration.argument("--python") {
+            try codexUsageContracts(root: root)
+            try await projectlessAccess(fixture: URL(fileURLWithPath: fixture), python: URL(fileURLWithPath: python), root: root)
+            print("Native account/access checks: \(passed) OK")
+            return
+        }
         if CommandLine.arguments.contains("--private-backup-only"),
            let fixture = LaunchConfiguration.argument("--fixture"), let python = LaunchConfiguration.argument("--python") {
             try privateBackupContracts(root: root)
@@ -694,6 +701,7 @@ struct NativeChecks {
         try await library(app: app, fixture: fixture, state: root.appendingPathComponent("integration-state"))
         try await learningReview(fixture: fixture, python: python, root: root)
         try await agentAccess(app: app, fixture: fixture, state: root.appendingPathComponent("integration-state"), python: python)
+        try await projectlessAccess(fixture: fixture, python: python, root: root)
         try await imageAttachments(fixture: fixture, python: python, root: root)
         try await attachmentDrops(fixture: fixture, python: python, root: root)
         try await pdfAttachments(fixture: fixture, python: python, root: root)

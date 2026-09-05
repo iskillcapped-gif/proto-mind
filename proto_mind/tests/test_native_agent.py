@@ -103,6 +103,46 @@ class NativeAgentPermissionTests(unittest.TestCase):
                 self.backend.process(self.params(access_token=grant["token"], **changes), lambda _: None, "r")
         self.assertFalse(self.root.exists())
 
+    def test_projectless_grant_uses_home_without_creating_a_project_or_connecting(self):
+        with patch.object(Path, "home", return_value=self.workspace):
+            grant = self.grant(workspace_root=None)
+        self.assertIsNone(grant["workspace_root"])
+        self.assertEqual(grant["execution_root"], str(self.workspace))
+        self.assertFalse(self.root.exists())
+        self.assertFalse(self.state.exists())
+        self.assertEqual(self.backend.subscription.calls, [])
+        self.assertEqual(self.backend.agent_grants.validate(self.conversation, None, grant["token"])["execution_root"], str(self.workspace))
+        with self.assertRaises(ValueError): self.backend.agent_grants.validate(self.conversation, self.workspace, grant["token"])
+
+    def test_projectless_turn_and_journal_keep_logical_workspace_absent(self):
+        with patch.object(Path, "home", return_value=self.workspace):
+            grant = self.grant(workspace_root=None)
+        events = []
+        self.backend.subscription.select_skills = Mock(return_value={
+            "text": json.dumps({"skill_ids": [], "reason": "No relevant fixture skill", "checks": []}),
+            "model": "fixture-model", "effort": "low"})
+        result = self.backend.process(self.params(workspace_root=None, access_token=grant["token"],
+                                                  auto_skills=True, auto_project_recall=True), events.append, "projectless")
+        self.assertEqual(self.backend.subscription.calls[0][3], self.workspace)
+        self.assertIsNone(self.backend.subscription.last_thread_info["workspace"])
+        self.assertEqual(result["agent_run"]["access_mode"], "full_access")
+        journals = list((self.state / "work_sessions").rglob("*.json"))
+        self.assertTrue(journals)
+        for path in journals:
+            value = json.loads(path.read_text())
+            if "workspace" in value: self.assertIsNone(value["workspace"])
+
+    def test_projectless_grant_still_requires_confirmation_and_expires_on_revoke(self):
+        with self.assertRaises(ValueError): self.grant(workspace_root=None, confirmation="yes")
+        with patch.object(Path, "home", return_value=self.workspace):
+            grant = self.grant(workspace_root=None)
+        self.grant(mode="chat", workspace_root=None)
+        with self.assertRaises(ValueError): self.backend.process(self.params(workspace_root=None, access_token=grant["token"]), lambda _: None, "refused")
+        self.assertEqual(self.backend.subscription.calls, [])
+
+    def test_empty_workspace_is_not_treated_as_projectless(self):
+        with self.assertRaises(ValueError): self.grant(workspace_root="")
+
     def test_replaced_workspace_invalidates_grant(self):
         grant = self.grant()
         self.workspace.rename(self.workspace.with_name("old-workspace"))
@@ -374,6 +414,14 @@ class CodexAgentAdapterTests(unittest.TestCase):
         self.assertEqual(self.client.thread_status(self.conversation, self.logical_workspace)["last_mode"], "chat")
         bindings = json.loads((Path(self.temp.name) / "state" / "codex_threads.json").read_text())["bindings"]
         self.assertEqual({row["instruction_mode"] for row in bindings}, {"chat", "full_access"})
+
+    def test_projectless_chat_and_full_mac_resume_separate_threads(self):
+        self.logical_workspace = None
+        self.test_chat_and_full_access_use_separate_durable_instruction_threads()
+        self.answer()
+        full = [rpc for rpc in self.transports if rpc.full_access][-1]
+        self.assertIn("thread/resume", [method for method, _ in full.calls])
+        self.assertIsNone(self.client.thread_status(self.conversation, None)["workspace"])
 
     def test_legacy_chat_thread_is_not_resumed_for_full_access_and_history_bootstraps_once(self):
         state = Path(self.temp.name) / "state"
