@@ -114,33 +114,6 @@ struct NativeAutoSkillsReport: Equatable {
     }
 }
 
-struct AutoSkillsMenu: View {
-    @ObservedObject var model: AppModel
-    var compact = false
-    @State private var showStarters = false
-    var body: some View {
-        Menu {
-            Toggle("Подбирать навыки автоматически", isOn: Binding(get: { model.selected?.autoSkillsEnabled != false }, set: model.setAutoSkillsEnabled))
-            Text("Один короткий запрос Codex для подбора навыков")
-            Text("Без новых разрешений и автоматического обучения")
-            if model.pendingSkillTask != nil {
-                Text("На этот ход приоритет у вашего ручного выбора")
-                Button("Убрать ручной выбор", action: model.removeSkillTask)
-            }
-            Divider()
-            Button("Встроенный набор…") { showStarters = true }
-            Button("Личная библиотека навыков…") { Task { await model.showLibrary(.skills) } }
-        } label: {
-            Label(model.pendingSkillTask != nil ? (compact ? "Вручную" : "Навыки · Вручную") : model.selected?.autoSkillsEnabled != false ? (compact ? "Авто" : "Навыки · Авто") : (compact ? "Выкл" : "Навыки · Выкл"),
-                  systemImage: "square.stack.3d.up").font(.system(size: 12))
-        }.menuStyle(.borderlessButton).fixedSize().nativeHoverSurface()
-            .disabled(model.busy || model.selected?.archived == true)
-            .help("Подбор по смыслу задачи через выбранную модель. Отбор без инструментов; затем обычный запрос с текущими правами. Можно отключить для этого диалога.")
-            .accessibilityLabel("Автоматический выбор навыков")
-            .sheet(isPresented: $showStarters) { StarterSkillsView(client: model.client) }
-    }
-}
-
 struct AutoSkillsReportView: View {
     let report: NativeAutoSkillsReport
     var body: some View {

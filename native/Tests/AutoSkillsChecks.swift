@@ -17,14 +17,13 @@ extension NativeChecks {
         app.busy = true; app.setAutoSkillsEnabled(true)
         try check(app.selected?.autoSkillsEnabled == false, "Skill mode cannot change during a running turn")
         app.busy = false
-        let menu = NSHostingController(rootView: AutoSkillsMenu(model: app))
-        let size = menu.sizeThatFits(in: CGSize(width: 500, height: 100))
-        try check(size.width < 220 && size.height < 55, "Automatic skills control remains compact in the composer")
         var legacy = try JSONSerialization.jsonObject(with: JSONEncoder().encode(Conversation())) as! [String: Any]
         legacy.removeValue(forKey: "autoSkillsEnabled")
         let decoded = try JSONDecoder().decode(Conversation.self, from: JSONSerialization.data(withJSONObject: legacy))
         try check(decoded.autoSkillsEnabled, "Old conversation files need no migration to support auto skills")
         var report = autoSkillReport(conversation: app.selectedID!, text: "Task")
+        try check(ChatMessage(role: "assistant", text: "Fixture", autoSkills: .object(report)).hasResponseDetails,
+                  "A skill report keeps answer details available without a separate composer control or chat report")
         let checked = try NativeAutoSkillsReport(.object(report))
         try check(checked.state == "selected" && checked.matches(conversation: app.selectedID!, text: "Task", workspace: nil, mode: "chat"),
                   "Selected report binds task, conversation, mode, source version and model without authority")

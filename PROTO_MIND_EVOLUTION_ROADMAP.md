@@ -1,8 +1,8 @@
 # Proto-Mind: Current Direction
 
-Updated: 2026-09-05. Current release: Native **0.50.0 (57)**.
+Updated: 2026-09-05. Current release: Native **0.51.0 (58)**.
 
-Proto-Mind is a personal macOS assistant. The immediate goal is a dependable, approachable application that can support the operator's planned expansion. The everyday layout and working panel are delivered. The operator has deferred visual fine-tuning; current work focuses on useful memory and continuity workflows.
+Proto-Mind is a personal macOS assistant. The immediate goal is a dependable, approachable application that can support the operator's planned expansion. The everyday layout and working panel are delivered. The operator returned to conversation polish on September 5: a calmer work timeline, narrower reading column, upward composer menus and final file-change summaries. Memory and continuity workflows remain delivered.
 
 This is the current priority map. [AGENTS.md](AGENTS.md) describes how to work in the project; [Native releases](NATIVE_MACOS_ROADMAP.md) preserve delivered contracts and verification; [Architect Ledger](PROTO_MIND_ARCHITECT_LEDGER.md) preserves architectural evidence. Earlier versions of this document remain in Git history. Historical EV/P2 numbering and imported blueprints do not determine the next task.
 
@@ -33,6 +33,8 @@ Acceptance used isolated signed apps in both appearances, a small window with th
 
 Release 0.48.0 follows the operator's Codex screenshots: neutral gray/charcoal surfaces, 16-point messages, simpler project navigation and access-left/model-right composer controls. The right panel now holds real file/browser tabs, supports resizing and expanded reading, and keeps answer diagnostics in a separate sheet. It opens bounded project text and Markdown, PNG/JPEG previews, verified PDF text pages and manually navigated HTTP(S) sites. Viewing does not attach content or give the model browser access. Tabs and website sessions are temporary; original PDF layout, downloads and unsupported web flows use external applications. The [release contract](NATIVE_MACOS_ROADMAP.md#files-and-browser-panel--native-0480) records current acceptance.
 
+Release 0.51.0 refines the conversation after the operator's second screenshot review: aligned 760-point input/transcript columns with larger margins, 15-point body/input text, composer panels that stay above their anchors, adaptive model-control width, compact grouped activity, and final-only edited-file cards. Skills, project-recall reports and service notices move to answer details. Line totals come from complete observed diffs, never truncated preview text; older counts may be absent. See the [release contract](NATIVE_MACOS_ROADMAP.md#quieter-conversation--native-0510).
+
 ## Project Memory Controls Delivered
 
 Release 0.49.0 makes explicitly saved project knowledge manageable through ordinary actions: **Сохранить**, **Изменить**, **Убрать из памяти проекта** and **Вернуть в память проекта**. Removing a note excludes it from new recall and attachment; history retains the original bytes and supports search and restoration. Exact preview, scope and writer checks happen internally after the user's action. Stale pending note selections and context previews are cleared after edits/removal. **Библиотека** separates project notes from legacy shared memory. See the [release contract](NATIVE_MACOS_ROADMAP.md#project-memory-controls--native-0490).
@@ -45,7 +47,7 @@ Release 0.50.0 closes the missing navigation step: **История диалог
 
 The current recovery UI exports dialogs, while useful personal state also lives in project notes, shared core memory, the work journal and local provider/session links. The next candidate is one clearly scoped, verified backup and recovery flow for that local private state. Begin with an inventory and a consistent snapshot/preview; preserve existing recovery copies and separately identify original attachments or remote provider history that a local copy cannot contain. Do not treat a dialog export as a full backup or silently restore authority from old state.
 
-Visual fine-tuning is deferred until the operator returns to it. The planned substantial functional expansion remains for the operator to scope.
+The requested eight-point conversation refinement is delivered in 0.51.0; additional visual changes can follow actual use. The planned substantial functional expansion remains for the operator to scope.
 
 ## Later Candidates
 

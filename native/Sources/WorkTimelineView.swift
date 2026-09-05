@@ -38,21 +38,55 @@ enum WorkLogPresentation {
     }
 }
 
+struct WorkTimelineSection: Identifiable {
+    let id: String
+    var entries: [JSONValue]
+    var isTools: Bool { entries.first?["kind"].text == "tool" }
+}
+
+enum WorkTimelinePresentation {
+    static func sections(_ entries: [JSONValue]) -> [WorkTimelineSection] {
+        var result: [WorkTimelineSection] = []
+        for (index, entry) in entries.prefix(96).enumerated() {
+            if entry["kind"].text == "tool", result.last?.isTools == true {
+                result[result.count - 1].entries.append(entry)
+            } else {
+                result.append(WorkTimelineSection(id: entry["id"].text.isEmpty ? "entry-\(index)" : entry["id"].text, entries: [entry]))
+            }
+        }
+        return result
+    }
+
+    static func toolSummary(_ kinds: Set<String>, live: Bool) -> String {
+        var parts: [String] = []
+        if kinds.contains("fileChange") { parts.append(live ? "Редактирует файлы" : "Редактирование файлов") }
+        if kinds.contains("commandExecution") { parts.append(live ? "выполняет команды" : "команды в терминале") }
+        if kinds.contains("webSearch") { parts.append(live ? "ищет в интернете" : "поиск в интернете") }
+        if kinds.contains("computerUse") { parts.append(live ? "работает с приложениями" : "работа с приложениями") }
+        if kinds.contains("imageView") { parts.append(live ? "смотрит изображения" : "просмотр изображений") }
+        let text = parts.isEmpty ? "Действия инструментов" : parts.joined(separator: ", ")
+        return text.prefix(1).uppercased() + text.dropFirst()
+    }
+
+    static func visibleTools(_ items: [JSONValue], live: Bool) -> [JSONValue] {
+        items.filter { !live || $0["kind"].text != "fileChange" }
+    }
+}
+
 struct WorkTimelineView: View {
     let log: JSONValue
     let agentReceipt: JSONValue
     var toolItems: [JSONValue]? = nil
     var live = false
     var startedAt: Date? = nil
-    @State private var expanded = false
+    @State private var expanded: Bool? = nil
 
+    private var isExpanded: Bool { expanded ?? live }
     private var entries: [JSONValue] { Array(log["entries"].items.prefix(96)) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 15) {
-            Button {
-                expanded.toggle()
-            } label: {
+        VStack(alignment: .leading, spacing: 20) {
+            Button { expanded = !isExpanded } label: {
                 HStack(spacing: 8) {
                     if live { ProgressView().controlSize(.mini).scaleEffect(0.75) }
                     Text(WorkLogPresentation.title(log, live: live))
@@ -62,66 +96,78 @@ struct WorkTimelineView: View {
                                 .monospacedDigit().foregroundStyle(.tertiary)
                         }
                     }
-                    Image(systemName: expanded ? "chevron.down" : "chevron.right").font(.system(size: 10, weight: .semibold))
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right").font(.system(size: 10, weight: .semibold))
                     Spacer(minLength: 0)
-                }.font(.system(size: 13)).foregroundStyle(.secondary).contentShape(Rectangle())
+                }.font(.system(size: 12)).foregroundStyle(.secondary).contentShape(Rectangle())
             }.buttonStyle(.nativeHover).accessibilityElement(children: .ignore)
                 .accessibilityAddTraits(.isButton)
                 .accessibilityLabel("Ход работы: " + WorkLogPresentation.title(log, live: live))
-                .help("Публичные комментарии модели и наблюдаемые действия, не внутренние рассуждения")
-            if expanded {
-                VStack(alignment: .leading, spacing: 20) {
-                    if entries.isEmpty {
-                        Text(live ? "Ожидаю публичный комментарий или результат. Внутренние рассуждения не отображаются." : "Провайдер не передал публичные этапы работы для этого ответа.")
-                            .font(.system(size: 13)).foregroundStyle(.secondary)
-                    }
-                    ForEach(Array(entries.enumerated()), id: \.offset) { _, entry in
-                        row(entry)
+            if isExpanded {
+                VStack(alignment: .leading, spacing: 22) {
+                    ForEach(WorkTimelinePresentation.sections(entries)) { section in
+                        if section.isTools {
+                            let ids = Set(section.entries.map { $0["tool_id"].text })
+                            let items = (toolItems ?? agentReceipt["items"].items).filter { ids.contains($0["id"].text) }
+                            WorkToolGroup(items: items, kinds: Set(section.entries.map { $0["tool_kind"].text }).union(items.map { $0["kind"].text }), live: live)
+                        } else if let entry = section.entries.first { row(entry) }
                     }
                     if log["truncated"].flag {
-                        Label("Показана ограниченная часть хода работы.", systemImage: "info.circle").font(.caption).foregroundStyle(.secondary)
+                        Text("Показана часть хода работы").font(.caption).foregroundStyle(.tertiary)
                     }
-                    ForEach(Array(agentReceipt["warnings"].items.prefix(8).enumerated()), id: \.offset) { _, warning in
-                        Label(warning.text, systemImage: "exclamationmark.triangle")
-                            .font(.caption).foregroundStyle(.orange).textSelection(.enabled)
-                    }
-                    if !live && agentReceipt["execution_may_have_occurred"].flag {
-                        Text("Журнал действий не является автоматической проверкой или откатом изменений.")
-                            .font(.caption).foregroundStyle(.tertiary)
-                    }
-                }.padding(.leading, 14).padding(.vertical, 3)
-                    .overlay(alignment: .leading) { Rectangle().fill(NativeTheme.hairline).frame(width: 1) }
+                }
             } else if live, let latest = entries.last(where: { $0["kind"].text == "commentary" }), !latest["text"].text.isEmpty {
-                Text(latest["text"].text).font(NativeTheme.interfaceFont).foregroundStyle(.secondary).lineLimit(2)
+                Text(latest["text"].text).font(NativeTheme.messageFont).foregroundStyle(.secondary).lineLimit(2)
             }
         }
     }
 
-    @ViewBuilder
-    private func row(_ entry: JSONValue) -> some View {
+    @ViewBuilder private func row(_ entry: JSONValue) -> some View {
         switch entry["kind"].text {
         case "commentary":
-            Text(MarkdownBlock.inline(entry["text"].text)).font(NativeTheme.interfaceFont).lineSpacing(5).textSelection(.enabled)
-        case "tool":
-            if let item = (toolItems ?? agentReceipt["items"].items).first(where: { $0["id"].text == entry["tool_id"].text }) {
-                AgentToolRow(item: item)
-            } else {
-                Label("Действие инструмента · подробности не сохранились", systemImage: "wrench.and.screwdriver")
-                    .font(.system(size: 12)).foregroundStyle(.secondary)
-            }
+            Text(MarkdownBlock.inline(entry["text"].text)).font(NativeTheme.messageFont).lineSpacing(5).textSelection(.enabled)
         case "plan":
-            VStack(alignment: .leading, spacing: 8) {
-                Label("План работы", systemImage: "list.bullet.clipboard").font(.system(size: 13, weight: .medium))
-                if !entry["text"].text.isEmpty { Text(entry["text"].text).font(.system(size: 13)).foregroundStyle(.secondary) }
-                ForEach(Array(entry["steps"].items.prefix(12).enumerated()), id: \.offset) { _, step in
-                    Label(step["step"].text, systemImage: step["status"].text == "completed" ? "checkmark.circle" : step["status"].text == "inProgress" ? "circle.dotted" : "circle")
-                        .font(.system(size: 13)).foregroundStyle(step["status"].text == "inProgress" ? Color.primary : .secondary)
-                }
-            }.textSelection(.enabled)
+            DisclosureGroup("План работы") {
+                VStack(alignment: .leading, spacing: 8) {
+                    if !entry["text"].text.isEmpty { Text(entry["text"].text) }
+                    ForEach(Array(entry["steps"].items.prefix(12).enumerated()), id: \.offset) { _, step in
+                        Label(step["step"].text, systemImage: step["status"].text == "completed" ? "checkmark.circle" : step["status"].text == "inProgress" ? "circle.dotted" : "circle")
+                    }
+                }.padding(.top, 8).textSelection(.enabled)
+            }.font(.system(size: 13)).foregroundStyle(.secondary)
         case "context_compaction":
-            Label("Провайдер сжал контекст", systemImage: "rectangle.compress.vertical").font(.system(size: 12)).foregroundStyle(.secondary)
-        default:
-            EmptyView()
+            Label("Сжатие контекста", systemImage: "rectangle.compress.vertical").font(.system(size: 12)).foregroundStyle(.tertiary)
+        default: EmptyView()
+        }
+    }
+}
+
+private struct WorkToolGroup: View {
+    let items: [JSONValue]
+    let kinds: Set<String>
+    let live: Bool
+    @State private var expanded = false
+
+    private var running: Bool { live && items.contains { ["inProgress", "starting"].contains($0["status"].text) } }
+    private var hasErrors: Bool { items.contains { ["failed", "declined", "unknown"].contains($0["status"].text) } }
+    private var visible: [JSONValue] { WorkTimelinePresentation.visibleTools(items, live: live) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Button { expanded.toggle() } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: hasErrors ? "exclamationmark.circle" : kinds.contains("fileChange") ? "pencil" : "terminal")
+                    Text(WorkTimelinePresentation.toolSummary(kinds, live: running)).lineLimit(2)
+                    if !visible.isEmpty { Image(systemName: expanded ? "chevron.up" : "chevron.down").font(.system(size: 9)) }
+                    if running { ProgressView().controlSize(.mini).scaleEffect(0.7) }
+                    Spacer(minLength: 0)
+                }.font(.system(size: 13)).foregroundStyle(hasErrors ? Color.orange : .secondary)
+                    .contentShape(Rectangle())
+            }.buttonStyle(.nativeHover).disabled(visible.isEmpty)
+            if expanded {
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(Array(visible.enumerated()), id: \.offset) { _, item in AgentToolRow(item: item) }
+                }.padding(.leading, 17)
+            }
         }
     }
 }

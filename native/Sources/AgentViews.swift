@@ -101,6 +101,7 @@ struct AgentToolRow: View {
 
     var body: some View {
         DisclosureGroup {
+            ScrollView {
             VStack(alignment: .leading, spacing: 8) {
                 if !item["cwd"].text.isEmpty { Text("Папка: \(item["cwd"].text)") }
                 if !item["exit_code"].isNull { Text("Код завершения: \(item["exit_code"].integer)") }
@@ -116,11 +117,12 @@ struct AgentToolRow: View {
                 ForEach(Array(item["paths"].items.enumerated()), id: \.offset) { _, path in Text(path.text) }
             }.font(NativeTheme.codeFont).textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading).padding(12)
+            }.frame(maxHeight: 230)
                 .background(NativeTheme.composer, in: RoundedRectangle(cornerRadius: 9))
         } label: {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Image(systemName: item["kind"].text == "commandExecution" ? "terminal" : item["kind"].text == "webSearch" ? "globe" : item["kind"].text == "computerUse" ? "display.and.arrow.down" : "doc.text")
-                Text(title).lineLimit(2)
+                Text(title).lineLimit(1).truncationMode(.middle)
                 Spacer(minLength: 4)
                 Text(status).font(.system(size: 11)).foregroundStyle(item["status"].text == "failed" ? Color.orange : .secondary)
             }.font(.system(size: 13)).foregroundStyle(.secondary)
@@ -129,7 +131,7 @@ struct AgentToolRow: View {
 
     private var title: String {
         switch item["kind"].text {
-        case "commandExecution": return item["command"].text
+        case "commandExecution": return "Команда в терминале"
         case "fileChange": return "Изменения файлов: \(item["change_count"].integer)"
         case "imageView": return "Просмотр изображения"
         case "webSearch": return item["query"].text.isEmpty ? "Поиск в интернете" : item["query"].text

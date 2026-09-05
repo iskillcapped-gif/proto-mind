@@ -273,14 +273,14 @@ private struct ChatView: View {
                                 }
                                 if model.busy {
                                     VStack(alignment: .leading, spacing: 20) {
-                                        if let report = model.autoSkillsReport { AutoSkillsReportView(report: report) }
                                         WorkTimelineView(log: model.workLog, agentReceipt: model.agentReceipt,
                                                          toolItems: model.agentItems, live: true, startedAt: model.turnStartedAt)
                                         if !model.stream.isEmpty { MessageMarkdownView(text: model.stream, copy: model.copy, openLink: { model.openWorkspaceLink($0) }) }
                                     }.frame(maxWidth: .infinity, alignment: .leading)
                                 }
-                            }.padding(.horizontal, 32).padding(.vertical, 30)
-                                .frame(maxWidth: NativeTheme.columnWidth + 64).frame(maxWidth: .infinity)
+                            }.frame(maxWidth: NativeTheme.columnWidth)
+                                .padding(.horizontal, NativeTheme.conversationInset).padding(.vertical, 30)
+                                .frame(maxWidth: .infinity)
                             Color.clear.frame(height: 1).id("bottom")
                                 .background(GeometryReader { anchor in
                                     Color.clear.preference(key: ChatBottomKey.self, value: anchor.frame(in: .named("chat-scroll")).maxY)
@@ -330,7 +330,7 @@ private struct ChatView: View {
                         }
                 }
             }
-            ComposerView(model: model).padding(.horizontal, 28).padding(.top, 7).padding(.bottom, 12).background(canvas)
+            ComposerView(model: model).padding(.horizontal, NativeTheme.conversationInset).padding(.top, 7).padding(.bottom, 12).background(canvas)
         }.modifier(AttachmentDropTarget(model: model))
     }
 
@@ -425,8 +425,6 @@ private struct MessageView: View {
             }
         } else {
             VStack(alignment: .leading, spacing: 18) {
-                if let raw = message.autoSkills, let report = try? NativeAutoSkillsReport(raw) { AutoSkillsReportView(report: report) }
-                if let raw = message.knowledgeContext, let report = try? NativeProjectRecallReport(raw["project_recall"]) { ProjectRecallReportView(report: report) }
                 if let work = message.workLog, work["schema"].text == "proto_mind.native_work_log.v1" {
                     WorkTimelineView(log: work, agentReceipt: message.agentRun ?? .null)
                 } else if let receipt = message.agentRun, !receipt.isNull {
@@ -445,16 +443,14 @@ private struct MessageView: View {
                 }
                 attachments
                 if let (report, text) = model.memorySuggestions(for: message) { MemorySuggestionCard(app: model, report: report, text: text) }
-                ForEach(Array(message.notices.enumerated()), id: \.offset) { _, notice in
-                    Label(notice, systemImage: "info.circle").font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
-                }
+                if let receipt = message.agentRun { CompletedFileChangesView(receipt: receipt, openLink: { model.openWorkspaceLink($0) }) }
                 HStack(spacing: 17) {
                     Button { model.copy(message.text) } label: { Image(systemName: "doc.on.doc") }
                         .help("Копировать ответ").accessibilityLabel("Копировать ответ")
-                    if !message.evidence.isNull || message.turnReference != nil {
+                    if message.hasResponseDetails || message.turnReference != nil {
                         Menu {
-                            if !message.evidence.isNull {
-                                Button("Память и проверки", systemImage: "sidebar.right") { model.showMessage(message) }
+                            if message.hasResponseDetails {
+                                Button("Об ответе", systemImage: "info.circle") { model.showMessage(message) }
                                 Button(showRaw ? "Скрыть исходный отчёт" : "Исходный отчёт", systemImage: "text.alignleft") { showRaw.toggle() }
                             }
                             if message.turnReference != nil {
@@ -602,7 +598,7 @@ struct NativeComposer: NSViewRepresentable {
         let editor = Editor()
         editor.isRichText = false
         editor.drawsBackground = false
-        editor.font = .systemFont(ofSize: 16)
+        editor.font = .systemFont(ofSize: NativeTheme.messageSize)
         editor.textColor = .labelColor
         editor.insertionPointColor = .labelColor
         editor.isVerticallyResizable = true

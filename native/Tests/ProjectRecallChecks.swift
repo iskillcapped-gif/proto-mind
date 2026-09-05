@@ -21,14 +21,13 @@ extension NativeChecks {
         app.busy = false; app.newConversation()
         try check(app.selected?.autoProjectRecallEnabled == true && app.conversations.first(where: { $0.id == originalID })?.autoProjectRecallEnabled == false,
                   "Recall opt-out belongs to one chat, not every project or permission setting")
-        let menu = NSHostingController(rootView: ProjectRecallMenu(model: app))
-        let size = menu.sizeThatFits(in: CGSize(width: 160, height: 80))
-        try check(size.width < 65 && size.height < 50, "Project recall icon fits without another wide composer control")
         var legacy = try JSONSerialization.jsonObject(with: JSONEncoder().encode(Conversation())) as! [String: Any]
         legacy.removeValue(forKey: "autoProjectRecallEnabled")
         let decoded = try JSONDecoder().decode(Conversation.self, from: JSONSerialization.data(withJSONObject: legacy))
         try check(decoded.autoProjectRecallEnabled, "Old chats support project recall without a migration")
         let fixture = recallMetadata(conversation: originalID, workspace: root.path)
+        try check(ChatMessage(role: "assistant", text: "Fixture", knowledgeContext: fixture.metadata).hasResponseDetails,
+                  "Project recall evidence stays reachable in answer details without another composer control or chat report")
         try checkKnowledgeMetadata(fixture.metadata)
         try checkProjectMemorySources(.array([fixture.source]), metadata: fixture.metadata)
         let report = try NativeProjectRecallReport(fixture.metadata["project_recall"], notes: fixture.metadata["project_memory"].items)

@@ -1,52 +1,81 @@
+import AppKit
 import SwiftUI
+
+enum ModelSelectionPresentation {
+    static func width(for label: String) -> CGFloat {
+        min(220, ceil((label as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 12, weight: .medium)]).width) + 28)
+    }
+}
 
 struct ModelSelectionMenu: View {
     @ObservedObject var model: AppModel
     let openSettings: () -> Void
+    @State private var open = false
+    @State private var section = "model"
 
     private var isCodex: Bool { model.selected?.provider == "codex" }
+    private var title: String {
+        isCodex ? "\(model.codexModelLabel) · \(model.reasoningEffortLabel)" : localModelLabel
+    }
 
     var body: some View {
-        Menu {
-            if isCodex {
-                Menu {
-                    CodexModelPicker(model: model)
-                } label: {
-                    Text("Модель: \(model.codexModelLabel)")
-                }
-                Menu {
-                    CodexEffortPicker(model: model)
-                } label: {
-                    Text("Глубина: \(model.reasoningEffortLabel)")
-                }.disabled(model.availableReasoningEfforts.isEmpty && (model.selected?.reasoningEffort.isEmpty ?? true))
-                Divider()
-                Button("Сбросить выбор", systemImage: "arrow.counterclockwise") { model.resetCodexSelection() }
-                    .disabled((model.selected?.model.isEmpty ?? true) && (model.selected?.reasoningEffort.isEmpty ?? true))
-                Button("Обновить список моделей", systemImage: "arrow.clockwise") { Task { await model.refreshAccount() } }
-                    .disabled(model.connecting)
-                Divider()
+        Button { open.toggle() } label: {
+            HStack(spacing: 5) {
+                Text(title).lineLimit(1).truncationMode(.middle)
+                Image(systemName: "chevron.up").font(.system(size: 9, weight: .semibold))
+            }.font(.system(size: 12, weight: .medium))
+                .padding(.horizontal, 5)
+                .frame(minWidth: 70, idealWidth: ModelSelectionPresentation.width(for: title), maxWidth: ModelSelectionPresentation.width(for: title), minHeight: 32)
+                .contentShape(Rectangle())
+        }.buttonStyle(.nativeHover).fixedSize(horizontal: false, vertical: true).help(title).disabled(model.busy)
+            .accessibilityLabel(isCodex ? "Модель \(model.codexModelLabel), усилие \(model.reasoningEffortLabel)" : "Модель \(localModelLabel)")
+            .composerPopover(isPresented: $open, width: 310, trailing: true) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Picker("Выбор модели", selection: $section) {
+                        Text("Модель").tag("model")
+                        if isCodex { Text("Глубина").tag("effort") }
+                        Text("Источник").tag("provider")
+                    }.pickerStyle(.segmented).padding(8)
+                    if section == "provider" {
+                        provider("Ollama · на этом Mac", id: "ollama")
+                        provider("Codex · подписка ChatGPT", id: "codex")
+                        provider("Mock · диагностика", id: "mock")
+                    } else if isCodex && section == "effort" {
+                        ComposerMenuRow(title: model.selectedCodexModel?.defaultEffort.map { "По умолчанию · \($0.title)" } ?? "По умолчанию",
+                                        selected: (model.selected?.reasoningEffort ?? "").isEmpty) { model.setReasoningEffort(""); open = false }
+                        ForEach(model.availableReasoningEfforts) { effort in
+                            ComposerMenuRow(title: effort.title, selected: model.selected?.reasoningEffort == effort.rawValue) {
+                                model.setReasoningEffort(effort.rawValue); open = false
+                            }
+                        }
+                    } else if isCodex {
+                        ComposerMenuRow(title: "По умолчанию для аккаунта", selected: (model.selected?.model ?? "").isEmpty) { model.setModel(""); open = false }
+                        ForEach(model.codexModels) { item in
+                            ComposerMenuRow(title: item.displayName, selected: model.selected?.model == item.id) { model.setModel(item.id); open = false }
+                        }
+                        if let selected = model.selected?.model, !selected.isEmpty, model.selectedCodexModel == nil {
+                            Text("\(selected) · недоступна").font(.caption).foregroundStyle(.secondary).padding(10)
+                        }
+                        Divider().padding(.vertical, 4)
+                        ComposerMenuRow(title: "Обновить список", icon: "arrow.clockwise") { Task { await model.refreshAccount() } }
+                            .disabled(model.connecting)
+                        ComposerMenuRow(title: "Сбросить выбор", icon: "arrow.counterclockwise") { model.resetCodexSelection(); open = false }
+                    } else {
+                        Text(localModelLabel).font(.system(size: 13)).padding(10)
+                    }
+                    Divider().padding(.vertical, 4)
+                    ComposerMenuRow(title: "Настройки модели…", icon: "slider.horizontal.3") {
+                        open = false
+                        Task { @MainActor in await Task.yield(); model.settingsSection = .models; openSettings() }
+                    }
+                }.padding(6)
             }
-            Menu("Источник модели") {
-                Picker("Провайдер", selection: Binding(get: { model.selected?.provider ?? "ollama" }, set: model.setProvider)) {
-                    Text("Ollama · на этом Mac").tag("ollama")
-                    Text("Codex · подписка ChatGPT").tag("codex")
-                    Text("Mock · локальная диагностика").tag("mock")
-                }.pickerStyle(.inline)
-            }
-            Button("Настройки модели…", systemImage: "slider.horizontal.3") { model.settingsSection = .models; openSettings() }
-        } label: {
-            // AppKit's Menu bridge keeps only the first Text in a composite label.
-            Text(isCodex ? "\(model.codexModelLabel) · \(model.reasoningEffortLabel)" : localModelLabel)
-                .font(.system(size: 12, weight: .medium)).lineLimit(1).truncationMode(.middle)
+    }
+
+    private func provider(_ title: String, id: String) -> some View {
+        ComposerMenuRow(title: title, selected: model.selected?.provider == id) {
+            model.setProvider(id); section = "model"; open = false
         }
-        .menuStyle(.borderlessButton)
-        // Long catalog names must leave room for the send and access controls.
-        .frame(maxWidth: 200, alignment: .leading).fixedSize(horizontal: false, vertical: true)
-        .padding(.horizontal, 5).frame(minHeight: 32)
-        .nativeHoverSurface()
-        .help(isCodex ? "\(model.codexModelLabel) · \(model.reasoningEffortLabel)" : localModelLabel)
-        .disabled(model.busy)
-        .accessibilityLabel(isCodex ? "Модель \(model.codexModelLabel), усилие \(model.reasoningEffortLabel)" : "Модель \(localModelLabel)")
     }
 
     private var localModelLabel: String {

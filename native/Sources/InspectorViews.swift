@@ -14,7 +14,20 @@ struct EvidenceInspectorView: View {
                 }
                 Text("Источники памяти и сохранённые сведения о выбранном ответе.")
                     .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(3)
-                if let message = model.evidenceMessage, !message.evidence.isNull {
+                if let message = model.evidenceMessage {
+                    if let raw = message.autoSkills, let report = try? NativeAutoSkillsReport(raw) { AutoSkillsReportView(report: report) }
+                    if let raw = message.knowledgeContext, let report = try? NativeProjectRecallReport(raw["project_recall"]) { ProjectRecallReportView(report: report) }
+                    if !message.notices.isEmpty {
+                        InspectorSection(title: "Примечания к ответу", icon: "info.circle") {
+                            ForEach(Array(message.notices.enumerated()), id: \.offset) { _, notice in Text(notice).foregroundStyle(.secondary).textSelection(.enabled) }
+                        }
+                    }
+                    if let receipt = message.agentRun {
+                        DisclosureGroup("Журнал инструментов и технические сведения") {
+                            AgentActivityView(items: receipt["items"].items, receipt: receipt)
+                        }
+                    }
+                    if !message.evidence.isNull {
                     let turn = message.evidence
                     InspectorSection(title: "Источник ответа", icon: "cpu") {
                         detail("Модель", turn["reasoner_backend"].text)
@@ -63,6 +76,7 @@ struct EvidenceInspectorView: View {
                     InspectorSection(title: "Дополнительный контекст", icon: "doc.text") {
                         let injection = turn["context_injection"]
                         Text(injection.isNull ? "Нет данных об этом запросе" : injection["applied"].flag ? "Применён вручную включённый режим" : "Не применялся")
+                    }
                     }
                 } else {
                     InspectorSection(title: "Пока нет сведений", icon: "text.bubble") {
@@ -213,5 +227,12 @@ struct OverviewView: View {
             Text(label).font(.caption).foregroundStyle(.secondary)
         }.frame(maxWidth: .infinity, alignment: .leading).padding(18)
             .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+
+extension ChatMessage {
+    var hasResponseDetails: Bool {
+        !evidence.isNull || autoSkills != nil || knowledgeContext != nil || agentRun != nil || !notices.isEmpty
     }
 }

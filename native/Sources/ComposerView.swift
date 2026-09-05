@@ -5,6 +5,8 @@ struct ComposerView: View {
     @ObservedObject var model: AppModel
     @Environment(\.openSettings) private var openSettings
     @State private var optionsOpen = false
+    @State private var attachmentsOpen = false
+    @State private var starterSkillsOpen = false
 
     private var cannotSend: Bool {
         model.composer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -93,19 +95,29 @@ struct ComposerView: View {
                 Text("⇧↵ новая строка").lineLimit(1)
             }.font(.system(size: 10)).foregroundStyle(.secondary).padding(.horizontal, 6)
         }.frame(maxWidth: NativeTheme.columnWidth).frame(maxWidth: .infinity)
+            .sheet(isPresented: $starterSkillsOpen) { StarterSkillsView(client: model.client) }
     }
 
     private var attachmentMenu: some View {
-        Menu {
-            Button("Изображение…", systemImage: "photo", action: model.chooseImage)
-            Button("Страницы PDF…", systemImage: "doc.richtext", action: model.choosePDF)
-            Button("Файл проекта…", systemImage: "doc.text") { model.showProjectFiles() }
-            Divider()
-            Button("Заметка проекта…", systemImage: "brain.head.profile") { Task { await model.openProjectMemory() } }
-        } label: { Image(systemName: "plus").font(.system(size: 18)).frame(width: 28, height: 32) }
-            .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
-            .nativeHoverSurface().help("Добавить вложение").accessibilityLabel("Добавить вложение")
+        Button { attachmentsOpen.toggle() } label: { Image(systemName: "plus").font(.system(size: 18)).frame(width: 28, height: 32) }
+            .buttonStyle(.nativeHover).help("Добавить вложение").accessibilityLabel("Добавить вложение")
             .disabled(!model.canReceiveAttachments)
+            .composerPopover(isPresented: $attachmentsOpen, width: 245) {
+                VStack(spacing: 2) {
+                    attachment("Изображение…", icon: "photo", action: model.chooseImage)
+                    attachment("Страницы PDF…", icon: "doc.richtext", action: model.choosePDF)
+                    attachment("Файл проекта…", icon: "doc.text") { model.showProjectFiles() }
+                    Divider().padding(.vertical, 4)
+                    attachment("Заметка проекта…", icon: "brain.head.profile") { Task { await model.openProjectMemory() } }
+                }.padding(6)
+            }
+    }
+
+    private func attachment(_ title: String, icon: String, action: @escaping @MainActor () -> Void) -> some View {
+        ComposerMenuRow(title: title, icon: icon) {
+            attachmentsOpen = false
+            Task { @MainActor in await Task.yield(); action() }
+        }
     }
 
     private var optionsButton: some View {
@@ -116,7 +128,7 @@ struct ComposerView: View {
             }.font(.system(size: 15)).frame(minWidth: 28, minHeight: 32)
         }.disabled(model.busy || model.selected?.archived == true)
             .help("Контекст, критерии, память и навыки").accessibilityLabel("Настройки запроса")
-            .popover(isPresented: $optionsOpen, arrowEdge: .top) {
+            .composerPopover(isPresented: $optionsOpen, width: 320) {
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Настройки запроса").font(.system(size: 15, weight: .semibold))
                     Button { openOption { model.showContextDesk = true } } label: {
@@ -127,20 +139,27 @@ struct ComposerView: View {
                     }
                     if model.selected?.provider == "codex" {
                         Divider()
-                        HStack {
-                            Label("Навыки", systemImage: "square.stack.3d.up")
-                            Spacer()
-                            AutoSkillsMenu(model: model, compact: true)
+                        DisclosureGroup("Навыки") {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Toggle("Подбирать автоматически", isOn: Binding(get: { model.selected?.autoSkillsEnabled != false }, set: model.setAutoSkillsEnabled))
+                                Text("Короткий запрос модели для подбора навыков").font(.caption).foregroundStyle(.secondary)
+                                if model.pendingSkillTask != nil { Button("Убрать ручной выбор", action: model.removeSkillTask) }
+                                Button("Встроенный набор…") { openOption { starterSkillsOpen = true } }
+                                Button("Личная библиотека…") { openOption { Task { await model.showLibrary(.skills) } } }
+                            }.padding(.top, 10)
                         }
-                        HStack {
-                            Label("Память проекта", systemImage: "brain")
-                            Spacer()
-                            ProjectRecallMenu(model: model, showLabel: true)
+                        DisclosureGroup("Память проекта") {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Toggle("Вспоминать автоматически", isOn: Binding(get: { model.selected?.autoProjectRecallEnabled != false }, set: model.setAutoProjectRecallEnabled))
+                                Toggle("Предлагать новые заметки", isOn: Binding(get: { model.selected?.memorySuggestionsEnabled != false }, set: model.setMemorySuggestionsEnabled))
+                                Text("Только сохранённые заметки этой папки. Новые записи — после вашего подтверждения.").font(.caption).foregroundStyle(.secondary)
+                                Button("Заметки проекта…") { openOption { Task { await model.openProjectMemory() } } }
+                            }.padding(.top, 10)
                         }
                         Text("Выбор сохраняется для этого диалога. Заметки можно проверить в контексте запроса.")
                             .font(.caption).foregroundStyle(.secondary)
                     }
-                }.padding(20).frame(width: 320).font(NativeTheme.interfaceFont).buttonStyle(.nativeHover)
+                }.padding(20).font(NativeTheme.interfaceFont).buttonStyle(.nativeHover)
             }
     }
 
@@ -197,26 +216,37 @@ struct ComposerView: View {
 struct ComposerAccessMenu: View {
     @ObservedObject var model: AppModel
     var compact = false
+    @State private var open = false
 
     var body: some View {
-        Menu {
-            if model.fullAccessEnabled {
-                Text(model.computerUseAvailable ? "Файлы, терминал, интернет и экран доступны" : "Файлы, терминал и интернет доступны")
-                Button("Выключить доступ к Mac") { Task { await model.disableAgentAccess() } }
-            } else { Button("Разрешить доступ к Mac…") { model.requestAgentAccess() } }
-        } label: {
-            if compact {
+        Button { open.toggle() } label: {
+            HStack(spacing: 5) {
                 Image(systemName: model.fullAccessEnabled ? "exclamationmark.shield" : "lock.shield")
-                    .frame(width: 28, height: 32)
-            } else {
-                Label(model.fullAccessEnabled ? "Доступ к Mac" : "Только чат",
-                      systemImage: model.fullAccessEnabled ? "exclamationmark.shield" : "lock.shield")
-                    .font(.system(size: 12)).padding(.horizontal, 5).frame(height: 32)
-            }
-        }.menuStyle(.borderlessButton).fixedSize().nativeHoverSurface()
+                if !compact {
+                    Text(model.fullAccessEnabled ? "Доступ к Mac" : "Только чат")
+                    Image(systemName: "chevron.up").font(.system(size: 9, weight: .semibold))
+                }
+            }.font(.system(size: 12)).padding(.horizontal, compact ? 0 : 5).frame(minWidth: 28, minHeight: 32)
+        }.buttonStyle(.nativeHover).fixedSize()
             .foregroundStyle(model.fullAccessEnabled ? Color.orange : .secondary)
             .disabled(model.busy || model.selected?.archived == true)
             .accessibilityLabel(model.fullAccessEnabled ? "Полный доступ к Mac включён" : "Только чат, инструменты выключены")
             .help(model.fullAccessEnabled ? "Полный доступ к Mac. Stop и Esc не откатывают изменения." : "Модель отвечает без инструментов. Доступ к Mac включается отдельно.")
+            .composerPopover(isPresented: $open, width: 285) {
+                VStack(alignment: .leading, spacing: 6) {
+                    if model.fullAccessEnabled {
+                        Text(model.computerUseAvailable ? "Файлы, терминал, интернет и экран доступны" : "Файлы, терминал и интернет доступны")
+                            .font(.system(size: 12)).foregroundStyle(.secondary).padding(10)
+                        ComposerMenuRow(title: "Выключить доступ к Mac", icon: "lock.shield") {
+                            open = false; Task { await model.disableAgentAccess() }
+                        }
+                    } else {
+                        ComposerMenuRow(title: "Разрешить доступ к Mac…", icon: "exclamationmark.shield") {
+                            open = false
+                            Task { @MainActor in await Task.yield(); model.requestAgentAccess() }
+                        }
+                    }
+                }.padding(6)
+            }
     }
 }

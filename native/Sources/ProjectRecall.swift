@@ -74,36 +74,6 @@ struct NativeProjectRecallReport: Equatable {
     }
 }
 
-struct ProjectRecallMenu: View {
-    @ObservedObject var model: AppModel
-    var showLabel = false
-    var body: some View {
-        Menu {
-            Toggle("Вспоминать заметки проекта автоматически", isOn: Binding(get: { model.selected?.autoProjectRecallEnabled != false }, set: model.setAutoProjectRecallEnabled))
-            Text("Локальный подбор: до 3 заметок, без запроса модели")
-            Text("Только явно сохранённые заметки этой папки")
-            if !model.pendingProjectNotes.isEmpty { Text("На этот ход приоритет у ручного выбора заметок") }
-            Divider()
-            Toggle("Предлагать заметки из моих сообщений", isOn: Binding(get: { model.selected?.memorySuggestionsEnabled != false }, set: model.setMemorySuggestionsEnabled))
-            Text("Локальные подсказки, запись только после подтверждения")
-            Divider()
-            Button("Заметки проекта…") { Task { await model.openProjectMemory() } }.disabled(model.selected?.workspacePath == nil)
-            Button("Посмотреть контекст…") { model.showContextDesk = true }
-        } label: {
-            if showLabel {
-                Text(model.selected?.autoProjectRecallEnabled != false ? "Авто" : "Выкл").font(.system(size: 12))
-            } else {
-                Image(systemName: "brain").font(.system(size: 14))
-                .foregroundStyle(model.selected?.autoProjectRecallEnabled != false ? Color.primary : .secondary)
-                .frame(width: 24, height: 28)
-            }
-        }.menuStyle(.borderlessButton).menuIndicator(showLabel ? .visible : .hidden).fixedSize().nativeHoverSurface()
-            .disabled(model.busy || model.selected?.archived == true)
-            .accessibilityLabel("Память проекта · \(model.selected?.autoProjectRecallEnabled != false ? "Авто" : "Выкл")")
-            .help("Автоподбор заметок текущей папки. Можно отключить для этого диалога; уже отправленный контекст может оставаться в истории Codex.")
-    }
-}
-
 struct ProjectRecallReportView: View {
     let report: NativeProjectRecallReport
     var body: some View {

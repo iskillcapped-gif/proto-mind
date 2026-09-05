@@ -37,6 +37,7 @@ struct NativeChecks {
         }
         if CommandLine.arguments.contains("--interface-only") {
             try interfaceLayout(root: root)
+            try chatPresentation(root: root)
             try workspacePanelContracts(root: root)
             if let fixture = LaunchConfiguration.argument("--fixture"), let python = LaunchConfiguration.argument("--python") {
                 try await workspacePanelIntegration(fixture: URL(fileURLWithPath: fixture), python: URL(fileURLWithPath: python), root: root)
@@ -140,6 +141,7 @@ struct NativeChecks {
         try workLogAndGrouping(root: root)
         try sidebarLayout(root: root)
         try interfaceLayout(root: root)
+        try chatPresentation(root: root)
         try workspacePanelContracts(root: root)
         try hoverFeedback()
         try transcriptLayout(root: root)

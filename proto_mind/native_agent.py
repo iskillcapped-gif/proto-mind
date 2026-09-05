@@ -16,6 +16,7 @@ from uuid import uuid4
 
 from proto_mind.native_codex import CodexConnectionError, MAX_ANSWER_CHARS, TurnCancelled, safe_turn_error
 from proto_mind.native_computer_use import COMPUTER_USE_TOOLS, SERVER_NAME
+from proto_mind.native_file_changes import file_change_metadata
 from proto_mind.native_agent_contract import (
     MAX_OBSERVED_ITEMS,
     MAX_SECONDS,
@@ -182,6 +183,7 @@ class AgentRun:
                 raise CodexConnectionError("Invalid file-change activity.")
             row["paths"] = [preview(change.get("path"), 400) for change in changes[:8] if isinstance(change, dict)]
             row["change_count"] = len(changes)
+            row.update(file_change_metadata(changes))
             row["diff_preview"] = preview("\n".join(
                 preview(change.get("diff"), 3000) for change in changes[:8] if isinstance(change, dict)), 3000)
             self.receipt["execution_may_have_occurred"] = True
