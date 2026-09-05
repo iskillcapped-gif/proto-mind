@@ -10,6 +10,7 @@ from uuid import uuid4
 from weakref import WeakValueDictionary
 
 from proto_mind.models import MemoryRecord
+from proto_mind.private_state_gate import RESTORE_WRITER, generation, require_available
 
 
 class _MemoryFileLock:
@@ -69,10 +70,14 @@ class MemoryStore:
         self,
         working_path: str | Path,
         persistent_path: str | Path,
+        *, initialize: bool = True,
     ) -> None:
         self.working_path = Path(working_path)
         self.persistent_path = Path(persistent_path)
-        self._ensure_files()
+        require_available(self.working_path.parent)
+        self._generation = generation(self.working_path.parent)
+        if initialize:
+            self._ensure_files()
 
     def _ensure_files(self) -> None:
         if not all(path.exists() for path in (self.working_path, self.persistent_path)):
@@ -91,6 +96,7 @@ class MemoryStore:
         Sidecar locks must remain in place: replacing/unlinking a held lock would
         let another process lock a different inode.
         """
+        self._check_private_state()
         paths = sorted({str(path.resolve()) for path in (self.working_path, self.persistent_path)})
         with _REGISTRY_LOCK:
             locks = []
@@ -104,6 +110,7 @@ class MemoryStore:
         with ExitStack() as stack:
             for lock in locks:
                 stack.enter_context(lock.acquire())
+            self._check_private_state()
             yield
 
     def load_working_memory(self) -> list[MemoryRecord]:
@@ -155,8 +162,14 @@ class MemoryStore:
             self.save_persistent_memory(records)
 
     def _load_records(self, path: Path) -> list[MemoryRecord]:
+        self._check_private_state()
         raw = json.loads(path.read_text(encoding="utf-8"))
         return [MemoryRecord.from_dict(item) for item in raw]
+
+    def _check_private_state(self) -> None:
+        require_available(self.working_path.parent)
+        if not RESTORE_WRITER.get() and generation(self.working_path.parent) != getattr(self, "_generation", None):
+            raise ValueError("Локальные данные восстановлены другой копией приложения. Перезапустите Proto-Mind перед продолжением.")
 
     def _save_records(self, path: Path, records: list[MemoryRecord]) -> None:
         payload = [record.to_dict() for record in records]

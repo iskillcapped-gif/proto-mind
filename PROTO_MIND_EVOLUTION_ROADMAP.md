@@ -1,8 +1,8 @@
 # Proto-Mind: Current Direction
 
-Updated: 2026-09-05. Current release: Native **0.52.0 (60)**.
+Updated: 2026-09-05. Current release: Native **0.53.0 (61)**.
 
-Proto-Mind is a personal macOS assistant. The immediate goal is a dependable, approachable application that can support the operator's planned expansion. The everyday layout, working panel and conversation polish are delivered. On September 5 the operator requested useful service connections, starting with GitHub. GitHub is now connected; memory and continuity workflows remain delivered.
+Proto-Mind is a personal macOS assistant. The immediate goal is a dependable, approachable application that can support the operator's planned expansion. The everyday layout, working panel and conversation polish are delivered. On September 5 the operator requested useful service connections, starting with GitHub. GitHub, complete local private-state backups and subscription usage views are now delivered; memory and continuity workflows remain available.
 
 This is the current priority map. [AGENTS.md](AGENTS.md) describes how to work in the project; [Native releases](NATIVE_MACOS_ROADMAP.md) preserve delivered contracts and verification; [Architect Ledger](PROTO_MIND_ARCHITECT_LEDGER.md) preserves architectural evidence. Earlier versions of this document remain in Git history. Historical EV/P2 numbering and imported blueprints do not determine the next task.
 
@@ -11,7 +11,7 @@ This is the current priority map. [AGENTS.md](AGENTS.md) describes how to work i
 | Area | Current behavior | Practical boundary |
 | --- | --- | --- |
 | Dialog persistence | Each dialog has an immutable object; a small atomic manifest selects the current versions. Saves reuse unchanged dialogs. Competing app processes cannot silently overwrite each other. | Up to 10,000 dialogs; each object below 50 MiB. Startup still reads the complete archive into memory. |
-| Recovery | Failed saves retain visible replies and drafts. The app offers verified export/import, the last 20 automatic snapshots, a pinned original-format copy and copies before recovery. | These are dialog copies. Core memory, the separate work journal, provider sessions and original attachment files need their own backup. |
+| Recovery | Failed saves retain visible replies and drafts. The app offers verified export/import, the last 20 automatic snapshots, a pinned original-format copy and copies before recovery. | Complete copies additionally cover core/notes/work records/settings at their original paths. Credentials, provider history, original attachments and project files stay separate. |
 | Work journal | New independent turns have no global 500-run ceiling. The journal pages through older records and opens a message's exact run directly. | Page listing and continuation validation still scan the journal; the detached archive audit has a separate 500-record input budget. |
 | Memory | Full core-memory mutations use cooperative transactions. Project notes have explicit scope, source evidence, bounded local RU/UK/EN recall, editable versions and reversible removal from future selection. | The legacy shared core is not fully project-isolated; matching is deterministic, with finite vocabulary. Removing a note does not erase old provider messages. |
 | Execution | Codex Chat and explicit Full Mac have separate durable sessions; local Ollama and Mock remain available. Public work evidence, Stop and manual acceptance are distinct. | Full Mac has broad user-level authority. Finished model output does not prove task success or undo side effects. |
@@ -49,11 +49,15 @@ Release 0.50.0 closes the missing navigation step: **История диалог
 
 Release 0.52.0 adds **Подключения** in Settings and **GitHub** in the sidebar. It reuses the operator's existing GitHub CLI account, lists repositories and open PRs/issues, and prepares discussion drafts. Explicit Full Mac Codex tasks receive a managed GitHub command and HTTPS Git credentials through the existing CLI; chat mode receives neither. The account is checked before access, and disconnecting does not log the Mac out. Native connection metadata contains no token. See the [release contract](NATIVE_MACOS_ROADMAP.md#github-connection--native-0520). Further services follow actual work needs rather than a speculative integration catalog.
 
-## Next: Complete Private-State Backups
+## Complete Private Backups and Codex Usage Delivered
 
-The current recovery UI exports dialogs, while useful personal state also lives in project notes, shared core memory, the work journal and local provider/session links. The next candidate is one clearly scoped, verified backup and recovery flow for that local private state. Begin with an inventory and a consistent snapshot/preview; preserve existing recovery copies and separately identify original attachments or remote provider history that a local copy cannot contain. Do not treat a dialog export as a full backup or silently restore authority from old state.
+Release 0.53.0 adds a verified folder snapshot, read-only preview and recoverable restore spanning the Native stores, separate Python core, exports and logs. Restore preserves the before-image and in-window draft, keeps live locks, blocks stale writers, supports explicit resume/rollback after interruption, and requires a restart with service access disabled. Existing dialog backups remain available. Original installation paths are required; credentials, provider history, external attachments and project files stay outside the package.
 
-The requested conversation refinements and follow-up polish are delivered through 0.51.1; additional visual changes can follow actual use. The planned substantial functional expansion remains for the operator to scope.
+The operator's follow-up is also delivered: the existing Codex login supplies account-wide quota windows, remaining percentages, reset dates, earned-reset count and available token activity. The view is read-only and does not estimate costs or equate token counts with remaining messages. See the [release contract](NATIVE_MACOS_ROADMAP.md#complete-private-backups-and-codex-usage--native-0530).
+
+## Next Candidate: Practical Memory Quality
+
+The current durability, everyday navigation and requested service/usage groundwork are complete. The next useful candidate is to collect a small set of ordinary RU/UK/EN project questions and corrections, measure which notes are selected, and improve recall precision and scope where those examples reveal gaps. Keep retrieval local and corrections reversible. This is a candidate for the next work session, not background work started by this release; the operator's planned larger expansion remains to be scoped.
 
 ## Later Candidates
 
@@ -63,6 +67,6 @@ The operator plans a substantial functional expansion and will supply its scope 
 - Continuity across tasks and sessions, with stronger recovery for linked history and work records.
 - Richer document/artifact handling, voice input and provider capability parity.
 - Narrower tool modes, reviewed procedures and useful background/parallel work with visible limits.
-- A complete private-state backup/restore flow and simpler local runtime packaging when needed.
+- Cross-installation backup migration and simpler local runtime packaging when needed.
 
 Choose the next increment from actual usage and the operator's direction. Broad architecture proposals, historical design gates and old test counts are context, not a substitute for inspecting the current implementation.

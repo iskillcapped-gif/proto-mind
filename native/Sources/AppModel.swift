@@ -33,6 +33,8 @@ final class AppModel: ObservableObject {
     @Published var composerRevision = 0
     @Published var bootstrap: JSONValue = .null
     @Published var account: JSONValue = .null
+    let codexUsage = CodexUsageModel()
+    @Published var showCodexUsage = false
     @Published var models: [JSONValue] = []
     @Published var modelSelectionNotice: String?
     @Published var codexThreadStatus: JSONValue = .null
@@ -85,6 +87,10 @@ final class AppModel: ObservableObject {
     @Published var showInspector = false
     let workspacePanel = WorkspacePanelModel()
     let github = GitHubModel()
+    let privateBackup = PrivateBackupModel()
+    @Published var showPrivateBackup = false
+    @Published var privateBackupRestartRequired = false
+    var quitAfterPrivateBackup = false
     @Published var inspectedMessageID: UUID?
     @Published var pendingAction: PendingOperatorAction?
     @Published var pendingPersonaActivation: PendingPersonaActivation?
@@ -208,6 +214,7 @@ final class AppModel: ObservableObject {
         store = historyStore ?? ChatStore(directory: configuration.stateDirectory)
         preferences = PreferenceStore(directory: configuration.stateDirectory)
         do {
+            try PrivateStateAccess.requireAvailable(configuration.projectRoot.appendingPathComponent("proto_mind/data"))
             let archive = try store.load()
             conversations = archive.conversations
             selectedID = conversations.first { $0.id == archive.selectedID }?.id ?? conversations.first?.id
@@ -216,6 +223,7 @@ final class AppModel: ObservableObject {
             historyPersistence = HistoryPersistenceState(failure: error.localizedDescription, requiresRecovery: store.writeBlocked)
         }
         do {
+            try PrivateStateAccess.requireAvailable(configuration.projectRoot.appendingPathComponent("proto_mind/data"))
             let saved = try preferences.load()
             cloudConsent = saved.cloudProcessingAllowed
             personaEnabled = saved.personaEnabled
@@ -263,6 +271,7 @@ final class AppModel: ObservableObject {
     }
 
     private func savePreferences() throws {
+        guard !privateBackupRestartRequired else { throw NativeError.message("Перезапустите Proto-Mind после восстановления данных.") }
         try preferences.save(NativePreferences(
             cloudProcessingAllowed: cloudConsent,
             personaEnabled: personaEnabled
@@ -623,6 +632,15 @@ final class AppModel: ObservableObject {
     func start() async {
         guard !started else { return }; started = true
         do {
+            try PrivateStateAccess.requireAvailable(client.configuration.stateDirectory)
+            try PrivateStateAccess.requireAvailable(client.configuration.projectRoot.appendingPathComponent("proto_mind/data"))
+        } catch {
+            showPrivateBackup = true
+            await privateBackup.refresh(app: self)
+            report(error)
+            return
+        }
+        do {
             bootstrap = try await client.request("bootstrap"); status = "Готов"
             await refreshWorkSessions()
             if selected?.provider == "codex" {
@@ -657,6 +675,7 @@ final class AppModel: ObservableObject {
     func refreshAccount() async {
         guard !busy, !connecting else { return }
         connecting = true
+        codexUsage.clear()
         defer { connecting = false }
         do {
             account = try await client.request("account_status")
@@ -669,6 +688,7 @@ final class AppModel: ObservableObject {
 
     func logout() async {
         guard !busy else { return }
+        codexUsage.clear()
         do { account = try await client.request("account_logout"); models = []; cloudConsent = false; loginPending = false }
         catch { report(error) }
     }

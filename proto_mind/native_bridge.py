@@ -46,6 +46,7 @@ from proto_mind.local_knowledge_capabilities import (
 )
 from proto_mind.native_agent import AGENT_INSTRUCTIONS, AgentGrants, FULL_ACCESS_CONFIRMATION
 from proto_mind.native_library import NativeLibrary
+from proto_mind.native_codex_usage import read_usage
 from proto_mind.native_memory_workshop import build_native_memory_workshop
 from proto_mind.native_learning_review import NativeLearningReview, parse_learning_request
 from proto_mind.native_skill_authoring import NativeSkillAuthoring, NativeSkillSession, parse_skill_request
@@ -79,6 +80,8 @@ from proto_mind.native_persona import (
 from proto_mind.persona_engine import validate_persona_snapshot
 from proto_mind.native_history_routes import HISTORY_METHODS, dispatch_history
 from proto_mind.native_github import GitHubConnection, METHODS as GITHUB_METHODS
+from proto_mind.native_private_restore import PrivateRestore, METHODS as PRIVATE_BACKUP_METHODS
+from proto_mind.private_state_gate import generation, require_available
 from proto_mind.native_work_sessions import WorkSessionStore, WorkSessionError, workspace_identity
 from proto_mind.native_desk import context_manifest, context_preview, capture_artifacts, review_observations
 from proto_mind.native_review import CONFIRM_REVIEW, criteria_context_message, validate_criteria, review_preview
@@ -132,7 +135,7 @@ class NativeMemoryStore(MemoryStore):
     """Same store format, but browsing the native client must not initialize files."""
 
     def __init__(self, working_path: Path, persistent_path: Path) -> None:
-        self.working_path, self.persistent_path = working_path, persistent_path
+        super().__init__(working_path, persistent_path, initialize=False)
 
     def _load_records(self, path: Path):
         return super()._load_records(path) if path.exists() else []
@@ -264,6 +267,9 @@ class NativeBackend:
         self.busy = threading.Lock()
         self.agent_grants = AgentGrants()
         self.github = GitHubConnection(self.state_dir)
+        self.private_backup = PrivateRestore(self.root, self.state_dir)
+        self._private_generation = (generation(self.root / "proto_mind/data"), generation(self.state_dir))
+        self._private_restart_required = False
         self._last_bootstrap_computer_use: dict | None = None
         self.work_sessions = WorkSessionStore(self.state_dir, self.root)
         self.closing = threading.Event()
@@ -1150,6 +1156,22 @@ class NativeBackend:
             self.busy.release()
 
     def dispatch(self, method: str, params: dict, emit: Callable[[dict], None], request_id: str) -> Any:
+        if method in PRIVATE_BACKUP_METHODS:
+            if self.closing.is_set() or not self.busy.acquire(blocking=False):
+                raise ValueError("Дождитесь завершения текущей работы перед операциями с копиями.")
+            try:
+                if method in {"private_backup_restore", "private_backup_resume", "private_backup_rollback"}:
+                    self.agent_grants.revoke()
+                result = self.private_backup.dispatch(method, params)
+                if result.get("completed"):
+                    self.sessions.clear()
+                    self._private_restart_required = True
+                return result
+            finally: self.busy.release()
+        require_available(self.state_dir)
+        require_available(self.root / "proto_mind/data")
+        if self._private_restart_required or self._private_generation != (generation(self.root / "proto_mind/data"), generation(self.state_dir)):
+            raise ValueError("Данные восстановлены. Перезапустите Proto-Mind перед продолжением.")
         if method in GITHUB_METHODS:
             if self.closing.is_set() or not self.busy.acquire(blocking=False):
                 raise ValueError("Дождитесь завершения текущей задачи перед работой с подключениями.")
@@ -1240,6 +1262,11 @@ class NativeBackend:
             return self.pdf_reader().preview(params.get("path"), params.get("pages"), params.get("expected_sha256"))
         if method == "account_status":
             return self.subscription.account()
+        if method == "account_usage":
+            if params or self.closing.is_set() or not self.busy.acquire(blocking=False):
+                raise ValueError("Дождитесь завершения текущей работы перед обновлением лимитов.")
+            try: return read_usage(self.subscription)
+            finally: self.busy.release()
         if method == "account_login":
             return self.subscription.login()
         if method == "account_logout":

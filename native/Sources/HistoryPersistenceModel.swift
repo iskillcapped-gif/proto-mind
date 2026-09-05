@@ -92,6 +92,7 @@ extension AppModel {
     }
 
     func saveHistory() throws {
+        guard !privateBackupRestartRequired else { throw NativeError.message("Перезапустите Proto-Mind после восстановления данных.") }
         draftSave?.cancel()
         do {
             try store.save(ChatArchive(conversations: conversations, selectedID: selectedID))
@@ -120,6 +121,7 @@ extension AppModel {
     }
 
     func saveBeforeExit() -> Bool {
+        if privateBackupRestartRequired || (privateBackup.pending && privateBackup.windowIsPreserved(self)) { return true }
         guard dirtyDraft || historyPersistence.hasUnsavedChanges else { return true }
         return persist()
     }

@@ -62,6 +62,7 @@ enum ChatHistoryFiles {
     }
 
     static func withLock<T>(in directory: URL, write: Bool, _ body: () throws -> T) throws -> T {
+        try PrivateStateAccess.requireAvailable(directory)
         if write { try self.directory(directory, create: true) }
         let url = directory.appendingPathComponent(".history.lock")
         let flags = (write ? O_RDWR | O_CREAT : O_RDONLY) | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC
@@ -77,6 +78,7 @@ enum ChatHistoryFiles {
             throw NativeError.message("История сейчас сохраняется в другой копии Proto-Mind. Повторите после завершения записи.")
         }
         defer { flock(fd, LOCK_UN) }
+        try PrivateStateAccess.requireAvailable(directory)
         let result = try body()
         var current = stat()
         guard lstat(url.path, &current) == 0, current.st_ino == info.st_ino, current.st_dev == info.st_dev else { throw ChatHistoryFormat.invalid() }

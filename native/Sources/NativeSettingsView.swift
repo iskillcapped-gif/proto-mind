@@ -182,6 +182,7 @@ struct NativeSettingsView: View {
             if model.account["connected"].flag {
                 Text("\(model.account["email"].text) · \(model.account["plan"].text)").font(.caption).foregroundStyle(.secondary)
             }
+            Button("Использование и лимиты Codex…") { model.showCodexUsage = true }.disabled(model.busy)
             HStack {
                 Button("Войти через ChatGPT…") { Task { await model.login() } }
                 Button("Проверить вход") { Task { await model.refreshAccount() } }
@@ -233,6 +234,12 @@ struct NativeSettingsView: View {
 
     private var dataSettings: some View {
         Group {
+            Section("Все локальные данные") {
+                Text("Диалоги, память, журнал работы и настройки — в одной копии с проверкой файлов и восстановлением.")
+                    .font(.callout).foregroundStyle(.secondary)
+                Button("Полная копия данных…") { model.showPrivateBackup = true }.buttonStyle(.borderedProminent)
+                    .disabled(model.busy || model.client.turnOutstanding)
+            }
             Section("Копии диалогов") {
                 Text("Сохраните отдельную копию или вернитесь к предыдущему состоянию истории.")
                     .font(.callout).foregroundStyle(.secondary)

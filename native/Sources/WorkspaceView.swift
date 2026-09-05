@@ -94,6 +94,10 @@ struct WorkspaceView: View {
             ConversationHistoryView(model: model)
         }
         .sheet(isPresented: $model.showHistoryBackups) { HistoryBackupsView(model: model) }
+        .sheet(isPresented: $model.showPrivateBackup, onDismiss: {
+            if model.quitAfterPrivateBackup { NSApp.terminate(nil) }
+        }) { PrivateBackupView(app: model, backup: model.privateBackup) }
+        .sheet(isPresented: $model.showCodexUsage) { CodexUsageView(app: model, usage: model.codexUsage) }
         .sheet(item: $model.sessionSpinePreview) { SessionSpinePreviewView(model: model, preview: $0) }
         .sheet(isPresented: $model.showContextDesk) { ContextDeskView(model: model) }
         .sheet(isPresented: $model.showPersonaInspector) { PersonaInspectorView(model: model) }

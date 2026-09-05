@@ -201,9 +201,14 @@ struct NativePreferences: Codable, Equatable {
 final class PreferenceStore {
     let url: URL
     private(set) var writeBlocked = false
+    private var loaded = false
+    private var generationBaseline: Data?
     init(directory: URL) { url = directory.appendingPathComponent("preferences.json") }
 
     func load() throws -> NativePreferences {
+        try PrivateStateAccess.requireAvailable(url.deletingLastPathComponent())
+        generationBaseline = try PrivateStateAccess.generation(url.deletingLastPathComponent())
+        loaded = true
         guard FileManager.default.fileExists(atPath: url.path) else { return NativePreferences() }
         do {
             let size = try FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber
@@ -222,6 +227,17 @@ final class PreferenceStore {
     }
 
     func save(_ preferences: NativePreferences) throws {
+        try ChatHistoryFiles.withLock(in: url.deletingLastPathComponent(), write: true) {
+            try saveLocked(preferences)
+        }
+    }
+
+    private func saveLocked(_ preferences: NativePreferences) throws {
+        try PrivateStateAccess.requireAvailable(url.deletingLastPathComponent())
+        let currentGeneration = try PrivateStateAccess.generation(url.deletingLastPathComponent())
+        guard !loaded || currentGeneration == generationBaseline else {
+            throw NativeError.message("Данные восстановлены. Перезапустите Proto-Mind перед изменением настроек.")
+        }
         guard !writeBlocked else { throw NativeError.message("Запись настроек заблокирована до ручной проверки файла.") }
         guard preferences.version == 2 else { throw NativeError.message("Записывать можно только текущую версию настроек.") }
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])

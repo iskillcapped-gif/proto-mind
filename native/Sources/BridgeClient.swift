@@ -89,7 +89,7 @@ final class BridgeClient: ObservableObject {
             }
             // A live turn stays pending until the bounded provider finishes or the bridge exits.
             // Timing out only the UI could make an unfinished mutation appear safe to retry.
-            if method != "process" {
+            if method != "process" && !["private_backup_create", "private_backup_restore", "private_backup_resume", "private_backup_rollback"].contains(method) {
                 Task { [weak self] in
                     try? await Task.sleep(nanoseconds: 120_000_000_000)
                     self?.pending.removeValue(forKey: id)?.resume(throwing: NativeError.message("Ядро не ответило вовремя. Запрос не был повторён автоматически."))

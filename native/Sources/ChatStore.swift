@@ -16,6 +16,7 @@ final class ChatStore {
     private(set) var conflictDetected = false
     var baseline: Data?
     var loaded = false
+    var generationBaseline: Data?
     var cached: [UUID: (Conversation, ChatHistoryEntry)] = [:]
     var objectStamps: [String: String] = [:]
     var snapshotReferences: [String: (stamp: String, hashes: Set<String>)] = [:]
@@ -41,6 +42,7 @@ final class ChatStore {
     }
 
     func adopt(_ data: Data?, archive: ChatArchive) throws {
+        generationBaseline = try PrivateStateAccess.generation(directory)
         baseline = data; loaded = true; cached = [:]; objectStamps = [:]
         if let data, try ChatHistoryFormat.isManifest(data) {
             let manifest = try ChatHistoryFormat.manifest(data)
@@ -82,6 +84,11 @@ final class ChatStore {
     }
 
     func checkBaseline() throws -> Data? {
+        let currentGeneration = try PrivateStateAccess.generation(directory)
+        guard !loaded || currentGeneration == generationBaseline else {
+            conflictDetected = true
+            throw NativeError.message("Данные восстановлены другой копией приложения. Сохраните нужный текст отдельно и перезапустите Proto-Mind.")
+        }
         let current = try ChatHistoryFiles.read(url, limit: ChatHistoryFormat.legacyLimit)
         guard (loaded || current == nil), current == baseline else {
             conflictDetected = true
