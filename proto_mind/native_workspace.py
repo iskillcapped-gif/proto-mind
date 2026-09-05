@@ -27,6 +27,7 @@ TEXT_EXTENSIONS = frozenset({
     ".sh", ".bash", ".zsh", ".xml", ".plist", ".ini", ".cfg", ".csv",
 })
 TEXT_NAMES = frozenset({"readme", "license", "makefile", "dockerfile", ".gitignore", ".gitattributes"})
+PREVIEW_EXTENSIONS = TEXT_EXTENSIONS | {".png", ".jpg", ".jpeg", ".pdf"}
 SKIP_NAMES = frozenset({
     "node_modules", "venv", "__pycache__", "dist", "build", "backups",
     "auth.json", "credentials.json", "credentials", "secrets.json", "secrets.yaml",
@@ -140,8 +141,8 @@ class WorkspaceReader:
                     if not is_directory and not stat.S_ISREG(info.st_mode):
                         skipped += 1
                         continue
-                    text_file = Path(entry.name).suffix.casefold() in TEXT_EXTENSIONS or entry.name.casefold() in TEXT_NAMES
-                    if not is_directory and not text_file:
+                    previewable = Path(entry.name).suffix.casefold() in PREVIEW_EXTENSIONS or entry.name.casefold() in TEXT_NAMES
+                    if not is_directory and not previewable:
                         skipped += 1
                         continue
                     entries.append({"name": entry.name, "path": PurePosixPath(*parts, entry.name).as_posix(),

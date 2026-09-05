@@ -11,14 +11,14 @@ extension NativeChecks {
         app.conversations[0].pendingCriteria = ["Check the result", "Keep the original files"]
         let original = app.currentHistoryArchive
         let composer = NSHostingController(rootView: ComposerView(model: app))
-        for width: CGFloat in [360, 480, 790] {
+        for width: CGFloat in [240, 300, 360, 480, 790] {
             let size = composer.sizeThatFits(in: CGSize(width: width, height: 280))
             try check(size.width <= width + 1 && size.height <= 280,
                       "Composer keeps send/access controls within \(Int(width)) points with a long model name and criteria")
         }
         app.busy = true
         let busyComposer = NSHostingController(rootView: ComposerView(model: app))
-        for width: CGFloat in [360, 790] {
+        for width: CGFloat in [240, 360, 790] {
             let size = busyComposer.sizeThatFits(in: CGSize(width: width, height: 280))
             try check(size.width <= width + 1 && size.height <= 280,
                       "Live composer remains bounded with Stop at \(Int(width)) points")

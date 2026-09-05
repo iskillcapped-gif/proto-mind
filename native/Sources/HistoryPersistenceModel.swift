@@ -80,6 +80,7 @@ extension AppModel {
         discardAgentGrants(); invalidateSessionSpinePilot()
         pendingAction = nil; imagePreview = nil; pdfPreview = nil; attachmentDropPreview = nil
         showWorkSessions = false; showContextDesk = false; showInspector = false
+        workspacePanel.closeAll()
         conversations = archive.conversations
         if conversations.isEmpty { conversations = [Conversation()] }
         selectedID = conversations.first(where: { $0.id == archive.selectedID })?.id ?? conversations.first?.id

@@ -6,13 +6,19 @@ private let canvas = NativeTheme.canvas
 
 struct WorkspaceView: View {
     @ObservedObject var model: AppModel
+    @ObservedObject var panel: WorkspacePanelModel
     @Environment(\.openSettings) private var openSettings
     @State private var libraryExpanded = false
+
+    init(model: AppModel) {
+        self.model = model
+        self.panel = model.workspacePanel
+    }
 
     var body: some View {
         NavigationSplitView {
             SidebarView(model: model, libraryExpanded: $libraryExpanded, openSettings: { openSettings() })
-                .navigationSplitViewColumnWidth(min: 225, ideal: 250, max: 300)
+                .navigationSplitViewColumnWidth(min: 225, ideal: 280, max: 340)
         } detail: {
             VStack(spacing: 0) {
                 HistoryPersistenceNotice(model: model)
@@ -28,21 +34,7 @@ struct WorkspaceView: View {
                         Button { model.clearError() } label: { Image(systemName: "xmark") }.buttonStyle(.nativeHover)
                     }.padding(14).background(Color.orange.opacity(0.09))
                 }
-                HStack(spacing: 0) {
-                    Group {
-                        switch model.section {
-                        case .chat: ChatView(model: model)
-                        case .commands: CommandCatalogView(model: model)
-                        case .overview: OverviewView(model: model)
-                        case .workspace: ProjectWorkspaceView(model: model)
-                        case .memory, .goals, .skills: LibraryView(model: model)
-                        }
-                    }.frame(maxWidth: .infinity, maxHeight: .infinity)
-                    if model.showInspector && model.section == .chat {
-                        Rectangle().fill(hairline).frame(width: 1)
-                        EvidenceInspectorView(model: model).frame(width: 280)
-                    }
-                }
+                WorkspaceSplitView(model: model, panel: panel)
             }
             .background(canvas)
             .toolbar {
@@ -59,8 +51,11 @@ struct WorkspaceView: View {
                         Button { model.openWorkSessions() } label: { Image(systemName: "clock.arrow.circlepath") }
                             .accessibilityLabel("Журнал работы")
                             .help("Журнал работы и ручное продолжение")
-                        Button { model.showInspector.toggle() } label: { Image(systemName: "sidebar.right") }
-                            .help("Подробности ответа").accessibilityLabel("Подробности ответа")
+                        Button {
+                            panel.visible.toggle(); panel.expanded = false
+                            if panel.visible && panel.selectedID == nil { Task { await model.refreshWorkspace() } }
+                        } label: { Image(systemName: "sidebar.right") }
+                            .help("Файлы и браузер").accessibilityLabel("Рабочая панель")
                     }
                 }
             }
@@ -72,6 +67,9 @@ struct WorkspaceView: View {
         .buttonStyle(.nativeHover)
         .disclosureGroupStyle(NativeDisclosureStyle())
         .onChange(of: model.section) { _, next in if next.libraryCollection != nil { libraryExpanded = true } }
+        .sheet(isPresented: $model.showInspector) {
+            EvidenceInspectorView(model: model).frame(width: 560, height: 680)
+        }
         .sheet(item: $model.pendingAction) { action in
             VStack(alignment: .leading, spacing: 20) {
                 Label("Подтвердить команду", systemImage: "hand.raised").font(.title2.weight(.semibold))
@@ -122,6 +120,67 @@ struct WorkspaceView: View {
     }
 }
 
+enum WorkspacePanelLayout {
+    static let divider: CGFloat = 6
+    static func width(total: CGFloat, fraction: CGFloat) -> CGFloat {
+        let available = max(0, total - divider)
+        let minimum = min(300, available / 2)
+        return min(available - minimum, max(minimum, available * fraction))
+    }
+}
+
+private struct WorkspaceSplitView: View {
+    @ObservedObject var model: AppModel
+    @ObservedObject var panel: WorkspacePanelModel
+    @State private var fraction: CGFloat = 0.5
+    @State private var dragStart: CGFloat?
+
+    var body: some View {
+        GeometryReader { geometry in
+            let width = WorkspacePanelLayout.width(total: geometry.size.width, fraction: fraction)
+            HStack(spacing: 0) {
+                if !panel.visible || !panel.expanded {
+                    mainContent.frame(width: panel.visible ? max(0, geometry.size.width - width - WorkspacePanelLayout.divider) : geometry.size.width)
+                        .frame(maxHeight: .infinity)
+                }
+                if panel.visible {
+                    if !panel.expanded {
+                        Rectangle().fill(NativeTheme.hairline).frame(width: 1)
+                            .frame(width: WorkspacePanelLayout.divider, height: geometry.size.height)
+                            .contentShape(Rectangle())
+                            .onHover { inside in if inside { NSCursor.resizeLeftRight.set() } else { NSCursor.arrow.set() } }
+                            .gesture(DragGesture(minimumDistance: 0).onChanged { drag in
+                                if dragStart == nil { dragStart = fraction }
+                                let available = max(1, geometry.size.width - WorkspacePanelLayout.divider)
+                                fraction = WorkspacePanelLayout.width(total: geometry.size.width,
+                                    fraction: (dragStart ?? 0.5) - drag.translation.width / available) / available
+                            }.onEnded { _ in dragStart = nil })
+                            .accessibilityLabel("Ширина рабочей панели")
+                            .accessibilityValue("\(Int(fraction * 100)) процентов")
+                            .accessibilityAdjustableAction { direction in
+                                let available = max(1, geometry.size.width - WorkspacePanelLayout.divider)
+                                let next = fraction + (direction == .increment ? 0.05 : -0.05)
+                                fraction = WorkspacePanelLayout.width(total: geometry.size.width, fraction: next) / available
+                            }
+                    }
+                    WorkspacePanelView(model: model, panel: panel, width: panel.expanded ? geometry.size.width : width)
+                        .frame(width: panel.expanded ? geometry.size.width : width)
+                        .frame(maxHeight: .infinity)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private var mainContent: some View {
+        switch model.section {
+        case .chat, .workspace: ChatView(model: model)
+        case .commands: CommandCatalogView(model: model)
+        case .overview: OverviewView(model: model)
+        case .memory, .goals, .skills: LibraryView(model: model)
+        }
+    }
+}
+
 enum TranscriptRenderingPolicy {
     static let initialMessageLimit = 80
     static let pageSize = 60
@@ -137,9 +196,11 @@ enum TranscriptRenderingPolicy {
     }
 
     static func adjustedLimit(oldCount: Int, newCount: Int, messageLimit: Int, followingLatest: Bool) -> Int {
-        let current = min(max(0, newCount), max(0, messageLimit))
+        // Keep the rendering budget while a short conversation grows. Clamping the
+        // budget to the first user message would hide earlier turns on every send.
+        let current = max(initialMessageLimit, messageLimit)
         guard newCount > oldCount, !followingLatest else { return current }
-        return min(newCount, current + newCount - oldCount)
+        return max(current, min(newCount, current + newCount - oldCount))
     }
 }
 
@@ -194,7 +255,7 @@ private struct ChatView: View {
                                         if let report = model.autoSkillsReport { AutoSkillsReportView(report: report) }
                                         WorkTimelineView(log: model.workLog, agentReceipt: model.agentReceipt,
                                                          toolItems: model.agentItems, live: true, startedAt: model.turnStartedAt)
-                                        if !model.stream.isEmpty { MessageMarkdownView(text: model.stream, copy: model.copy) }
+                                        if !model.stream.isEmpty { MessageMarkdownView(text: model.stream, copy: model.copy, openLink: { model.openWorkspaceLink($0) }) }
                                     }.frame(maxWidth: .infinity, alignment: .leading)
                                 }
                             }.padding(.horizontal, 32).padding(.vertical, 30)
@@ -327,7 +388,8 @@ private struct MessageView: View {
                     Text(message.text).font(NativeTheme.codeFont).textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
-                    MessageMarkdownView(text: message.text, copy: model.copy).frame(maxWidth: .infinity, alignment: .leading)
+                    MessageMarkdownView(text: message.text, copy: model.copy, openLink: { model.openWorkspaceLink($0) })
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 attachments
                 if let (report, text) = model.memorySuggestions(for: message) { MemorySuggestionCard(app: model, report: report, text: text) }
@@ -367,7 +429,7 @@ private struct MessageView: View {
             }
             ForEach(Array((message.imageContext ?? []).enumerated()), id: \.offset) { _, image in
                 Button {
-                    Task { await model.previewImage(image["path"].text, expectedSHA: image["sha256"].text, canAttach: false) }
+                    Task { await model.previewImage(image["path"].text, expectedSHA: image["sha256"].text, canAttach: false, inWorkspacePanel: true) }
                 } label: {
                     Label("\(image["name"].text) · \(image["width"].integer) × \(image["height"].integer)", systemImage: "photo")
                         .font(.caption).foregroundStyle(.secondary)
@@ -375,7 +437,7 @@ private struct MessageView: View {
                     .help("Локальный просмотр исходного файла с проверкой SHA-256. Изображение не отправляется повторно.")
             }
             ForEach(Array((message.pdfContext ?? []).enumerated()), id: \.offset) { _, pdf in
-                Button { Task { await model.previewPDF(pdf["path"].text, expected: pdf, canAttach: false) } } label: {
+                Button { Task { await model.previewPDF(pdf["path"].text, expected: pdf, canAttach: false, inWorkspacePanel: true) } } label: {
                     Label("\(pdf["name"].text) · стр. \(pdf["pages"].items.map { String($0["number"].integer) }.joined(separator: ", "))", systemImage: "doc.richtext")
                         .font(.caption).foregroundStyle(.secondary)
                 }.buttonStyle(.nativeHover).disabled(!model.canReceiveAttachments)
@@ -455,7 +517,7 @@ struct NativeComposer: NSViewRepresentable {
         let editor = Editor()
         editor.isRichText = false
         editor.drawsBackground = false
-        editor.font = .systemFont(ofSize: 15)
+        editor.font = .systemFont(ofSize: 16)
         editor.textColor = .labelColor
         editor.insertionPointColor = .labelColor
         editor.isVerticallyResizable = true

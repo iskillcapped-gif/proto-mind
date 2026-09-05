@@ -58,24 +58,28 @@ struct ComposerView: View {
                     HStack(spacing: 8) {
                         attachmentMenu
                         optionsButton
-                        ModelSelectionMenu(model: model, openSettings: { openSettings() })
-                        Spacer(minLength: 8)
                         if model.selected?.provider == "codex" { ComposerAccessMenu(model: model) }
+                        Spacer(minLength: 8)
+                        ModelSelectionMenu(model: model, openSettings: { openSettings() })
                         sendButton
                     }
                     VStack(spacing: 8) {
                         HStack(spacing: 8) {
-                            ModelSelectionMenu(model: model, openSettings: { openSettings() })
-                            Spacer(minLength: 4)
+                            attachmentMenu
+                            optionsButton
                             if model.selected?.provider == "codex" { ComposerAccessMenu(model: model, compact: true) }
+                            Spacer(minLength: 4)
                         }
-                        HStack(spacing: 8) { attachmentMenu; optionsButton; Spacer(); sendButton }
+                        HStack(spacing: 8) {
+                            Spacer(minLength: 0)
+                            ModelSelectionMenu(model: model, openSettings: { openSettings() })
+                            sendButton
+                        }
                     }
                 }.padding(.horizontal, 12).padding(.top, 4).padding(.bottom, 12)
             }
             .background(NativeTheme.composer, in: RoundedRectangle(cornerRadius: 20))
-            .overlay(RoundedRectangle(cornerRadius: 20).stroke(NativeTheme.accent.opacity(0.16)))
-            .shadow(color: .black.opacity(0.04), radius: 12, y: 4)
+            .overlay(RoundedRectangle(cornerRadius: 20).stroke(NativeTheme.hairline))
             HStack(spacing: 7) {
                 if model.busy {
                     Text(model.status).lineLimit(1)
@@ -85,7 +89,7 @@ struct ComposerView: View {
                     Text(model.selected?.provider == "codex" ? "ChatGPT" : model.selected?.provider == "mock" ? "Тестовый режим" : "На этом Mac")
                 }
                 Spacer(minLength: 8)
-                Text("↵ отправить · ⇧↵ новая строка").lineLimit(1)
+                Text("⇧↵ новая строка").lineLimit(1)
             }.font(.system(size: 10)).foregroundStyle(.secondary).padding(.horizontal, 6)
         }.frame(maxWidth: NativeTheme.columnWidth).frame(maxWidth: .infinity)
     }
@@ -94,10 +98,7 @@ struct ComposerView: View {
         Menu {
             Button("Изображение…", systemImage: "photo", action: model.chooseImage)
             Button("Страницы PDF…", systemImage: "doc.richtext", action: model.choosePDF)
-            Button("Файл проекта…", systemImage: "doc.text") {
-                model.section = .workspace
-                Task { await model.refreshWorkspace() }
-            }
+            Button("Файл проекта…", systemImage: "doc.text") { model.showProjectFiles() }
             Divider()
             Button("Заметка проекта…", systemImage: "brain.head.profile") { Task { await model.openProjectMemory() } }
         } label: { Image(systemName: "plus").font(.system(size: 18)).frame(width: 28, height: 32) }

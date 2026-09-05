@@ -41,12 +41,15 @@ struct MarkdownBlock: Equatable {
         return result
     }
 
-    static func inline(_ source: String) -> AttributedString {
+    static func inline(_ source: String, allowFileLinks: Bool = false) -> AttributedString {
         var result = (try? AttributedString(markdown: source, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(source)
         for run in Array(result.runs) {
             if run.inlinePresentationIntent?.contains(.code) == true { result[run.range].font = NativeTheme.codeFont }
-            if let link = run.link, !["http", "https"].contains(link.scheme?.lowercased() ?? "") {
+            if let link = run.link, !["http", "https"].contains(link.scheme?.lowercased() ?? ""),
+               !(allowFileLinks && (link.isFileURL || link.scheme == nil)) {
                 result[run.range].link = nil
+            } else if run.link != nil {
+                result[run.range].underlineStyle = Text.LineStyle(pattern: .solid)
             }
         }
         return result
@@ -56,16 +59,17 @@ struct MarkdownBlock: Equatable {
 struct MessageMarkdownView: View {
     let text: String
     let copy: (String) -> Void
+    var openLink: ((URL) -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 17) {
             ForEach(Array(MarkdownBlock.parse(text).enumerated()), id: \.offset) { _, block in
                 switch block.kind {
                 case .text:
-                    Text(MarkdownBlock.inline(block.content)).font(NativeTheme.messageFont).lineSpacing(6)
+                    Text(MarkdownBlock.inline(block.content, allowFileLinks: openLink != nil)).font(NativeTheme.messageFont).lineSpacing(6)
                         .textSelection(.enabled)
                 case .heading(let level):
-                    Text(MarkdownBlock.inline(block.content)).font(.system(size: level < 3 ? 22 : 17, weight: .semibold)).padding(.top, 5)
+                    Text(MarkdownBlock.inline(block.content, allowFileLinks: openLink != nil)).font(.system(size: level < 3 ? 22 : 17, weight: .semibold)).padding(.top, 5)
                         .textSelection(.enabled)
                 case .code(let language):
                     VStack(alignment: .leading, spacing: 0) {
@@ -83,7 +87,8 @@ struct MessageMarkdownView: View {
                 }
             }
         }.environment(\.openURL, OpenURLAction { url in
-                ["http", "https"].contains(url.scheme?.lowercased() ?? "") ? .systemAction : .discarded
+                if let openLink { openLink(url); return .handled }
+                return ["http", "https"].contains(url.scheme?.lowercased() ?? "") ? .systemAction : .discarded
             })
     }
 }

@@ -6,7 +6,7 @@ For the current priority map and the agreed next interface stage, see [Current D
 
 ## Architecture Decision
 
-Use a real SwiftUI/AppKit application with a Codex-inspired sidebar, conversation workspace, composer, and evidence inspector. Preserve the Python cognitive core rather than rewrite mature memory, learning, and permission logic at the same time as the UI.
+Use a real SwiftUI/AppKit application with a Codex-inspired sidebar, conversation workspace, composer, file/browser panel and separately accessible answer evidence. Preserve the existing Python cognitive core and its memory, learning and permission logic.
 
 ```text
 SwiftUI / AppKit
@@ -982,3 +982,29 @@ Verification: all 2,147 Python tests and compileall pass; optional pytest is abs
 Signed disposable QA apps verify light and dark appearance, a minimum-size window with the inspector, request-popover-to-criteria navigation, prepared-draft focus, ⌘F filtering, ordinary and delayed Mock responses, Esc reaching the stop request while the local operation finishes safely, paging from 80 to 140 visible messages in a 240-message dialog, an interrupted-run notice, answer-detail navigation and Settings-to-verified-backup preview. The UI run makes no cloud model request and does not claim a new live cloud-streaming test. No personal history is migrated or provider session reset; all 87 protected personal core/export/Native files retain their exact bytes and inventory.
 
 Native 0.47.0 (54) is built in a separate staging directory with plist and strict deep signature verification. The local app is replaced while preserving the previous bundle for any running process. The new interface becomes active on the next normal app restart.
+
+## Files And Browser Panel / Native 0.48.0
+
+The operator's screenshots guide a familiar neutral appearance: charcoal conversation surface, lighter gray sidebar/user bubbles, 16-point messages, simpler project rows and an access-left/model-right composer with adaptive compact controls. Light appearance uses the same hierarchy. Search opens on demand and retains ⌘F. Short conversations now retain the initial 80-message rendering budget while growing; they no longer prematurely hide earlier rows under the paging button.
+
+### Everyday workflow
+
+**Файлы проекта**, **Браузер** and the top-right **Рабочая панель** button open a work surface beside the conversation. Its divider is draggable and keyboard-accessible; it starts with equal chat/panel space and supports expanded reading or hiding without closing tabs. The plus menu adds browser/file tabs. ⌘⌥T opens a new browser tab with address focus; ⌘⇧O opens the project folder workflow. **Подробнее → Память и проверки** opens the existing answer inspector in its own sheet, preserving access to raw reports, exact run navigation and Session Spine controls without replacing work tabs.
+
+Tabs are process-only and survive ordinary conversation changes, but not app restart or explicit dialog restore. File snapshots retain their original conversation/workspace scope; a foreign tab cannot attach to the newly selected conversation. Closing a browser stops that tab. The 12-tab limit reports a visible error without silently evicting existing pages. Switching browser tabs preserves each actual WebKit page and its own navigation history.
+
+### Documents and web pages
+
+Project listing now includes PNG/JPEG/PDF entries alongside the existing text allowlist. Text/Markdown reads remain inside the selected project, bounded to 256 KiB with a 12,000-character preview. Markdown has rendered/source modes and panel-local links. Images reuse validated thumbnails. PDFs reuse verified extracted text and original-file hashes while moving between pages; this is a text-page preview, not a rendered facsimile. **Открыть** uses TextEdit for text, Preview for image/PDF originals, and an explicit Finder action. It does not execute a source file through its default file association.
+
+Previewing a document never attaches it automatically. Explicit attachment reuses current conversation/workspace, source-hash and existing text/image/PDF limits; Send rechecks its sources. A late PDF response cannot reopen a closed tab or replace a different version. Existing busy-state read gates, sensitive-path/symlink exclusions and text-only model-context reads remain in place.
+
+Each browser tab owns a real `WKWebView` with its own nonpersistent website data. Manual HTTP(S) navigation, back/forward, reload/stop, ordinary target-blank links and external-browser handoff are implemented. Pages do not enter chat history or model context, do not receive a Native script bridge and do not grant the model browser control. File/custom URL schemes, downloads and camera/microphone capture are refused; unsupported downloads/flows can be opened externally. Website logins and tabs are temporary; bookmarking, persistent sessions, full browser compatibility and model-driven browsing remain future work. The [Apple-documented web-view ATS exception](https://developer.apple.com/documentation/bundleresources/information-property-list/nsapptransportsecurity/nsallowsarbitraryloadsinwebcontent) permits manually selected HTTP sites without changing URLSession's transport policy. No certificate-acceptance override is installed.
+
+### Verification and delivery
+
+All 2,148 Python tests and compileall pass; optional pytest is absent. All 1,094 Native checks pass, 43 more than 0.47.0. New coverage exercises panel lifecycle/capacity/scope, URL policy, explicit Markdown links, PDF/image integration, stale results, no preview-induced history/core/authority changes, 240/300-point composer layouts and short-transcript growth. Existing persistence, provider progress/cancellation and evidence contracts remain covered.
+
+Signed disposable QA apps verify both appearances, rendered Markdown and relative links, images, PDF page navigation, browser back/forward and distinct tab contents, a local HTTP fixture, remote HTTP and HTTPS pages, panel drag/expansion/hiding, narrow-window controls, selected-tab visibility, keyboard search/address focus, a Mock reply and separate answer evidence. No cloud model request is made. All 135 files in this turn's protected personal core/export/Native inventory retain their original bytes, with no added or removed files; QA uses separate project/state roots.
+
+Native 0.48.0 (55) is built in a separate staging directory with plist validation and strict deep signature verification. The verified local bundle replaces 0.47.0 while preserving the previous bundle for its running process. The new appearance and panel become active on the next normal app restart.

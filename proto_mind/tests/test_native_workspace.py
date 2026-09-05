@@ -76,11 +76,24 @@ class NativeWorkspaceTests(unittest.TestCase):
         self.write(".git", "gitdir: /not-read\n")
         self.assertIsNone(self.reader.status()["branch"])
 
-    def test_listing_is_sorted_and_excludes_private_generated_and_binary_paths(self):
+    def test_listing_is_sorted_and_excludes_private_generated_and_unsupported_paths(self):
         for name in ("z.md", "A.py", "src/main.py", ".env", ".codex/auth.json", "auth.json",
                      "build/main.swift", "dist/app.txt", "backups/history.md", "image.png"):
             self.write(name)
-        self.assertEqual([item["name"] for item in self.reader.list_directory()["entries"]], ["src", "A.py", "z.md"])
+        self.assertEqual([item["name"] for item in self.reader.list_directory()["entries"]], ["src", "A.py", "image.png", "z.md"])
+
+    def test_media_listing_is_read_only_and_does_not_admit_binary_text_context(self):
+        for name in ("photo.jpg", "document.pdf", "image.png", "archive.zip", ".private.png", "backups/old.pdf"):
+            self.write(name)
+        (self.root / "linked.pdf").symlink_to(self.root / "document.pdf")
+        before = self.files()
+        self.assertEqual([item["name"] for item in self.reader.list_directory()["entries"]],
+                         ["document.pdf", "image.png", "photo.jpg"])
+        for name in ("photo.jpg", "document.pdf", "image.png"):
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                self.reader.read_file(name)
+        self.assertEqual(self.files(), before)
+        self.assertEqual(self.backend.subscription.calls, [])
 
     def test_selected_project_core_stores_exports_and_native_state_are_excluded(self):
         for name in ("proto_mind/data/persistent_memory.json", "proto_mind/exports/context.md", "backups/old.md",

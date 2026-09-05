@@ -7,23 +7,27 @@ struct SidebarView: View {
     @State private var renaming: Conversation?
     @State private var newTitle = ""
     @FocusState private var searchFocused: Bool
+    @State private var searchVisible = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 9) {
-                Image(systemName: "cube.transparent.fill").font(.system(size: 22)).foregroundStyle(NativeTheme.accent)
-                Text("Proto-Mind").font(.system(size: 18, weight: .semibold))
+                Text("Proto-Mind").font(.system(size: 20, weight: .semibold))
                 Spacer()
+                Button { searchVisible.toggle(); searchFocused = searchVisible } label: { Image(systemName: "magnifyingglass") }
+                    .foregroundStyle(.secondary).help("Поиск диалогов · ⌘F").accessibilityLabel("Поиск диалогов")
             }.padding(.horizontal, 19).padding(.top, 19).padding(.bottom, 20)
+                .background {
+                    Button("") { searchVisible = true; searchFocused = true }.keyboardShortcut("f").hidden().accessibilityHidden(true)
+                }
             Button { model.newConversation() } label: {
                 HStack {
                     Label("Новый диалог", systemImage: "square.and.pencil")
                     Spacer()
                     Text("⌘N").font(.system(size: 11)).foregroundStyle(.secondary)
-                }.font(.system(size: 13, weight: .medium)).padding(.horizontal, 12).padding(.vertical, 10)
-                    .background(NativeTheme.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
+                }.font(.system(size: 14)).padding(.horizontal, 12).padding(.vertical, 10)
             }.buttonStyle(.nativeHover).disabled(model.busy).padding(.horizontal, 12)
-            HStack(spacing: 8) {
+            if searchVisible || !model.conversationSearch.isEmpty { HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
                 TextField("Поиск диалогов", text: $model.conversationSearch).textFieldStyle(.plain).focused($searchFocused)
                 if !model.conversationSearch.isEmpty {
@@ -32,20 +36,22 @@ struct SidebarView: View {
                 }
             }.font(.system(size: 12)).padding(10).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 9))
                 .padding(.horizontal, 12).padding(.top, 12).padding(.bottom, 8)
-                .background {
-                    Button("") { searchFocused = true }.keyboardShortcut("f").hidden().accessibilityHidden(true)
-                }
+            }
             // Keep navigation inside the scroll area so a small window never
             // pushes the settings entry or the conversation list off screen.
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    navigation("Папка проекта", icon: "folder", section: .workspace)
+                    navigation("Файлы проекта", icon: "folder", section: .workspace)
+                    Button { model.workspacePanel.showBrowser() } label: {
+                        Label("Браузер", systemImage: "globe").font(.system(size: 14))
+                            .frame(maxWidth: .infinity, alignment: .leading).padding(10)
+                    }.buttonStyle(.nativeHover)
                     DisclosureGroup(isExpanded: $libraryExpanded) {
                         ForEach(LibraryCollection.allCases) { collection in
                             navigation(collection.title, icon: collection.symbol, section: collection.section)
                         }
                     } label: {
-                        Label("Библиотека", systemImage: "books.vertical").font(.system(size: 13)).padding(.vertical, 8)
+                        Label("Библиотека", systemImage: "books.vertical").font(.system(size: 14)).padding(.vertical, 8)
                     }.padding(.horizontal, 10)
                     HStack {
                         Text(model.showArchived ? "Архив диалогов" : "Диалоги").font(.system(size: 11, weight: .semibold))
@@ -57,7 +63,7 @@ struct SidebarView: View {
                     }.foregroundStyle(.secondary).padding(.horizontal, 11).padding(.top, 24).padding(.bottom, 4)
                     LazyVStack(alignment: .leading, spacing: 3) {
                         ForEach(ConversationGroup.make(model.visibleConversations)) { group in
-                            Text(group.title).font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
+                            Label(group.title, systemImage: "folder").font(.system(size: 13)).foregroundStyle(.secondary)
                                 .padding(.horizontal, 11).padding(.top, 14).padding(.bottom, 5)
                                 .help(group.workspace ?? "Диалоги без папки проекта")
                             ForEach(group.conversations) { conversationRow($0) }
@@ -109,14 +115,13 @@ struct SidebarView: View {
     private func conversationRow(_ chat: Conversation) -> some View {
         Button { model.select(chat.id) } label: {
             HStack(spacing: 8) {
-                Image(systemName: chat.archived ? "archivebox" : "bubble.left")
-                    .font(.system(size: 12)).foregroundStyle(.secondary)
-                Text(chat.title).font(.system(size: 13)).lineLimit(1)
+                if chat.archived { Image(systemName: "archivebox").font(.system(size: 12)).foregroundStyle(.secondary) }
+                Text(chat.title).font(.system(size: 14)).lineLimit(1)
                 Spacer(minLength: 0)
                 if !chat.draft.isEmpty {
                     Image(systemName: "pencil").font(.system(size: 10)).foregroundStyle(.secondary).help("Есть черновик")
                 }
-            }.padding(.horizontal, 10).padding(.vertical, 10).frame(maxWidth: .infinity, alignment: .leading)
+            }.padding(.leading, 30).padding(.trailing, 10).padding(.vertical, 9).frame(maxWidth: .infinity, alignment: .leading)
                 .background(model.selectedID == chat.id && model.section == .chat ? NativeTheme.selection : .clear,
                             in: RoundedRectangle(cornerRadius: 9))
         }.buttonStyle(.nativeHover).disabled(model.busy).help(chat.title)
@@ -129,12 +134,13 @@ struct SidebarView: View {
     private func navigation(_ title: String, icon: String, section: WorkspaceSection) -> some View {
         Button {
             if let collection = section.libraryCollection { Task { await model.showLibrary(collection) } }
+            else if section == .workspace { model.showProjectFiles() }
             else {
                 model.section = section
                 if section == .workspace { Task { await model.refreshWorkspace() } }
             }
         } label: {
-            Label(title, systemImage: icon).font(.system(size: 13)).frame(maxWidth: .infinity, alignment: .leading)
+            Label(title, systemImage: icon).font(.system(size: 14)).frame(maxWidth: .infinity, alignment: .leading)
                 .padding(10).background(model.section == section ? NativeTheme.selection : .clear, in: RoundedRectangle(cornerRadius: 9))
         }.buttonStyle(.nativeHover).disabled(section.libraryCollection != nil && model.busy)
     }

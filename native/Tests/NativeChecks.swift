@@ -28,6 +28,10 @@ struct NativeChecks {
         }
         if CommandLine.arguments.contains("--interface-only") {
             try interfaceLayout(root: root)
+            try workspacePanelContracts(root: root)
+            if let fixture = LaunchConfiguration.argument("--fixture"), let python = LaunchConfiguration.argument("--python") {
+                try await workspacePanelIntegration(fixture: URL(fileURLWithPath: fixture), python: URL(fileURLWithPath: python), root: root)
+            }
             print("Native interface checks: \(passed) OK")
             return
         }
@@ -118,6 +122,7 @@ struct NativeChecks {
         try workLogAndGrouping(root: root)
         try sidebarLayout(root: root)
         try interfaceLayout(root: root)
+        try workspacePanelContracts(root: root)
         try hoverFeedback()
         try transcriptLayout(root: root)
         try markdown()
@@ -337,6 +342,17 @@ struct NativeChecks {
         try check(TranscriptRenderingPolicy.adjustedLimit(
             oldCount: 1_000, newCount: 1_001, messageLimit: expanded, followingLatest: true
         ) == expanded, "Following the latest reply keeps the bounded window size")
+        var shortLimit = TranscriptRenderingPolicy.initialMessageLimit
+        var visibleCounts: [Int] = []
+        for count in 1...80 {
+            shortLimit = TranscriptRenderingPolicy.adjustedLimit(oldCount: count - 1, newCount: count,
+                messageLimit: shortLimit, followingLatest: true)
+            visibleCounts.append(TranscriptRenderingPolicy.renderedRange(totalCount: count, messageLimit: shortLimit).count)
+        }
+        try check(visibleCounts == Array(1...80), "A short conversation keeps every message visible while growing to the initial page limit")
+        try check(TranscriptRenderingPolicy.adjustedLimit(oldCount: 80, newCount: 81, messageLimit: shortLimit, followingLatest: true) == 80
+                  && TranscriptRenderingPolicy.adjustedLimit(oldCount: 1000, newCount: 0, messageLimit: 80, followingLatest: true) == 80,
+                  "The rendering budget stays bounded after 80 messages and survives switching to an empty conversation")
 
         let workspace = NSHostingController(rootView: WorkspaceView(model: app))
         for _ in 0..<3 {
@@ -602,6 +618,7 @@ struct NativeChecks {
         guard fixture.resolvingSymlinksInPath().path.hasPrefix(FileManager.default.temporaryDirectory.resolvingSymlinksInPath().path + "/") else {
             throw NativeError.message("Native integration smoke accepts temporary fixture projects only.")
         }
+        try await workspacePanelIntegration(fixture: fixture, python: python, root: root)
         let app = AppModel(configuration: LaunchConfiguration(projectRoot: fixture, python: python, stateDirectory: root.appendingPathComponent("integration-state")))
         defer { app.client.shutdown() }
         await app.start()

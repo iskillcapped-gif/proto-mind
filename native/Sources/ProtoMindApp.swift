@@ -60,8 +60,10 @@ struct ProtoMindApp: App {
                     .disabled(model.busy || model.client.turnOutstanding)
                 Button("Каталог команд") { model.section = .commands }
                     .keyboardShortcut("k")
-                Button("Рабочая папка") { model.section = .workspace; Task { await model.refreshWorkspace() } }
+                Button("Файлы проекта") { model.showProjectFiles() }
                     .keyboardShortcut("o", modifiers: [.command, .shift])
+                Button("Новая страница в панели") { model.workspacePanel.openBrowser() }
+                    .keyboardShortcut("t", modifiers: [.command, .option])
                 Button("Инспектор ответа") { model.showInspector.toggle() }
                     .keyboardShortcut("i", modifiers: [.command, .option])
                 Button("Обновить обзор") { Task { await model.refresh() } }

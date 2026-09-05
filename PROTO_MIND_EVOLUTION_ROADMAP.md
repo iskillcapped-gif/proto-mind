@@ -1,8 +1,8 @@
 # Proto-Mind: Current Direction
 
-Updated: 2026-09-05. Current release: Native **0.47.0 (54)**.
+Updated: 2026-09-05. Current release: Native **0.48.0 (55)**.
 
-Proto-Mind is a personal macOS assistant. The immediate goal is a dependable, approachable application that can support the operator's planned expansion. The first everyday-interface pass is delivered; the next visual refinements should follow the operator's actual use.
+Proto-Mind is a personal macOS assistant. The immediate goal is a dependable, approachable application that can support the operator's planned expansion. The first everyday-interface pass and the requested familiar layout with a useful right panel are delivered; further refinements should follow actual use.
 
 This is the current priority map. [AGENTS.md](AGENTS.md) describes how to work in the project; [Native releases](NATIVE_MACOS_ROADMAP.md) preserve delivered contracts and verification; [Architect Ledger](PROTO_MIND_ARCHITECT_LEDGER.md) preserves architectural evidence. Earlier versions of this document remain in Git history. Historical EV/P2 numbering and imported blueprints do not determine the next task.
 
@@ -20,7 +20,7 @@ This is the current priority map. [AGENTS.md](AGENTS.md) describes how to work i
 
 Release 0.46.0 closes the agreed storage, recovery, code-structure and current-roadmap batch. Its detailed limits and verification are in the [release contract](NATIVE_MACOS_ROADMAP.md#dialog-storage-and-recovery--native-0460).
 
-## Everyday Interface: First Pass Delivered
+## Everyday Interface And Working Panel Delivered
 
 Release 0.47.0 improves the most frequent paths: open a conversation, choose a model, attach context, send, understand progress, inspect a result and find recovery actions.
 
@@ -31,9 +31,11 @@ Release 0.47.0 improves the most frequent paths: open a conversation, choose a m
 
 Acceptance used isolated signed apps in both appearances, a small window with the inspector, a 240-message conversation, keyboard input/search, a delayed Mock response and recovery navigation. Native fixtures cover provider progress/cancellation and persistence; this UI pass does not claim a new live cloud-streaming run. The [release contract](NATIVE_MACOS_ROADMAP.md#everyday-interface--native-0470) records exact verification and boundaries.
 
+Release 0.48.0 follows the operator's Codex screenshots: neutral gray/charcoal surfaces, 16-point messages, simpler project navigation and access-left/model-right composer controls. The right panel now holds real file/browser tabs, supports resizing and expanded reading, and keeps answer diagnostics in a separate sheet. It opens bounded project text and Markdown, PNG/JPEG previews, verified PDF text pages and manually navigated HTTP(S) sites. Viewing does not attach content or give the model browser access. Tabs and website sessions are temporary; original PDF layout, downloads and unsupported web flows use external applications. The [release contract](NATIVE_MACOS_ROADMAP.md#files-and-browser-panel--native-0480) records current acceptance.
+
 ## Next: Feedback And Product Expansion
 
-Review the first pass in ordinary use, then refine the screens that still feel crowded or unclear. Specialized memory, learning and protocol inspectors retain their detailed existing workflows; they can receive focused design passes when the operator chooses those paths. The planned functional expansion remains for the operator to scope.
+Review the familiar layout and working panel in ordinary use, then refine screens that still feel crowded or unclear. Specialized memory, learning and protocol inspectors retain their detailed existing workflows; they can receive focused design passes when the operator chooses those paths. The planned functional expansion remains for the operator to scope.
 
 ## Later Candidates
 

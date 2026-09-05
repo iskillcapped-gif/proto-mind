@@ -83,6 +83,7 @@ final class AppModel: ObservableObject {
     @Published var historyBackupError: String?
     @Published var historyBackupNotice: String?
     @Published var showInspector = false
+    let workspacePanel = WorkspacePanelModel()
     @Published var inspectedMessageID: UUID?
     @Published var pendingAction: PendingOperatorAction?
     @Published var pendingPersonaActivation: PendingPersonaActivation?
@@ -703,7 +704,7 @@ final class AppModel: ObservableObject {
             conversations[index].pendingFiles = []
             persist()
             if selectedID == id {
-                resetWorkspaceView(); workspaceStatus = value; section = .workspace
+                resetWorkspaceView(); workspaceStatus = value; section = .chat; workspacePanel.showFiles()
                 codexThreadStatus = .null
             }
         } catch { workspaceError = error.localizedDescription }
@@ -728,12 +729,34 @@ final class AppModel: ObservableObject {
     func openWorkspaceEntry(_ entry: JSONValue) async {
         if entry["directory"].flag { await refreshWorkspace(entry["path"].text); return }
         guard !busy, !loadingWorkspace, let root = selected?.workspacePath, let id = selectedID else { return }
+        let suffix = URL(fileURLWithPath: entry["path"].text).pathExtension.lowercased()
+        if ["png", "jpg", "jpeg", "pdf"].contains(suffix) {
+            do {
+                let url = try NativeAttachmentDrop.localURL(URL(fileURLWithPath: root).appendingPathComponent(entry["path"].text))
+                _ = try NativeAttachmentDrop.relativePath(url, workspace: root)
+                if suffix == "pdf" { await previewPDF(url.path, inWorkspacePanel: true) }
+                else { await previewImage(url.path, inWorkspacePanel: true) }
+            } catch {
+                workspaceError = error.localizedDescription
+                workspacePanel.visible = true; workspacePanel.error = error.localizedDescription
+            }
+            return
+        }
         loadingWorkspace = true; workspaceError = nil
         defer { loadingWorkspace = false }
         do {
             let preview = try await client.request("workspace_read", ["workspace_root": .string(root), "path": entry["path"]])
-            if selectedID == id { filePreview = preview }
-        } catch { workspaceError = error.localizedDescription }
+            guard selectedID == id, selected?.workspacePath == root else { return }
+            guard preview["read_only"].flag, preview["path"] == entry["path"] else {
+                throw NativeError.message("Просмотр относится к другому файлу.")
+            }
+            filePreview = preview
+            workspacePanel.open(.text(WorkspaceTextPreview(conversationID: id, root: root, value: preview)))
+        } catch {
+            guard selectedID == id, selected?.workspacePath == root else { return }
+            workspaceError = error.localizedDescription
+            workspacePanel.visible = true; workspacePanel.error = error.localizedDescription
+        }
     }
 
     func attachPreview() {
@@ -786,7 +809,7 @@ final class AppModel: ObservableObject {
         else { panel.begin(completionHandler: completion) }
     }
 
-    func previewImage(_ path: String, expectedSHA: String? = nil, canAttach: Bool = true) async {
+    func previewImage(_ path: String, expectedSHA: String? = nil, canAttach: Bool = true, inWorkspacePanel: Bool = false) async {
         guard !busy, !loadingImagePreview, !loadingDroppedAttachments, !loadingPDFPreview,
               pdfPreview == nil, attachmentDropPreview == nil,
               let conversationID = selectedID else { return }
@@ -803,7 +826,8 @@ final class AppModel: ObservableObject {
             }
             if imageThumbnails.count >= 12 { imageThumbnails.removeAll() }
             imageThumbnails[preview.source.sha256] = preview.thumbnail
-            imagePreview = preview
+            if inWorkspacePanel { workspacePanel.open(.image(preview)) }
+            else { imagePreview = preview }
         } catch { report(error) }
     }
 
@@ -955,7 +979,7 @@ final class AppModel: ObservableObject {
         else { panel.begin(completionHandler: completion) }
     }
 
-    private func readPDFPreview(_ path: String, pages: [Int], conversation: Conversation,
+    func readPDFPreview(_ path: String, pages: [Int], conversation: Conversation,
                                 canAttach: Bool, expectedSHA: String? = nil) async throws -> NativePDFPreview {
         let path = try NativeAttachmentDrop.localURL(URL(fileURLWithPath: path)).path
         var params: [String: JSONValue] = ["path": .string(path), "pages": .array(pages.map { .number(Double($0)) })]
@@ -973,7 +997,7 @@ final class AppModel: ObservableObject {
         return preview
     }
 
-    func previewPDF(_ path: String, expected: JSONValue? = nil, canAttach: Bool = true) async {
+    func previewPDF(_ path: String, expected: JSONValue? = nil, canAttach: Bool = true, inWorkspacePanel: Bool = false) async {
         guard canReceiveAttachments, let conversation = selected else { return }
         loadingPDFPreview = true
         defer { loadingPDFPreview = false }
@@ -984,7 +1008,8 @@ final class AppModel: ObservableObject {
             guard expected == nil || preview.source.value == expected else {
                 throw NativeError.message("Текст выбранных страниц изменился. Уберите PDF и выберите его заново.")
             }
-            pdfPreview = preview
+            if inWorkspacePanel { workspacePanel.open(.pdf(preview)) }
+            else { pdfPreview = preview }
         } catch { if selectedID == conversation.id { report(error) } }
     }
 
