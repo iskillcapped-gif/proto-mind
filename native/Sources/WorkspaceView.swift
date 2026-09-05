@@ -120,6 +120,7 @@ struct WorkspaceView: View {
         case .commands: return "Команды"
         case .overview: return "Диагностика"
         case .workspace: return "Папка проекта"
+        case .github: return "GitHub"
         case .memory, .goals, .skills: return model.section.libraryCollection?.title ?? "Библиотека"
         }
     }
@@ -181,6 +182,7 @@ private struct WorkspaceSplitView: View {
         case .chat, .workspace: ChatView(model: model)
         case .commands: CommandCatalogView(model: model)
         case .overview: OverviewView(model: model)
+        case .github: GitHubView(app: model, github: model.github)
         case .memory, .goals, .skills: LibraryView(model: model)
         }
     }

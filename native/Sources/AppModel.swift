@@ -3,7 +3,7 @@ import Foundation
 import UniformTypeIdentifiers
 
 enum WorkspaceSection: String {
-    case chat, commands, overview, workspace, memory, goals, skills
+    case chat, commands, overview, workspace, memory, goals, skills, github
     var libraryCollection: LibraryCollection? { LibraryCollection(rawValue: rawValue) }
 }
 
@@ -84,6 +84,7 @@ final class AppModel: ObservableObject {
     @Published var historyBackupNotice: String?
     @Published var showInspector = false
     let workspacePanel = WorkspacePanelModel()
+    let github = GitHubModel()
     @Published var inspectedMessageID: UUID?
     @Published var pendingAction: PendingOperatorAction?
     @Published var pendingPersonaActivation: PendingPersonaActivation?

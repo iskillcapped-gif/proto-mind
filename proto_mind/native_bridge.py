@@ -78,6 +78,7 @@ from proto_mind.native_persona import (
 )
 from proto_mind.persona_engine import validate_persona_snapshot
 from proto_mind.native_history_routes import HISTORY_METHODS, dispatch_history
+from proto_mind.native_github import GitHubConnection, METHODS as GITHUB_METHODS
 from proto_mind.native_work_sessions import WorkSessionStore, WorkSessionError, workspace_identity
 from proto_mind.native_desk import context_manifest, context_preview, capture_artifacts, review_observations
 from proto_mind.native_review import CONFIRM_REVIEW, criteria_context_message, validate_criteria, review_preview
@@ -262,6 +263,7 @@ class NativeBackend:
         self.active_provider: str | None = None
         self.busy = threading.Lock()
         self.agent_grants = AgentGrants()
+        self.github = GitHubConnection(self.state_dir)
         self._last_bootstrap_computer_use: dict | None = None
         self.work_sessions = WorkSessionStore(self.state_dir, self.root)
         self.closing = threading.Event()
@@ -1148,6 +1150,13 @@ class NativeBackend:
             self.busy.release()
 
     def dispatch(self, method: str, params: dict, emit: Callable[[dict], None], request_id: str) -> Any:
+        if method in GITHUB_METHODS:
+            if self.closing.is_set() or not self.busy.acquire(blocking=False):
+                raise ValueError("Дождитесь завершения текущей задачи перед работой с подключениями.")
+            try:
+                return self.github.dispatch(method, params)
+            finally:
+                self.busy.release()
         if method == "starter_skills":
             if params or self.closing.is_set():
                 raise ValueError("Starter skills inspection accepts no paths, inputs or actions.")

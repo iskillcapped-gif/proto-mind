@@ -32,6 +32,7 @@ from proto_mind.native_computer_use import (
     validate_computer_use_status,
 )
 from proto_mind.native_agent_contract import build_agent_contract
+from proto_mind.native_github import GitHubConnection
 from proto_mind.persona_activation import PersonaTurnActivation
 from proto_mind.native_instructions import (
     MAX_INSTRUCTION_CHARS,
@@ -155,7 +156,7 @@ def require_image_model(options: list[dict], model: str) -> None:
         raise CodexConnectionError("The current catalog does not confirm image input for this model. Choose a vision-capable model or remove the images; no fallback was used.")
 
 
-def codex_environment(home: Path) -> dict[str, str]:
+def codex_environment(home: Path, *, full_access: bool = False) -> dict[str, str]:
     # No inherited API keys, remote endpoints, Codex hooks, or parent session IDs.
     env = {key: value for key, value in os.environ.items()
            if key in {"HOME", "PATH", "TMPDIR", "LANG", "LC_ALL", "USER", "SHELL"}}
@@ -169,6 +170,12 @@ def codex_environment(home: Path) -> dict[str, str]:
         paths = ["/opt/homebrew/bin", "/usr/local/bin", *paths]
     paths += ["/usr/bin", "/bin", "/usr/sbin", "/sbin"]
     env["PATH"] = os.pathsep.join(dict.fromkeys(path for path in paths if os.path.isabs(path)))
+    if full_access:
+        github = GitHubConnection(home.parent).runtime_environment()
+        if github:
+            github_bin = github.pop("PROTO_MIND_GITHUB_BIN")
+            env.update(github)
+            env["PATH"] = github_bin + os.pathsep + env["PATH"]
     return env
 
 
@@ -304,7 +311,7 @@ class CodexRPC:
         self.process = subprocess.Popen(
             codex_process_command(executable, home, workspace, full_access=full_access,
                                   computer_use_command=computer_use.get("command", "") if computer_use else ""), cwd=workspace,
-            env=codex_environment(home), stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+            env=codex_environment(home, full_access=full_access), stdin=subprocess.PIPE, stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL, bufsize=0,
         )
         self.reader = threading.Thread(target=self._read, daemon=True)

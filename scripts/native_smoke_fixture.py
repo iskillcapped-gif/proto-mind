@@ -252,6 +252,8 @@ def main() -> None:
         source / "proto_mind", destination / "proto_mind",
         ignore=shutil.ignore_patterns("data", "exports", "__pycache__", "tests"),
     )
+    (destination / "scripts").mkdir()
+    shutil.copy2(source / "scripts" / "native_github_cli.py", destination / "scripts" / "native_github_cli.py")
     print(f"Native smoke fixture: {destination} (code only; no personal stores copied)")
     if state is not None:
         fixture = (session_spine_fixture if args.session_spine_state else memory_suggestion_fixture

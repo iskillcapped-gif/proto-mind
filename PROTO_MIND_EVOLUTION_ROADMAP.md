@@ -1,8 +1,8 @@
 # Proto-Mind: Current Direction
 
-Updated: 2026-09-05. Current release: Native **0.51.1 (59)**.
+Updated: 2026-09-05. Current release: Native **0.52.0 (60)**.
 
-Proto-Mind is a personal macOS assistant. The immediate goal is a dependable, approachable application that can support the operator's planned expansion. The everyday layout and working panel are delivered. The operator returned to conversation polish on September 5: a calmer work timeline, narrower reading column, upward composer menus and final file-change summaries. Memory and continuity workflows remain delivered.
+Proto-Mind is a personal macOS assistant. The immediate goal is a dependable, approachable application that can support the operator's planned expansion. The everyday layout, working panel and conversation polish are delivered. On September 5 the operator requested useful service connections, starting with GitHub. GitHub is now connected; memory and continuity workflows remain delivered.
 
 This is the current priority map. [AGENTS.md](AGENTS.md) describes how to work in the project; [Native releases](NATIVE_MACOS_ROADMAP.md) preserve delivered contracts and verification; [Architect Ledger](PROTO_MIND_ARCHITECT_LEDGER.md) preserves architectural evidence. Earlier versions of this document remain in Git history. Historical EV/P2 numbering and imported blueprints do not determine the next task.
 
@@ -44,6 +44,10 @@ Release 0.49.0 makes explicitly saved project knowledge manageable through ordin
 ## Everyday Continuity Delivered
 
 Release 0.50.0 closes the missing navigation step: **История диалогов** finds saved text, titles, folders and drafts across active and archived dialogs, displays the relevant message and latest exchange, and opens the exact match even in a long transcript. Ordinary return preserves drafts and current dialog settings. **Подготовить продолжение от ответа** reuses the existing exact run/turn linkage to prepare a manually sent reconstruction, refusing stale evidence, changed folders, occupied drafts/context and already continued parents. No new history store, automatic summary, provider reset or background execution is added. See the [release contract](NATIVE_MACOS_ROADMAP.md#everyday-continuity--native-0500).
+
+## GitHub Connection Delivered
+
+Release 0.52.0 adds **Подключения** in Settings and **GitHub** in the sidebar. It reuses the operator's existing GitHub CLI account, lists repositories and open PRs/issues, and prepares discussion drafts. Explicit Full Mac Codex tasks receive a managed GitHub command and HTTPS Git credentials through the existing CLI; chat mode receives neither. The account is checked before access, and disconnecting does not log the Mac out. Native connection metadata contains no token. See the [release contract](NATIVE_MACOS_ROADMAP.md#github-connection--native-0520). Further services follow actual work needs rather than a speculative integration catalog.
 
 ## Next: Complete Private-State Backups
 

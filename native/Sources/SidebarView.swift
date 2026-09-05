@@ -50,6 +50,7 @@ struct SidebarView: View {
                         Label("Браузер", systemImage: "globe").font(.system(size: 14))
                             .frame(maxWidth: .infinity, alignment: .leading).padding(10)
                     }.buttonStyle(.nativeHover)
+                    navigation("GitHub", icon: "point.3.connected.trianglepath.dotted", section: .github)
                     DisclosureGroup(isExpanded: $libraryExpanded) {
                         Button { Task { await model.openProjectMemory() } } label: {
                             Label("Память проекта", systemImage: "brain.head.profile").font(.system(size: 14))

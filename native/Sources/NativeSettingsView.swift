@@ -2,12 +2,13 @@ import AppKit
 import SwiftUI
 
 enum NativeSettingsSection: String, CaseIterable, Identifiable {
-    case models, persona, data, advanced
+    case models, persona, services, data, advanced
     var id: String { rawValue }
     var title: String {
         switch self {
         case .models: return "Модели"
         case .persona: return "Общение"
+        case .services: return "Подключения"
         case .data: return "Данные и копии"
         case .advanced: return "Дополнительно"
         }
@@ -16,6 +17,7 @@ enum NativeSettingsSection: String, CaseIterable, Identifiable {
         switch self {
         case .models: return "slider.horizontal.3"
         case .persona: return "bubble.left.and.bubble.right"
+        case .services: return "point.3.connected.trianglepath.dotted"
         case .data: return "externaldrive"
         case .advanced: return "gearshape.2"
         }
@@ -24,6 +26,7 @@ enum NativeSettingsSection: String, CaseIterable, Identifiable {
         switch self {
         case .models: return "Выберите, с какой моделью продолжить этот диалог."
         case .persona: return "Характер общения и использование памяти."
+        case .services: return "Сервисы, которыми вы пользуетесь в работе."
         case .data: return "Ваши диалоги и способы их восстановить."
         case .advanced: return "Доступ, сессии и технические сведения."
         }
@@ -72,6 +75,9 @@ struct NativeSettingsView: View {
                             Text("Перед отправкой можно посмотреть, какие сведения попадут в запрос, в разделе «Контекст запроса».")
                                 .font(.caption).foregroundStyle(.secondary)
                         }
+                    case .services:
+                        Section { GitHubConnectionView(app: model, github: model.github) }
+                            .task { await model.github.refresh(app: model) }
                     case .data: dataSettings
                     case .advanced:
                         accessSettings
