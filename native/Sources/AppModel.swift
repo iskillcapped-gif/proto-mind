@@ -95,6 +95,8 @@ final class AppModel: ObservableObject {
     @Published var workLog: JSONValue = .null
     @Published var turnStartedAt: Date?
     @Published var showWorkSessions = false
+    @Published var showConversationHistory = false
+    @Published var transcriptDestination: TranscriptDestination?
     @Published var inspectedWorkSessionID: String?
     @Published var showContextDesk = false
     @Published var showPersonaInspector = false

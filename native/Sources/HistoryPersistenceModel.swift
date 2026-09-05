@@ -79,7 +79,7 @@ extension AppModel {
         draftSave?.cancel(); dirtyDraft = false
         discardAgentGrants(); invalidateSessionSpinePilot()
         pendingAction = nil; imagePreview = nil; pdfPreview = nil; attachmentDropPreview = nil
-        showWorkSessions = false; showContextDesk = false; showInspector = false
+        showWorkSessions = false; showConversationHistory = false; showContextDesk = false; showInspector = false
         workspacePanel.closeAll()
         conversations = archive.conversations
         if conversations.isEmpty { conversations = [Conversation()] }

@@ -1,6 +1,6 @@
 # Proto-Mind: Current Direction
 
-Updated: 2026-09-05. Current release: Native **0.49.0 (56)**.
+Updated: 2026-09-05. Current release: Native **0.50.0 (57)**.
 
 Proto-Mind is a personal macOS assistant. The immediate goal is a dependable, approachable application that can support the operator's planned expansion. The everyday layout and working panel are delivered. The operator has deferred visual fine-tuning; current work focuses on useful memory and continuity workflows.
 
@@ -37,9 +37,13 @@ Release 0.48.0 follows the operator's Codex screenshots: neutral gray/charcoal s
 
 Release 0.49.0 makes explicitly saved project knowledge manageable through ordinary actions: **Сохранить**, **Изменить**, **Убрать из памяти проекта** and **Вернуть в память проекта**. Removing a note excludes it from new recall and attachment; history retains the original bytes and supports search and restoration. Exact preview, scope and writer checks happen internally after the user's action. Stale pending note selections and context previews are cleared after edits/removal. **Библиотека** separates project notes from legacy shared memory. See the [release contract](NATIVE_MACOS_ROADMAP.md#project-memory-controls--native-0490).
 
-## Next: Everyday Continuity
+## Everyday Continuity Delivered
 
-The next candidate is a clearer path for returning to earlier work: find the relevant task, inspect what was done and continue with the right current context. Begin with the existing work journal, continuation and provider-session flows; identify a concrete missing user step before extending storage or execution. Preserve the distinction between a saved answer, current context and verified completion. General background work and automatic multi-turn ingestion are separate capabilities, not implicit side effects of improving navigation.
+Release 0.50.0 closes the missing navigation step: **История диалогов** finds saved text, titles, folders and drafts across active and archived dialogs, displays the relevant message and latest exchange, and opens the exact match even in a long transcript. Ordinary return preserves drafts and current dialog settings. **Подготовить продолжение от ответа** reuses the existing exact run/turn linkage to prepare a manually sent reconstruction, refusing stale evidence, changed folders, occupied drafts/context and already continued parents. No new history store, automatic summary, provider reset or background execution is added. See the [release contract](NATIVE_MACOS_ROADMAP.md#everyday-continuity--native-0500).
+
+## Next: Complete Private-State Backups
+
+The current recovery UI exports dialogs, while useful personal state also lives in project notes, shared core memory, the work journal and local provider/session links. The next candidate is one clearly scoped, verified backup and recovery flow for that local private state. Begin with an inventory and a consistent snapshot/preview; preserve existing recovery copies and separately identify original attachments or remote provider history that a local copy cannot contain. Do not treat a dialog export as a full backup or silently restore authority from old state.
 
 Visual fine-tuning is deferred until the operator returns to it. The planned substantial functional expansion remains for the operator to scope.
 

@@ -50,6 +50,7 @@ struct ComposerView: View {
                             .padding(.horizontal, 17).padding(.top, 16)
                     }
                     NativeComposer(text: $model.composer, revision: model.composerRevision, enabled: !model.busy && model.selected?.archived != true,
+                                   focusOnRevision: model.transcriptDestination?.messageID == nil,
                                    canDrop: model.canReceiveAttachments, onDrop: { model.receiveAttachmentDrop($0) },
                                    onDropHover: { model.attachmentDropTargeted = $0 }, onDropError: { model.error = $0 }) { Task { await model.submit() } }
                         .frame(height: min(160, max(66, CGFloat(model.composer.components(separatedBy: "\n").count) * 23 + 30)))

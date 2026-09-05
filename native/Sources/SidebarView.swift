@@ -41,6 +41,10 @@ struct SidebarView: View {
             // pushes the settings entry or the conversation list off screen.
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
+                    Button { model.openConversationHistory() } label: {
+                        Label("История диалогов", systemImage: "clock.arrow.circlepath").font(.system(size: 14))
+                            .frame(maxWidth: .infinity, alignment: .leading).padding(10)
+                    }.buttonStyle(.nativeHover).help("Найти прошлую работу и продолжить")
                     navigation("Файлы проекта", icon: "folder", section: .workspace)
                     Button { model.workspacePanel.showBrowser() } label: {
                         Label("Браузер", systemImage: "globe").font(.system(size: 14))
@@ -118,7 +122,11 @@ struct SidebarView: View {
     }
 
     private func conversationRow(_ chat: Conversation) -> some View {
-        Button { model.select(chat.id) } label: {
+        Button {
+            let query = model.conversationSearch.trimmingCharacters(in: .whitespacesAndNewlines)
+            let match = query.isEmpty ? nil : chat.messages.last { $0.text.localizedCaseInsensitiveContains(query) }
+            model.returnToConversation(chat.id, messageID: match?.id)
+        } label: {
             HStack(spacing: 8) {
                 if chat.archived { Image(systemName: "archivebox").font(.system(size: 12)).foregroundStyle(.secondary) }
                 Text(chat.title).font(.system(size: 14)).lineLimit(1)

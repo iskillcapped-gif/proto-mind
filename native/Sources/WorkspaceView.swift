@@ -87,7 +87,12 @@ struct WorkspaceView: View {
             }.padding(28).frame(width: 560)
         }
         .sheet(item: $model.pendingAgentAccess) { request in AgentAccessSheet(model: model, request: request) }
-        .sheet(isPresented: $model.showWorkSessions) { WorkSessionsView(model: model) }
+        .sheet(isPresented: $model.showWorkSessions, onDismiss: {
+            if model.selected?.draftContinuation != nil { model.focusReturnedDraft() }
+        }) { WorkSessionsView(model: model) }
+        .sheet(isPresented: $model.showConversationHistory, onDismiss: { model.focusReturnedDraft() }) {
+            ConversationHistoryView(model: model)
+        }
         .sheet(isPresented: $model.showHistoryBackups) { HistoryBackupsView(model: model) }
         .sheet(item: $model.sessionSpinePreview) { SessionSpinePreviewView(model: model, preview: $0) }
         .sheet(isPresented: $model.showContextDesk) { ContextDeskView(model: model) }
@@ -195,6 +200,12 @@ enum TranscriptRenderingPolicy {
         min(max(0, totalCount), max(0, messageLimit) + pageSize)
     }
 
+    static func focusedRange(totalCount: Int, targetIndex: Int) -> Range<Int>? {
+        guard targetIndex >= 0, targetIndex < totalCount else { return nil }
+        let start = max(0, min(targetIndex - initialMessageLimit / 2, totalCount - initialMessageLimit))
+        return start..<min(totalCount, start + initialMessageLimit)
+    }
+
     static func adjustedLimit(oldCount: Int, newCount: Int, messageLimit: Int, followingLatest: Bool) -> Int {
         // Keep the rendering budget while a short conversation grows. Clamping the
         // budget to the first user message would hide earlier turns on every send.
@@ -209,16 +220,18 @@ private struct ChatView: View {
     @State private var nearBottom = true
     @State private var followOutput = true
     @State private var renderedMessageLimit = TranscriptRenderingPolicy.initialMessageLimit
+    @State private var historyWindow: Range<Int>?
 
     private var renderedMessages: ArraySlice<ChatMessage> {
-        model.messages[TranscriptRenderingPolicy.renderedRange(
+        let range = historyWindow ?? TranscriptRenderingPolicy.renderedRange(
             totalCount: model.messages.count,
             messageLimit: renderedMessageLimit
-        )]
+        )
+        return model.messages[min(range.lowerBound, model.messages.count)..<min(range.upperBound, model.messages.count)]
     }
 
     private var hiddenMessageCount: Int {
-        max(0, model.messages.count - renderedMessages.count)
+        renderedMessages.startIndex
     }
 
     var body: some View {
@@ -249,6 +262,14 @@ private struct ChatView: View {
                                 }
                                 ForEach(renderedMessages) { message in
                                     MessageView(message: message, model: model).id(message.id)
+                                        .background(model.transcriptDestination?.conversationID == model.selectedID
+                                            && model.transcriptDestination?.messageID == message.id ? NativeTheme.selection : .clear,
+                                            in: RoundedRectangle(cornerRadius: 10))
+                                }
+                                if renderedMessages.endIndex < model.messages.count {
+                                    Button("Показать следующие сообщения") { loadLater(using: proxy) }
+                                        .font(.system(size: 12)).frame(maxWidth: .infinity).padding(.vertical, 8)
+                                        .accessibilityLabel("Показать следующие сообщения")
                                 }
                                 if model.busy {
                                     VStack(alignment: .leading, spacing: 20) {
@@ -272,14 +293,16 @@ private struct ChatView: View {
                             if nearBottom != next { nearBottom = next }
                             if #unavailable(macOS 15), followOutput != next { followOutput = next }
                         }
-                        .onAppear { scrollToLatest(proxy) }
+                        .onAppear { navigate(using: proxy) }
                         .onChange(of: model.selectedID) { _, _ in
                             renderedMessageLimit = TranscriptRenderingPolicy.initialMessageLimit
+                            historyWindow = nil
                             followOutput = true
-                            scrollToLatest(proxy)
+                            navigate(using: proxy)
                         }
+                        .onChange(of: model.transcriptDestination) { _, _ in navigate(using: proxy) }
                         .onChange(of: model.turnStartedAt) { _, value in
-                            if value != nil { followOutput = true; scrollToLatest(proxy) }
+                            if value != nil { historyWindow = nil; followOutput = true; scrollToLatest(proxy) }
                         }
                         .onChange(of: model.messages.count) { oldCount, newCount in
                             renderedMessageLimit = TranscriptRenderingPolicy.adjustedLimit(
@@ -294,8 +317,12 @@ private struct ChatView: View {
                         .onChange(of: model.workLog) { _, _ in if followOutput { scrollToLatest(proxy) } }
                         .onChange(of: model.busy) { _, _ in if followOutput { scrollToLatest(proxy) } }
                         .overlay(alignment: .bottom) {
-                            if !nearBottom {
-                                Button { followOutput = true; scrollToLatest(proxy) } label: {
+                            if !nearBottom || historyWindow != nil {
+                                Button {
+                                    historyWindow = nil; followOutput = true
+                                    model.transcriptDestination = nil
+                                    scrollToLatest(proxy)
+                                } label: {
                                     Image(systemName: "arrow.down").font(.system(size: 15)).frame(width: 34, height: 34)
                                         .background(NativeTheme.composer, in: Circle()).overlay(Circle().stroke(hairline))
                                 }.buttonStyle(.nativeHover).help("К последнему сообщению").padding(.bottom, 8)
@@ -315,16 +342,41 @@ private struct ChatView: View {
         }
     }
 
+    private func navigate(using proxy: ScrollViewProxy) {
+        guard let destination = model.transcriptDestination, destination.conversationID == model.selectedID,
+              let target = destination.messageID, let index = model.messages.firstIndex(where: { $0.id == target }) else {
+            historyWindow = nil; followOutput = true; scrollToLatest(proxy); return
+        }
+        historyWindow = TranscriptRenderingPolicy.focusedRange(totalCount: model.messages.count, targetIndex: index)
+        followOutput = false
+        Task { @MainActor in
+            await Task.yield()
+            guard model.transcriptDestination == destination, model.selectedID == destination.conversationID else { return }
+            proxy.scrollTo(target, anchor: .center)
+        }
+    }
+
     private func loadEarlier(using proxy: ScrollViewProxy) {
         let previousFirstID = renderedMessages.first?.id
-        renderedMessageLimit = TranscriptRenderingPolicy.expandedLimit(
-            totalCount: model.messages.count,
-            messageLimit: renderedMessageLimit
-        )
+        if let window = historyWindow {
+            historyWindow = max(0, window.lowerBound - TranscriptRenderingPolicy.pageSize)..<window.upperBound
+        } else {
+            renderedMessageLimit = TranscriptRenderingPolicy.expandedLimit(totalCount: model.messages.count, messageLimit: renderedMessageLimit)
+        }
         guard let previousFirstID else { return }
         Task { @MainActor in
             await Task.yield()
             proxy.scrollTo(previousFirstID, anchor: .top)
+        }
+    }
+
+    private func loadLater(using proxy: ScrollViewProxy) {
+        guard let window = historyWindow else { return }
+        let previousLast = renderedMessages.last?.id
+        historyWindow = window.lowerBound..<min(model.messages.count, window.upperBound + TranscriptRenderingPolicy.pageSize)
+        Task { @MainActor in
+            await Task.yield()
+            if let previousLast { proxy.scrollTo(previousLast, anchor: .bottom) }
         }
     }
 
@@ -451,6 +503,7 @@ struct NativeComposer: NSViewRepresentable {
     @Binding var text: String
     var revision: Int
     var enabled: Bool
+    var focusOnRevision = true
     var canDrop = false
     var onDrop: ([URL]) -> Bool = { _ in false }
     var onDropHover: (Bool) -> Void = { _ in }
@@ -458,6 +511,38 @@ struct NativeComposer: NSViewRepresentable {
     var onSend: () -> Void
 
     final class Editor: NSTextView {
+        var pendingProgrammaticFocus = false
+        private var focusObservers: [NSObjectProtocol] = []
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            focusObservers.forEach(NotificationCenter.default.removeObserver)
+            focusObservers = []
+            guard let window else { return }
+            for name in [NSWindow.didBecomeKeyNotification, NSWindow.didEndSheetNotification] {
+                focusObservers.append(NotificationCenter.default.addObserver(forName: name, object: window, queue: .main) { [weak self] _ in
+                    DispatchQueue.main.async { self?.applyProgrammaticFocus() }
+                })
+            }
+            applyProgrammaticFocus()
+        }
+
+        deinit { focusObservers.forEach(NotificationCenter.default.removeObserver) }
+
+        func requestProgrammaticFocus() {
+            pendingProgrammaticFocus = true
+            DispatchQueue.main.async { [weak self] in self?.applyProgrammaticFocus() }
+        }
+
+        private func applyProgrammaticFocus() {
+            guard pendingProgrammaticFocus, isEditable, let window,
+                  window.isKeyWindow, window.attachedSheet == nil else { return }
+            if window.makeFirstResponder(self) {
+                pendingProgrammaticFocus = false
+                scrollRangeToVisible(selectedRange())
+            }
+        }
+
         var onSend: (() -> Void)?
         var canDrop = false
         var onFiles: (([URL]) -> Bool)?
@@ -535,18 +620,20 @@ struct NativeComposer: NSViewRepresentable {
     func updateNSView(_ scroll: NSScrollView, context: Context) {
         context.coordinator.parent = self
         guard let editor = scroll.documentView as? Editor else { return }
+        editor.isEditable = enabled
+        if !focusOnRevision { editor.pendingProgrammaticFocus = false }
         // SwiftUI may render an older binding while NSTextView is handling rapid keystrokes.
         // Only an explicit programmatic revision may replace the editor's live text.
         if context.coordinator.appliedRevision != revision {
             editor.string = text
             editor.setSelectedRange(NSRange(location: (text as NSString).length, length: 0))
             context.coordinator.appliedRevision = revision
-            if revision > 0, enabled, scroll.window?.isKeyWindow == true {
-                scroll.window?.makeFirstResponder(editor)
-            }
+            if revision > 0, focusOnRevision { editor.requestProgrammaticFocus() }
         }
-        editor.isEditable = enabled
         editor.onSend = onSend
+        // A prepared draft can arrive while the RPC still marks the composer
+        // disabled. Keep its request until both the field and parent window are ready.
+        if enabled, editor.pendingProgrammaticFocus { editor.requestProgrammaticFocus() }
         editor.canDrop = canDrop
         editor.onFiles = onDrop
         editor.onDropHover = onDropHover

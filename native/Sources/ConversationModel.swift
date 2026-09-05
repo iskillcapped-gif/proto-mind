@@ -5,6 +5,7 @@ import Foundation
 extension AppModel {
     func newConversation() {
         guard !busy else { return }
+        invalidateContextPreview()
         invalidateSessionSpinePilot()
         closeLearningReview()
         memoryWorkshop = nil; showMemoryWorkshop = false
@@ -23,6 +24,7 @@ extension AppModel {
         let chat = Conversation()
         conversations.insert(chat, at: 0)
         selectedID = chat.id
+        transcriptDestination = nil
         resetWorkSessionPages()
         codexThreadStatus = .null
         modelSelectionNotice = nil
@@ -37,6 +39,7 @@ extension AppModel {
 
     func select(_ id: UUID) {
         guard !busy else { return }
+        invalidateContextPreview()
         invalidateSessionSpinePilot()
         closeLearningReview()
         memoryWorkshop = nil; showMemoryWorkshop = false
@@ -53,6 +56,7 @@ extension AppModel {
         sessionSpinePreview = nil
         flushDraft()
         selectedID = id; section = .chat; inspectedMessageID = nil
+        transcriptDestination = nil
         modelSelectionNotice = nil
         codexThreadStatus = .null
         restoreComposer(); resetWorkspaceView(); persist()

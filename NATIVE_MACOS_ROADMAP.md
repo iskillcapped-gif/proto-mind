@@ -1036,3 +1036,31 @@ All 2,160 Python tests and compileall pass; optional pytest is absent. Twelve ne
 A signed isolated QA app verifies **Library → Project Memory**, creation without token copying, removal from ordinary search, history search, restoration and editing from port 4200 to 4300 with the old version retained. No real model is called. All 135 files in the protected personal core/export/Native inventory retain their original bytes and inventory.
 
 Native 0.49.0 (56) is built in a separate staging directory and passes plist validation and strict deep signature verification. The installed bundle replaces 0.48.0 while preserving the previous bundle for any running process; the new controls become active after the next normal restart.
+
+## Everyday Continuity / Native 0.50.0
+
+The concrete gap was navigation: sidebar search matched old message text but displayed only a dialog title, while exact continuation was buried in the detailed run journal. **История диалогов** in the sidebar and **Вернуться к работе** on the welcome screen now provide a direct path from finding a saved conversation to inspecting its answer and returning to work.
+
+### Find and inspect
+
+Local search reads the app's saved dialog snapshot: displayed message text, titles, project paths and unsent drafts. It includes active and archived dialogs by default, offers explicit filters and exposes each matching message. Search is a case/diacritic-insensitive substring match, not semantic retrieval. It does not read hidden raw evidence, provider prompts, files or the shared/project memory stores, and makes no model call. Requests are debounced and cooperatively cancellable; results are ordered by dialog activity and displayed in groups of 60 without a new persistent index.
+
+The preview shows the match, last request and its subsequent reply, project folder and saved draft. A later error stays visible; an older answer is not relabelled as the response to an unanswered request. Excerpts are labelled and bounded, with the complete conversation available through navigation. Saved text is historical evidence, not an automatic task-success assessment.
+
+**Открыть это сообщение** validates the destination and jumps to that exact message. Initially only an 80-message neighbourhood is rendered, even for a far older match; explicit previous/next controls load further blocks of 60. The last-message button returns to the recent transcript. Sidebar text-search selection also targets its newest matching message. Navigation state is temporary; no new disk schema, history migration or message mutation is introduced.
+
+### Return and continue
+
+**Продолжить диалог / К черновику** opens the existing conversation with its current provider/model/folder settings and preserved draft/context. Reading an archived conversation keeps it archived; restoration remains an explicit action. Switching conversations invalidates a stale context preview. Normal return keeps the existing provider-session/history behavior, including the bounded local history; it does not silently create a summary of the complete archive or reset a provider session.
+
+For a verified linked answer (including the exact answer to a matched question), **Подготовить продолжение от ответа** reuses Work Session lookup, Turn Lineage and the existing read-only continuation RPC. Only after exact source resolution and revalidation does it select the destination and save the reconstruction draft. The current dialog's draft is preserved, and a target draft, attachments, criteria, selected notes or prepared skill block replacement. Changes to the target conversation/folder during loading, altered/missing evidence and a parent that already has a continuation are refused. Legacy answers without an exact link remain readable and their conversations remain usable; a link is not fabricated for them.
+
+The reconstructed draft quotes bounded historical fragments, asks for the next goal and requires a separate Send. Existing source/workspace checks still apply; earlier files/images/PDF pages and historical permissions are not restored. No provider call, replay, automatic acceptance, new permission, memory write, background work or multi-turn Spine ingestion occurs during preparation. The composer retains a pending focus request while a read is busy or a sheet is closing, applies it when the parent window/field are ready, and permits immediate editing at the end of the draft. Reading a specific old message does not request composer focus.
+
+### Verification and delivery
+
+All 2,160 Python tests and compileall pass; optional pytest is absent. All 1,147 Native checks pass, including 36 new checks; the focused continuity suite passes 36. New checks exercise archive/text/folder/draft search, old and Unicode matches, honest latest-answer summaries, bounded transcript destinations, protected drafts and criteria, unchanged archive state, exact source lookup, changed folders during an asynchronous read, edited/missing evidence, restart, explicit Mock Send and refusal to replay an already continued parent. Existing provider progress/cancellation, source checks, memory and persistence suites also pass; no new live cloud-model run is claimed.
+
+A signed isolated QA app uses three synthetic conversations, including an archived 240-message transcript and an exact linked turn. Live checks verify both archive filters, multiple matches, the exact highlighted jump, forward page loading, draft restoration, continuation preparation and immediate typing without clicking the editor. Disk readback verifies the other draft, all old messages, archive state and exact prepared reference; the UI created no new run. All 135 files in the protected personal core/export/Native inventory retain their original bytes, with no additions or removals.
+
+Native 0.50.0 (57) is built in a separate staging directory with plist validation and strict deep signature verification. The verified bundle replaces 0.49.0 while preserving the previous app bundle for any running process; the updated functionality becomes active after a normal restart. The next product candidate is a complete, clearly scoped private-state backup flow; current dialog copies alone do not cover memory, the work journal or local provider/session links.

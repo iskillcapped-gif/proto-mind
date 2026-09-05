@@ -14,6 +14,9 @@ struct ConversationWelcomeView: View {
                     .font(.system(size: 16)).foregroundStyle(.secondary).lineSpacing(5)
             }
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: 12)], alignment: .leading, spacing: 12) {
+                card("Вернуться к работе", detail: "Найти и продолжить прежний диалог", icon: "clock.arrow.circlepath") {
+                    model.openConversationHistory()
+                }
                 card("Обсудить идею", detail: "Разложить мысли по полочкам", icon: "lightbulb") {
                     let prompt = "Помоги мне разобраться с идеей: "
                     model.setComposer(model.composer.isEmpty ? prompt : model.composer + "\n" + prompt)

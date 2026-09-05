@@ -26,6 +26,15 @@ struct NativeChecks {
             print("Native history checks: \(passed) OK")
             return
         }
+        if CommandLine.arguments.contains("--continuity-only"),
+           let fixture = LaunchConfiguration.argument("--session-spine-fixture"),
+           let state = LaunchConfiguration.argument("--session-spine-state"),
+           let python = LaunchConfiguration.argument("--python") {
+            try await conversationHistoryContracts(root: root)
+            try await conversationHistoryIntegration(fixture: URL(fileURLWithPath: fixture), python: URL(fileURLWithPath: python), state: URL(fileURLWithPath: state))
+            print("Native continuity checks: \(passed) OK")
+            return
+        }
         if CommandLine.arguments.contains("--interface-only") {
             try interfaceLayout(root: root)
             try workspacePanelContracts(root: root)
@@ -104,6 +113,7 @@ struct NativeChecks {
         try instructionReceiptContracts()
         try turnLineageContracts(root: root)
         try chatStorage(root: root)
+        try await conversationHistoryContracts(root: root)
         try sessionSpineDurabilityContracts(root: root)
         if let fixture = LaunchConfiguration.argument("--session-spine-fixture"),
            let state = LaunchConfiguration.argument("--session-spine-state"),
@@ -112,6 +122,7 @@ struct NativeChecks {
                 fixture: URL(fileURLWithPath: fixture), python: URL(fileURLWithPath: python),
                 state: URL(fileURLWithPath: state)
             )
+            try await conversationHistoryIntegration(fixture: URL(fileURLWithPath: fixture), python: URL(fileURLWithPath: python), state: URL(fileURLWithPath: state))
             try await sessionSpineLiveIntegration(
                 fixture: URL(fileURLWithPath: fixture), python: URL(fileURLWithPath: python),
                 state: URL(fileURLWithPath: state)

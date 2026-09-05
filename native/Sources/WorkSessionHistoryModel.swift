@@ -129,31 +129,83 @@ extension AppModel {
 
     func prepareContinuation(_ run: NativeWorkSession) async {
         workSessionsActionError = nil
-        guard !busy, run.canPrepare, let id = selectedID, UUID(uuidString: run.value["conversation_id"].text) == id,
-              selected?.archived != true else { return }
-        guard composer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, selected?.pendingFiles.isEmpty == true,
-              selected?.pendingImages.isEmpty == true, selected?.pendingPDFs.isEmpty == true else {
-            workSessionsActionError = "Сначала сохраните или очистите текущий черновик и вложения. Продолжение не заменит их автоматически."
-            report(NativeError.message(workSessionsActionError!)); return
-        }
+        guard !busy, !client.turnOutstanding, run.canPrepare, let chat = selected,
+              UUID(uuidString: run.value["conversation_id"].text) == chat.id, !chat.archived else { return }
         busy = true
         defer { busy = false }
         do {
-            var params: [String: JSONValue] = ["conversation_id": .string(id.uuidString), "continuation": run.reference]
-            if let root = selected?.workspacePath { params["workspace_root"] = .string(root) }
-            let result = try await client.request("work_session_continuation", params)
-            guard result["schema"].text == "proto_mind.native_continuation.v1", result["read_only"] == .bool(true),
-                  result["automatic_resume"] == .bool(false), result["run_id"].text == run.id,
-                  result["fingerprint"] == run.value["fingerprint"], !result["draft"].text.isEmpty,
-                  result["draft"].text.count <= 5000,
-                  let index = conversations.firstIndex(where: { $0.id == id }) else {
-                throw NativeError.message("Черновик продолжения не прошёл проверку. Ничего не отправлено.")
-            }
-            conversations[index].draftContinuation = run.reference
-            setComposer(result["draft"].text, preservingContinuation: true)
-            flushDraft(); section = .chat; showWorkSessions = false
-            status = "Черновик подготовлен · проверьте и отправьте вручную"
+            try requireEmptyContinuationDraft(chat)
+            let draft = try await continuationDraft(run, conversation: chat)
+            guard selected == chat else { throw continuationChangedError() }
+            try requireEmptyContinuationDraft(chat)
+            installContinuationDraft(draft, run: run, conversation: chat.id)
         } catch { workSessionsActionError = error.localizedDescription; report(error) }
+    }
+
+    func prepareHistoryContinuation(messageID: UUID, conversationID: UUID) async {
+        workSessionsActionError = nil
+        guard !busy, !client.turnOutstanding, let chat = conversations.first(where: { $0.id == conversationID }),
+              !chat.archived else { return }
+        let origin = selectedID
+        busy = true
+        defer { busy = false }
+        do {
+            try requireEmptyContinuationDraft(chat)
+            guard let index = chat.messages.firstIndex(where: { $0.id == messageID }), index > 0,
+                  chat.messages[index].role == "assistant", !chat.messages[index].isError,
+                  let raw = chat.messages[index].turnReference else { throw continuationChangedError() }
+            let reference = try NativeTurnReference(raw)
+            guard reference.matches(source: chat.messages[index - 1], assistant: chat.messages[index], conversation: chat.id) else {
+                throw continuationChangedError()
+            }
+            let saved = try await lookupWorkSession(reference.value["run_id"].text, conversation: chat.id)
+            let run = try reference.resolve(in: [saved], conversation: chat.id)
+            guard run.canPrepare else { throw continuationChangedError() }
+            let draft = try await continuationDraft(run, conversation: chat)
+            guard selectedID == origin, conversations.first(where: { $0.id == chat.id }) == chat else {
+                throw continuationChangedError()
+            }
+            try requireEmptyContinuationDraft(chat)
+            // Both reads are complete. Select only now, preserving the other dialog's draft.
+            busy = false
+            returnToConversation(chat.id)
+            installContinuationDraft(draft, run: run, conversation: chat.id)
+        } catch { workSessionsActionError = error.localizedDescription; report(error) }
+    }
+
+    private func requireEmptyContinuationDraft(_ chat: Conversation) throws {
+        guard chat.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              chat.id != selectedID || composer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              chat.pendingFiles.isEmpty, chat.pendingImages.isEmpty, chat.pendingPDFs.isEmpty,
+              chat.pendingCriteria.isEmpty, projectNoteSelections[chat.id, default: []].isEmpty,
+              preparedSkillTasks[chat.id] == nil else {
+            throw NativeError.message("В этом диалоге уже есть черновик или выбранный контекст. Откройте его: продолжение не заменит ваш ввод и вложения.")
+        }
+    }
+
+    private func continuationDraft(_ run: NativeWorkSession, conversation chat: Conversation) async throws -> String {
+        var params: [String: JSONValue] = ["conversation_id": .string(chat.id.uuidString), "continuation": run.reference]
+        if let root = chat.workspacePath { params["workspace_root"] = .string(root) }
+        let result = try await client.request("work_session_continuation", params)
+        guard result["schema"].text == "proto_mind.native_continuation.v1", result["read_only"] == .bool(true),
+              result["automatic_resume"] == .bool(false), result["run_id"].text == run.id,
+              result["fingerprint"] == run.value["fingerprint"], !result["draft"].text.isEmpty,
+              result["draft"].text.count <= 5000 else { throw continuationChangedError() }
+        return result["draft"].text
+    }
+
+    private func continuationChangedError() -> NativeError {
+        NativeError.message("Диалог или сохранённая работа изменились. Откройте историю заново. Ничего не отправлено.")
+    }
+
+    private func installContinuationDraft(_ draft: String, run: NativeWorkSession, conversation: UUID) {
+        guard selectedID == conversation, let index = conversations.firstIndex(where: { $0.id == conversation }) else { return }
+        conversations[index].draftContinuation = run.reference
+        setComposer(draft, preservingContinuation: true)
+        invalidateContextPreview()
+        flushDraft(); section = .chat; showWorkSessions = false
+        transcriptDestination = TranscriptDestination(conversationID: conversation, messageID: nil)
+        status = "Черновик подготовлен · проверьте и отправьте вручную"
     }
 
     func clearContinuation() {
