@@ -42,6 +42,13 @@ struct NativeChecks {
             print("Native memory suggestion checks: \(passed) OK")
             return
         }
+        if CommandLine.arguments.contains("--project-memory-only"),
+           let fixture = LaunchConfiguration.argument("--fixture"), let python = LaunchConfiguration.argument("--python") {
+            try await projectMemory(fixture: URL(fileURLWithPath: fixture), python: URL(fileURLWithPath: python), root: root)
+            try await projectMemoryLifecycle(fixture: URL(fileURLWithPath: fixture), python: URL(fileURLWithPath: python), root: root)
+            print("Native project memory checks: \(passed) OK")
+            return
+        }
         if CommandLine.arguments.contains("--learning-only"),
            let fixture = LaunchConfiguration.argument("--fixture"), let python = LaunchConfiguration.argument("--python") {
             try await learningReview(fixture: URL(fileURLWithPath: fixture), python: URL(fileURLWithPath: python), root: root)
@@ -665,6 +672,7 @@ struct NativeChecks {
         try await attachmentDrops(fixture: fixture, python: python, root: root)
         try await pdfAttachments(fixture: fixture, python: python, root: root)
         try await projectMemory(fixture: fixture, python: python, root: root)
+        try await projectMemoryLifecycle(fixture: fixture, python: python, root: root)
         try await projectRecallIntegration(fixture: fixture, python: python, root: root)
         try await memorySuggestionIntegration(fixture: fixture, python: python, root: root)
         app.setProvider("codex")

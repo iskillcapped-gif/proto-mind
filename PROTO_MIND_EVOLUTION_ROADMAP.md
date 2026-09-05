@@ -1,8 +1,8 @@
 # Proto-Mind: Current Direction
 
-Updated: 2026-09-05. Current release: Native **0.48.0 (55)**.
+Updated: 2026-09-05. Current release: Native **0.49.0 (56)**.
 
-Proto-Mind is a personal macOS assistant. The immediate goal is a dependable, approachable application that can support the operator's planned expansion. The first everyday-interface pass and the requested familiar layout with a useful right panel are delivered; further refinements should follow actual use.
+Proto-Mind is a personal macOS assistant. The immediate goal is a dependable, approachable application that can support the operator's planned expansion. The everyday layout and working panel are delivered. The operator has deferred visual fine-tuning; current work focuses on useful memory and continuity workflows.
 
 This is the current priority map. [AGENTS.md](AGENTS.md) describes how to work in the project; [Native releases](NATIVE_MACOS_ROADMAP.md) preserve delivered contracts and verification; [Architect Ledger](PROTO_MIND_ARCHITECT_LEDGER.md) preserves architectural evidence. Earlier versions of this document remain in Git history. Historical EV/P2 numbering and imported blueprints do not determine the next task.
 
@@ -13,7 +13,7 @@ This is the current priority map. [AGENTS.md](AGENTS.md) describes how to work i
 | Dialog persistence | Each dialog has an immutable object; a small atomic manifest selects the current versions. Saves reuse unchanged dialogs. Competing app processes cannot silently overwrite each other. | Up to 10,000 dialogs; each object below 50 MiB. Startup still reads the complete archive into memory. |
 | Recovery | Failed saves retain visible replies and drafts. The app offers verified export/import, the last 20 automatic snapshots, a pinned original-format copy and copies before recovery. | These are dialog copies. Core memory, the separate work journal, provider sessions and original attachment files need their own backup. |
 | Work journal | New independent turns have no global 500-run ceiling. The journal pages through older records and opens a message's exact run directly. | Page listing and continuation validation still scan the journal; the detached archive audit has a separate 500-record input budget. |
-| Memory | Full core-memory mutations use cooperative transactions. Project notes have explicit scope, source evidence and bounded local RU/UK/EN recall. | The legacy shared core is not fully project-isolated; matching is deterministic, with finite vocabulary. |
+| Memory | Full core-memory mutations use cooperative transactions. Project notes have explicit scope, source evidence, bounded local RU/UK/EN recall, editable versions and reversible removal from future selection. | The legacy shared core is not fully project-isolated; matching is deterministic, with finite vocabulary. Removing a note does not erase old provider messages. |
 | Execution | Codex Chat and explicit Full Mac have separate durable sessions; local Ollama and Mock remain available. Public work evidence, Stop and manual acceptance are distinct. | Full Mac has broad user-level authority. Finished model output does not prove task success or undo side effects. |
 | Continuity and learning | Brother Persona, reviewed notes/lessons/skills, exact Turn Lineage and the confirmed single-turn Session Spine writer are implemented. | General automatic learning, multi-turn Spine ingestion and background work are not implemented. |
 | Code structure | Dialogs, turn execution, work history, Spine and persistence have separate Native model files. Python history routes are isolated. The original 1,193 flow checks are split across 21 topic modules with a stable aggregate command. | Other large modules can be split when their next change benefits; no rewrite is required before interface work. |
@@ -33,9 +33,15 @@ Acceptance used isolated signed apps in both appearances, a small window with th
 
 Release 0.48.0 follows the operator's Codex screenshots: neutral gray/charcoal surfaces, 16-point messages, simpler project navigation and access-left/model-right composer controls. The right panel now holds real file/browser tabs, supports resizing and expanded reading, and keeps answer diagnostics in a separate sheet. It opens bounded project text and Markdown, PNG/JPEG previews, verified PDF text pages and manually navigated HTTP(S) sites. Viewing does not attach content or give the model browser access. Tabs and website sessions are temporary; original PDF layout, downloads and unsupported web flows use external applications. The [release contract](NATIVE_MACOS_ROADMAP.md#files-and-browser-panel--native-0480) records current acceptance.
 
-## Next: Feedback And Product Expansion
+## Project Memory Controls Delivered
 
-Review the familiar layout and working panel in ordinary use, then refine screens that still feel crowded or unclear. Specialized memory, learning and protocol inspectors retain their detailed existing workflows; they can receive focused design passes when the operator chooses those paths. The planned functional expansion remains for the operator to scope.
+Release 0.49.0 makes explicitly saved project knowledge manageable through ordinary actions: **Сохранить**, **Изменить**, **Убрать из памяти проекта** and **Вернуть в память проекта**. Removing a note excludes it from new recall and attachment; history retains the original bytes and supports search and restoration. Exact preview, scope and writer checks happen internally after the user's action. Stale pending note selections and context previews are cleared after edits/removal. **Библиотека** separates project notes from legacy shared memory. See the [release contract](NATIVE_MACOS_ROADMAP.md#project-memory-controls--native-0490).
+
+## Next: Everyday Continuity
+
+The next candidate is a clearer path for returning to earlier work: find the relevant task, inspect what was done and continue with the right current context. Begin with the existing work journal, continuation and provider-session flows; identify a concrete missing user step before extending storage or execution. Preserve the distinction between a saved answer, current context and verified completion. General background work and automatic multi-turn ingestion are separate capabilities, not implicit side effects of improving navigation.
+
+Visual fine-tuning is deferred until the operator returns to it. The planned substantial functional expansion remains for the operator to scope.
 
 ## Later Candidates
 

@@ -101,7 +101,8 @@ def suggestions(root, state_dir, run, text):
         _, records, replaced, issues = memory._read()
         if issues:
             raise ValueError("Private note integrity needs review.")
-        seen = {normalized_note(row["body"]["content"]) for row in records if row["id"] not in replaced}
+        # Deliberately archived notes must not return as fresh automatic suggestions.
+        seen = {normalized_note(row["body"]["content"]) for row in records if replaced.get(row["id"]) != "superseded"}
         for candidate in candidates:
             quote = text[candidate["start"]:candidate["end"]]
             normalized = normalized_note(quote)

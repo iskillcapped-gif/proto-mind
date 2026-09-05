@@ -15,6 +15,8 @@ final class ProjectMemoryModel: ObservableObject, Identifiable {
     @Published private(set) var notes: [ProjectNote] = []
     @Published private(set) var issues: [String] = []
     @Published private(set) var preview: JSONValue?
+    @Published private(set) var statePreview: JSONValue?
+    @Published private(set) var notice: String?
     @Published private(set) var detail: ProjectNote?
     @Published private(set) var error: String?
     @Published private(set) var loading = false
@@ -27,21 +29,21 @@ final class ProjectMemoryModel: ObservableObject, Identifiable {
     var current: Bool { app.projectMemory?.id == id && app.selectedID == scope.conversationID && app.selected?.workspacePath == scope.workspace }
     var locked: Bool { !current || app.busy || app.client.turnOutstanding || loading || saving }
     var note: JSONValue { .object(["kind": .string(noteKind), "content": .string(content.trimmingCharacters(in: .whitespacesAndNewlines)),
-                                 "basis": .string(basis.trimmingCharacters(in: .whitespacesAndNewlines)), "supersedes_id": .string(supersedesID)]) }
-    func invalidate() { preview = nil }
+                                 "basis": .string(basis.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Добавлено пользователем в память проекта." : basis.trimmingCharacters(in: .whitespacesAndNewlines)), "supersedes_id": .string(supersedesID)]) }
+    func invalidate() { preview = nil; statePreview = nil }
     func close() { guard !saving else { return }; if current { app.projectMemory = nil } }
     func refresh(recall: Bool = false, offset: Int = 0) async {
         guard !locked else { return }
-        loading = true; error = nil; preview = nil; detail = nil
+        loading = true; error = nil; invalidate(); detail = nil
         defer { loading = false }
         do {
             var params = scope.parameters
-            if recall { params["query"] = .string(query.trimmingCharacters(in: .whitespacesAndNewlines)) }
+            if recall { params["query"] = .string(query.trimmingCharacters(in: .whitespacesAndNewlines)); params["include_history"] = .bool(includeHistory) }
             else { params["include_history"] = .bool(includeHistory); params["offset"] = .number(Double(offset)) }
             let value = try await app.client.request(recall ? "project_memory_recall" : "project_memory_list", params)
             try checkProjectMemory(value, scope: scope, kind: "list")
             guard current, case .array(let rows) = value["items"], rows.count <= (recall ? 5 : 40),
-                  case .array(let warnings) = value["issues"], warnings.count <= 201,
+                  case .array(let warnings) = value["issues"], warnings.count <= 2001,
                   value["limit"] == .number(200), (0...200).contains(value["total_count"].integer) else { throw projectMemoryError() }
             notes = try rows.map(ProjectNote.init); issues = warnings.map(\.text); total = value["total_count"].integer
             self.offset = value["offset"].integer; matching = value["matching_count"].integer; recalling = recall
@@ -49,7 +51,7 @@ final class ProjectMemoryModel: ObservableObject, Identifiable {
     }
     func inspect(_ note: ProjectNote) async {
         guard !locked else { return }
-        loading = true; preview = nil; detail = nil; error = nil
+        loading = true; invalidate(); detail = nil; error = nil
         defer { loading = false }
         do {
             var params = scope.parameters; params["record_id"] = .string(note.id)
@@ -62,7 +64,7 @@ final class ProjectMemoryModel: ObservableObject, Identifiable {
     }
     func prepare() async {
         guard !locked else { return }
-        loading = true; preview = nil; error = nil
+        loading = true; invalidate(); error = nil; notice = nil
         let selected = note
         defer { loading = false }
         do {
@@ -77,6 +79,7 @@ final class ProjectMemoryModel: ObservableObject, Identifiable {
         guard !locked, let preview, acknowledgement, token == preview["confirmation_token"].text,
               ["kind", "content", "basis", "supersedes_id"].allSatisfy({ preview["body"][$0] == note[$0] }) else { return }
         app.busy = true; saving = true; self.preview = nil; error = nil
+        let replaced = supersedesID
         do {
             var params = scope.parameters; params["note"] = note
             params["preview_fingerprint"] = preview["preview_fingerprint"]; params["confirmation_token"] = .string(token)
@@ -84,15 +87,78 @@ final class ProjectMemoryModel: ObservableObject, Identifiable {
             let value = try await app.client.request("project_memory_save", params)
             try checkProjectMemory(value, scope: scope, kind: "saved")
             _ = try ProjectNote(value["item"])
-            if current { content = ""; basis = ""; supersedesID = ""; app.status = "Заметка проекта сохранена; модели не отправлялась" }
+            if current {
+                if !replaced.isEmpty { app.removeProjectNoteSelections(replaced) }
+                app.invalidateContextPreview()
+                content = ""; basis = ""; supersedesID = ""; query = ""
+                notice = replaced.isEmpty ? "Заметка сохранена в памяти проекта." : "Изменения сохранены. Прежняя версия осталась в истории."
+                app.status = "Заметка проекта сохранена; модели не отправлялась"
+            }
         } catch { if current { self.error = "\(error.localizedDescription) Проверьте список перед повтором." } }
         app.busy = false; saving = false
         let failure = error
         if current { await refresh(); error = failure }
     }
+    func saveDraft() async {
+        guard !locked else { return }
+        let draft = note
+        await prepare()
+        guard current, note == draft, let preview else { return }
+        await save(token: preview["confirmation_token"].text, acknowledgement: true)
+    }
+    func newNote() {
+        guard !locked else { return }
+        noteKind = "project_fact"; content = ""; basis = ""; supersedesID = ""; invalidate(); notice = nil
+    }
+    func prepareState(_ action: String) async {
+        guard !locked, let selected = detail, issues.isEmpty,
+              action == "archive" && selected.active || action == "restore" && selected.archived else { return }
+        loading = true; invalidate(); error = nil; notice = nil
+        defer { loading = false }
+        do {
+            var params = scope.parameters
+            params["record_id"] = selected.raw["id"]; params["record_hash"] = selected.raw["record_hash"]; params["action"] = .string(action)
+            let value = try await app.client.request("project_memory_state_preview", params)
+            try checkProjectMemory(value, scope: scope, kind: "state_preview")
+            guard current, detail == selected, value["item"] == selected.raw, value["body"]["action"] == .string(action) else { throw projectMemoryError() }
+            statePreview = value
+        } catch { if current { self.error = error.localizedDescription } }
+    }
+    func applyState(acknowledgement: Bool) async {
+        guard !locked, acknowledgement, let statePreview, let detail, statePreview["item"] == detail.raw else { return }
+        app.busy = true; saving = true; self.statePreview = nil; error = nil
+        let action = statePreview["body"]["action"]
+        do {
+            var params = scope.parameters
+            params["record_id"] = detail.raw["id"]; params["record_hash"] = detail.raw["record_hash"]; params["action"] = action
+            params["preview_fingerprint"] = statePreview["preview_fingerprint"]; params["confirmation_token"] = statePreview["confirmation_token"]
+            params["acknowledge_memory_change"] = .bool(true)
+            let value = try await app.client.request("project_memory_state_save", params)
+            try checkProjectMemory(value, scope: scope, kind: "state_saved")
+            let saved = try ProjectNote(value["item"])
+            guard value["action"] == action,
+                  case .object(let old) = detail.raw, case .object(let new) = saved.raw,
+                  old.filter({ $0.key != "status" }) == new.filter({ $0.key != "status" }) else { throw projectMemoryError() }
+            if current {
+                if saved.archived { app.removeProjectNoteSelections(saved.id) }
+                app.invalidateContextPreview()
+                notice = saved.archived ? "Заметка убрана из памяти проекта. Вернуть её можно в истории." : "Заметка снова доступна в памяти проекта."
+            }
+        } catch { if current { self.error = "\(error.localizedDescription) Проверьте список перед повтором." } }
+        app.busy = false; saving = false
+        let failure = error
+        if current { await refresh(recall: !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty); error = failure }
+    }
+    func changeState(_ action: String) async {
+        guard !locked, let selected = detail,
+              action == "archive" && selected.active || action == "restore" && selected.archived else { return }
+        await prepareState(action)
+        guard current, detail == selected, statePreview?["body"]["action"] == .string(action) else { return }
+        await applyState(acknowledgement: true)
+    }
     func replaceSelected() {
         guard !locked, let detail, detail.active, issues.isEmpty else { return }
-        supersedesID = detail.id; noteKind = detail.kind; content = detail.content; basis = ""; preview = nil
+        supersedesID = detail.id; noteKind = detail.kind; content = detail.content; basis = ""; invalidate(); notice = nil
     }
     func attach() {
         guard !locked, let detail, detail.active, issues.isEmpty, app.selected?.archived == false else { return }
@@ -107,6 +173,10 @@ final class ProjectMemoryModel: ObservableObject, Identifiable {
 }
 
 extension AppModel {
+    func removeProjectNoteSelections(_ id: String) {
+        for conversation in Array(projectNoteSelections.keys) { projectNoteSelections[conversation]?.removeAll { $0.id == id } }
+        invalidateContextPreview()
+    }
     var pendingProjectNotes: [ProjectNote] { selectedID.map { projectNoteSelections[$0] ?? [] } ?? [] }
     func openProjectMemory() async {
         guard !busy, !client.turnOutstanding, let selected, let workspace = selected.workspacePath else {

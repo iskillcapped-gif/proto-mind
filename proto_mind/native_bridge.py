@@ -1070,11 +1070,15 @@ class NativeBackend:
             if method == "project_memory_list":
                 return memory.listing(include_history=params.get("include_history", False), offset=params.get("offset", 0))
             if method == "project_memory_recall":
-                return memory.listing(query=params["query"])
+                return memory.listing(query=params["query"], include_history=params.get("include_history", False))
             if method == "project_memory_inspect":
                 return memory.inspect(params.get("record_id"))
             if method == "project_memory_preview":
                 return memory.preview(params.get("note"))
+            if method == "project_memory_state_preview":
+                return memory.preview_state(params)
+            if method == "project_memory_state_save":
+                return memory.save_state(params)
             return memory.save(params)
         finally:
             self.busy.release()

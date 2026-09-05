@@ -13,6 +13,7 @@ from uuid import uuid4
 
 MAX_BYTES = 512 * 1024
 MAX_RECORDS = 200
+PROJECT_RECORD_LIMIT = 2000  # Reserve space for note archive/restore history as well as the 200 notes.
 NAMESPACES = frozenset({"learning_history", "project_memory"})
 SCHEMA = "proto_mind.native_private_record.v1"
 HASH = re.compile(r"[0-9a-f]{64}")
@@ -45,6 +46,7 @@ class PrivateRecordStore:
             raise ValueError("Unknown fixed private namespace.")
         self.directory = state_dir / namespace
         self.namespace = namespace
+        self.record_limit = PROJECT_RECORD_LIMIT if namespace == "project_memory" else MAX_RECORDS
 
     @contextmanager
     def _directory(self, create=False):
@@ -108,7 +110,7 @@ class PrivateRecordStore:
                 if entry.name == ".writer.lock":
                     continue
                 names.append(entry.name)
-                if len(names) > MAX_RECORDS:
+                if len(names) > self.record_limit:
                     return [], ["Private record limit exceeded. No partial history or automatic cleanup."]
         for name in sorted(names):
             try:
@@ -132,7 +134,7 @@ class PrivateRecordStore:
                 raise ValueError("Private evidence was not saved.")
             return self._read(directory, identifier + ".json", validate)
 
-    def save(self, body: dict, validate, *, expected_snapshot: str | None = None) -> tuple[dict, bool]:
+    def save(self, body: dict, validate, *, expected_snapshot: str | None = None, require_fresh_snapshot=False) -> tuple[dict, bool]:
         validate(body)
         record = {"schema": SCHEMA, "namespace": self.namespace, "id": digest(body),
                   "saved_at": datetime.now(UTC).isoformat(), "body": body}
@@ -149,12 +151,14 @@ class PrivateRecordStore:
                 rows, issues = self._scan(directory, validate)
                 if issues:
                     raise ValueError("Private storage needs inspection before saving: " + "; ".join(issues))
+                if require_fresh_snapshot and (expected_snapshot is None or snapshot_hash(rows) != expected_snapshot):
+                    raise ValueError("Private records changed after preview. Review the current state; nothing saved.")
                 existing = next((row for row in rows if row["id"] == record["id"]), None)
                 if existing is not None:
                     return existing, False
                 if expected_snapshot is not None and snapshot_hash(rows) != expected_snapshot:
                     raise ValueError("Private records changed after preview. Review the current state; nothing saved.")
-                if len(rows) >= MAX_RECORDS:
+                if len(rows) >= self.record_limit:
                     raise ValueError("Private record limit reached. No cleanup or overwrite.")
                 temporary = ".pending-" + uuid4().hex
                 fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=directory)

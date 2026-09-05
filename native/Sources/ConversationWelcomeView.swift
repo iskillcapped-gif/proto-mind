@@ -20,7 +20,10 @@ struct ConversationWelcomeView: View {
                 }
                 card("Открыть проект", detail: "Выбрать папку для работы", icon: "folder") { model.chooseWorkspace() }
                 card("Вспомнить важное", detail: "Открыть сохранённую память", icon: "brain") {
-                    Task { await model.showLibrary(.memory) }
+                    Task {
+                        if model.selected?.workspacePath != nil { await model.openProjectMemory() }
+                        else { await model.showLibrary(.memory) }
+                    }
                 }
             }.padding(.top, 6)
             Text("Или просто напишите сообщение ниже.").font(.system(size: 12)).foregroundStyle(.secondary)

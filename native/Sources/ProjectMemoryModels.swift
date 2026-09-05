@@ -21,11 +21,13 @@ struct ProjectNote: Identifiable, Equatable {
     var content: String { raw["content"].text }
     var basis: String { raw["basis"].text }
     var active: Bool { raw["status"] == .string("active") }
+    var archived: Bool { raw["status"] == .string("archived") }
+    var statusTitle: String { active ? "В памяти" : archived ? "Убрана из памяти" : "Заменена" }
     var selection: JSONValue { .object(["id": raw["id"], "record_hash": raw["record_hash"]]) }
     init(_ raw: JSONValue) throws {
         guard case .object(let fields) = raw, Set(fields.keys) == ["id", "record_hash", "saved_at", "kind", "content", "basis", "status", "supersedes_id", "verification"],
               decisionHashValue(raw["id"].text), decisionHashValue(raw["record_hash"].text), !raw["saved_at"].text.isEmpty,
-              Self.kinds.contains(raw["kind"].text), ["active", "superseded"].contains(raw["status"].text),
+              Self.kinds.contains(raw["kind"].text), ["active", "superseded", "archived"].contains(raw["status"].text),
               (1...4000).contains(raw["content"].text.unicodeScalars.count), (1...1000).contains(raw["basis"].text.unicodeScalars.count),
               raw["supersedes_id"] == .string("") || decisionHashValue(raw["supersedes_id"].text),
               raw["verification"] == .string("operator_asserted_not_independently_verified") else { throw projectMemoryError() }
@@ -49,8 +51,10 @@ func checkProjectMemory(_ value: JSONValue, scope: ProjectMemoryScope, kind: Str
     let extra: [String: Set<String>] = ["list": ["items", "issues", "total_count", "active_count", "matching_count", "offset", "page_size", "query", "algorithm", "directory", "limit", "notice"],
         "inspect": ["item", "record", "hash_material", "issues", "integrity"],
         "preview": ["body", "snapshot_hash", "hash_material", "preview_fingerprint", "confirmation_token", "notice"],
-        "saved": ["item", "already_saved"]]
-    let wrote = kind == "saved" && value["already_saved"] == .bool(false)
+        "saved": ["item", "already_saved"],
+        "state_preview": ["body", "snapshot_hash", "item", "hash_material", "preview_fingerprint", "confirmation_token", "notice"],
+        "state_saved": ["item", "action", "already_saved"]]
+    let wrote = ["saved", "state_saved"].contains(kind) && value["already_saved"] == .bool(false)
     guard case .object(let fields) = value, let expected = extra[kind], Set(fields.keys) == base.union(expected),
           value["schema"] == .string("proto_mind.native_project_memory_\(kind).v1"),
           UUID(uuidString: value["conversation_id"].text) == scope.conversationID, scope.matches(value["workspace"]),
@@ -74,6 +78,28 @@ func checkProjectMemory(_ value: JSONValue, scope: ProjectMemoryScope, kind: Str
         let item = try ProjectNote(value["item"])
         guard value["record"]["id"] == item.raw["id"], value["record"]["record_hash"] == item.raw["record_hash"],
               ["kind", "content", "basis", "supersedes_id", "verification"].allSatisfy({ item.raw[$0] == value["record"]["body"][$0] }) else { throw projectMemoryError() }
+    }
+    if kind == "state_preview" {
+        let body = value["body"]
+        let material = JSONValue.object(["body": body, "snapshot_hash": value["snapshot_hash"], "item": value["item"]])
+        let hash = try verifyCanonicalMaterial(value["hash_material"], expected: material)
+        let item = try ProjectNote(value["item"])
+        guard case .object(let fields) = body,
+              Set(fields.keys) == ["schema", "project_root", "workspace", "conversation_id", "note_id", "note_record_hash", "previous_state_id", "action", "source", "executable", "automatic_learning"],
+              body["schema"] == .string("proto_mind.native_project_note_state.v1"),
+              body["project_root"].text.hasPrefix("/"), scope.matches(body["workspace"]),
+              UUID(uuidString: body["conversation_id"].text) == scope.conversationID,
+              body["source"] == .string("operator_explicit"), body["executable"] == .bool(false), body["automatic_learning"] == .bool(false),
+              body["previous_state_id"] == .string("") || decisionHashValue(body["previous_state_id"].text),
+              body["note_id"] == item.raw["id"], body["note_record_hash"] == item.raw["record_hash"],
+              (body["action"] == .string("archive") && item.active) || (body["action"] == .string("restore") && item.archived),
+              decisionHashValue(value["snapshot_hash"].text), value["preview_fingerprint"] == .string(hash),
+              value["confirmation_token"] == .string("UPDATE-PROJECT-MEMORY-" + hash.prefix(12).uppercased()) else { throw projectMemoryError() }
+    }
+    if kind == "state_saved" {
+        let item = try ProjectNote(value["item"])
+        guard case .bool = value["already_saved"],
+              (value["action"] == .string("archive") && item.archived) || (value["action"] == .string("restore") && item.active) else { throw projectMemoryError() }
     }
 }
 

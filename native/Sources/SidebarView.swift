@@ -47,8 +47,13 @@ struct SidebarView: View {
                             .frame(maxWidth: .infinity, alignment: .leading).padding(10)
                     }.buttonStyle(.nativeHover)
                     DisclosureGroup(isExpanded: $libraryExpanded) {
+                        Button { Task { await model.openProjectMemory() } } label: {
+                            Label("Память проекта", systemImage: "brain.head.profile").font(.system(size: 14))
+                                .frame(maxWidth: .infinity, alignment: .leading).padding(10)
+                        }.buttonStyle(.nativeHover).disabled(model.busy || model.selected?.workspacePath == nil)
+                            .help(model.selected?.workspacePath == nil ? "Сначала выберите папку проекта" : "Текущие заметки и история этой папки")
                         ForEach(LibraryCollection.allCases) { collection in
-                            navigation(collection.title, icon: collection.symbol, section: collection.section)
+                            navigation(collection == .memory ? "Общая память" : collection.title, icon: collection.symbol, section: collection.section)
                         }
                     } label: {
                         Label("Библиотека", systemImage: "books.vertical").font(.system(size: 14)).padding(.vertical, 8)

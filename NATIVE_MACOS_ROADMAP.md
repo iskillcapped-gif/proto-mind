@@ -2,7 +2,7 @@
 
 Decision date: 2026-08-31. This is post-contest work for the operator's personal use, not a change to the submitted Build Week baseline or a commercial product plan.
 
-For the current priority map and the agreed next interface stage, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
+For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
 ## Architecture Decision
 
@@ -1008,3 +1008,31 @@ All 2,148 Python tests and compileall pass; optional pytest is absent. All 1,094
 Signed disposable QA apps verify both appearances, rendered Markdown and relative links, images, PDF page navigation, browser back/forward and distinct tab contents, a local HTTP fixture, remote HTTP and HTTPS pages, panel drag/expansion/hiding, narrow-window controls, selected-tab visibility, keyboard search/address focus, a Mock reply and separate answer evidence. No cloud model request is made. All 135 files in this turn's protected personal core/export/Native inventory retain their original bytes, with no added or removed files; QA uses separate project/state roots.
 
 Native 0.48.0 (55) is built in a separate staging directory with plist validation and strict deep signature verification. The verified local bundle replaces 0.47.0 while preserving the previous bundle for its running process. The new appearance and panel become active on the next normal app restart.
+
+## Project Memory Controls / Native 0.49.0
+
+The operator deferred visual fine-tuning and continued the practical roadmap. **Библиотека → Память проекта** opens the selected folder's explicitly saved notes; **Общая память** remains a separate legacy collection. The welcome screen's memory action follows the selected project when one is bound. Existing attachment-menu access remains available.
+
+### User actions and current context
+
+**Сохранить заметку** and **Сохранить изменения** perform a fresh exact preview and the existing confirmed save after one explicit button press. The form itself shows the proposed content and whether it replaces an earlier version. Native binds the response to the unchanged form/scope, supplies the checked token internally and refuses stale content; it does not require the operator to copy a technical code or separately confirm their own typed assertion. An omitted basis is honestly labelled as a manually entered user note. Success clears the search so the new version is visible. Earlier versions retain their original bytes and are excluded from current selection.
+
+**Убрать из памяти проекта** excludes the exact current note from future automatic recall and manual selection. **История** includes removed and superseded notes, including in bounded local search; **Вернуть в память проекта** restores a removed current version without duplicating its text or attaching it automatically. Superseded versions cannot be restored over their replacement. Automatic suggestions do not re-offer an intentionally removed exact quote. Editing/removal clears affected pending note selections across dialogs in the current app; all note changes invalidate its context preview. Other processes' pending selections are independently refused by the existing source revalidation before Send.
+
+These actions affect project-note selection, not erasure. Original notes, earlier replies, work evidence and provider history remain. Existing per-turn provider guidance marks historical project notes as historical; this release does not claim to delete already delivered context or guarantee a model's interpretation. Shared legacy core memory, cloud consent, Full Mac access, automatic learning and Session Spine authority are unchanged.
+
+### Persistence and compatibility
+
+Archive/restore appends one `proto_mind.native_project_note_state.v1` event in the existing private `project_memory` ledger. It contains exact project/workspace identity, note ID/record hash, predecessor event ID, action and operator provenance; no second copy of the note text. Readers derive state from one alternating linked chain. Missing/foreign references, competing roots/branches, invalid ordering or integrity errors block recall and further writes rather than selecting a winner by timestamp.
+
+The event preview binds the inspected item, proposed body and complete ledger snapshot. The existing cooperative writer lock, atomic no-overwrite publication, fsync and readback remain; state saves require the snapshot check even for an already present event, preventing a stale duplicate from bypassing a later restore. Note versions remain limited to 200 across the private ledger; project-memory storage reserves up to 2,000 total records for notes plus lifecycle events, allowing removal/restoration when all note slots are occupied. Learning-history storage retains its previous 200-record limit. No cleanup or migration runs automatically.
+
+Existing v1 note files load unchanged. Older Native versions cannot interpret the new event/state contract and should be restarted into the updated release before using these controls. All UI and fault-injection writes during acceptance use disposable state.
+
+### Verification and delivery
+
+All 2,160 Python tests and compileall pass; optional pytest is absent. Twelve new regressions cover the lifecycle, scope/history, automatic and manual selection, suggestion suppression, invalid/forked chains, stale/replayed changes and capacity. All 1,111 Native checks pass, including 17 new checks; the focused project-memory suite passes 41. Native checks exercise token/authority tampering, exact form saving, pending selections, source preservation, history search, restoration, correction, a competing process and restart.
+
+A signed isolated QA app verifies **Library → Project Memory**, creation without token copying, removal from ordinary search, history search, restoration and editing from port 4200 to 4300 with the old version retained. No real model is called. All 135 files in the protected personal core/export/Native inventory retain their original bytes and inventory.
+
+Native 0.49.0 (56) is built in a separate staging directory and passes plist validation and strict deep signature verification. The installed bundle replaces 0.48.0 while preserving the previous bundle for any running process; the new controls become active after the next normal restart.

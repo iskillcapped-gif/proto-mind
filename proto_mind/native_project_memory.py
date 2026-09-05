@@ -7,12 +7,15 @@ from uuid import UUID
 from proto_mind.native_desk import injection_state
 from proto_mind.native_private_records import PrivateRecordStore, digest, encoded, snapshot_hash, HASH
 from proto_mind.native_work_sessions import workspace_identity
+from proto_mind.native_project_note_state import SCHEMA as STATE_SCHEMA, ACTIONS, project_states, validate_state
 
 
 SCHEMA = "proto_mind.native_project_memory.v1"
 KINDS = frozenset({"project_fact", "preference", "decision", "lesson", "constraint"})
-METHODS = frozenset({"project_memory_list", "project_memory_recall", "project_memory_inspect", "project_memory_preview", "project_memory_save"})
+METHODS = frozenset({"project_memory_list", "project_memory_recall", "project_memory_inspect", "project_memory_preview", "project_memory_save",
+                     "project_memory_state_preview", "project_memory_state_save"})
 MAX_SELECTED = 5
+MAX_NOTES = 200
 BODY_FIELDS = {"schema", "project_root", "workspace", "conversation_id", "kind", "content", "basis", "supersedes_id",
                "source", "verification", "executable", "automatic_learning"}
 NOTE_FIELDS = {"kind", "content", "basis", "supersedes_id"}
@@ -26,6 +29,9 @@ def _text(value, label: str, limit: int, *, empty=False) -> str:
 
 
 def validate_project_memory(body: dict) -> None:
+    if isinstance(body, dict) and body.get("schema") == STATE_SCHEMA:
+        validate_state(body)
+        return
     if (not isinstance(body, dict) or set(body) != BODY_FIELDS or body["schema"] != SCHEMA
             or body["kind"] not in KINDS or body["source"] != "operator_explicit"
             or body["verification"] != "operator_asserted_not_independently_verified"
@@ -47,16 +53,18 @@ def validate_project_memory(body: dict) -> None:
 
 
 def parse_project_memory_request(method: str, params: dict) -> dict:
-    extras = {"project_memory_list": {"include_history", "offset"}, "project_memory_recall": {"query"},
+    extras = {"project_memory_list": {"include_history", "offset"}, "project_memory_recall": {"query", "include_history"},
               "project_memory_inspect": {"record_id"}, "project_memory_preview": {"note"},
-              "project_memory_save": {"note", "preview_fingerprint", "confirmation_token", "acknowledge_operator_note"}}
+              "project_memory_save": {"note", "preview_fingerprint", "confirmation_token", "acknowledge_operator_note"},
+              "project_memory_state_preview": {"record_id", "record_hash", "action"},
+              "project_memory_state_save": {"record_id", "record_hash", "action", "preview_fingerprint", "confirmation_token", "acknowledge_memory_change"}}
     if method not in METHODS or not isinstance(params, dict) or set(params) - {"conversation_id", "workspace_root"} - extras[method]:
         raise ValueError("Project memory accepts fixed local review/save operations only.")
     conversation = str(UUID(params.get("conversation_id", "")))
     path = _text(params.get("workspace_root"), "selected workspace", 4096)
     if not path.startswith("/"):
         raise ValueError("Select the project folder explicitly.")
-    if method == "project_memory_list" and type(params.get("include_history", False)) is not bool:
+    if method in {"project_memory_list", "project_memory_recall"} and type(params.get("include_history", False)) is not bool:
         raise ValueError("Invalid history filter.")
     if method == "project_memory_list" and (type(params.get("offset", 0)) is not int or not 0 <= params.get("offset", 0) <= 200):
         raise ValueError("Invalid project-memory page offset.")
@@ -75,24 +83,33 @@ class NativeProjectMemory:
 
     def _read(self):
         all_records, issues = self.store.scan(validate_project_memory)
-        records = [row for row in all_records if self._same_scope(row["body"])]
+        notes = [row for row in all_records if row["body"]["schema"] == SCHEMA]
+        if len(notes) > MAX_NOTES:
+            issues.append("Project note limit exceeded. No partial recall or automatic cleanup.")
+        records = [row for row in notes if self._same_scope(row["body"])]
         by_id = {row["id"]: row for row in records}
-        replaced = set()
+        excluded = {}
         for row in records:
             prior = row["body"]["supersedes_id"]
             if not prior:
                 continue
-            if prior not in by_id or prior == row["id"] or prior in replaced:
+            if prior not in by_id or prior == row["id"] or prior in excluded:
                 issues.append("Project note replacement linkage is missing or ambiguous; no repair or automatic recall.")
-            replaced.add(prior)
+            excluded[prior] = "superseded"
             chain, current = {row["id"]}, prior
             while current in by_id:
                 if current in chain:
                     issues.append("Project note replacement cycle; inspect the private ledger.")
                     break
                 chain.add(current); current = by_id[current]["body"]["supersedes_id"]
+        events = [row for row in all_records if row["body"]["schema"] == STATE_SCHEMA and self._same_scope(row["body"])]
+        states, _, state_issues = project_states(records, events)
+        issues.extend(state_issues)
+        for identifier, status in states.items():
+            if status == "archived" and identifier not in excluded:
+                excluded[identifier] = status
         records.sort(key=lambda row: (row["saved_at"], row["id"]), reverse=True)
-        return all_records, records, replaced, list(dict.fromkeys(issues))
+        return all_records, records, excluded, list(dict.fromkeys(issues))
 
     def _check_workspace(self):
         if workspace_identity(Path(self.workspace["path"])) != self.workspace:
@@ -105,16 +122,16 @@ class NativeProjectMemory:
                 "automatic_recall": False, "legacy_memory_migrated": False}
 
     @staticmethod
-    def _item(record, replaced):
+    def _item(record, excluded):
         body = record["body"]
         return {"id": record["id"], "record_hash": record["record_hash"], "saved_at": record["saved_at"],
                 "kind": body["kind"], "content": body["content"], "basis": body["basis"],
-                "status": "superseded" if record["id"] in replaced else "active",
+                "status": excluded.get(record["id"], "active"),
                 "supersedes_id": body["supersedes_id"], "verification": body["verification"]}
 
     def listing(self, *, include_history=False, query=None, offset=0):
         _, records, replaced, issues = self._read()
-        selected = records if include_history and query is None else [row for row in records if row["id"] not in replaced]
+        selected = records if include_history else [row for row in records if row["id"] not in replaced]
         if query is not None:
             tokens = set(re.findall(r"[^\W_]+", query.casefold(), flags=re.UNICODE))
             ranked = []
@@ -129,7 +146,7 @@ class NativeProjectMemory:
         matching = len(selected)
         page_size = MAX_SELECTED if query is not None else 40
         return {**self._base("list"), "items": [self._item(row, replaced) for row in selected[offset:offset + page_size]], "issues": issues,
-                "total_count": len(records), "active_count": len(records) - len(replaced & {row["id"] for row in records}),
+                "total_count": len(records), "active_count": len(records) - len(replaced.keys() & {row["id"] for row in records}),
                 "matching_count": matching, "offset": offset, "page_size": page_size,
                 "query": query or "", "algorithm": "exact_unicode_token_overlap" if query is not None else "saved_at_descending",
                 "directory": str(self.store.directory), "limit": 200,
@@ -137,7 +154,7 @@ class NativeProjectMemory:
 
     def inspect(self, identifier):
         record = self.store.get(identifier, validate_project_memory)
-        if not self._same_scope(record["body"]):
+        if record["body"]["schema"] != SCHEMA or not self._same_scope(record["body"]):
             raise ValueError("The note belongs to another project folder. Nothing attached.")
         _, _, replaced, issues = self._read()
         self._check_workspace()
@@ -155,6 +172,11 @@ class NativeProjectMemory:
         all_records, records, replaced, issues = self._read()
         if issues:
             raise ValueError("Inspect project-memory issues before saving: " + "; ".join(issues))
+        identifier = digest(body)
+        if identifier in replaced:
+            raise ValueError("This note is archived or superseded. Inspect its history instead of silently saving it again.")
+        if sum(row["body"]["schema"] == SCHEMA for row in all_records) >= MAX_NOTES and not any(row["id"] == identifier for row in all_records):
+            raise ValueError("The 200-note limit is reached. Existing notes can still be archived or restored.")
         if injection_state(self.root)["enabled"] is not False:
             raise ValueError("Context Injection must remain disabled for this explicit memory workflow.")
         if note["supersedes_id"] and not any(row["id"] == note["supersedes_id"] and row["id"] not in replaced for row in records):
@@ -173,7 +195,47 @@ class NativeProjectMemory:
                 or params.get("acknowledge_operator_note") is not True):
             raise ValueError("Confirm this exact project note and its operator-asserted nature. Nothing saved.")
         record, changed = self.store.save(preview["body"], validate_project_memory, expected_snapshot=preview["snapshot_hash"])
-        return {**self._base("saved", write=changed), "item": self._item(record, set()), "already_saved": not changed}
+        return {**self._base("saved", write=changed), "item": self._item(record, {}), "already_saved": not changed}
+
+    def preview_state(self, params):
+        identifier, record_hash, action = (params.get(key) for key in ("record_id", "record_hash", "action"))
+        if (not isinstance(identifier, str) or not HASH.fullmatch(identifier)
+                or not isinstance(record_hash, str) or not HASH.fullmatch(record_hash)
+                or not isinstance(action, str) or action not in ACTIONS):
+            raise ValueError("Choose an exact inspected project note and archive or restore it.")
+        all_records, records, excluded, issues = self._read()
+        if issues:
+            raise ValueError("Inspect project-memory issues before changing a note: " + "; ".join(issues))
+        record = next((row for row in records if row["id"] == identifier and row["record_hash"] == record_hash), None)
+        required = "active" if action == "archive" else "archived"
+        if record is None or excluded.get(identifier, "active") != required:
+            raise ValueError("The note belongs to another project or its state changed. Refresh before changing it.")
+        if injection_state(self.root)["enabled"] is not False:
+            raise ValueError("Context Injection must remain disabled for this memory workflow.")
+        self._check_workspace()
+        events = [row for row in all_records if row["body"]["schema"] == STATE_SCHEMA and self._same_scope(row["body"])]
+        _, heads, _ = project_states(records, events)
+        body = {"schema": STATE_SCHEMA, "project_root": str(self.root), "workspace": self.workspace,
+                "conversation_id": self.conversation, "note_id": identifier, "note_record_hash": record_hash,
+                "previous_state_id": heads.get(identifier, ""), "action": action, "source": "operator_explicit",
+                "executable": False, "automatic_learning": False}
+        validate_state(body)
+        snapshot, item = snapshot_hash(all_records), self._item(record, excluded)
+        material = {"body": body, "snapshot_hash": snapshot, "item": item}
+        fingerprint = digest(material)
+        return {**self._base("state_preview"), **material, "hash_material": encoded(material).decode(),
+                "preview_fingerprint": fingerprint, "confirmation_token": "UPDATE-PROJECT-MEMORY-" + fingerprint[:12].upper(),
+                "notice": "Changes future project-note selection only. Original notes and past provider messages are retained; no data erasure or model call."}
+
+    def save_state(self, params):
+        preview = self.preview_state(params)
+        if (params.get("confirmation_token") != preview["confirmation_token"]
+                or params.get("preview_fingerprint") != preview["preview_fingerprint"]
+                or params.get("acknowledge_memory_change") is not True):
+            raise ValueError("Confirm this exact note state change. Nothing saved.")
+        _, changed = self.store.save(preview["body"], validate_project_memory, expected_snapshot=preview["snapshot_hash"], require_fresh_snapshot=True)
+        return {**self._base("state_saved", write=changed), "action": preview["body"]["action"],
+                "item": {**preview["item"], "status": ACTIONS[preview["body"]["action"]]}, "already_saved": not changed}
 
     def selected(self, specifications):
         if not isinstance(specifications, list) or len(specifications) > MAX_SELECTED:

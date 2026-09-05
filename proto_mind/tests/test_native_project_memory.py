@@ -12,6 +12,8 @@ from proto_mind.native_project_memory import NativeProjectMemory, validate_proje
 from proto_mind.native_private_records import PrivateRecordStore, digest, snapshot_hash
 from proto_mind.native_knowledge import knowledge_context_message, knowledge_metadata, validate_knowledge_metadata
 from proto_mind.native_work_sessions import WorkSessionError, workspace_identity
+from proto_mind.native_project_recall import ProjectRecall
+from proto_mind.native_project_note_state import SCHEMA as STATE_SCHEMA
 from proto_mind.config import ProtoMindConfig
 from proto_mind.tests.test_native import FakeSubscription
 
@@ -53,6 +55,163 @@ class NativeProjectMemoryTests(unittest.TestCase):
 
     def memory(self, workspace=None, conversation=None):
         return NativeProjectMemory(self.root, self.state, conversation or self.conversation, workspace_identity(workspace or self.workspace))
+
+    def state_preview(self, note, action="archive"):
+        return self.call("project_memory_state_preview", record_id=note["id"], record_hash=note["record_hash"], action=action)
+
+    def change_state(self, note, action="archive", preview=None, **changes):
+        preview = preview or self.state_preview(note, action)
+        return self.call("project_memory_state_save", **{
+            "record_id": note["id"], "record_hash": note["record_hash"], "action": action,
+            "preview_fingerprint": preview["preview_fingerprint"], "confirmation_token": preview["confirmation_token"],
+            "acknowledge_memory_change": True, **changes})
+
+    def test_archive_preserves_original_bytes_and_removes_future_selection(self):
+        note = self.save("Порт сервера: 4200.")
+        before = self.files()
+        preview = self.state_preview(note)
+        self.assertEqual(before, self.files())
+        saved = self.change_state(note, preview=preview)
+        after = self.files()
+        self.assertTrue(all(after[path] == data for path, data in before.items()))
+        added = set(after) - set(before)
+        self.assertEqual(len(added), 1)
+        event = json.loads(after[added.pop()])["body"]
+        self.assertEqual(event["schema"], STATE_SCHEMA)
+        self.assertNotIn("content", event)
+        self.assertEqual(saved["item"]["status"], "archived")
+        self.assertEqual(self.call("project_memory_list")["items"], [])
+        self.assertEqual(self.call("project_memory_recall", query="4200")["items"], [])
+        with self.assertRaises(ValueError): self.memory().selected([self.spec(note)])
+        self.assertEqual(self.call("project_memory_inspect", record_id=note["id"])["item"]["status"], "archived")
+        self.assertEqual(self.backend.subscription.calls, [])
+        self.assertFalse(self.root.exists())
+
+    def test_archive_restore_chains_survive_restart_without_duplicating_notes(self):
+        note = self.save()
+        for _ in range(2):
+            self.change_state(note)
+            restored = self.change_state(note, "restore")
+            self.assertEqual(restored["item"], note)
+        listing = self.memory(conversation=str(uuid4())).listing(include_history=True)
+        self.assertEqual(listing["items"], [note])
+        self.assertEqual((listing["total_count"], listing["active_count"]), (1, 1))
+        records, issues = self.memory().store.scan(validate_project_memory)
+        self.assertEqual(len(records), 5); self.assertEqual(issues, [])
+        self.assertEqual(self.memory().selected([self.spec(note)])[0]["content"], note["content"])
+
+    def test_history_search_can_find_archived_notes_without_attaching_them(self):
+        note = self.save("Сервер использует порт 4200.")
+        self.change_state(note)
+        before = self.files()
+        history = self.call("project_memory_recall", query="4200", include_history=True)
+        self.assertEqual([row["status"] for row in history["items"]], ["archived"])
+        self.assertTrue(history["read_only"])
+        self.assertEqual(before, self.files())
+        with self.assertRaises(ValueError): self.call("project_memory_recall", query="4200", include_history="yes")
+
+    def test_state_change_rejects_wrong_confirmation_and_open_contracts(self):
+        note = self.save()
+        preview = self.state_preview(note)
+        before = self.files()
+        for changes in ({"acknowledge_memory_change": False}, {"confirmation_token": "wrong"},
+                        {"preview_fingerprint": "0" * 64}, {"execute": "arbitrary"}, {"action": "delete"}):
+            with self.assertRaises(ValueError): self.change_state(note, preview=preview, **changes)
+        for action in (None, [], "execute", ""):
+            with self.assertRaises(ValueError): self.state_preview(note, action)
+        self.assertEqual(before, self.files())
+
+    def test_state_change_cannot_cross_projects_or_restore_a_superseded_note(self):
+        old = self.save("Сервер использует порт 4200.")
+        other = self.base / "another-project"; other.mkdir()
+        before = self.files()
+        with self.assertRaises(ValueError):
+            self.memory(other).preview_state({"record_id": old["id"], "record_hash": old["record_hash"], "action": "archive"})
+        self.assertEqual(before, self.files())
+        current = self.save("Сервер использует порт 4300.", supersedes_id=old["id"])
+        before = self.files()
+        for action in ("archive", "restore"):
+            with self.assertRaises(ValueError): self.state_preview(old, action)
+        self.assertEqual(before, self.files())
+        self.change_state(current)
+        self.assertEqual(self.call("project_memory_list")["items"], [])
+        self.change_state(current, "restore")
+        self.assertEqual(self.call("project_memory_list")["items"], [current])
+
+    def test_archive_does_not_allow_old_save_or_edit_to_reactivate_note(self):
+        note = self.save()
+        self.change_state(note)
+        before = self.files()
+        with self.assertRaises(ValueError): self.save()
+        with self.assertRaises(ValueError): self.save("A replacement", supersedes_id=note["id"])
+        with self.assertRaises(ValueError): self.state_preview(note, "archive")
+        self.assertEqual(before, self.files())
+
+    def test_archive_invalidates_pending_auto_recall_and_old_manual_hash(self):
+        note = self.save("Server port is 4200.")
+        args = dict(conversation=self.conversation, workspace=workspace_identity(self.workspace), text="Which server port?", mode="chat")
+        prepared = ProjectRecall(self.root, self.state, **args)
+        self.assertEqual(prepared.report["selected_ids"], [note["id"]])
+        self.change_state(note)
+        with self.assertRaises(ValueError): prepared.revalidate()
+        current = ProjectRecall(self.root, self.state, **args)
+        self.assertEqual(current.report["selected_ids"], [])
+        self.assertEqual(current.report["active_count"], 0)
+        with self.assertRaises(ValueError): self.memory().selected([self.spec(note)])
+        self.change_state(note, "restore")
+        with self.assertRaises(ValueError): current.revalidate()
+        self.assertEqual(ProjectRecall(self.root, self.state, **args).report["selected_ids"], [note["id"]])
+
+    def test_state_change_revalidates_snapshot_and_refuses_stale_duplicate(self):
+        note = self.save()
+        preview = self.state_preview(note)
+        self.save("Another note after the preview")
+        before = self.files()
+        with self.assertRaises(ValueError): self.change_state(note, preview=preview)
+        self.assertEqual(before, self.files())
+        fresh = self.state_preview(note)
+        self.change_state(note, preview=fresh)
+        self.change_state(note, "restore")
+        before = self.files()
+        with self.assertRaisesRegex(ValueError, "changed after preview"):
+            self.memory().store.save(fresh["body"], validate_project_memory,
+                                     expected_snapshot=fresh["snapshot_hash"], require_fresh_snapshot=True)
+        with self.assertRaises(ValueError): self.change_state(note, preview=fresh)
+        self.assertEqual(before, self.files())
+
+    def test_incomplete_or_forked_state_chain_blocks_recall_and_writes(self):
+        note = self.save()
+        preview = self.state_preview(note)
+        broken = {**preview["body"], "previous_state_id": "f" * 64}
+        self.memory().store.save(broken, validate_project_memory)
+        before = self.files()
+        self.assertTrue(self.call("project_memory_list")["issues"])
+        self.assertEqual(self.call("project_memory_recall", query="проекте")["items"], [])
+        with self.assertRaises(ValueError): self.memory().selected([self.spec(note)])
+        with self.assertRaises(ValueError): self.state_preview(note)
+        self.assertEqual(before, self.files())
+
+    def test_competing_state_roots_are_not_resolved_by_timestamp(self):
+        note = self.save()
+        body = self.state_preview(note)["body"]
+        self.memory().store.save(body, validate_project_memory)
+        self.memory().store.save({**body, "conversation_id": str(uuid4())}, validate_project_memory)
+        before = self.files()
+        self.assertTrue(self.call("project_memory_list")["issues"])
+        with self.assertRaises(ValueError): self.memory().selected([self.spec(note)])
+        with self.assertRaises(ValueError): self.state_preview(note, "restore")
+        self.assertEqual(before, self.files())
+
+    def test_full_note_inventory_reserves_space_to_archive_and_restore(self):
+        memory = self.memory()
+        body = self.call("project_memory_preview", note=self.note())["body"]
+        for index in range(200): memory.store.save({**body, "content": f"Stored note {index}"}, validate_project_memory)
+        note = self.call("project_memory_list")["items"][0]
+        with self.assertRaisesRegex(ValueError, "200-note limit"): self.save("Note over capacity")
+        self.change_state(note)
+        self.assertEqual(self.call("project_memory_list")["active_count"], 199)
+        self.change_state(note, "restore")
+        self.assertEqual(self.call("project_memory_list")["active_count"], 200)
 
     def test_empty_review_and_recall_do_not_create_files_or_sessions(self):
         before = self.files()

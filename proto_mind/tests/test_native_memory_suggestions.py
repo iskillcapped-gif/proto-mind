@@ -197,6 +197,18 @@ class MemorySuggestionsTests(TestCase):
         self.assertEqual(preview["note_preview"]["body"]["supersedes_id"], "")
         self.assertEqual(self.memory().inspect(old["id"])["item"]["status"], "active")
 
+    def test_archived_notes_do_not_return_as_new_automatic_suggestions(self):
+        note = self.save(self.text, kind="decision")
+        params = {"record_id": note["id"], "record_hash": note["record_hash"], "action": "archive"}
+        preview = self.call("project_memory_state_preview", **params)
+        self.call("project_memory_state_save", **params,
+                  preview_fingerprint=preview["preview_fingerprint"], confirmation_token=preview["confirmation_token"],
+                  acknowledge_memory_change=True)
+        result = self.completed()
+        self.assertEqual(result["memory_suggestions"]["state"], "no_candidates")
+        self.assertEqual(self.memory().inspect(note["id"])["item"]["status"], "archived")
+        self.assertEqual(len(self.backend.subscription.calls), 1)
+
     def test_selection_is_capped_whole_quotes_and_same_message_duplicates_are_suppressed(self):
         text = "\n".join([self.text, self.text, "Я предпочитаю короткие ответы.", "Наш проект использует Python 3.11.", "Вывод на будущее: проверять источники."])
         result = self.completed(text)
