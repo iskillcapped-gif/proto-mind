@@ -9,20 +9,36 @@ from pathlib import Path
 from proto_mind.native_computer_use import COMPUTER_USE_TOOLS, REQUIRED_COMPUTER_USE_TOOLS
 
 
-SCHEMA = "proto_mind.native_agent_contract.v1"
+SCHEMA = "proto_mind.native_agent_contract.v2"
+LEGACY_SCHEMA = "proto_mind.native_agent_contract.v1"
 PROVIDER = "codex_subscription"
 ACCESS_MODE = "full_access"
-MAX_SECONDS = 900
-MAX_OBSERVED_ITEMS = 64
+MAX_RETAINED_ITEMS = 64
 ALLOWED_EFFORTS = {"", "none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"}
 STOP_CONDITIONS = (
     "operator_stop",
     "provider_failure",
     "unexpected_tool",
-    "time_limit",
-    "activity_limit",
     "durable_evidence_failure",
 )
+LEGACY_STOP_CONDITIONS = (*STOP_CONDITIONS[:3], "time_limit", "activity_limit", STOP_CONDITIONS[3])
+
+
+def requested_contract_version(params: dict) -> int:
+    # A still-running older Native client cannot read a v2 work-session contract.
+    version = params.get("agent_contract_version", 1)
+    if type(version) is not int or version not in {1, 2}:
+        raise AgentContractError("Unsupported Native agent contract version.")
+    return version
+
+
+def execution_limits(version: int) -> dict:
+    limits = {"max_seconds": 900 if version == 1 else None,
+              "max_observed_items": 64 if version == 1 else None,
+              "one_active_turn": True, "automatic_retry": False, "automatic_rollback": False}
+    if version == 2:
+        limits["max_retained_items"] = MAX_RETAINED_ITEMS
+    return limits
 
 
 class AgentContractError(ValueError):
@@ -44,8 +60,9 @@ def _criteria_digest(criteria: list[str]) -> str:
 
 
 def build_agent_contract(workspace: Path, *, model: str, reasoning_effort: str,
-                         computer_use: bool, criteria: list[str] | None = None) -> dict:
+                         computer_use: bool, criteria: list[str] | None = None, version: int = 2) -> dict:
     """Freeze authority, budgets and success semantics before provider startup."""
+    requested_contract_version({"agent_contract_version": version})
     root = Path(workspace).resolve(strict=True)
     info = root.stat()
     items = [] if criteria is None else list(criteria)
@@ -53,7 +70,7 @@ def build_agent_contract(workspace: Path, *, model: str, reasoning_effort: str,
                                or len(item) > 400 or "\x00" in item for item in items)):
         raise AgentContractError("Native agent success criteria are invalid.")
     contract = {
-        "schema": SCHEMA,
+        "schema": LEGACY_SCHEMA if version == 1 else SCHEMA,
         "provider": PROVIDER,
         "access_mode": ACCESS_MODE,
         "goal": "operator_supplied_foreground_task",
@@ -82,20 +99,14 @@ def build_agent_contract(workspace: Path, *, model: str, reasoning_effort: str,
             "project_fence": False,
             "background_execution": False,
         },
-        "limits": {
-            "max_seconds": MAX_SECONDS,
-            "max_observed_items": MAX_OBSERVED_ITEMS,
-            "one_active_turn": True,
-            "automatic_retry": False,
-            "automatic_rollback": False,
-        },
+        "limits": execution_limits(version),
         "verification": {
             "declared_criteria_count": len(items),
             "declared_criteria_sha256": _criteria_digest(items),
             "initial_status": "not_assessed",
             "operator_acceptance_is_separate": True,
         },
-        "stop_conditions": list(STOP_CONDITIONS),
+        "stop_conditions": list(LEGACY_STOP_CONDITIONS if version == 1 else STOP_CONDITIONS),
     }
     validate_agent_contract(contract)
     return contract
@@ -109,7 +120,7 @@ def validate_agent_contract(contract: object) -> dict:
         "verification", "stop_conditions",
     }:
         raise AgentContractError("Invalid Native agent contract shape.")
-    if (contract["schema"] != SCHEMA or contract["provider"] != PROVIDER
+    if (contract["schema"] not in {LEGACY_SCHEMA, SCHEMA} or contract["provider"] != PROVIDER
             or contract["access_mode"] != ACCESS_MODE
             or contract["goal"] != "operator_supplied_foreground_task"):
         raise AgentContractError("Native agent contract identity drifted.")
@@ -150,13 +161,8 @@ def validate_agent_contract(contract: object) -> dict:
         "background_execution": False,
     }:
         raise AgentContractError("Native agent permission contract drifted.")
-    if contract["limits"] != {
-        "max_seconds": MAX_SECONDS,
-        "max_observed_items": MAX_OBSERVED_ITEMS,
-        "one_active_turn": True,
-        "automatic_retry": False,
-        "automatic_rollback": False,
-    }:
+    version = 1 if contract["schema"] == LEGACY_SCHEMA else 2
+    if contract["limits"] != execution_limits(version):
         raise AgentContractError("Native agent execution limits drifted.")
     verification = contract["verification"]
     if (not isinstance(verification, dict) or set(verification) != {
@@ -169,7 +175,7 @@ def validate_agent_contract(contract: object) -> dict:
             or verification["initial_status"] != "not_assessed"
             or verification["operator_acceptance_is_separate"] is not True):
         raise AgentContractError("Native agent verification contract is invalid.")
-    if contract["stop_conditions"] != list(STOP_CONDITIONS):
+    if contract["stop_conditions"] != list(LEGACY_STOP_CONDITIONS if version == 1 else STOP_CONDITIONS):
         raise AgentContractError("Native agent stop conditions drifted.")
     return contract
 

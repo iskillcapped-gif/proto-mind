@@ -55,6 +55,12 @@ extension NativeChecks {
                   && app.messages.first?.taskUpdates?.count == 1,
                   "A late acknowledgement is saved only in its original conversation")
         let firstStream = firstState.stream
+        for index in 0..<200 {
+            app.receiveExecutionEvent(.object(["event": .string("agent_activity"), "request_id": .string(firstState.requestID!),
+                "item": .object(["id": .string("recent-\(index)"), "kind": .string("commandExecution"), "status": .string("completed")])]), state: firstState)
+        }
+        try check(firstState.agentItems.count == 64 && firstState.agentItems.last?["id"] == .string("recent-199")
+                  && secondState.agentItems.isEmpty, "A long task keeps recent live activity without freezing or spilling into another task")
         app.receiveExecutionEvent(.object(["event": .string("answer_delta"), "request_id": .string(secondState.requestID!), "delta": .string("FOREIGN")]), state: firstState)
         try check(firstState.stream == firstStream, "A foreign request ID cannot contaminate another task's stream")
         app.archiveConversation(b, archived: true)
@@ -86,6 +92,9 @@ extension NativeChecks {
                   "History recovery and shutdown wait for a late steering receipt even after the answer finishes")
         await lateCorrection.value
         let completed = app.conversations.first(where: { $0.id == b })!
+        try check(completed.messages.last?.agentRun?["contract"]["schema"] == .string("proto_mind.native_agent_contract.v2")
+                  && completed.messages.last?.agentRun?["contract"]["limits"]["max_seconds"] == .null,
+                  "Native explicitly requests the unlimited-duration contract and accepts its completed result")
         try check(completed.messages.last?.role == "assistant" && completed.messages.last?.text.contains("Уточнение только B") == true
                   && completed.messages.last?.text.contains("Уточнение только A") == false && !app.globalBusy
                   && completed.messages.first?.taskUpdates?.last?.state == .accepted,

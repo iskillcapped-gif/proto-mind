@@ -26,6 +26,7 @@ from proto_mind.native_knowledge import validate_knowledge_metadata
 from proto_mind.native_instructions import validate_instruction_receipt
 from proto_mind.native_turn_lineage import build_turn_receipt, validate_turn_receipt
 from proto_mind.native_agent_contract import (
+    LEGACY_SCHEMA,
     contract_hash,
     public_agent_contract,
     validate_agent_contract,
@@ -36,6 +37,7 @@ from proto_mind.native_agent_contract import (
 SCHEMA = "proto_mind.native_work_session.v1"
 PAGE_SIZE = 30
 MAX_RECORD_BYTES = 256 * 1024
+MAX_PREVIEW_BYTES = 96 * 1024
 MAX_PAGE_BYTES = 2 * 1024 * 1024
 STATES = {"prepared", "dispatching", "completed", "interrupted", "error"}
 
@@ -191,6 +193,8 @@ class WorkSessionStore:
                 if (not isinstance(item, dict) or not isinstance(item.get("id"), str)
                         or not isinstance(item.get("status"), str) or public_tool(item) is None):
                     raise ValueError()
+            if "tools_truncated" in record and type(record["tools_truncated"]) is not bool:
+                raise ValueError()
             for source in record["sources"]:
                 if (not isinstance(source, dict) or not isinstance(source.get("path"), str)
                         or not isinstance(source.get("sha256"), str) or len(source["sha256"]) != 64):
@@ -261,7 +265,7 @@ class WorkSessionStore:
                 validate_agent_contract(contract)
                 if (record.get("agent_contract_hash") != contract_hash(contract)
                         or record.get("access_mode") != "full_access"
-                        or record.get("workspace") != contract.get("workspace")):
+                        or (record.get("workspace") is not None and record["workspace"] != contract.get("workspace"))):
                     raise ValueError()
                 inventory = record.get("agent_runtime_inventory")
                 if inventory is not None:
@@ -597,6 +601,24 @@ class WorkSession:
                 if (opened.st_dev, opened.st_ino) != (current.st_dev, current.st_ino):
                     raise WorkSessionError("Work-session writer lock changed. No automatic retry.")
             data = _bytes(self.record)
+            # Long runs keep recent public previews, never discard exact input,
+            # contracts or lineage to make room. Large fixed evidence still fails.
+            while True:
+                entries = self.record["work_log"].get("entries", [])
+                tools_bytes, log_bytes = len(_bytes({"items": self.record["tools"]})), len(_bytes({"entries": entries}))
+                if len(data) <= MAX_RECORD_BYTES and tools_bytes + log_bytes <= MAX_PREVIEW_BYTES:
+                    break
+                # Once a completion snapshot references tool IDs, those exact
+                # rows must stay stable for readback and lineage verification.
+                if self.record["tools"] and "artifact_snapshot" not in self.record and (tools_bytes >= log_bytes or not entries):
+                    self.record["tools"].pop(0)
+                    self.record["tools_truncated"] = True
+                elif entries:
+                    entries.pop(0)
+                    self.record["work_log"]["truncated"] = True
+                else:
+                    break
+                data = _bytes(self.record)
             if len(data) > MAX_RECORD_BYTES:
                 raise WorkSessionError("Work-session evidence exceeded its bounded storage limit.")
             temporary = "." + str(uuid4()) + ".tmp"
@@ -651,8 +673,14 @@ class WorkSession:
             if old == row:
                 return
             if old is None and len(self.record["tools"]) >= 64:
-                raise WorkSessionError("Durable activity limit reached. Inspect work before continuing manually.")
-            self.record["tools"] = [item for item in self.record["tools"] if item["id"] != row["id"]] + [row]
+                if self.record.get("agent_contract", {}).get("schema") == LEGACY_SCHEMA:
+                    raise WorkSessionError("Durable activity limit reached. Inspect work before continuing manually.")
+                self.record["tools"].pop(0)
+                self.record["tools_truncated"] = True
+            if old is not None:
+                self.record["tools"][self.record["tools"].index(old)] = row
+            else:
+                self.record["tools"].append(row)
             force = True
         elif event.get("event") == "agent_run":
             receipt = event.get("receipt", {})
@@ -666,7 +694,10 @@ class WorkSession:
                 try:
                     public = public_agent_contract(contract)
                     digest = contract_hash(public)
-                    if receipt.get("contract_hash") != digest or self.record.get("workspace") != public["workspace"]:
+                    # With no selected project, the grant supplies a separate
+                    # execution root (home). That must not become project scope.
+                    if (receipt.get("contract_hash") != digest or self.record.get("access_mode") != "full_access"
+                            or (self.record.get("workspace") is not None and self.record["workspace"] != public["workspace"])):
                         raise ValueError()
                     self.record["agent_contract"] = public
                     self.record["agent_contract_hash"] = digest

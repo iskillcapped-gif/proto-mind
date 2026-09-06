@@ -43,7 +43,7 @@ struct NativeWorkSession: Identifiable, Equatable {
                   skill["criteria_sha256"] == value["success_criteria"]["sha256"] else { throw skillTaskError() }
         }
         if !value["agent_contract"].isNull {
-            guard value["agent_contract"]["schema"].text == "proto_mind.native_agent_contract.v1",
+            guard ["proto_mind.native_agent_contract.v1", "proto_mind.native_agent_contract.v2"].contains(value["agent_contract"]["schema"].text),
                   value["agent_contract_hash"].text.count == 64,
                   value["agent_contract"]["provider"].text == "codex_subscription",
                   value["agent_contract"]["access_mode"].text == "full_access" else {
@@ -257,6 +257,9 @@ struct WorkSessionsView: View {
                 }
             }
             if !run.value["tools"].items.isEmpty {
+                if run.value["tools_truncated"].flag {
+                    Text("Сохранена последняя часть действий").font(.caption).foregroundStyle(.secondary)
+                }
                 DisclosureGroup("Наблюдаемые действия: \(run.value["tools"].items.count)") {
                     ForEach(Array(run.value["tools"].items.enumerated()), id: \.offset) { _, item in AgentToolRow(item: item) }
                 }

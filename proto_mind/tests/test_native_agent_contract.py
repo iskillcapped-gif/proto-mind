@@ -47,6 +47,34 @@ class NativeAgentContractTests(unittest.TestCase):
             with self.subTest(path=path), self.assertRaises(contract.AgentContractError):
                 contract.validate_agent_contract(changed)
 
+    def test_long_task_contract_has_no_duration_or_total_action_limit(self):
+        value = self.build()
+        self.assertEqual(value["schema"], "proto_mind.native_agent_contract.v2")
+        self.assertIsNone(value["limits"]["max_seconds"])
+        self.assertIsNone(value["limits"]["max_observed_items"])
+        self.assertEqual(value["limits"]["max_retained_items"], 64)
+        self.assertNotIn("time_limit", value["stop_conditions"])
+        self.assertIn("operator_stop", value["stop_conditions"])
+        for field in ("max_seconds", "max_observed_items", "max_retained_items"):
+            changed = deepcopy(value)
+            changed["limits"][field] = 123
+            with self.subTest(field=field), self.assertRaises(contract.AgentContractError):
+                contract.validate_agent_contract(changed)
+
+    def test_legacy_contract_and_explicit_client_negotiation_remain_compatible(self):
+        value = self.build(version=1)
+        self.assertEqual(value["schema"], "proto_mind.native_agent_contract.v1")
+        self.assertEqual(value["limits"]["max_seconds"], 900)
+        self.assertIn("activity_limit", value["stop_conditions"])
+        before = json.dumps(value, sort_keys=True)
+        contract.validate_agent_contract(value)
+        self.assertEqual(before, json.dumps(value, sort_keys=True))
+        self.assertEqual(contract.requested_contract_version({}), 1)
+        self.assertEqual(contract.requested_contract_version({"agent_contract_version": 2}), 2)
+        for version in (None, True, "2", 0, 3):
+            with self.subTest(version=version), self.assertRaises(contract.AgentContractError):
+                contract.requested_contract_version({"agent_contract_version": version})
+
     def test_runtime_inventory_must_remain_inside_verified_allowlist(self):
         frozen = self.build()
         tools = set(computer_use.COMPUTER_USE_TOOLS)

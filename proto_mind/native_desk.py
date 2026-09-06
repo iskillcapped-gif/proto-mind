@@ -174,7 +174,7 @@ def capture_artifacts(record: dict, reader: WorkspaceReader | None) -> dict:
         items.append(item)
     return {"schema": ARTIFACT_SCHEMA, "run_id": record["id"], "captured_at": _stamp(),
             "capture_boundary": "turn_completion_not_tool_transaction", "total": len(candidates),
-            "partial": len(candidates) > MAX_ARTIFACTS, "items": items}
+            "partial": record.get("tools_truncated") is True or len(candidates) > MAX_ARTIFACTS, "items": items}
 
 
 def valid_artifact_snapshot(value: object, record: dict) -> bool:
@@ -186,7 +186,7 @@ def valid_artifact_snapshot(value: object, record: dict) -> bool:
     candidates = {row["id"]: row for row in ordered}
     if (value.get("capture_boundary") != "turn_completion_not_tool_transaction"
             or type(value.get("total")) is not int or value["total"] != len(ordered)
-            or value.get("partial") is not (len(ordered) > MAX_ARTIFACTS)
+            or value.get("partial") is not (record.get("tools_truncated") is True or len(ordered) > MAX_ARTIFACTS)
             or len(value["items"]) != min(len(ordered), MAX_ARTIFACTS)):
         return False
     seen = set()
@@ -225,7 +225,7 @@ def artifact_page(record: dict) -> dict:
     return {"schema": "proto_mind.native_artifact_desk.v1", "read_only": True, "no_execution": True,
             "run_id": record["id"], "run_fingerprint": record["fingerprint"], "run_status": record["display_status"],
             "workspace": record.get("workspace"), "items": items, "commands": commands,
-            "partial": len(artifact_candidates(record)) > MAX_ARTIFACTS,
+            "partial": record.get("tools_truncated") is True or len(artifact_candidates(record)) > MAX_ARTIFACTS,
             "captured_at": snapshot.get("captured_at", "") if snapshot else "",
             "verification": {"status": "not_assessed", "acceptance": record["acceptance"],
                              "criteria": "declared" if record.get("success_criteria") else "not_structured",

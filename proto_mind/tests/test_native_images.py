@@ -45,7 +45,7 @@ class ImageSubscription(FakeSubscription):
         self.images = images or []
         return super().answer(*args, **kwargs)
 
-    def agent_answer(self, *args, workspace, on_activity, **kwargs):
+    def agent_answer(self, *args, workspace, on_activity, contract_version=1, **kwargs):
         self.workspace = workspace
         kwargs.pop("criteria", None)
         return self.answer(*args, **kwargs)

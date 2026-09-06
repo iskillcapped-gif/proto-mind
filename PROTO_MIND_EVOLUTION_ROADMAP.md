@@ -1,6 +1,6 @@
 # Proto-Mind: Current Direction
 
-Updated: 2026-09-06. Current release: Native **0.57.0 (68)**.
+Updated: 2026-09-06. Current release: Native **0.57.1 (69)**.
 
 Proto-Mind is a personal macOS assistant. The immediate goal is a dependable, approachable application that can support the operator's planned expansion. The everyday layout, working panel and conversation polish are delivered. On September 5 the operator requested useful service connections, starting with GitHub. GitHub, complete local private-state backups, subscription usage with explicit earned resets, Full Mac access without a selected project, live text/attachment updates to running Codex tasks and a sidebar-confined limits menu with explicit account identity are now delivered. Reply typography and parallel conversations are also implemented; memory and continuity workflows remain available.
 
@@ -60,6 +60,10 @@ The operator's follow-up is also delivered: the existing Codex login supplies ac
 Release 0.57.0 unifies automatic recall and library search. A fixed corpus of 53 ordinary RU/UK/EN questions covers corrections, archived notes, folder scope, services, environments and filenames. Exact selected sets improve from 25/53 to 53/53 in automatic recall and from 21/53 to 53/53 in the library. See [the corpus and measurement](evals/project_recall/README.md) and [release checks](NATIVE_MACOS_ROADMAP.md#practical-project-recall--native-0570).
 
 Selection still uses finite local vocabulary and literal qualifiers; it is not general semantic retrieval or automatic learning. No personal-note migration or new provider call is required. Future examples from actual use can extend this regression set.
+
+## Long-running Tasks Delivered
+
+Release 0.57.1 removes the short Codex turn timers and total action cutoff for new Native tasks. Recent public evidence remains bounded and marked partial when rotated; Stop and failure handling remain available. Existing contracts/history stay readable. See the [release checks](NATIVE_MACOS_ROADMAP.md#long-running-tasks--native-0571).
 
 ## Next Candidate: Everyday Document Work
 

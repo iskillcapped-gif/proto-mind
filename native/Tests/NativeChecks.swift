@@ -1372,6 +1372,14 @@ struct NativeChecks {
         await app.refreshWorkSessions()
         try check(try historyBefore == fileBytes(state), "Reading durable Native work sessions changes no private files")
         guard case .object(let valid) = parent.value else { throw NativeError.message("Expected a run object") }
+        for version in [1, 2] {
+            var historical = valid
+            historical["agent_contract"] = .object(["schema": .string("proto_mind.native_agent_contract.v\(version)"),
+                "provider": .string("codex_subscription"), "access_mode": .string("full_access")])
+            historical["agent_contract_hash"] = .string(String(repeating: "a", count: 64))
+            let read = try NativeWorkSession(.object(historical))
+            try check(read.value["agent_contract"] == historical["agent_contract"], "Native reads v\(version) contract evidence without rewriting history")
+        }
         for (key, value) in [("schema", JSONValue.string("unknown")), ("automatic_resume", .bool(true)),
                              ("verification", .string("passed")), ("display_status", .string("success"))] {
             var invalid = valid; invalid[key] = value

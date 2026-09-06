@@ -25,9 +25,10 @@ from proto_mind.tests.test_native import FakeRPC, FakeSubscription
 class FakeAgentSubscription(FakeSubscription):
     def agent_answer(self, prompt, instructions, model, on_delta, *, conversation, logical_workspace,
                      history=None, workspace, on_activity, on_progress=None, reasoning_effort="", images=None,
-                     criteria=None):
+                     criteria=None, contract_version=1):
         self.calls.append((prompt, instructions, model, workspace))
         self.reasoning_efforts.append(reasoning_effort)
+        self.contract_version = contract_version
         self.last_thread_info = {"schema": "proto_mind.native_codex_thread.v1", "state": "started",
                                  "thread_id_short": "fixture", "persistent": True,
                                  "workspace": logical_workspace, "mode": "full_access", "model": model}
@@ -93,6 +94,13 @@ class NativeAgentPermissionTests(unittest.TestCase):
                 self.backend.process(self.params(access_token=token), lambda _: None, "r")
         self.assertEqual(self.backend.sessions, {})
         self.assertFalse(self.root.exists())
+
+    def test_bridge_routes_the_explicit_long_task_contract_and_keeps_older_clients(self):
+        grant = self.grant()
+        self.backend.process(self.params(access_token=grant["token"], agent_contract_version=2), lambda _: None, "new")
+        self.assertEqual(self.backend.subscription.contract_version, 2)
+        self.backend.process(self.params(access_token=grant["token"]), lambda _: None, "old")
+        self.assertEqual(self.backend.subscription.contract_version, 1)
 
     def test_grant_is_bound_to_conversation_and_workspace(self):
         grant = self.grant()
@@ -516,10 +524,36 @@ class CodexAgentAdapterTests(unittest.TestCase):
         self.assertTrue(self.events[-1]["receipt"]["execution_may_have_occurred"])
         self.assertEqual(self.events[-1]["receipt"]["status"], "failed")
 
-    def test_timeout_has_receipt_and_bounded_stop(self):
-        with patch.object(agent, "MAX_AGENT_SECONDS", 0), self.assertRaisesRegex(codex.CodexConnectionError, "foreground limit"):
+    def test_long_turn_survives_twelve_hours_including_silent_periods(self):
+        clock = [100.0]
+        def change(rpc):
+            original = rpc.next_event
+            rpc.events[:0] = [{}] * 12
+            def event(timeout):
+                clock[0] += 3600
+                return original(timeout)
+            rpc.next_event = event
+        self.transform = change
+        with patch.object(codex.time, "monotonic", side_effect=lambda: clock[0]):
+            self.assertEqual(self.answer(), "Verified fixture.")
+        self.assertEqual(self.events[-1]["receipt"]["status"], "completed")
+        self.assertIsNone(self.client.rpc)
+        self.assertEqual(sum(method == "turn/start" for method, _ in self.transports[-1].calls), 1)
+
+    def test_disconnect_after_twelve_hours_keeps_partial_receipt_without_retry(self):
+        clock = [100.0]
+        def change(rpc):
+            original = rpc.next_event
+            rpc.events = rpc.events[:1]
+            def event(timeout):
+                clock[0] += 12 * 3600
+                return original(timeout)
+            rpc.next_event = event
+        self.transform = change
+        with patch.object(codex.time, "monotonic", side_effect=lambda: clock[0]), self.assertRaisesRegex(codex.CodexConnectionError, "fixture stream ended"):
             self.answer()
         self.assertEqual(self.events[-1]["receipt"]["status"], "failed")
+        self.assertEqual(self.events[-1]["receipt"]["items"][0]["status"], "unknown")
         self.assertIsNone(self.client.rpc)
 
     def test_preview_bounds_escape_removal_and_action_limit(self):
@@ -529,8 +563,26 @@ class CodexAgentAdapterTests(unittest.TestCase):
         self.assertLess(len(run.items["c"]["command"]), 1700)
         self.assertLess(len(run.items["c"]["output_preview"]), 3100)
         self.assertNotIn("\x1b", run.items["c"]["output_preview"])
-        with patch.object(agent, "MAX_AGENT_ITEMS", 1), self.assertRaisesRegex(codex.CodexConnectionError, "activity limit"):
+        with patch.object(agent, "MAX_RETAINED_ITEMS", 1):
             run.record({"id": "next", "type": "imageView", "path": "/fixture.png"}, True)
+        self.assertEqual(list(run.items), ["next"])
+        self.assertTrue(run.receipt["items_truncated"])
+
+    def test_hundreds_of_actions_complete_with_only_recent_previews_retained(self):
+        def change(rpc):
+            tools = []
+            for index in range(300):
+                for method in ("item/started", "item/completed"):
+                    tools.append({"method": method, "params": {"threadId": rpc.thread_id, "turnId": "turn", "item": {
+                        "id": f"c{index}", "type": "commandExecution", "command": "fixture only",
+                        "status": "completed" if method == "item/completed" else "inProgress"}}})
+            rpc.events = tools + rpc.events[-2:]
+        self.transform = change
+        self.assertEqual(self.answer(), "Verified fixture.")
+        receipt = self.events[-1]["receipt"]
+        self.assertEqual(receipt["command_count"], 64)
+        self.assertTrue(receipt["items_truncated"])
+        self.assertEqual([row["id"] for row in receipt["items"]], [f"c{i}" for i in range(236, 300)])
 
     def test_failed_command_remains_failed_even_when_model_completes_turn(self):
         def change(rpc):

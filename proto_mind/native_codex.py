@@ -776,9 +776,8 @@ class CodexSubscription:
         self._set_main_turn((thread_id, turn["turn"]["id"]))
         messages = PublicMessages(on_delta, progress, limit=MAX_ANSWER_CHARS, error_type=CodexConnectionError)
         progress.stage("working")
-        deadline = time.monotonic() + 180
         try:
-            while time.monotonic() < deadline:
+            while True:
                 if self.cancelled.is_set():
                     raise TurnCancelled("Turn stopped; no completed answer was sent to memory evaluation.")
                 event = rpc.next_event(timeout=0.2)
@@ -789,7 +788,7 @@ class CodexSubscription:
                     continue
                 if method in {"item/started", "item/completed"}:
                     item = params.get("item") or {}
-                    if item.get("type") not in {"userMessage", "agentMessage", "reasoning"}:
+                    if item.get("type") not in {"userMessage", "agentMessage", "reasoning", "contextCompaction"}:
                         raise CodexConnectionError("Codex attempted a non-chat operation; turn refused.")
                 messages.observe(method, params)
                 if method == "turn/completed":
@@ -802,7 +801,6 @@ class CodexSubscription:
                     if not answer or len(answer) > MAX_ANSWER_CHARS:
                         raise CodexConnectionError("Codex returned no usable final answer.")
                     return answer
-            raise CodexConnectionError("Codex turn timed out. No automatic retry was performed.")
         except Exception:
             self.interrupt()
             raise
@@ -812,7 +810,8 @@ class CodexSubscription:
     def agent_answer(self, prompt: str, instructions: str, model: str, on_delta,
                      *, conversation: str, logical_workspace: dict | None, history: list[dict] | None = None,
                      workspace: Path, on_activity, on_progress=None, reasoning_effort: str = "",
-                     images: list[SelectedImage] | None = None, criteria: list[str] | None = None) -> str:
+                     images: list[SelectedImage] | None = None, criteria: list[str] | None = None,
+                     contract_version: int = 2) -> str:
         from proto_mind.native_agent import AGENT_INSTRUCTIONS, AgentRun, computer_use_turn_prompt, run_agent_turn
 
         progress = WorkLog(on_progress, "full_access")
@@ -839,6 +838,7 @@ class CodexSubscription:
                 workspace, model=model, reasoning_effort=reasoning_effort,
                 computer_use=computer_use.get("available") is True,
                 criteria=[] if criteria is None else criteria,
+                version=contract_version,
             ))
             run.publish()
             self.close()
@@ -892,7 +892,8 @@ class SubscriptionReasoner(BaseReasoner):
                  pdfs: list[SelectedPDF] | None = None,
                  persona_activation: PersonaTurnActivation | None = None, project_notes: list[dict] | None = None,
                  skill_task: dict | None = None, before_provider_call=None, auto_skill_guidance: str = "",
-                 project_notes_automatic: bool = False, project_note_history_boundary: bool = False) -> None:
+                 project_notes_automatic: bool = False, project_note_history_boundary: bool = False,
+                 agent_contract_version: int = 1) -> None:
         self.subscription, self.model, self.history, self.on_delta = subscription, model, history, on_delta
         self.conversation, self.logical_workspace = conversation, logical_workspace
         self.files = files or []
@@ -902,6 +903,7 @@ class SubscriptionReasoner(BaseReasoner):
         self.agent_workspace, self.on_activity = agent_workspace, on_activity
         self.on_progress = on_progress
         self.reasoning_effort = validate_reasoning_effort(reasoning_effort)
+        self.agent_contract_version = agent_contract_version
         self.persona_activation = persona_activation
         self.last_persona_receipt: dict | None = None
         self.last_instruction_receipt: dict | None = None
@@ -951,6 +953,7 @@ class SubscriptionReasoner(BaseReasoner):
                                                   history=self.history,
                                                   workspace=self.agent_workspace, on_activity=self.on_activity, on_progress=self.on_progress,
                                                   reasoning_effort=self.reasoning_effort, criteria=self.criteria,
+                                                  contract_version=self.agent_contract_version,
                                                   **image_options)
         return self.subscription.answer(prompt, instructions, self.model, self.on_delta,
                                         conversation=self.conversation, logical_workspace=self.logical_workspace,

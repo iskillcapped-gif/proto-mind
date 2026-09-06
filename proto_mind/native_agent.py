@@ -18,8 +18,8 @@ from proto_mind.native_codex import CodexConnectionError, MAX_ANSWER_CHARS, Turn
 from proto_mind.native_computer_use import COMPUTER_USE_TOOLS, SERVER_NAME
 from proto_mind.native_file_changes import file_change_metadata
 from proto_mind.native_agent_contract import (
-    MAX_OBSERVED_ITEMS,
-    MAX_SECONDS,
+    MAX_RETAINED_ITEMS,
+    LEGACY_SCHEMA,
     contract_hash,
     public_agent_contract,
     validate_runtime_inventory,
@@ -29,8 +29,6 @@ from proto_mind.native_images import SelectedImage, image_input_items
 
 
 FULL_ACCESS_CONFIRMATION = "ALLOW FULL MAC ACCESS"
-MAX_AGENT_ITEMS = MAX_OBSERVED_ITEMS
-MAX_AGENT_SECONDS = MAX_SECONDS
 _ANSI = re.compile(r"\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\))")
 
 AUTOMATION_PERMISSION_CODE = "macos_automation_permission_denied"
@@ -164,7 +162,8 @@ class AgentRun:
         kind, item_id = item.get("type"), item.get("id")
         if not isinstance(item_id, str) or not item_id or len(item_id) > 160:
             raise CodexConnectionError("Invalid agent activity ID; stopping without automatic retry.")
-        if item_id not in self.items and len(self.items) >= MAX_AGENT_ITEMS:
+        if (item_id not in self.items and len(self.items) >= MAX_RETAINED_ITEMS
+                and self.receipt.get("contract", {}).get("schema") == LEGACY_SCHEMA):
             raise CodexConnectionError("Agent activity limit reached. Inspect recorded actions before continuing manually.")
         public_kind = "computerUse" if kind == "mcpToolCall" else kind
         row = self.items.get(item_id, {"id": item_id, "kind": public_kind})
@@ -239,6 +238,9 @@ class AgentRun:
         elif kind == "plan":
             row["text"] = preview(item.get("text"), 3000)
         self.items[item_id] = row
+        if len(self.items) > MAX_RETAINED_ITEMS:
+            del self.items[next(iter(self.items))]
+            self.receipt["items_truncated"] = True
         self.emit({"event": "agent_activity", "item": row})
 
     def finish(self, status: str, warning: str = "") -> None:
@@ -253,6 +255,8 @@ class AgentRun:
             item["status"] = "unknown"
         if unfinished:
             self.receipt["warnings"].append("Some actions have no final event; inspect their real outcome before retrying.")
+        if self.receipt.get("items_truncated"):
+            self.receipt["warnings"].append("Only the most recent activity previews are retained; counts cover that retained portion.")
         self.receipt["warnings"].append(
             "Local output previews only, not secret-redacted or a complete audit. Computer Use screenshots, UI trees, coordinates and entered text are not stored here. Stop is not rollback; detached processes may remain.")
         self.publish()
@@ -334,10 +338,15 @@ def run_agent_turn(rpc, workspace: Path, thread_id: str, prompt: str,
         progress = progress or WorkLog(None, "full_access")
         messages = PublicMessages(on_delta, progress, limit=MAX_ANSWER_CHARS, error_type=CodexConnectionError)
         progress.stage("working")
-        deadline = time.monotonic() + MAX_AGENT_SECONDS
-        while time.monotonic() < deadline:
+        # Old clients keep their exact v1 contract until Native restarts.
+        # New tasks have no wall-clock deadline or total activity quota.
+        seconds = run.receipt.get("contract", {}).get("limits", {}).get("max_seconds")
+        deadline = time.monotonic() + seconds if seconds is not None else None
+        while True:
             if cancelled.is_set():
                 raise TurnCancelled("Agent stopped. Actions may already have changed files; inspect the activity before retrying.")
+            if deadline is not None and time.monotonic() >= deadline:
+                raise CodexConnectionError("Legacy Native task limit reached. Restart the updated app for long-running tasks.")
             event = rpc.next_event(timeout=0.2)
             method, params = event.get("method", ""), event.get("params") or {}
             if method == "proto_mind/tool_refused":
@@ -363,7 +372,6 @@ def run_agent_turn(rpc, workspace: Path, thread_id: str, prompt: str,
                     raise CodexConnectionError("Agent returned no usable final answer. Inspect recorded activity.")
                 final_status = "completed"
                 return answer
-        raise CodexConnectionError("Agent reached the 15-minute foreground limit. Inspect partial work before continuing.")
     except Exception as exc:
         final_status = "interrupted" if isinstance(exc, TurnCancelled) else "failed"
         failure = str(exc) if isinstance(exc, (CodexConnectionError, ValueError)) else "Agent connection failed; partial side effects are possible."

@@ -52,9 +52,9 @@ class WorkLog:
     def _record(self, row: dict, *, force: bool = False) -> None:
         key = row["id"]
         if key not in self.entries and len(self.entries) >= MAX_WORK_ITEMS:
+            del self.entries[next(iter(self.entries))]
             self.log["truncated"] = True
-        else:
-            self.entries[key] = row
+        self.entries[key] = row
         self.log["stage"] = "working"
         self.publish(force=force)
 
@@ -107,6 +107,7 @@ class PublicMessages:
         self.streamed: set[str] = set()
         self.user_items: set[str] = set()
         self.superseded: set[str] = set()
+        self.finished_commentary: dict[str, None] = {}
 
     def _text(self, item_id: object, text: object) -> str:
         if not isinstance(item_id, str) or not item_id or len(item_id) > 160 or not isinstance(text, str):
@@ -133,10 +134,15 @@ class PublicMessages:
                         for key, text in self.finals.items():
                             self.progress.commentary("earlier-answer:" + key, "Ответ до уточнения:\n\n" + text, True)
                         self.superseded.update(self.texts)
+                        # Keep identities to reject late pre-update events, but
+                        # don't charge earlier answers to the new answer budget.
+                        self.texts.clear(); self.phases.clear(); self.streamed.clear()
                         self.finals.clear(); self.completed.clear()
                         self.progress.emit({"event": "answer_reset"})
                 return
             if item.get("type") != "agentMessage":
+                return
+            if item.get("id") in self.superseded or item.get("id") in self.finished_commentary:
                 return
             item_id = self._text(item.get("id"), item.get("text", ""))
             phase = item.get("phase") or self.phases.get(item_id)
@@ -146,6 +152,14 @@ class PublicMessages:
             if item_id in self.superseded: return
             if phase == "commentary":
                 self.progress.commentary(item_id, self.texts[item_id], method == "item/completed")
+                if method == "item/completed":
+                    # WorkLog owns the bounded preview. Completed commentary
+                    # is not part of the final answer's size or message budget.
+                    self.texts.pop(item_id, None)
+                    self.phases.pop(item_id, None)
+                    self.finished_commentary[item_id] = None
+                    if len(self.finished_commentary) > 128:
+                        del self.finished_commentary[next(iter(self.finished_commentary))]
             elif method == "item/completed":
                 self.completed[item_id] = self.texts[item_id]
                 if phase == "final_answer":
@@ -162,6 +176,8 @@ class PublicMessages:
                 raise self.error_type("Answer exceeded the local display limit.")
             if not isinstance(item_id, str):
                 raise self.error_type("Invalid public answer stream.")
+            if item_id in self.superseded or item_id in self.finished_commentary:
+                return
             item_id = self._text(item_id, self.texts.get(item_id, "") + delta)
             if item_id in self.superseded: return
             phase = self.phases.get(item_id)

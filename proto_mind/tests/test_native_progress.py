@@ -121,6 +121,7 @@ class PublicWorkLogTests(unittest.TestCase):
         result = self.events[-1]["log"]
         self.assertEqual(len(result["entries"]), MAX_WORK_ITEMS)
         self.assertTrue(result["truncated"])
+        self.assertEqual(result["entries"][-1]["id"], "commentary:" + str(MAX_WORK_ITEMS + 4))
         self.assertLess(len(result["entries"][1]["text"]), 4050)
         self.assertNotIn("PRIVATE_HUGE_TOOL_OUTPUT", json.dumps(result))
 
@@ -170,6 +171,34 @@ class PublicWorkLogTests(unittest.TestCase):
                 self.feed([item])
         self.assertEqual(self.deltas, [])
         self.assertNotIn("PRIVATE", json.dumps(self.events))
+
+    def test_many_commentaries_do_not_consume_the_final_answer_budget(self):
+        for index in range(500):
+            self.feed([message("item/started", str(index), phase="commentary"),
+                       event("item/agentMessage/delta", itemId=str(index), delta="x" * 1000),
+                       message("item/completed", str(index), "x" * 1000, "commentary")])
+        self.feed([message("item/completed", "final", "y" * 199_000, "final_answer")])
+        self.assertEqual(self.messages.answer(), "y" * 199_000)
+        self.assertEqual(self.messages.texts, {"final": "y" * 199_000})
+        self.assertEqual(len(self.log.entries), MAX_WORK_ITEMS)
+        self.assertIn("commentary:499", self.log.entries)
+        self.assertTrue(self.log.log["truncated"])
+        self.assertLessEqual(len(self.messages.finished_commentary), 128)
+
+    def test_late_completed_commentary_deltas_cannot_become_the_answer(self):
+        self.feed([message("item/completed", "c", "Working", "commentary"),
+                   event("item/agentMessage/delta", itemId="c", delta="late text"),
+                   message("item/completed", "c", "Working late text")])
+        self.assertEqual(self.messages.answer(), "")
+        self.assertEqual(self.deltas, [])
+
+    def test_steering_releases_the_old_answer_budget_but_rejects_late_text(self):
+        self.feed([message("item/completed", "old", "a" * 190_000, "final_answer"),
+                   event("item/started", item={"type": "userMessage", "id": "correction"}),
+                   message("item/completed", "old", "a" * 190_000, "final_answer"),
+                   message("item/completed", "new", "b" * 190_000, "final_answer")])
+        self.assertEqual(self.messages.answer(), "b" * 190_000)
+        self.assertEqual(set(self.messages.texts), {"new"})
 
     def test_display_strips_terminal_controls_not_newlines(self):
         self.assertEqual(display_text("\x1b[31mhello\x1b[0m\x00\nworld", 100), "hello\nworld")
@@ -225,6 +254,26 @@ class NativeProgressAdapterTests(unittest.TestCase):
         self.assertEqual(self.events[-1]["log"]["status"], "failed")
         self.assertEqual(self.events[-1]["log"]["entries"][0]["text"], "Checking the fixture.")
         self.assertEqual(self.deltas, [])
+
+    def test_chat_can_wait_twelve_hours_and_compact_without_gaining_tools(self):
+        self.stream[:0] = [{}] * 12 + [event("item/completed", item={"id": "compact", "type": "contextCompaction"})]
+        with patch.object(codex.time, "monotonic", side_effect=(index * 12 * 3600 for index in range(1000))):
+            self.assertEqual(self.answer(), "Fixture complete.")
+        self.assertGreaterEqual(self.events[-1]["log"]["elapsed_ms"], 12 * 3600 * 1000)
+        self.assertEqual(self.events[-1]["log"]["status"], "completed")
+        self.assertIn("context_compaction", [row["kind"] for row in self.events[-1]["log"]["entries"]])
+
+    def test_operator_stop_still_interrupts_a_long_chat(self):
+        rpc = self.client.connect()
+        original = rpc.next_event
+        def cancel(timeout):
+            self.client.cancelled.set()
+            return original(timeout)
+        rpc.next_event = cancel
+        with patch.object(codex.time, "monotonic", side_effect=(index * 12 * 3600 for index in range(1000))), self.assertRaises(codex.TurnCancelled):
+            self.answer()
+        self.assertEqual(self.events[-1]["log"]["status"], "interrupted")
+        self.assertTrue(any(method == "turn/interrupt" for method, _ in rpc.calls))
 
     def test_cancel_before_cloud_has_honest_empty_work_log(self):
         self.client.interrupt()

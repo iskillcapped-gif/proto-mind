@@ -505,6 +505,8 @@ class NativeBackend:
         )
 
     def process(self, params: dict, emit: Callable[[dict], None], request_id: str) -> dict:
+        from proto_mind.native_agent_contract import requested_contract_version
+        agent_contract_version = requested_contract_version(params)
         if self.closing.is_set():
             raise ValueError("The Native window disconnected. No new turn will start.")
         text = input_text(params)
@@ -673,6 +675,7 @@ class NativeBackend:
                         conversation=session_id, logical_workspace=logical_workspace,
                         files=files,
                         agent_workspace=agent_workspace, on_activity=activity, on_progress=progress,
+                        agent_contract_version=agent_contract_version,
                         reasoning_effort=reasoning_effort,
                         criteria=criteria,
                         images=images,

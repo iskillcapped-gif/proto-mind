@@ -89,14 +89,17 @@ extension AppModel {
             let item = event["item"]
             guard !item["id"].text.isEmpty else { return }
             if let index = state.agentItems.firstIndex(where: { $0["id"] == item["id"] }) { state.agentItems[index] = item }
-            else if state.agentItems.count < 64 { state.agentItems.append(item) }
+            else {
+                state.agentItems.append(item)
+                if state.agentItems.count > 64 { state.agentItems.removeFirst(state.agentItems.count - 64) }
+            }
             if item["failure_code"].text == "macos_automation_permission_denied" {
                 state.status = "Нужно разрешение macOS Automation"
                 if selectedID == state.conversationID {
                     computerUsePermissionIssue = true
                     error = "macOS не разрешила Proto-Mind управлять приложениями. Откройте Automation, разрешите Proto-Mind Native и начните новый ход с полным доступом. Автоповтора не было."
                 }
-            } else { state.status = "Агент работает · \(state.agentItems.count) действий" }
+            } else { state.status = "Агент работает" }
         case "agent_run": state.agentReceipt = event["receipt"]; state.agentItems = state.agentReceipt["items"].items
         case "work_log":
             if event["log"]["schema"].text == "proto_mind.native_work_log.v1",

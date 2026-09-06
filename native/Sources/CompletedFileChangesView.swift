@@ -15,6 +15,7 @@ struct CompletedFileChanges {
     static func project(_ receipt: JSONValue, live: Bool = false) -> Self {
         guard !live, ["completed", "failed", "interrupted"].contains(receipt["status"].text) else { return Self() }
         var result = Self()
+        result.partial = receipt["items_truncated"].flag
         var seen: Set<String> = []
         // Last snapshot per tool ID wins; started/completed notifications are one edit.
         var snapshots: [String: JSONValue] = [:]

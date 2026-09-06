@@ -98,9 +98,13 @@ class FixtureSubscription(CodexSubscription):
     def interrupt(self): self.cancelled.set()
     def select_skills(self, *args, **kwargs): raise AssertionError("No real selector in this fixture")
     def agent_answer(self, prompt, instructions, model, on_delta, *, conversation, logical_workspace,
-                     history=None, workspace, on_activity, on_progress=None, reasoning_effort="", images=None, criteria=None):
+                     history=None, workspace, on_activity, on_progress=None, reasoning_effort="", images=None, criteria=None,
+                     contract_version=1):
         from proto_mind.native_agent import AgentRun
+        from proto_mind.native_agent_contract import build_agent_contract
         run = AgentRun(workspace, on_activity)
+        run.attach_contract(build_agent_contract(workspace, model=model or "fixture", reasoning_effort=reasoning_effort,
+                            computer_use=False, criteria=criteria, version=contract_version))
         progress = WorkLog(on_progress, "full_access")
         run.publish()
         try:

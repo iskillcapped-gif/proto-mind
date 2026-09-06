@@ -65,7 +65,12 @@ struct AgentActivityView: View {
                 DisclosureGroup("Контракт запуска · \(receipt["contract_hash"].text.prefix(12))") {
                     VStack(alignment: .leading, spacing: 5) {
                         Text("Провайдер: подписочный Codex · режим: полный доступ")
-                        Text("Лимит: \(receipt["contract"]["limits"]["max_seconds"].integer) с · \(receipt["contract"]["limits"]["max_observed_items"].integer) наблюдаемых действий")
+                        if receipt["contract"]["schema"].text == "proto_mind.native_agent_contract.v2" {
+                            Text("Без ограничения длительности и количества действий · остановка кнопкой Стоп")
+                            Text("В локальном журнале — последние \(receipt["contract"]["limits"]["max_retained_items"].integer) действий")
+                        } else {
+                            Text("Лимит этого старого запуска: \(receipt["contract"]["limits"]["max_seconds"].integer) с · \(receipt["contract"]["limits"]["max_observed_items"].integer) действий")
+                        }
                         Text("Автоповтор: нет · фоновая работа: нет · provider completion не считается проверкой")
                         if receipt["runtime_inventory"]["verified"].flag {
                             Text("Runtime allowlist проверен: \(receipt["runtime_inventory"]["computer_use_tools"].items.count) Computer Use tools")
@@ -77,6 +82,10 @@ struct AgentActivityView: View {
                 AgentToolRow(item: item)
             }
             if !receipt.isNull {
+                if receipt["items_truncated"].flag {
+                    Text("Сохранена последняя часть действий. Счётчики относятся к этому фрагменту.")
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
                 Text("Run \(receipt["run_id"].text.prefix(8)) · команд: \(receipt["command_count"].integer) · поисков: \(receipt["web_search_count"].integer) · экранных действий: \(receipt["computer_use_count"].integer) · \(receipt["finished_at"].text)")
                     .font(.caption2).foregroundStyle(.secondary).textSelection(.enabled)
                 ForEach(Array(receipt["warnings"].items.enumerated()), id: \.offset) { _, warning in

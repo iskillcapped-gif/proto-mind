@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import errno
+from copy import deepcopy
 import fcntl
 import hashlib
 import json
@@ -247,6 +248,70 @@ class WorkSessionTests(unittest.TestCase):
             "tool": "type_text", "app": "Calculator", "note": "Typed input omitted.",
         }])
         self.assertNotIn("PRIVATE", json.dumps(result))
+
+    def test_long_work_session_rotates_tools_and_reopens_with_exact_contract(self):
+        workspace = sessions.workspace_identity(self.root)
+        contract = agent_contract.build_agent_contract(self.root, model="fixture", reasoning_effort="high", computer_use=False)
+        with self.begin(mode="full_access", workspace=workspace) as run:
+            run.dispatch()
+            run.observe({"event": "agent_run", "receipt": {"status": "running", "contract": contract,
+                         "contract_hash": agent_contract.contract_hash(contract)}})
+            for index in range(140):
+                for status in ("inProgress", "completed"):
+                    run.observe({"event": "agent_activity", "item": {"id": str(index), "kind": "commandExecution",
+                                "status": status, "command": "fixture only", "exit_code": 0}})
+            run.complete("Done.")
+        value = self.page()["runs"][0]
+        self.assertEqual(value["tools"][-1]["id"], "139")
+        self.assertEqual(len(value["tools"]), 64)
+        self.assertTrue(value["tools_truncated"])
+        self.assertEqual(value["agent_contract"], contract)
+        self.assertEqual(value["display_status"], "completed")
+
+    def test_projectless_agent_contract_preserves_logical_scope_across_reload(self):
+        for version in (1, 2):
+            with self.subTest(version=version):
+                contract = agent_contract.build_agent_contract(self.root, model="fixture", reasoning_effort="high",
+                                                               computer_use=False, version=version)
+                with self.begin(run_id=str(uuid4()), mode="full_access", workspace=None) as run:
+                    run.dispatch()
+                    run.observe({"event": "agent_run", "receipt": {"status": "running", "contract": contract,
+                                 "contract_hash": agent_contract.contract_hash(contract)}})
+                    run.complete("Done.")
+                value = self.page()["runs"][0]
+                self.assertIsNone(value["workspace"])
+                self.assertEqual(value["agent_contract"]["workspace"], sessions.workspace_identity(self.root))
+
+    def test_agent_execution_folder_must_match_a_selected_project(self):
+        execution = self.root / "different"
+        execution.mkdir()
+        contract = agent_contract.build_agent_contract(execution, model="fixture", reasoning_effort="high", computer_use=False)
+        with self.begin(mode="full_access", workspace=sessions.workspace_identity(self.root)) as run:
+            with self.assertRaisesRegex(sessions.WorkSessionError, "Invalid Native agent contract"):
+                run.observe({"event": "agent_run", "receipt": {"status": "running", "contract": contract,
+                             "contract_hash": agent_contract.contract_hash(contract)}})
+
+    def test_preview_byte_pressure_keeps_latest_work_and_fixed_evidence(self):
+        with self.begin() as run:
+            fixed = ("input_preview", "input_sha256", "workspace", "success_criteria")
+            before = deepcopy({key: run.record.get(key) for key in fixed})
+            run.dispatch()
+            for index in range(90):
+                run.observe({"event": "agent_activity", "item": {"id": str(index), "kind": "commandExecution",
+                            "status": "completed", "command": "界" * 800, "cwd": "界" * 1024,
+                            "output_preview": "界" * 768}})
+            from proto_mind.native_desk import capture_artifacts
+            snapshot = capture_artifacts(run.record, None)
+            self.assertTrue(snapshot["partial"])
+            run.complete("Final answer.", artifacts=snapshot)
+            self.assertEqual({key: run.record.get(key) for key in fixed}, before)
+        value = self.page()["runs"][0]
+        self.assertTrue(value["tools_truncated"])
+        self.assertEqual(value["tools"][-1]["id"], "89")
+        self.assertEqual(value["answer_preview"], "Final answer.")
+        self.assertEqual(value["artifact_snapshot"], snapshot)
+        for path in self.store.directory.glob("*.json"):
+            self.assertLessEqual(path.stat().st_size, sessions.MAX_RECORD_BYTES)
 
     def test_agent_contract_and_automation_failure_are_validated_and_bounded(self):
         workspace = sessions.workspace_identity(self.root)
