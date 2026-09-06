@@ -1293,22 +1293,25 @@ class NativeBackend:
             if steering is None or self.closing.is_set():
                 raise ValueError("Задача уже завершилась. Уточнение не отправлено.")
             return steering.send(params)
-        if method == "account_limits":
+        if method in {"account_limits", "account_usage"}:
             if params or self.closing.is_set() or not self._limits_read_lock.acquire(blocking=False):
                 raise ValueError("Обновление лимитов сейчас недоступно.")
             try:
                 # A separate account-only connection cannot interrupt or wait on
-                # the live turn's RPC client. It never reads reset journals.
+                # the live turn's RPC client. Only the full sheet inspects the
+                # reset journal; neither read can consume a credit.
                 reader = self._subscription_factory(self.state_dir)
-                try: return read_usage(reader, include_activity=False)
+                try:
+                    store = CodexResetStore(self.state_dir) if method == "account_usage" else None
+                    return read_usage(reader, store, include_activity=method == "account_usage")
                 finally: reader.close()
             finally: self._limits_read_lock.release()
-        if method in {"account_usage", "account_reset"}:
-            if (method == "account_usage" and params) or self.closing.is_set() or not self.busy.acquire(blocking=False):
+        if method == "account_reset":
+            if self.closing.is_set() or not self.busy.acquire(blocking=False):
                 raise ValueError("Дождитесь завершения текущей работы перед обновлением лимитов.")
             try:
                 store = CodexResetStore(self.state_dir)
-                return read_usage(self.subscription, store) if method == "account_usage" else consume_reset(self.subscription, store, params)
+                return consume_reset(self.subscription, store, params)
             finally: self.busy.release()
         if method in {"account_login", "account_logout"}:
             if self.closing.is_set() or not self.busy.acquire(blocking=False):
@@ -1420,7 +1423,7 @@ def serve(backend: NativeBackend, source, destination) -> None:
         try:
             # stdout redirection is process-wide. The account-only reader has
             # no console output and must not nest a redirect from another thread.
-            with (nullcontext() if message["method"] in {"account_limits", "steer"} | ATTACHMENT_READ_METHODS else redirect_stdout(sys.stderr)):
+            with (nullcontext() if message["method"] in {"account_limits", "account_usage", "steer"} | ATTACHMENT_READ_METHODS else redirect_stdout(sys.stderr)):
                 result = backend.dispatch(message["method"], message.get("params", {}), emit, request_id)
             emit({"id": request_id, "result": result})
         except Exception as exc:
@@ -1451,7 +1454,7 @@ def serve(backend: NativeBackend, source, destination) -> None:
                     emit({"id": request_id, "result": backend.cancel(str(message.get("params", {}).get("request_id", "")))})
                 else:
                     target = (attachment_executor if message["method"] in ATTACHMENT_READ_METHODS else
-                              {"account_limits": limits_executor, "steer": steering_executor}.get(message["method"], executor))
+                              {"account_limits": limits_executor, "account_usage": limits_executor, "steer": steering_executor}.get(message["method"], executor))
                     target.submit(run, message)
             except (ValueError, TypeError) as exc:
                 emit({"id": request_id, "error": {"message": str(exc)[:200]}})

@@ -41,6 +41,10 @@ struct CodexUsageSnapshot: Decodable {
             guard let used else { return "—" }
             return used > 100 ? "100%+" : "\(used.formatted(.number.precision(.fractionLength(0...1))))%"
         }
+        var remainingLabel: String {
+            guard let remaining else { return "—" }
+            return "\(remaining.formatted(.number.precision(.fractionLength(0...1))))%"
+        }
     }
     struct Bucket: Decodable, Identifiable {
         let id: String
@@ -84,6 +88,20 @@ struct CodexUsageSnapshot: Decodable {
 
     var compactBucket: Bucket? {
         buckets.first { $0.id == "codex" && !$0.windows.isEmpty } ?? buckets.first { !$0.windows.isEmpty }
+    }
+
+    func sameAccount(as other: Self) -> Bool {
+        connected && other.connected && !email.isEmpty && email.caseInsensitiveCompare(other.email) == .orderedSame && plan == other.plan
+    }
+
+    // Background reads update quota only. Preserve separately fetched activity
+    // and reset-attempt details, but never carry them across account changes.
+    func withDetails(from other: Self) -> Self {
+        guard sameAccount(as: other) else { return self }
+        return Self(schema: schema, connected: connected, plan: plan, email: email, buckets: buckets,
+                    resetCredits: resetCredits, reset: other.reset, resetError: other.resetError,
+                    activity: other.activity, limitsError: limitsError, activityError: other.activityError,
+                    checkedAt: checkedAt, limitsUpdatedAt: limitsUpdatedAt, activityUpdatedAt: other.activityUpdatedAt)
     }
 
     func limitsAreStale(at date: Date) -> Bool {
@@ -138,15 +156,18 @@ final class CodexUsageModel: ObservableObject {
     private var generation = UUID()
     private var lastLimitsAttempt: Date?
     private let limitsRequest: (AppModel) async throws -> JSONValue
+    private let usageRequest: (AppModel) async throws -> JSONValue
 
-    init(limitsRequest: @escaping (AppModel) async throws -> JSONValue = { try await $0.client.request("account_limits") }) {
+    init(usageRequest: @escaping (AppModel) async throws -> JSONValue = { try await $0.client.request("account_usage") },
+         limitsRequest: @escaping (AppModel) async throws -> JSONValue = { try await $0.client.request("account_limits") }) {
+        self.usageRequest = usageRequest
         self.limitsRequest = limitsRequest
     }
 
     var displaySnapshot: CodexUsageSnapshot? {
+        guard let summary else { return snapshot }
         guard let snapshot else { return summary }
-        guard let summary, (summary.limitsUpdatedAt ?? summary.checkedAt) > (snapshot.limitsUpdatedAt ?? snapshot.checkedAt) else { return snapshot }
-        return summary
+        return summary.withDetails(from: snapshot)
     }
 
     func clear() {
@@ -155,6 +176,7 @@ final class CodexUsageModel: ObservableObject {
     }
 
     private func acceptSummary(_ value: CodexUsageSnapshot?) {
+        if let value, let summary, value.checkedAt < summary.checkedAt { return }
         summary = value
         summaryError = value?.limitsError.isEmpty == false ? value?.limitsError : nil
     }
@@ -168,11 +190,13 @@ final class CodexUsageModel: ObservableObject {
         defer { refreshingLimits = false }
         do {
             let raw = try await limitsRequest(app)
-            guard requestGeneration == generation, !Task.isCancelled, app.cloudConsent,
+            // Leaving the foreground stops future polling, not the delivery of
+            // an already completed, read-only request for the same account.
+            guard requestGeneration == generation, app.cloudConsent,
                   !app.connecting, !app.loginPending, !app.privateBackupRestartRequired else { return }
             acceptSummary(try CodexUsageSnapshot.parse(raw))
         } catch {
-            guard requestGeneration == generation, !Task.isCancelled else { return }
+            guard requestGeneration == generation else { return }
             summaryError = "Не удалось обновить лимиты."
         }
     }
@@ -189,9 +213,9 @@ final class CodexUsageModel: ObservableObject {
 
     func consume(_ attempt: CodexResetAttempt, app: AppModel) async {
         guard !refreshing, !resetting, !app.busy, !app.connecting, !app.client.turnOutstanding,
-              !app.privateBackupRestartRequired, let snapshot, snapshot.canReset,
-              snapshot.reset?.accountRef == attempt.accountRef,
-              snapshot.reset?.attemptKey == attempt.previousKey else { return }
+              !app.privateBackupRestartRequired, let value = displaySnapshot, value.canReset,
+              value.reset?.accountRef == attempt.accountRef,
+              value.reset?.attemptKey == attempt.previousKey else { return }
         generation = UUID()
         resetting = true; app.busy = true; error = nil; resetMessage = nil
         defer { resetting = false; app.busy = false }
@@ -209,21 +233,24 @@ final class CodexUsageModel: ObservableObject {
     }
 
     func refresh(app: AppModel) async {
-        guard !refreshing, !resetting, !app.busy, !app.connecting, !app.client.turnOutstanding, !app.privateBackupRestartRequired else { return }
-        generation = UUID()
-        refreshing = true; app.busy = true; error = nil; resetMessage = nil
-        defer { refreshing = false; app.busy = false }
+        guard !refreshing, !resetting, app.cloudConsent, !app.connecting, !app.loginPending, !app.privateBackupRestartRequired else { return }
+        let requestGeneration = generation
+        refreshing = true; error = nil; resetMessage = nil
+        lastLimitsAttempt = .now
+        defer { refreshing = false }
         do {
-            let value = try await app.client.request("account_usage")
-            guard !Task.isCancelled else { return }
+            let value = try await usageRequest(app)
+            guard requestGeneration == generation, app.cloudConsent, !app.connecting,
+                  !app.loginPending, !app.privateBackupRestartRequired else { return }
             snapshot = try CodexUsageSnapshot.parse(value)
             acceptSummary(snapshot)
             if let reset = snapshot?.reset, !reset.outcome.isEmpty { resetMessage = Self.message(for: reset.outcome) }
         } catch {
-            // Do not show another account's old totals after a failed auth refresh.
-            snapshot = nil
-            acceptSummary(nil)
-            self.error = error.localizedDescription
+            guard requestGeneration == generation else { return }
+            // Retain this account's previous reading with a visible error.
+            // Explicit account changes already clear both snapshots.
+            self.error = "Не удалось обновить данные аккаунта."
+            summaryError = self.error
         }
     }
 }

@@ -22,8 +22,8 @@ struct SidebarMenuView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Меню").font(.system(size: 13))
                         HStack(spacing: 4) {
-                            Text((usage.summary?.compactBucket == nil ? "" : "Исп. ") + compactLabel).lineLimit(1).minimumScaleFactor(0.85)
-                            if stale(at: context.date), usage.summary?.compactBucket != nil {
+                            Text((usage.displaySnapshot?.compactBucket == nil ? "" : "Осталось ") + compactLabel).lineLimit(1).minimumScaleFactor(0.85)
+                            if stale(at: context.date), usage.displaySnapshot?.compactBucket != nil {
                                 Image(systemName: "clock").font(.system(size: 9))
                             }
                         }.font(.system(size: 10.5)).monospacedDigit().foregroundStyle(.secondary)
@@ -32,8 +32,8 @@ struct SidebarMenuView: View {
                     Image(systemName: "chevron.up").font(.system(size: 9)).foregroundStyle(.secondary)
                 }.padding(10).contentShape(Rectangle())
             }.buttonStyle(.nativeHover).accessibilityLabel("Меню")
-                .accessibilityValue("Использовано: \(compactLabel)\(stale(at: context.date) ? ", требуется обновление" : "")")
-                .help("Настройки и лимиты Codex. Показана использованная доля лимитов аккаунта.")
+                .accessibilityValue("Осталось: \(compactLabel)\(stale(at: context.date) ? ", требуется обновление" : "")")
+                .help("Настройки и лимиты Codex. Показан остаток лимитов аккаунта.")
         }
         .composerPopover(isPresented: $open, width: 290, confinedToColumn: true) {
             menuContent
@@ -56,14 +56,14 @@ struct SidebarMenuView: View {
     }
 
     private var compactLabel: String {
-        guard let value = usage.summary else { return "Лимиты Codex · —" }
+        guard let value = usage.displaySnapshot else { return "Лимиты Codex · —" }
         guard value.connected else { return "Нет входа в ChatGPT" }
         guard let bucket = value.compactBucket else { return "Лимиты Codex · —" }
-        return bucket.windows.map { "\($0.title) \($0.usedLabel)" }.joined(separator: " · ")
+        return bucket.windows.map { "\($0.title) \($0.remainingLabel)" }.joined(separator: " · ")
     }
 
     private func stale(at date: Date) -> Bool {
-        usage.summaryError != nil || usage.summary?.limitsAreStale(at: date) != false
+        usage.summaryError != nil || usage.displaySnapshot?.limitsAreStale(at: date) != false
     }
 
     private var menuContent: some View {
@@ -78,14 +78,14 @@ struct SidebarMenuView: View {
             }
             Divider().padding(.horizontal, 8).padding(.vertical, 5)
             VStack(alignment: .leading, spacing: 12) {
-                if let value = usage.summary, value.connected {
+                if let value = usage.displaySnapshot, value.connected {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("ChatGPT · \(value.plan.capitalized)").font(.system(size: 12, weight: .medium))
                         if !value.email.isEmpty { Text(value.email).font(.system(size: 10.5)).lineLimit(2).textSelection(.enabled) }
                     }.foregroundStyle(.secondary)
                 }
                 HStack {
-                    Text("Использовано").font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
+                    Text("Осталось").font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
                     Spacer()
                     if usage.refreshingLimits { ProgressView().controlSize(.mini) }
                     Button { Task { await usage.refreshLimits(app: app, minimumInterval: 5) } } label: {
@@ -93,7 +93,7 @@ struct SidebarMenuView: View {
                     }.buttonStyle(.nativeHover).disabled(!canRefresh || usage.refreshingLimits || usage.refreshing || usage.resetting)
                         .accessibilityLabel("Обновить проценты лимитов").help("Обновить лимиты")
                 }
-                if let value = usage.summary, value.connected, !value.buckets.isEmpty {
+                if let value = usage.displaySnapshot, value.connected, !value.buckets.isEmpty {
                     ForEach(value.buckets) { bucket in
                         VStack(alignment: .leading, spacing: 9) {
                             if value.buckets.count > 1 || bucket.id != "codex" {
@@ -104,14 +104,14 @@ struct SidebarMenuView: View {
                                     HStack {
                                         Text(window.title).foregroundStyle(.secondary)
                                         Spacer()
-                                        Text(window.usedLabel).monospacedDigit()
+                                        Text(window.remainingLabel).monospacedDigit()
                                     }.font(.system(size: 12))
-                                    if let used = window.used {
-                                        ProgressView(value: min(used, 100), total: 100)
-                                            .tint(used >= 90 ? .orange : .secondary).controlSize(.mini)
-                                    }
                                     if let remaining = window.remaining {
-                                        Text("Осталось \(remaining.formatted(.number.precision(.fractionLength(0...1))))%")
+                                        ProgressView(value: remaining, total: 100)
+                                            .tint(remaining <= 10 ? .orange : .secondary).controlSize(.mini)
+                                    }
+                                    if window.used != nil {
+                                        Text("Использовано \(window.usedLabel)")
                                             .font(.system(size: 10.5)).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .trailing)
                                     }
                                 }.accessibilityElement(children: .combine)
@@ -119,14 +119,14 @@ struct SidebarMenuView: View {
                         }
                     }
                 } else {
-                    Text(!app.cloudConsent || usage.summary?.connected == false
+                    Text(!app.cloudConsent || usage.displaySnapshot?.connected == false
                          ? "Войдите в ChatGPT в настройках модели."
                          : usage.refreshingLimits ? "Проверяю лимиты…" : "Проценты пока недоступны.")
                         .font(.system(size: 12)).foregroundStyle(.secondary)
                 }
                 TimelineView(.periodic(from: .now, by: 15)) { context in
                     VStack(alignment: .leading, spacing: 4) {
-                        if let updated = usage.summary?.limitsUpdatedAt {
+                        if let updated = usage.displaySnapshot?.limitsUpdatedAt {
                             Text("\(stale(at: context.date) ? "Данные устарели" : "Обновлено") · \(Date(timeIntervalSince1970: updated).formatted(date: .omitted, time: .shortened))")
                         }
                         if let error = usage.summaryError { Text(error) }

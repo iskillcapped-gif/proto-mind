@@ -94,7 +94,7 @@ class CodexUsageTests(unittest.TestCase):
             else:
                 self.assertTrue(result["activity_error"]); self.assertTrue(result["buckets"])
 
-    def test_bridge_rejects_usage_parameters_or_busy_core(self):
+    def test_bridge_rejects_usage_parameters_and_busy_redemption(self):
         from proto_mind.native_bridge import NativeBackend
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -102,7 +102,7 @@ class CodexUsageTests(unittest.TestCase):
             try:
                 with self.assertRaises(ValueError): backend.dispatch("account_usage", {"thread_id": "not-allowed"}, lambda _: None, "usage")
                 backend.busy.acquire()
-                with self.assertRaises(ValueError): backend.dispatch("account_usage", {}, lambda _: None, "usage")
+                with self.assertRaises(ValueError): backend.dispatch("account_reset", {}, lambda _: None, "reset")
                 backend.busy.release()
             finally: backend.close()
 
@@ -117,7 +117,7 @@ class CodexUsageTests(unittest.TestCase):
 
     def test_background_read_uses_and_closes_an_independent_client_while_core_busy(self):
         from proto_mind.native_bridge import NativeBackend
-        for fails in [False, True]:
+        for method, fails in [("account_limits", False), ("account_limits", True), ("account_usage", False), ("account_usage", True)]:
             clients = []
             def factory(state):
                 account = Mock(return_value={"connected": True, "plan": "plus", "email": "qa@example.invalid"})
@@ -132,10 +132,12 @@ class CodexUsageTests(unittest.TestCase):
                 try:
                     with backend.busy:
                         if fails:
-                            with self.assertRaises(RuntimeError): backend.dispatch("account_limits", {}, lambda _: None, "limits")
+                            with self.assertRaises(RuntimeError): backend.dispatch(method, {}, lambda _: None, "limits")
                         else:
-                            result = backend.dispatch("account_limits", {}, lambda _: None, "limits")
+                            result = backend.dispatch(method, {}, lambda _: None, "limits")
                             self.assertTrue(result["connected"])
+                            self.assertEqual(result["activity"] is not None, method == "account_usage")
+                            self.assertEqual(result["reset"] is not None, method == "account_usage")
                         self.assertTrue(backend.busy.locked())
                     self.assertEqual(len(clients), 2)
                     clients[0].account.assert_not_called(); clients[0].close.assert_not_called()
@@ -154,14 +156,18 @@ class CodexUsageTests(unittest.TestCase):
                 with self.assertRaises(ValueError): backend.dispatch("account_limits", {"reset": True}, lambda _: None, "limits")
                 with backend._limits_read_lock:
                     with self.assertRaises(ValueError): backend.dispatch("account_limits", {}, lambda _: None, "limits")
+                    with self.assertRaises(ValueError): backend.dispatch("account_usage", {}, lambda _: None, "usage")
                 backend.disconnect()
                 with self.assertRaises(ValueError): backend.dispatch("account_limits", {}, lambda _: None, "limits")
+                with self.assertRaises(ValueError): backend.dispatch("account_usage", {}, lambda _: None, "usage")
                 self.assertEqual(factory.call_count, 1)
             finally: backend.close()
 
     def test_stdio_limits_and_work_do_not_block_each_other_but_work_stays_serial(self):
         from proto_mind.native_bridge import serve
         for blocked_method, independent in [("process", "account_limits"), ("account_limits", "process"),
+                                             ("process", "account_usage"), ("account_usage", "process"),
+                                             ("account_usage", "steer"), ("account_usage", "image_preview"),
                                              ("process", "steer"), ("account_limits", "steer"),
                                              ("process", "image_preview"), ("process", "pdf_preview"),
                                              ("process", "workspace_read"), ("image_preview", "steer")]:

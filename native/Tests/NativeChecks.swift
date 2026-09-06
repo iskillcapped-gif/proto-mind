@@ -26,6 +26,11 @@ struct NativeChecks {
             print("Native history checks: \(passed) OK")
             return
         }
+        if CommandLine.arguments.contains("--usage-only") {
+            try await codexUsageContracts(root: root)
+            print("Native usage checks: \(passed) OK")
+            return
+        }
         if CommandLine.arguments.contains("--task-updates-only"),
            let fixture = LaunchConfiguration.argument("--fixture"), let python = LaunchConfiguration.argument("--python"),
            let service = LaunchConfiguration.argument("--steering-service") {

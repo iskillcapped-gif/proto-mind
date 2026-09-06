@@ -182,7 +182,7 @@ struct NativeSettingsView: View {
             if model.account["connected"].flag {
                 Text("\(model.account["email"].text) · \(model.account["plan"].text)").font(.caption).foregroundStyle(.secondary)
             }
-            Button("Использование и лимиты Codex…") { model.showCodexUsage = true }.disabled(model.busy)
+            Button("Использование и лимиты Codex…") { model.showCodexUsage = true }
             HStack {
                 Button("Войти через ChatGPT…") { Task { await model.login() } }
                 Button("Проверить вход") { Task { await model.refreshAccount() } }

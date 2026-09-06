@@ -6,7 +6,10 @@ struct CodexUsageView: View {
     @State private var confirmingReset = false
     @State private var proposedReset: CodexResetAttempt?
 
-    private var blocked: Bool { usage.refreshing || usage.resetting || app.busy || app.connecting || app.client.turnOutstanding }
+    private var refreshBlocked: Bool {
+        usage.refreshing || usage.resetting || !app.cloudConsent || app.connecting || app.loginPending || app.privateBackupRestartRequired
+    }
+    private var resetBlocked: Bool { refreshBlocked || app.busy || app.client.turnOutstanding }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -43,7 +46,7 @@ struct CodexUsageView: View {
                                         let attempt = CodexResetAttempt(reset)
                                         if reset.pending { Task { await usage.consume(attempt, app: app) } }
                                         else { proposedReset = attempt; confirmingReset = true }
-                                    }.disabled(blocked)
+                                    }.disabled(resetBlocked)
                                 }
                             }
                             if let message = value.resetError, !message.isEmpty { unavailable(message) }
@@ -51,8 +54,10 @@ struct CodexUsageView: View {
                                 unavailable("Сброс недоступен, пока Codex не подтвердит аккаунт. Попробуйте обновить данные.")
                             }
                             if let timestamp = value.limitsUpdatedAt {
-                                Text("Лимиты проверены: \(Date(timeIntervalSince1970: timestamp).formatted(date: .abbreviated, time: .shortened))")
-                                    .font(.caption).foregroundStyle(.secondary)
+                                TimelineView(.periodic(from: .now, by: 15)) { context in
+                                    Text("\(value.limitsAreStale(at: context.date) || usage.summaryError != nil ? "Данные устарели" : "Лимиты проверены"): \(Date(timeIntervalSince1970: timestamp).formatted(date: .abbreviated, time: .shortened))")
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
                             }
                             DisclosureGroup("Активность аккаунта") {
                                 if !value.activityError.isEmpty { unavailable(value.activityError) }
@@ -74,9 +79,10 @@ struct CodexUsageView: View {
                             unavailable("Войдите в ChatGPT в настройках модели, чтобы увидеть лимиты подписки.")
                         }
                     } else if !usage.refreshing && usage.error == nil {
-                        unavailable(app.busy ? "Лимиты можно обновить после завершения текущей задачи." : "Нажмите «Обновить», чтобы проверить лимиты аккаунта Proto-Mind.")
+                        unavailable("Нажмите «Обновить», чтобы проверить лимиты аккаунта Proto-Mind.")
                     }
                     if let error = usage.error { unavailable(error) }
+                    if let error = usage.summaryError, error != usage.error, error != usage.displaySnapshot?.limitsError { unavailable(error) }
                     if let message = usage.resetMessage { unavailable(message) }
                 }.frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -85,7 +91,7 @@ struct CodexUsageView: View {
                 if usage.resetting { ProgressView().controlSize(.small); Text("Проверяю сброс…").foregroundStyle(.secondary) }
                 Spacer()
                 Button("Обновить") { Task { await usage.refresh(app: app) } }
-                    .disabled(blocked)
+                    .disabled(refreshBlocked)
             }.font(.callout)
         }.padding(24).frame(width: 560, height: 610)
             .task { await usage.refresh(app: app) }
@@ -103,14 +109,14 @@ struct CodexUsageView: View {
             HStack {
                 Text(window.title)
                 Spacer()
-                if let remaining = window.remaining {
-                    Text("Осталось \(remaining.formatted(.number.precision(.fractionLength(0...1))))%").monospacedDigit()
+                if window.remaining != nil {
+                    Text("Осталось \(window.remainingLabel)").monospacedDigit()
                 } else { Text("Нет данных").foregroundStyle(.secondary) }
             }.font(.callout)
             if let remaining = window.remaining {
                 ProgressView(value: remaining, total: 100).tint(remaining <= 10 ? .orange : .primary)
-                if let used = window.usedPercent {
-                    Text("Использовано \(used.formatted(.number.precision(.fractionLength(0...1))))%")
+                if window.used != nil {
+                    Text("Использовано \(window.usedLabel)")
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
