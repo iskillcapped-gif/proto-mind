@@ -1,10 +1,10 @@
 """Explicit operator-authored project notes; pure local recall and immutable private saves."""
 from copy import deepcopy
 from pathlib import Path
-import re
 from uuid import UUID
 
 from proto_mind.native_desk import injection_state
+from proto_mind.project_recall_search import ALGORITHM, rank_notes
 from proto_mind.native_private_records import PrivateRecordStore, digest, encoded, snapshot_hash, HASH
 from proto_mind.native_work_sessions import workspace_identity
 from proto_mind.native_project_note_state import SCHEMA as STATE_SCHEMA, ACTIONS, project_states, validate_state
@@ -133,22 +133,14 @@ class NativeProjectMemory:
         _, records, replaced, issues = self._read()
         selected = records if include_history else [row for row in records if row["id"] not in replaced]
         if query is not None:
-            tokens = set(re.findall(r"[^\W_]+", query.casefold(), flags=re.UNICODE))
-            ranked = []
-            for row in selected:
-                body = row["body"]
-                words = set(re.findall(r"[^\W_]+", (body["content"] + " " + body["basis"]).casefold(), flags=re.UNICODE))
-                overlap = len(tokens & words)
-                if overlap:
-                    ranked.append((overlap, row["saved_at"], row["id"], row))
-            selected = [row for _, _, _, row in sorted(ranked, reverse=True)[:MAX_SELECTED]] if not issues else []
+            selected = rank_notes(selected, query) if not issues else []
         self._check_workspace()
         matching = len(selected)
         page_size = MAX_SELECTED if query is not None else 40
         return {**self._base("list"), "items": [self._item(row, replaced) for row in selected[offset:offset + page_size]], "issues": issues,
                 "total_count": len(records), "active_count": len(records) - len(replaced.keys() & {row["id"] for row in records}),
                 "matching_count": matching, "offset": offset, "page_size": page_size,
-                "query": query or "", "algorithm": "exact_unicode_token_overlap" if query is not None else "saved_at_descending",
+                "query": query or "", "algorithm": ALGORITHM if query is not None else "saved_at_descending",
                 "directory": str(self.store.directory), "limit": 200,
                 "notice": "Only explicitly saved notes for this exact folder. Legacy core memory remains shared and is not migrated. No automatic model attachment or usage-counter write."}
 

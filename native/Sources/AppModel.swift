@@ -276,6 +276,7 @@ final class AppModel: ObservableObject {
             "criteria": .array(conversation.pendingCriteria.map(JSONValue.string)),
             "auto_skills": .bool(conversation.provider == "codex" && conversation.autoSkillsEnabled),
             "auto_project_recall": .bool(conversation.provider == "codex" && conversation.autoProjectRecallEnabled),
+            "project_recall_algorithm": .string("local_content_terms_v3"),
             "persona_enabled": .bool(personaEnabled),
             "cloud_consent": .bool(cloudConsent), "access_mode": .string(fullAccessEnabled ? "full_access" : "chat")
         ]

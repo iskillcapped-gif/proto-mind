@@ -135,6 +135,7 @@ extension AppModel {
                 params["project_memory"] = .array(projectNotes.map(\.selection))
                 params["auto_skills"] = .bool(automaticSkills)
                 params["auto_project_recall"] = .bool(automaticRecall)
+                params["project_recall_algorithm"] = .string("local_content_terms_v3")
                 params["memory_suggestions"] = .bool(suggestMemory)
                 if let expectedProjectSnapshot, !expectedProjectSnapshot.isNull { params["expected_project_snapshot"] = expectedProjectSnapshot }
                 if let skillTask { params["skill_task"] = skillTask.selection }

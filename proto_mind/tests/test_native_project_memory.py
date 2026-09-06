@@ -318,6 +318,7 @@ class NativeProjectMemoryTests(unittest.TestCase):
         result = self.call("project_memory_recall", query="Python testing review")
         self.assertEqual(result["items"][0]["id"], strong["id"])
         self.assertEqual(len(result["items"]), 5)
+        self.assertEqual(result["matching_count"], 8)
         self.assertEqual(result, self.call("project_memory_recall", query="Python testing review"))
         self.assertEqual(self.call("project_memory_recall", query="weather tomorrow")["items"], [])
         self.assertEqual(before, self.files()); self.assertFalse(result["automatic_recall"])

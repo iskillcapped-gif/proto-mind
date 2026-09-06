@@ -32,7 +32,7 @@ class ProjectRecallTests(TestCase):
 
     def request(self, **changes):
         return self.params(text="Объясни порт сервера.", provider="codex", model="fixture-model", cloud_consent=True,
-                           auto_project_recall=True) | changes
+                           auto_project_recall=True, project_recall_algorithm="local_content_terms_v3") | changes
 
     def preview(self, **changes):
         return self.backend.preview_context(self.request(**changes))
@@ -148,7 +148,7 @@ class ProjectRecallTests(TestCase):
             with self.subTest(query=query):
                 auto = self.recall(query)
                 self.assertEqual(auto.report["selected_ids"], [note["id"]])
-                self.assertEqual(auto.report["algorithm"], "local_content_terms_v2")
+                self.assertEqual(auto.report["algorithm"], "local_content_terms_v3")
         self.assertEqual(self.files(), before)
         self.assertEqual(self.backend.subscription.calls, [])
 
@@ -169,7 +169,8 @@ class ProjectRecallTests(TestCase):
         repeated = self.save("Port ports порт порта порту порте.")
         specific = self.save("Порт сервера: 4317.")
         auto = self.recall("Which server port?")
-        self.assertEqual(auto.report["selected_ids"], [specific["id"], repeated["id"]])
+        self.assertEqual(auto.report["selected_ids"], [specific["id"]])
+        self.assertNotIn(repeated["id"], auto.report["selected_ids"])
 
     def test_legacy_algorithm_reports_remain_readable_without_relabeling(self):
         self.save("Порт сервера: 4317.")
@@ -181,6 +182,25 @@ class ProjectRecallTests(TestCase):
         for algorithm in ("unknown", [], None):
             with self.subTest(algorithm=algorithm), self.assertRaises(ValueError):
                 validate_project_recall(legacy | {"algorithm": algorithm})
+
+    def test_old_client_receipts_remain_v2_while_new_clients_request_v3(self):
+        redis = self.save("Redis port: 6379.")
+        postgres = self.save("PostgreSQL port: 5432.")
+        old = self.request(text="Redis port?")
+        old.pop("project_recall_algorithm")
+        legacy = self.backend.preview_context(old)["manifest"]["knowledge_context"]["project_recall"]
+        self.assertEqual(legacy["algorithm"], "local_content_terms_v2")
+        self.assertEqual(set(legacy["selected_ids"]), {redis["id"], postgres["id"]})
+        current = self.preview(text="Redis port?")["manifest"]["knowledge_context"]["project_recall"]
+        self.assertEqual(current["algorithm"], "local_content_terms_v3")
+        self.assertEqual(current["selected_ids"], [redis["id"]])
+        before = self.files()
+        for algorithm in (None, [], True, "unknown", "local_content_token_overlap_v1"):
+            for action in (self.send, self.preview):
+                with self.subTest(algorithm=algorithm, action=action.__name__), self.assertRaises(ValueError):
+                    action(project_recall_algorithm=algorithm)
+        self.assertEqual(self.files(), before)
+        self.assertEqual(self.backend.subscription.calls, [])
 
     def test_manual_selection_overrides_auto_without_merging(self):
         self.save("Порт сервера: 4317.")

@@ -1,0 +1,413 @@
+{
+  "description": "Synthetic ordinary project questions; exact expected current notes. Local lexical regression corpus, not a general semantic or model-answer benchmark.",
+  "notes": [
+    {
+      "key": "server_old",
+      "content": "Порт локального сервера: 3000."
+    },
+    {
+      "key": "server",
+      "content": "Порт локального сервера: 4317.",
+      "supersedes": "server_old"
+    },
+    {
+      "key": "redis",
+      "content": "Redis listens on port 6379."
+    },
+    {
+      "key": "postgres",
+      "content": "PostgreSQL listens on port 5432. This is the main database."
+    },
+    {
+      "key": "json",
+      "content": "Настройки приложения находятся в config.json."
+    },
+    {
+      "key": "yaml",
+      "content": "Настройки CI находятся в config.yaml."
+    },
+    {
+      "key": "backup",
+      "content": "Резервные копии сохраняем в backups/."
+    },
+    {
+      "key": "branch",
+      "content": "Ветка релиза — main. Выкладываем вручную."
+    },
+    {
+      "key": "style",
+      "content": "Стиль ответов: кратко, без эмодзи.",
+      "kind": "preference"
+    },
+    {
+      "key": "tests",
+      "content": "Python tests run with python -m unittest."
+    },
+    {
+      "key": "payments",
+      "content": "Платежи принимает WayForPay, валюта UAH."
+    },
+    {
+      "key": "language",
+      "content": "Язык интерфейса — украинский."
+    },
+    {
+      "key": "basis_only",
+      "content": "Интерфейс тёмный.",
+      "basis": "Port server weather forecast; источник обсуждал тестирование."
+    },
+    {
+      "key": "screenshots",
+      "content": "Снимки сохраняем в exports/screenshots/."
+    },
+    {
+      "key": "archived",
+      "content": "Для Selenium используем старый драйвер.",
+      "archived": true
+    },
+    {
+      "key": "other",
+      "content": "Порт локального сервера: 9999. Redis config.json, секрет другой папки.",
+      "scope": "other"
+    }
+  ],
+  "cases": [
+    {
+      "id": "local-port-1",
+      "query": "На каком порту работает локальный сервер?",
+      "expected": [
+        "server"
+      ]
+    },
+    {
+      "id": "local-port-2",
+      "query": "На якому порту працює локальний сервер?",
+      "expected": [
+        "server"
+      ]
+    },
+    {
+      "id": "local-port-3",
+      "query": "Which port does the local server use?",
+      "expected": [
+        "server"
+      ]
+    },
+    {
+      "id": "redis-port-1",
+      "query": "Какой порт у Redis?",
+      "expected": [
+        "redis"
+      ]
+    },
+    {
+      "id": "redis-port-2",
+      "query": "Який порт у Redis?",
+      "expected": [
+        "redis"
+      ]
+    },
+    {
+      "id": "redis-port-3",
+      "query": "Which port does Redis use?",
+      "expected": [
+        "redis"
+      ]
+    },
+    {
+      "id": "postgres-port-1",
+      "query": "Порт PostgreSQL?",
+      "expected": [
+        "postgres"
+      ]
+    },
+    {
+      "id": "postgres-port-2",
+      "query": "На якому порту PostgreSQL?",
+      "expected": [
+        "postgres"
+      ]
+    },
+    {
+      "id": "postgres-port-3",
+      "query": "Postgres port?",
+      "expected": [
+        "postgres"
+      ]
+    },
+    {
+      "id": "config-file-1",
+      "query": "Что в config.json?",
+      "expected": [
+        "json"
+      ]
+    },
+    {
+      "id": "config-file-2",
+      "query": "Що в config.json?",
+      "expected": [
+        "json"
+      ]
+    },
+    {
+      "id": "config-file-3",
+      "query": "Where is config.json?",
+      "expected": [
+        "json"
+      ]
+    },
+    {
+      "id": "yaml-file-1",
+      "query": "Найди config.yaml",
+      "expected": [
+        "yaml"
+      ]
+    },
+    {
+      "id": "yaml-file-2",
+      "query": "Знайди config.yaml",
+      "expected": [
+        "yaml"
+      ]
+    },
+    {
+      "id": "yaml-file-3",
+      "query": "Find config.yaml",
+      "expected": [
+        "yaml"
+      ]
+    },
+    {
+      "id": "backups-1",
+      "query": "Где резервные копии?",
+      "expected": [
+        "backup"
+      ]
+    },
+    {
+      "id": "backups-2",
+      "query": "Де резервні копії?",
+      "expected": [
+        "backup"
+      ]
+    },
+    {
+      "id": "backups-3",
+      "query": "Where are the backups?",
+      "expected": [
+        "backup"
+      ]
+    },
+    {
+      "id": "release-branch-1",
+      "query": "Ветка релиза?",
+      "expected": [
+        "branch"
+      ]
+    },
+    {
+      "id": "release-branch-2",
+      "query": "Гілка релізу?",
+      "expected": [
+        "branch"
+      ]
+    },
+    {
+      "id": "release-branch-3",
+      "query": "Which release branch?",
+      "expected": [
+        "branch"
+      ]
+    },
+    {
+      "id": "response-style-1",
+      "query": "Какой стиль ответов?",
+      "expected": [
+        "style"
+      ]
+    },
+    {
+      "id": "response-style-2",
+      "query": "Який стиль відповідей?",
+      "expected": [
+        "style"
+      ]
+    },
+    {
+      "id": "response-style-3",
+      "query": "What response style?",
+      "expected": [
+        "style"
+      ]
+    },
+    {
+      "id": "python-tests-1",
+      "query": "Как запустить тесты Python?",
+      "expected": [
+        "tests"
+      ]
+    },
+    {
+      "id": "python-tests-2",
+      "query": "Як запустити тести Python?",
+      "expected": [
+        "tests"
+      ]
+    },
+    {
+      "id": "python-tests-3",
+      "query": "How do Python tests run?",
+      "expected": [
+        "tests"
+      ]
+    },
+    {
+      "id": "interface-language-1",
+      "query": "Какой язык интерфейса?",
+      "expected": [
+        "language"
+      ]
+    },
+    {
+      "id": "interface-language-2",
+      "query": "Яка мова інтерфейсу?",
+      "expected": [
+        "language"
+      ]
+    },
+    {
+      "id": "interface-language-3",
+      "query": "What interface language?",
+      "expected": [
+        "language"
+      ]
+    },
+    {
+      "id": "payments-1",
+      "query": "Кто принимает платежи?",
+      "expected": [
+        "payments"
+      ]
+    },
+    {
+      "id": "payments-2",
+      "query": "Хто приймає платежі?",
+      "expected": [
+        "payments"
+      ]
+    },
+    {
+      "id": "payments-3",
+      "query": "Which service handles payments?",
+      "expected": [
+        "payments"
+      ]
+    },
+    {
+      "id": "screenshots-1",
+      "query": "Где лежат exports/screenshots/?",
+      "expected": [
+        "screenshots"
+      ]
+    },
+    {
+      "id": "screenshots-2",
+      "query": "Де exports/screenshots/?",
+      "expected": [
+        "screenshots"
+      ]
+    },
+    {
+      "id": "screenshots-3",
+      "query": "Where are exports/screenshots/?",
+      "expected": [
+        "screenshots"
+      ]
+    },
+    {
+      "id": "missing-file-1",
+      "query": "Что в secrets.json?",
+      "expected": []
+    },
+    {
+      "id": "missing-file-2",
+      "query": "Найди config.toml",
+      "expected": []
+    },
+    {
+      "id": "missing-file-3",
+      "query": "Where is config.ini?",
+      "expected": []
+    },
+    {
+      "id": "missing-environment-1",
+      "query": "Порт сервера в production?",
+      "expected": []
+    },
+    {
+      "id": "missing-environment-2",
+      "query": "Порт продакшн сервера?",
+      "expected": []
+    },
+    {
+      "id": "missing-environment-3",
+      "query": "Production server port?",
+      "expected": []
+    },
+    {
+      "id": "generic-1",
+      "query": "Привет брат, продолжим",
+      "expected": []
+    },
+    {
+      "id": "generic-2",
+      "query": "Будь ласка, допоможи з цим проєктом",
+      "expected": []
+    },
+    {
+      "id": "generic-3",
+      "query": "Please help with this project",
+      "expected": []
+    },
+    {
+      "id": "basis-is-not-content-1",
+      "query": "weather forecast",
+      "expected": []
+    },
+    {
+      "id": "basis-is-not-content-2",
+      "query": "источник обсуждал",
+      "expected": []
+    },
+    {
+      "id": "basis-is-not-content-3",
+      "query": "джерело обговорювало",
+      "expected": []
+    },
+    {
+      "id": "unknown-1",
+      "query": "Портал",
+      "expected": []
+    },
+    {
+      "id": "unknown-2",
+      "query": "цветение",
+      "expected": []
+    },
+    {
+      "id": "unknown-3",
+      "query": "Turquoise pigment",
+      "expected": []
+    },
+    {
+      "id": "removed-1",
+      "query": "Selenium",
+      "expected": []
+    },
+    {
+      "id": "old-version-1",
+      "query": "3000",
+      "expected": []
+    }
+  ]
+}

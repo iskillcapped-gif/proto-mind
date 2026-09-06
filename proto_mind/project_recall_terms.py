@@ -3,6 +3,9 @@
 Unknown words keep exact matching. Aliases collapse to one relevance term so
 repeating a word in several languages cannot inflate its ranking.
 """
+import re
+
+from proto_mind.text_normalization import normalize_text
 
 TERM_FAMILIES = (
     "port ports порт порта порту портом порте порты портов портах порти портів",
@@ -12,7 +15,7 @@ TERM_FAMILIES = (
     "storage хранилище хранилища хранилищу хранилищем хранения хранение хранению хранении зберігання зберіганню зберіганні сховище сховища сховищі сховищем",
     "file files файл файла файлу файлом файле файлы файлов файлах файлі файли файлів",
     "folder folders directory directories папка папки папку папке папкой папок каталог каталога каталогу каталоге каталоги каталогів теки теку теці тека",
-    "test tests тест теста тесту тестом тесте тесты тестов тестах тести тестів тесті",
+    "test tests testing тестирование тестування тест теста тесту тестом тесте тесты тестов тестах тести тестів тесті",
     "configuration configurations config configs настройка настройки настройку настройке настройках настроек конфигурация конфигурации конфигурацию налаштування налаштувань налаштуваннях конфігурація конфігурації конфігурацію",
     "cache caches кеш кеша кешу кеше кеші кэш кэша кэшу кэше",
     "build builds сборка сборки сборку сборке сборок збірка збірки збірку збірці збірок",
@@ -24,7 +27,44 @@ TERM_FAMILIES = (
     "language languages язык языка языку языке языки языков мова мови мову мові мовою мов",
     "version versions версия версии версию версий версія версії версію версій",
     "permission permissions разрешение разрешения разрешений разрешениях дозвіл дозволу дозволи дозволів дозволах",
+    "postgresql postgres",
+    "local locally локальный локального локальном локальное локальная локальные локально локальний локального локальному локальне локальна локальні локально",
+    "production продакшн продакшен продакшене продакшені",
+    "staging стейджинг стейджинге стейджингу",
+    "branch branches ветка ветки ветку ветке веток гілка гілки гілку гілці гілок",
+    "response responses reply replies ответ ответа ответы ответов ответа ответах відповідь відповіді відповідей відповідях",
+    "style styles стиль стиля стилю стиле стили стилів стилі",
+    "payment payments платеж платежа платежи платежей платежів платіж платежу платежі оплата оплаты оплату оплати",
     "backup backups бэкап бэкапа бэкапы бэкапов бекап бекапу бекапи бекапів",
 )
 
 TERM_ALIASES = {word: family.split()[0] for family in TERM_FAMILIES for word in family.split()}
+
+STOP_WORDS = frozenset("""
+the and for this that with from have has what which where when why how please project current about into only
+can could would should make want use using now here there they them their our your you work task help tell
+это этот эта эти того потому чтобы для как что где когда почему какой какая какие нужно надо пожалуйста
+проект проекта проекте текущий текущего сейчас тут там мне меня мы нам наш наша наши ваш брат давай давайте
+сделай сделать использовать используй расскажи покажи помоги работа задачу задачи можно есть было будет
+проверь продолжим продолжаем дальше привет спасибо хорошо отлично просто
+does did explain works working on which яких якому чому коли який яка які яке як це цього ці цей ця щоб
+будь ласка проєкт проєкту проєкті проекту проекті поточний поточного зараз тут там мені мене наш наша наші
+брате давай давайте зроби зробити використовувати використовуй розкажи покажи допоможи робота роботу роботи
+працює працюють завдання можна було буде перевір продовжимо продовжуємо далі привіт дякую добре чудово просто
+каком каком-то работает работают работающий
+is are was were been being am do a an of to in at it its we us me my let's let get find remind remember
+найди найти объясни объяснить напомни кто которой которое этом этом-то используем запустить запусти
+де хто знайди знайти поясни нагадай нагадати запустити запусти цим цю цій якою ньому
+""".split())
+
+
+PHRASES = ("резервные копии", "резервных копий", "резервной копии", "резервную копию",
+           "резервні копії", "резервних копій", "резервної копії", "резервну копію")
+
+
+def content_terms(text: str) -> set[str]:
+    normalized = normalize_text(text)
+    for phrase in PHRASES:
+        normalized = re.sub(r"(?<!\w)" + re.escape(phrase) + r"(?!\w)", "backup", normalized)
+    return {TERM_ALIASES.get(token, token) for token in re.findall(r"[^\W_]+", normalized, flags=re.UNICODE)
+            if (3 <= len(token) <= 80 or token in TERM_ALIASES) and token not in STOP_WORDS}

@@ -20,7 +20,7 @@ struct NativeProjectRecallReport: Equatable {
             "reason", "read_only", "model_call_performed", "permission_granted", "automatic_learning"]
         guard case .object(let raw) = value, Set(raw.keys) == fields,
               value["schema"] == .string("proto_mind.native_project_recall.v1"),
-              ["local_content_token_overlap_v1", "local_content_terms_v2"].contains(value["algorithm"].text),
+              ["local_content_token_overlap_v1", "local_content_terms_v2", "local_content_terms_v3"].contains(value["algorithm"].text),
               UUID(uuidString: value["conversation_id"].text) != nil, decisionHashValue(value["goal_sha256"].text),
               ["chat", "full_access"].contains(value["access_mode"].text),
               ["selected", "no_match", "empty", "unavailable"].contains(value["state"].text),
@@ -81,7 +81,9 @@ struct ProjectRecallReportView: View {
             VStack(alignment: .leading, spacing: 7) {
                 switch report.state {
                 case "selected":
-                    Text(report.value["algorithm"] == .string("local_content_terms_v2")
+                    Text(report.value["algorithm"] == .string("local_content_terms_v3")
+                         ? "Подобраны заметки по содержанию с учётом указанных файлов, известных сервисов и окружения. Слабые повторные совпадения отсеяны. Смысл и достоверность заметок отдельно не проверялись."
+                         : report.value["algorithm"] == .string("local_content_terms_v2")
                          ? "Выбраны текущие заметки по словам задачи с учётом известных форм слов и переводов терминов. Смысл и достоверность заметок отдельно не проверялись."
                          : "Выбраны текущие версии заметок по совпадению значимых слов задачи. Это утверждения оператора, а не независимая проверка фактов.")
                 case "empty": Text("В этой папке нет активных явно сохранённых заметок. Старая память не переносилась, новое хранилище не создавалось.")

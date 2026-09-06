@@ -1,6 +1,6 @@
 # Proto-Mind: Current Direction
 
-Updated: 2026-09-06. Current release: Native **0.56.1 (67)**.
+Updated: 2026-09-06. Current release: Native **0.57.0 (68)**.
 
 Proto-Mind is a personal macOS assistant. The immediate goal is a dependable, approachable application that can support the operator's planned expansion. The everyday layout, working panel and conversation polish are delivered. On September 5 the operator requested useful service connections, starting with GitHub. GitHub, complete local private-state backups, subscription usage with explicit earned resets, Full Mac access without a selected project, live text/attachment updates to running Codex tasks and a sidebar-confined limits menu with explicit account identity are now delivered. Reply typography and parallel conversations are also implemented; memory and continuity workflows remain available.
 
@@ -55,15 +55,21 @@ Release 0.53.0 adds a verified folder snapshot, read-only preview and recoverabl
 
 The operator's follow-up is also delivered: the existing Codex login supplies account-wide quota windows, remaining percentages, reset dates, earned-reset count and available token activity. The view is read-only and does not estimate costs or equate token counts with remaining messages. See the [release contract](NATIVE_MACOS_ROADMAP.md#complete-private-backups-and-codex-usage--native-0530).
 
-## Next Candidate: Practical Memory Quality
+## Practical Memory Quality Delivered
 
-The current durability, everyday navigation and requested service/usage groundwork are complete. The next useful candidate is to collect a small set of ordinary RU/UK/EN project questions and corrections, measure which notes are selected, and improve recall precision and scope where those examples reveal gaps. Keep retrieval local and corrections reversible. This is a candidate for the next work session, not background work started by this release; the operator's planned larger expansion remains to be scoped.
+Release 0.57.0 unifies automatic recall and library search. A fixed corpus of 53 ordinary RU/UK/EN questions covers corrections, archived notes, folder scope, services, environments and filenames. Exact selected sets improve from 25/53 to 53/53 in automatic recall and from 21/53 to 53/53 in the library. See [the corpus and measurement](evals/project_recall/README.md) and [release checks](NATIVE_MACOS_ROADMAP.md#practical-project-recall--native-0570).
+
+Selection still uses finite local vocabulary and literal qualifiers; it is not general semantic retrieval or automatic learning. No personal-note migration or new provider call is required. Future examples from actual use can extend this regression set.
+
+## Next Candidate: Everyday Document Work
+
+The next useful candidate is original PDF viewing in the working panel, with clear page navigation and the existing explicit attachment controls. The current panel can inspect selected PDF text but does not render the original layout. Keep viewing separate from sending document contents. This candidate has not been started; the operator's larger functional expansion remains to be scoped.
 
 ## Later Candidates
 
 The operator plans a substantial functional expansion and will supply its scope after interface work. Keep these options available without starting all of them now:
 
-- Better practical memory correction, scope and retrieval quality, supported by ordinary-task evidence.
+- Further practical memory correction, scope and retrieval quality from new ordinary-task examples.
 - Continuity across tasks and sessions, with stronger recovery for linked history and work records.
 - Richer document/artifact handling, voice input and provider capability parity.
 - Narrower tool modes, reviewed procedures and useful background/parallel work with visible limits.

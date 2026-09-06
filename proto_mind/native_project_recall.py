@@ -1,19 +1,17 @@
 """Read-only, bounded recall from explicitly saved notes in one exact workspace."""
 from copy import deepcopy
 import hashlib
-import re
 from uuid import UUID
 
 from proto_mind.native_desk import injection_state
 from proto_mind.native_private_records import HASH, snapshot_hash
 from proto_mind.native_project_memory import NativeProjectMemory
-from proto_mind.project_recall_terms import TERM_ALIASES
-from proto_mind.text_normalization import normalize_text
+from proto_mind.project_recall_terms import content_terms as tokens
+from proto_mind.project_recall_search import ALGORITHM, rank_notes
 
 
 SCHEMA = "proto_mind.native_project_recall.v1"
-ALGORITHM = "local_content_terms_v2"
-SUPPORTED_ALGORITHMS = {"local_content_token_overlap_v1", ALGORITHM}
+SUPPORTED_ALGORITHMS = {"local_content_token_overlap_v1", "local_content_terms_v2", ALGORITHM}
 MAX_NOTES = 3
 MAX_CHARACTERS = 6000
 FIELDS = {"schema", "conversation_id", "workspace", "goal_sha256", "access_mode", "state", "algorithm",
@@ -22,24 +20,6 @@ FIELDS = {"schema", "conversation_id", "workspace", "goal_sha256", "access_mode"
 HISTORY_BOUNDARY = ("Project notes from earlier provider history are historical, not current project memory. "
                     "Only project notes attached to THIS turn are a current selection. If none are attached, do not invent a recall, "
                     "claim a historical note was checked, or treat it as current authority.\n")
-STOP_WORDS = frozenset("""
-the and for this that with from have has what which where when why how please project current about into only
-can could would should make want use using now here there they them their our your you work task help tell
-это этот эта эти того потому чтобы для как что где когда почему какой какая какие нужно надо пожалуйста
-проект проекта проекте текущий текущего сейчас тут там мне меня мы нам наш наша наши ваш брат давай давайте
-сделай сделать использовать используй расскажи покажи помоги работа задачу задачи можно есть было будет
-проверь продолжим продолжаем дальше привет спасибо хорошо отлично просто
-does did explain works working on which яких якому чому коли який яка які яке як це цього ці цей ця щоб
-будь ласка проєкт проєкту проєкті проекту проекті поточний поточного зараз тут там мені мене наш наша наші
-брате давай давайте зроби зробити використовувати використовуй розкажи покажи допоможи робота роботу роботи
-працює працюють завдання можна було буде перевір продовжимо продовжуємо далі привіт дякую добре чудово просто
-каком каком-то работает работают работающий
-""".split())
-
-
-def tokens(text: str) -> set[str]:
-    return {TERM_ALIASES.get(token, token) for token in re.findall(r"[^\W_]+", normalize_text(text), flags=re.UNICODE)
-            if (3 <= len(token) <= 80 or token in TERM_ALIASES) and token not in STOP_WORDS}
 
 
 def validate_project_recall(value, *, notes=None, record=None):
@@ -86,13 +66,15 @@ def validate_project_recall(value, *, notes=None, record=None):
 
 
 class ProjectRecall:
-    def __init__(self, root, state_dir, *, conversation, workspace, text, mode):
+    def __init__(self, root, state_dir, *, conversation, workspace, text, mode, algorithm=ALGORITHM):
+        if not isinstance(algorithm, str) or algorithm not in {"local_content_terms_v2", ALGORITHM}:
+            raise ValueError("Unsupported project recall algorithm.")
         self.root, self.workspace = root, deepcopy(workspace)
         self.memory = NativeProjectMemory(root, state_dir, conversation, workspace) if workspace is not None else None
         self.notes = []
         self.report = {"schema": SCHEMA, "conversation_id": str(UUID(conversation)), "workspace": deepcopy(workspace),
                        "goal_sha256": hashlib.sha256(text.encode()).hexdigest(), "access_mode": mode,
-                       "state": "unavailable", "algorithm": ALGORITHM, "source_snapshot_hash": None,
+                       "state": "unavailable", "algorithm": algorithm, "source_snapshot_hash": None,
                        "total_count": 0, "active_count": 0, "matching_count": 0, "selected_ids": [], "characters": 0,
                        "omitted_count": 0, "reason": "Select a project folder to recall its explicitly saved notes.",
                        "read_only": True, "model_call_performed": False, "permission_granted": False, "automatic_learning": False}
@@ -107,15 +89,16 @@ class ProjectRecall:
             return
         self.memory._check_workspace()
         active = [row for row in records if row["id"] not in replaced]
-        query = tokens(text)
-        ranked = []
-        for row in active:
-            # Basis is provenance, not a relevance signal; generic words cannot select an unrelated note.
-            overlap = len(query & tokens(row["body"]["content"]))
-            if overlap:
-                ranked.append((overlap, row["saved_at"], row["id"], row))
+        if algorithm == ALGORITHM:
+            ranked = rank_notes(active, text)
+        else:
+            # Legacy clients cannot read v3 receipts while their app is still open.
+            query = tokens(text)
+            matches = [(len(query & tokens(row["body"]["content"])), row["saved_at"], row["id"], row)
+                       for row in active]
+            ranked = [row for overlap, _, _, row in sorted(matches, reverse=True) if overlap]
         characters = 0
-        for _, _, _, row in sorted(ranked, reverse=True):
+        for row in ranked:
             size = len(row["body"]["content"]) + len(row["body"]["basis"])
             if len(self.notes) < MAX_NOTES and characters + size <= MAX_CHARACTERS:
                 self.notes.append({**self.memory._item(row, replaced), "workspace": deepcopy(workspace)})
@@ -124,7 +107,8 @@ class ProjectRecall:
         self.report.update(state=state, source_snapshot_hash=snapshot_hash(all_records), total_count=len(records), active_count=len(active),
                            matching_count=len(ranked), selected_ids=[row["id"] for row in self.notes], characters=characters,
                            omitted_count=len(ranked) - len(self.notes), reason={
-                               "selected": "Current notes matched normalized content words, including supported RU/UK/EN term aliases. Local lexical selection, not independent factual verification.",
+                               "selected": ("Current notes matched content terms and explicit file, service or environment qualifiers. Redundant single-word matches were omitted; local lexical selection, not factual verification."
+                                            if algorithm == ALGORITHM else "Current notes matched normalized content words, including supported RU/UK/EN term aliases. Local lexical selection, not independent factual verification."),
                                "no_match": "No informative content-term match, including supported word forms and aliases. No note was added.",
                                "empty": "No active notes for this exact project. No store was initialized or old memory migrated.",
                            }[state])

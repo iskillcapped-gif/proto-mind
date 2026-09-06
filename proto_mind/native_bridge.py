@@ -63,6 +63,7 @@ from proto_mind.native_learning_history import NativeLearningHistory, parse_hist
 from proto_mind.native_project_memory import NativeProjectMemory, parse_project_memory_request, METHODS as PROJECT_MEMORY_METHODS
 from proto_mind.native_memory_suggestions import (NativeMemorySuggestion, suggestions as memory_suggestions,
                                                 parse_request as parse_memory_suggestion_request, METHODS as MEMORY_SUGGESTION_METHODS)
+from proto_mind.project_recall_search import requested_algorithm
 from proto_mind.native_project_recall import ProjectRecall
 from proto_mind.native_skill_tasks import NativeSkillTask, parse_task_request, SELECT_FIELDS as SKILL_TASK_SELECT_FIELDS
 from proto_mind.native_auto_skills import AutoSkills, HISTORY_BOUNDARY as AUTO_SKILL_HISTORY_BOUNDARY
@@ -514,6 +515,7 @@ class NativeBackend:
             raise ValueError("Invalid Brother Persona activation state.")
         if type(params.get("auto_skills", False)) is not bool:
             raise ValueError("Automatic skill selection must be explicitly on or off.")
+        recall_algorithm = requested_algorithm(params)
         if type(params.get("auto_project_recall", False)) is not bool:
             raise ValueError("Automatic project recall must be explicitly on or off.")
         if type(params.get("memory_suggestions", False)) is not bool:
@@ -574,7 +576,7 @@ class NativeBackend:
         project_recall = None
         if not description["operator"] and provider == "codex" and params.get("auto_project_recall") is True and not project_notes:
             project_recall = ProjectRecall(self.root, self.state_dir, conversation=session_id,
-                                           workspace=logical_workspace, text=text, mode=mode)
+                                           workspace=logical_workspace, text=text, mode=mode, algorithm=recall_algorithm)
             project_notes = project_recall.notes
         if expected_snapshot is not None and (project_recall is None or expected_snapshot != project_recall.report["source_snapshot_hash"]):
             raise ValueError("Project notes changed since context preview. Preview again; no main task, fallback or automatic retry.")
@@ -892,6 +894,7 @@ class NativeBackend:
         operator = describe_input(text)["operator"] if text else False
         if type(params.get("auto_skills", False)) is not bool:
             raise ValueError("Invalid automatic skill selection setting.")
+        recall_algorithm = requested_algorithm(params)
         if type(params.get("auto_project_recall", False)) is not bool:
             raise ValueError("Invalid automatic project recall setting.")
         reader = self.workspace(params) if params.get("workspace_root") and not operator else None
@@ -952,7 +955,7 @@ class NativeBackend:
         skill_task = None
         if not operator and provider == "codex" and params.get("auto_project_recall") is True and not project_notes:
             project_recall = ProjectRecall(self.root, self.state_dir, conversation=str(UUID(params.get("conversation_id", ""))),
-                                           workspace=logical_workspace, text=text, mode=mode)
+                                           workspace=logical_workspace, text=text, mode=mode, algorithm=recall_algorithm)
             project_notes = project_recall.notes
             result["notes"].append("Automatic project recall: exact current project, up to three notes / 6000 characters; informative content-word matching only, no model call or write. Manually selected notes override automatic selection. Only Send transmits the selected content.")
         if project_notes:

@@ -87,6 +87,8 @@ struct NativeChecks {
            let fixture = LaunchConfiguration.argument("--fixture"), let python = LaunchConfiguration.argument("--python") {
             try await projectMemory(fixture: URL(fileURLWithPath: fixture), python: URL(fileURLWithPath: python), root: root)
             try await projectMemoryLifecycle(fixture: URL(fileURLWithPath: fixture), python: URL(fileURLWithPath: python), root: root)
+            try projectRecallContracts(root: root)
+            try await projectRecallIntegration(fixture: URL(fileURLWithPath: fixture), python: URL(fileURLWithPath: python), root: root)
             print("Native project memory checks: \(passed) OK")
             return
         }

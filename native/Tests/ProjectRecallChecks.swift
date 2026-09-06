@@ -74,16 +74,18 @@ extension NativeChecks {
         try check(!String(decoding: bytes, as: UTF8.self).contains(fixture.source["content"].text)
                   && !chat.history[0]["content"].text.contains("source_snapshot_hash"),
                   "History metadata neither duplicates note text nor replays recall reports as instructions")
-        let legacyRecall = recallMetadata(conversation: originalID, workspace: root.path, algorithm: "local_content_token_overlap_v1")
-        try checkKnowledgeMetadata(legacyRecall.metadata)
-        chat.messages[0].knowledgeContext = legacyRecall.metadata
-        try store.save(ChatArchive(conversations: [chat], selectedID: chat.id))
-        let legacyBytes = try Data(contentsOf: store.url)
-        try check(try store.load().conversations[0].messages[0].knowledgeContext == legacyRecall.metadata && Data(contentsOf: store.url) == legacyBytes,
-                  "Legacy v1 recall survives restart without relabeling or rewriting its evidence")
+        for algorithm in ["local_content_token_overlap_v1", "local_content_terms_v2"] {
+            let legacyRecall = recallMetadata(conversation: originalID, workspace: root.path, algorithm: algorithm)
+            try checkKnowledgeMetadata(legacyRecall.metadata)
+            chat.messages[0].knowledgeContext = legacyRecall.metadata
+            try store.save(ChatArchive(conversations: [chat], selectedID: chat.id))
+            let legacyBytes = try Data(contentsOf: store.url)
+            try check(try store.load().conversations[0].messages[0].knowledgeContext == legacyRecall.metadata && Data(contentsOf: store.url) == legacyBytes,
+                      "Legacy recall survives restart without relabeling or rewriting its evidence: \(algorithm)")
+        }
     }
 
-    static func recallMetadata(conversation: UUID, workspace: String, algorithm: String = "local_content_terms_v2") -> (metadata: JSONValue, source: JSONValue) {
+    static func recallMetadata(conversation: UUID, workspace: String, algorithm: String = "local_content_terms_v3") -> (metadata: JSONValue, source: JSONValue) {
         func hash(_ text: String) -> JSONValue { .string(SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()) }
         let scope = JSONValue.object(["path": .string(workspace), "device": .number(1), "inode": .number(2)])
         let id = JSONValue.string(String(repeating: "a", count: 64)), recordHash = JSONValue.string(String(repeating: "b", count: 64))
@@ -175,9 +177,50 @@ extension NativeChecks {
             let before = try fileBytes(state)
             await app.refreshContextPreview()
             try check(app.contextPreview?.manifest["knowledge_context"]["project_recall"]["selected_ids"] == .array([.string(note.id)])
-                      && app.contextPreview?.manifest["knowledge_context"]["project_recall"]["algorithm"] == .string("local_content_terms_v2")
+                      && app.contextPreview?.manifest["knowledge_context"]["project_recall"]["algorithm"] == .string("local_content_terms_v3")
                       && (try fileBytes(state)) == before && fileBytes(fixture) == core,
                       "Real stdio recalls inflected RU/UK/EN port requests without writing state: \(query)")
         }
+        await app.openProjectMemory()
+        guard let quality = app.projectMemory else { throw NativeError.message("Recall quality notes unavailable") }
+        var named: [String: ProjectNote] = [:]
+        for content in ["Redis port 6379.", "PostgreSQL port 5432.", "Настройки: config.json", "Настройки: config.yaml"] {
+            quality.content = content; quality.basis = "Disposable precision fixture."
+            await quality.prepare()
+            guard let prepared = quality.preview else { throw NativeError.message(quality.error ?? "No precision preview") }
+            await quality.save(token: prepared["confirmation_token"].text, acknowledgement: true)
+            guard quality.error == nil, let saved = quality.notes.first(where: { $0.content == content }) else {
+                throw NativeError.message(quality.error ?? "No precision note saved")
+            }
+            named[content] = saved
+        }
+        quality.close()
+        let cases: [(String, String?)] = [("Which port does Redis use?", "Redis port 6379."),
+            ("Найди config.json", "Настройки: config.json"), ("config.toml", nil), ("Production server port?", nil)]
+        for (query, content) in cases {
+            let expected = content.flatMap { named[$0] }.map { [$0.id] } ?? []
+            app.setComposer(query); app.flushDraft()
+            let before = try fileBytes(state)
+            await app.openProjectMemory()
+            guard let search = app.projectMemory else { throw NativeError.message("No library search") }
+            search.query = query; await search.refresh(recall: true)
+            try check(search.error == nil && search.notes.map(\.id) == expected,
+                      "Library selection respects the explicit file/service/environment: \(query)")
+            search.close()
+            await app.refreshContextPreview()
+            let recall = app.contextPreview?.manifest["knowledge_context"]["project_recall"]
+            try check(recall?["selected_ids"].items.map(\.text) == expected
+                      && recall?["algorithm"] == .string("local_content_terms_v3")
+                      && (try fileBytes(state)) == before && fileBytes(fixture) == core,
+                      "Automatic v3 recall agrees with library search without writes: \(query)")
+        }
+        app.setComposer("Redis port?"); app.flushDraft()
+        guard var oldClient = app.contextRequestParameters else { throw NativeError.message("No legacy preview request") }
+        oldClient.removeValue(forKey: "project_recall_algorithm")
+        let oldPreview = try await app.client.request("context_preview", oldClient)
+        let oldReport = try NativeProjectRecallReport(oldPreview["manifest"]["knowledge_context"]["project_recall"])
+        try check(oldReport.value["algorithm"] == .string("local_content_terms_v2") && oldReport.selectedIDs.count == 3,
+                  "A still-open old Native client receives readable v2 evidence from the updated bridge")
+
     }
 }
