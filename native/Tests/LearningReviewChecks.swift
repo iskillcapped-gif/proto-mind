@@ -14,7 +14,7 @@ extension NativeChecks {
         }
         let state = root.appendingPathComponent("learning-state")
         let app = AppModel(configuration: LaunchConfiguration(projectRoot: project, python: python, stateDirectory: state))
-        defer { app.client.shutdown() }
+        defer { app.shutdown() }
         app.setProvider("mock")
         let initialCore = try fileBytes(project), initialPrivate = try fileBytes(state)
         await app.openLearningReview(candidateID: "missing")
@@ -134,7 +134,7 @@ extension NativeChecks {
         try check(app.libraryDetail?.memoryEvidence?.status == "VERIFIED",
                   "The saved Native lesson opens its validated provenance in Memory Library")
         let restart = AppModel(configuration: LaunchConfiguration(projectRoot: project, python: python, stateDirectory: state))
-        defer { restart.client.shutdown() }
+        defer { restart.shutdown() }
         await restart.openLearningReview(candidateID: candidate.id)
         await restart.openMemoryEvidence(recordID: receipt.recordId)
         try check(restart.learningReview?.status == "NOT FOUND" && restart.libraryDetail?.memoryEvidence?.status == "VERIFIED",

@@ -5,14 +5,18 @@ durable rollout data inside the separate Native Codex profile.
 """
 from __future__ import annotations
 
+from contextlib import contextmanager
 from copy import deepcopy
 from datetime import UTC, datetime
+import fcntl
 import json
 import os
 from pathlib import Path
 import stat
 import threading
 from uuid import UUID, uuid4
+
+from proto_mind.native_locks import open_sidecar
 
 
 LEGACY_SCHEMA = "proto_mind.native_codex_threads.v1"
@@ -127,6 +131,28 @@ class CodexThreadStore:
         self.write_blocked = False
         self.lock = threading.Lock()
 
+    @contextmanager
+    def _write_transaction(self):
+        # Atomic replacement alone loses updates when independent provider
+        # connections register/touch different conversations simultaneously.
+        with self.lock:
+            self.directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+            folder = os.open(self.directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            descriptor = None
+            try:
+                descriptor = open_sidecar(".codex_threads.lock", directory=folder)
+                if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+                    raise CodexThreadStoreError("Invalid Codex thread registry lock.")
+                fcntl.flock(descriptor, fcntl.LOCK_EX)
+                opened, current = os.fstat(descriptor), os.stat(".codex_threads.lock", dir_fd=folder, follow_symlinks=False)
+                if (opened.st_dev, opened.st_ino) != (current.st_dev, current.st_ino):
+                    raise CodexThreadStoreError("Codex thread registry lock changed; no write was made.")
+                yield
+            finally:
+                if descriptor is not None:
+                    os.close(descriptor)
+                os.close(folder)
+
     def _load(self) -> list[dict]:
         if not os.path.lexists(self.path):
             return []
@@ -195,6 +221,7 @@ class CodexThreadStore:
             os.close(descriptor)
             descriptor = None
             os.replace(temporary, self.path.name, src_dir_fd=directory, dst_dir_fd=directory)
+            os.fsync(directory)
         except OSError:
             try:
                 os.unlink(temporary, dir_fd=directory)
@@ -291,7 +318,7 @@ class CodexThreadStore:
                                 "created_at": now, "updated_at": now, "last_mode": mode, "last_model": model,
                                 "instruction_mode": mode,
                                 "instruction_contract_hash": _contract_hash(instruction_contract_hash)})
-        with self.lock:
+        with self._write_transaction():
             rows = self._load()
             if any((item["conversation_id"], item["instruction_mode"]) == (identifier, mode)
                    or item["thread_id"] == provider_id for item in rows):
@@ -308,7 +335,7 @@ class CodexThreadStore:
         identity = workspace_identity(workspace)
         if mode not in MODES:
             raise CodexThreadStoreError("Invalid Codex thread access mode.")
-        with self.lock:
+        with self._write_transaction():
             rows = self._load()
             index = next((i for i, item in enumerate(rows)
                           if (item["conversation_id"], item["instruction_mode"]) == (identifier, mode)), None)
@@ -336,7 +363,7 @@ class CodexThreadStore:
             "created_at": now, "updated_at": now, "last_mode": mode, "last_model": model,
             "instruction_mode": mode, "instruction_contract_hash": current_contract,
         })
-        with self.lock:
+        with self._write_transaction():
             rows = self._load()
             index = next((i for i, item in enumerate(rows)
                           if (item["conversation_id"], item["instruction_mode"]) == (identifier, mode)), None)
@@ -354,7 +381,7 @@ class CodexThreadStore:
 
     def reset(self, conversation: object) -> bool:
         identifier = conversation_id(conversation)
-        with self.lock:
+        with self._write_transaction():
             rows = self._load()
             next_rows = [row for row in rows if row["conversation_id"] != identifier]
             if len(next_rows) == len(rows):

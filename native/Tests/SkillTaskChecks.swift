@@ -7,7 +7,7 @@ extension NativeChecks {
     static func skillTasks(configuration: LaunchConfiguration, item: LibraryItem, project: URL, state: URL) async throws {
         let privateState = state.deletingLastPathComponent().appendingPathComponent("guided-task-state")
         let app = AppModel(configuration: LaunchConfiguration(projectRoot: project, python: configuration.python, stateDirectory: privateState))
-        defer { app.client.shutdown() }
+        defer { app.shutdown() }
         await app.start(); app.setProvider("mock"); await app.bindWorkspace(project.path); app.flushDraft()
         let skillURL = project.appendingPathComponent("proto_mind/data/skills.jsonl")
         let skillBytes = try Data(contentsOf: skillURL)
@@ -47,7 +47,7 @@ extension NativeChecks {
         try check(try fileBytes(project) == before && !app.fullAccessEnabled && !app.cloudConsent && !app.bootstrap["context_injection"].flag,
                   "Draft preparation never changes core records, Context Injection, cloud consent or Full Mac")
         let restart = AppModel(configuration: app.client.configuration)
-        defer { restart.client.shutdown() }
+        defer { restart.shutdown() }
         try check(restart.pendingSkillTask == nil && restart.composer == task.goal && restart.selected?.pendingCriteria == task.criteria,
                   "Restart keeps the ordinary goal/criteria draft but cannot resurrect skill selection or authorization")
         await app.refreshContextPreview()

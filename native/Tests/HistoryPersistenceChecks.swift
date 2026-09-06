@@ -11,7 +11,7 @@ extension NativeChecks {
         let original = Data("corrupt synthetic history".utf8)
         try original.write(to: brokenFile)
         let broken = AppModel(configuration: LaunchConfiguration(projectRoot: fixture, python: python, stateDirectory: brokenState))
-        defer { broken.client.shutdown() }
+        defer { broken.shutdown() }
         try check(broken.historyPersistence.requiresRecovery && broken.saveBeforeExit(),
                   "Unreadable history blocks submission but permits closing an untouched recovery window")
         broken.clearError()
@@ -37,7 +37,7 @@ extension NativeChecks {
         })
         let configuration = LaunchConfiguration(projectRoot: fixture, python: python, stateDirectory: state)
         let app = AppModel(configuration: configuration, historyStore: history)
-        defer { app.client.shutdown() }
+        defer { app.shutdown() }
         app.setProvider("mock")
         try app.setPendingCriteria(["Keep the exact draft and criteria"], conversationID: app.selectedID!)
         app.setComposer("Give a short local fixture answer.")
@@ -91,7 +91,7 @@ extension NativeChecks {
 
         let commandState = root.appendingPathComponent("history-confirmed-command")
         let commandApp = AppModel(configuration: LaunchConfiguration(projectRoot: fixture, python: python, stateDirectory: commandState))
-        defer { commandApp.client.shutdown() }
+        defer { commandApp.shutdown() }
         await commandApp.submit("/memory remember A synthetic record that must not be written")
         try check(commandApp.pendingAction != nil, "Mutation fixture reaches its normal explicit confirmation")
         try FileManager.default.createDirectory(at: commandApp.store.url, withIntermediateDirectories: true)

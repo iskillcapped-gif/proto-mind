@@ -124,7 +124,7 @@ struct WorkTimelineView: View {
     @ViewBuilder private func row(_ entry: JSONValue) -> some View {
         switch entry["kind"].text {
         case "commentary":
-            Text(MarkdownBlock.inline(entry["text"].text)).font(NativeTheme.messageFont).lineSpacing(5).textSelection(.enabled)
+            MessageMarkdownView(text: entry["text"].text, copy: { NSPasteboard.general.clearContents(); NSPasteboard.general.setString($0, forType: .string) })
         case "plan":
             DisclosureGroup("План работы") {
                 VStack(alignment: .leading, spacing: 8) {

@@ -44,7 +44,7 @@ struct PrivateBackupView: View {
                         HStack {
                             Button("Сохранить полную копию…") { backup.chooseExport(app: app) }.buttonStyle(.borderedProminent)
                             Button("Выбрать копию…") { backup.chooseSource(app: app) }.buttonStyle(.bordered)
-                        }.disabled(backup.working || app.busy || app.client.turnOutstanding)
+                        }.disabled(backup.working || app.globalBusy || app.client.turnOutstanding)
                     }
                     if let error = backup.error { Text(error).foregroundStyle(.orange).textSelection(.enabled) }
                     if let notice = backup.notice {

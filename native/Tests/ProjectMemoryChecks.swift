@@ -7,7 +7,7 @@ extension NativeChecks {
     static func projectMemory(fixture: URL, python: URL, root: URL) async throws {
         let state = root.appendingPathComponent("project-memory-ui")
         let app = AppModel(configuration: LaunchConfiguration(projectRoot: fixture, python: python, stateDirectory: state))
-        defer { app.client.shutdown() }
+        defer { app.shutdown() }
         await app.start(); app.setProvider("mock"); await app.bindWorkspace(fixture.path); app.flushDraft()
         let core = try fileBytes(fixture), initial = try fileBytes(state), messages = app.messages
         await app.openProjectMemory()
@@ -48,7 +48,7 @@ extension NativeChecks {
         try check(app.contextPreview?.value["project_memory_sources"].items.first?["content"] == note.raw["content"]
                   && app.contextPreview?.manifest["knowledge_context"]["permission_granted"] == .bool(false), "Pre-send context desk shows exactly selected project notes without changing permissions")
         let restart = AppModel(configuration: app.client.configuration)
-        defer { restart.client.shutdown() }
+        defer { restart.shutdown() }
         await restart.openProjectMemory()
         try check(restart.projectMemory?.notes == [note] && restart.pendingProjectNotes.isEmpty && !restart.fullAccessEnabled && !restart.cloudConsent,
                   "Project memory survives restart but pending note selection and execution authority do not")

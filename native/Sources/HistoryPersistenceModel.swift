@@ -5,7 +5,7 @@ extension AppModel {
     var currentHistoryArchive: ChatArchive { ChatArchive(conversations: conversations, selectedID: selectedID) }
 
     func openHistoryBackups() {
-        guard !busy, !client.turnOutstanding else { return }
+        guard !globalBusy, !client.turnOutstanding else { return }
         historyBackupPreview = nil; historyBackupError = nil; historyBackupNotice = nil
         refreshHistoryBackups()
         showHistoryBackups = true
@@ -18,14 +18,14 @@ extension AppModel {
     }
 
     func inspectHistoryBackup(_ url: URL) {
-        guard !busy, !client.turnOutstanding else { return }
+        guard !globalBusy, !client.turnOutstanding else { return }
         historyBackupPreview = nil; historyBackupError = nil; historyBackupNotice = nil
         do { historyBackupPreview = try store.previewBackup(at: url) }
         catch { historyBackupError = error.localizedDescription }
     }
 
     func chooseHistoryBackup() {
-        guard !busy, !client.turnOutstanding else { return }
+        guard !globalBusy, !client.turnOutstanding else { return }
         let panel = NSOpenPanel()
         panel.title = "Выберите копию диалогов"
         panel.message = "Выберите папку копии Proto-Mind или прежний файл conversations.json."
@@ -34,14 +34,14 @@ extension AppModel {
     }
 
     func exportHistoryBackup(to url: URL) throws {
-        guard !busy, !client.turnOutstanding else { throw NativeError.message("Дождитесь завершения запроса перед сохранением копии.") }
+        guard !globalBusy, !client.turnOutstanding else { throw NativeError.message("Дождитесь завершения запроса перед сохранением копии.") }
         try store.exportBackup(currentHistoryArchive, to: url)
         historyBackupNotice = "Копия диалогов сохранена: \(url.lastPathComponent)"
         historyBackupError = nil
     }
 
     func chooseHistoryExport() {
-        guard !busy, !client.turnOutstanding else { return }
+        guard !globalBusy, !client.turnOutstanding else { return }
         let panel = NSSavePanel()
         panel.title = "Сохранить копию диалогов"
         panel.nameFieldStringValue = "Proto-Mind Dialogs \(Date().formatted(.iso8601.year().month().day())).protomind-history"
@@ -53,7 +53,7 @@ extension AppModel {
     }
 
     func restoreHistoryBackup(_ preview: ChatBackupPreview) {
-        guard !busy, !client.turnOutstanding, historyBackupPreview?.id == preview.id else { return }
+        guard !globalBusy, !client.turnOutstanding, historyBackupPreview?.id == preview.id else { return }
         do {
             let archive = try store.restore(preview, preserving: currentHistoryArchive)
             installRestoredHistory(archive)
@@ -65,7 +65,7 @@ extension AppModel {
     }
 
     func reloadCurrentHistory() {
-        guard !busy, !client.turnOutstanding else { return }
+        guard !globalBusy, !client.turnOutstanding else { return }
         do {
             let archive = try store.reloadPreserving(currentHistoryArchive)
             installRestoredHistory(archive)
@@ -114,7 +114,7 @@ extension AppModel {
 
     @discardableResult
     func retryHistorySave() -> Bool {
-        guard !busy, !client.turnOutstanding, !store.writeBlocked else { return false }
+        guard !globalBusy, !client.turnOutstanding, !store.writeBlocked else { return false }
         guard persist() else { return false }
         status = "История сохранена"
         return true

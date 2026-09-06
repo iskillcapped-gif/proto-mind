@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import errno
+import fcntl
 import hashlib
 import json
 import os
@@ -118,6 +119,54 @@ class WorkSessionTests(unittest.TestCase):
                 with self.begin(run_id=str(uuid4())):
                     self.fail("second writer entered")
             self.assertEqual(before, self.files())
+
+    def test_independent_conversations_run_together_but_recovery_barrier_stays_locked(self):
+        other_id, other_conversation = str(uuid4()), str(uuid4())
+        with self.begin() as first:
+            first.dispatch()
+            with self.begin(run_id=other_id, conversation_id=other_conversation) as second:
+                second.dispatch()
+                self.assertEqual(self.page()["runs"][0]["display_status"], "running")
+                self.assertEqual(self.store.page(other_conversation)["runs"][0]["display_status"], "running")
+                with (self.store.directory / ".writer.lock").open("rb") as barrier:
+                    with self.assertRaises(BlockingIOError):
+                        fcntl.flock(barrier.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                second.complete("Second answer")
+            self.assertEqual(self.store.page(other_conversation)["runs"][0]["display_status"], "completed")
+            self.assertEqual(self.page()["runs"][0]["display_status"], "running")
+            first.complete("First answer")
+        with (self.store.directory / ".writer.lock").open("rb") as barrier:
+            fcntl.flock(barrier.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+    def test_run_id_cannot_be_reused_by_another_conversation_during_execution(self):
+        with self.begin() as first:
+            first.dispatch()
+            before = self.files()
+            with self.assertRaisesRegex(sessions.WorkSessionError, "already used"):
+                with self.begin(conversation_id=str(uuid4())):
+                    self.fail("duplicate run entered")
+            self.assertEqual(before, self.files())
+
+    def test_legacy_exclusive_writer_is_recognized_and_blocks_new_writers(self):
+        run = self.begin().__enter__()
+        run.dispatch(); run.close()
+        with (self.store.directory / ".writer.lock").open("r+b") as legacy:
+            legacy.write(self.run_id.encode()); legacy.flush()
+            fcntl.flock(legacy.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            self.assertEqual(self.page()["runs"][0]["display_status"], "running")
+            with self.assertRaisesRegex(sessions.WorkSessionError, "Another Native window"):
+                self.finish(run_id=str(uuid4()), conversation_id=str(uuid4()))
+        self.assertEqual(self.page()["runs"][0]["display_status"], "unknown")
+
+    def test_replaced_conversation_owner_stops_only_that_writer(self):
+        with self.begin() as first:
+            first.dispatch()
+            before = (self.store.directory / (self.run_id + ".json")).read_bytes()
+            (self.store.directory / "replacement.lock").write_text("")
+            (self.store.directory / "replacement.lock").replace(self.store.directory / f".conversation-{self.conversation}.lock")
+            with self.assertRaisesRegex(sessions.WorkSessionError, "writer lock changed"):
+                first.complete("not durable")
+            self.assertEqual((self.store.directory / (self.run_id + ".json")).read_bytes(), before)
 
     def test_duplicate_public_events_upsert_without_raw_reasoning_or_auth(self):
         with self.begin(text="x" * 5000) as run:

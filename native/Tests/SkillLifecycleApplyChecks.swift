@@ -38,11 +38,11 @@ extension NativeChecks {
                     throw NativeError.message(app.skillLifecycleApply?.error ?? "Missing lifecycle form")
                 }
                 return (app, lifecycle)
-            } catch { app.client.shutdown(); throw error }
+            } catch { app.shutdown(); throw error }
         }
 
         let (keepApp, keep) = try await prepareDecision(.keep)
-        defer { keepApp.client.shutdown() }
+        defer { keepApp.shutdown() }
         let keepBefore = try fileBytes(project), messages = keepApp.messages, draft = keepApp.composer
         try check(keepApp.skillDecision == nil && keep.report?.canApply == true && keep.preview == nil,
                   "Decision opens a separate lifecycle review without pre-authorizing application")
@@ -61,17 +61,17 @@ extension NativeChecks {
         await keep.prepare()
         try check(keep.preview == nil && !keep.canPrepare && keep.report?.nativeApplySlotAvailable == false,
                   "The Native process apply budget is not renewed by an executed keep")
-        keep.close(); keepApp.client.shutdown()
+        keep.close(); keepApp.shutdown()
 
         let (reviseApp, revise) = try await prepareDecision(.revise)
-        defer { reviseApp.client.shutdown() }
+        defer { reviseApp.shutdown() }
         try check(revise.report?.status == "NOT_READY" && !revise.canPrepare, "Revision decisions have no hidden edit/apply path")
         await revise.prepare()
         try check(revise.preview == nil && (try fileBytes(project)) == keepBefore, "Unavailable revision cannot prepare or write anything")
-        revise.close(); reviseApp.client.shutdown()
+        revise.close(); reviseApp.shutdown()
 
         let (app, model) = try await prepareDecision(.archive)
-        defer { app.client.shutdown() }
+        defer { app.shutdown() }
         let before = try fileBytes(project), beforeMessages = app.messages, beforeDraft = app.composer
         let hosting = NSHostingController(rootView: SkillLifecycleApplyView(model: model))
         let fitted = hosting.sizeThatFits(in: CGSize(width: 860, height: 730))
@@ -151,7 +151,7 @@ extension NativeChecks {
                   "The independent existing inspector proves durable archive cause and links the skill source")
         app.skillInspection?.close()
         let restart = AppModel(configuration: configuration)
-        defer { restart.client.shutdown() }
+        defer { restart.shutdown() }
         await restart.openSkillLifecycleApply(selection)
         try check(restart.skillLifecycleApply?.report?.receipt == nil && restart.skillLifecycleApply?.report?.canApply == false,
                   "Restart cannot restore process decisions, consent or repeat authorization")

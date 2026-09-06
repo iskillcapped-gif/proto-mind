@@ -48,7 +48,7 @@ final class PrivateBackupModel: ObservableObject {
     }
 
     func refresh(app: AppModel) async {
-        guard !working, !app.busy, !restartRequired else { return }
+        guard !working, !app.globalBusy, !restartRequired else { return }
         do {
             status = try await app.client.request("private_backup_status")
             if !status["error"].text.isEmpty { error = status["error"].text }
@@ -56,7 +56,7 @@ final class PrivateBackupModel: ObservableObject {
     }
 
     func chooseExport(app: AppModel) {
-        guard !app.busy, !working, !app.client.turnOutstanding else { return }
+        guard !app.globalBusy, !working, !app.client.turnOutstanding else { return }
         let panel = NSSavePanel()
         panel.title = "Сохранить полную копию данных Proto-Mind"
         panel.nameFieldStringValue = "Proto-Mind \(Date().formatted(.iso8601.year().month().day())).protomind-backup"
@@ -65,7 +65,7 @@ final class PrivateBackupModel: ObservableObject {
     }
 
     func chooseSource(app: AppModel) {
-        guard !app.busy, !working, !app.client.turnOutstanding else { return }
+        guard !app.globalBusy, !working, !app.client.turnOutstanding else { return }
         let panel = NSOpenPanel()
         panel.title = "Выберите полную копию Proto-Mind"
         panel.message = "Выберите папку с расширением .protomind-backup."
@@ -74,7 +74,7 @@ final class PrivateBackupModel: ObservableObject {
     }
 
     func create(at url: URL, app: AppModel) async {
-        guard !working, !app.busy, !app.client.turnOutstanding else { return }
+        guard !working, !app.globalBusy, !app.client.turnOutstanding else { return }
         working = true; app.busy = true; error = nil; notice = nil
         defer { working = false; app.busy = false }
         do {
@@ -86,7 +86,7 @@ final class PrivateBackupModel: ObservableObject {
     }
 
     func inspect(_ url: URL, app: AppModel) async {
-        guard !working, !app.busy, !app.client.turnOutstanding else { return }
+        guard !working, !app.globalBusy, !app.client.turnOutstanding else { return }
         working = true; app.busy = true; error = nil; notice = nil; preview = .null
         defer { working = false; app.busy = false }
         do {
@@ -100,7 +100,7 @@ final class PrivateBackupModel: ObservableObject {
     }
 
     func restore(app: AppModel) async {
-        guard !working, !app.busy, !app.client.turnOutstanding, !preview.isNull, preview["same_scope"].flag else { return }
+        guard !working, !app.globalBusy, !app.client.turnOutstanding, !preview.isNull, preview["same_scope"].flag else { return }
         await execute(app: app) {
             let archive = app.currentHistoryArchive
             let name = "window-\(UUID().uuidString).protomind-history"
@@ -115,7 +115,7 @@ final class PrivateBackupModel: ObservableObject {
     }
 
     func resume(app: AppModel, rollback: Bool = false) async {
-        guard !working, !app.busy, !app.client.turnOutstanding, pending, !status["id"].text.isEmpty else { return }
+        guard !working, !app.globalBusy, !app.client.turnOutstanding, pending, !status["id"].text.isEmpty else { return }
         await execute(app: app) {
             try await app.client.request(rollback ? "private_backup_rollback" : "private_backup_resume", ["id": status["id"]])
         }
@@ -151,7 +151,7 @@ final class PrivateBackupModel: ObservableObject {
         app.agentGrants.removeAll(); app.pendingAgentAccess = nil
         app.codexUsage.clear()
         app.invalidateSessionSpinePilot()
-        app.client.shutdown()
+        app.shutdown()
         preview = .null
     }
 }

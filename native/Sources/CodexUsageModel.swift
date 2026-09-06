@@ -158,8 +158,8 @@ final class CodexUsageModel: ObservableObject {
     private let limitsRequest: (AppModel) async throws -> JSONValue
     private let usageRequest: (AppModel) async throws -> JSONValue
 
-    init(usageRequest: @escaping (AppModel) async throws -> JSONValue = { try await $0.client.request("account_usage") },
-         limitsRequest: @escaping (AppModel) async throws -> JSONValue = { try await $0.client.request("account_limits") }) {
+    init(usageRequest: @escaping (AppModel) async throws -> JSONValue = { try await $0.serviceClient.request("account_usage") },
+         limitsRequest: @escaping (AppModel) async throws -> JSONValue = { try await $0.serviceClient.request("account_limits") }) {
         self.usageRequest = usageRequest
         self.limitsRequest = limitsRequest
     }
@@ -212,7 +212,7 @@ final class CodexUsageModel: ObservableObject {
     }
 
     func consume(_ attempt: CodexResetAttempt, app: AppModel) async {
-        guard !refreshing, !resetting, !app.busy, !app.connecting, !app.client.turnOutstanding,
+        guard !refreshing, !resetting, !app.globalBusy, !app.connecting, !app.client.turnOutstanding,
               !app.privateBackupRestartRequired, let value = displaySnapshot, value.canReset,
               value.reset?.accountRef == attempt.accountRef,
               value.reset?.attemptKey == attempt.previousKey else { return }
@@ -220,7 +220,7 @@ final class CodexUsageModel: ObservableObject {
         resetting = true; app.busy = true; error = nil; resetMessage = nil
         defer { resetting = false; app.busy = false }
         do {
-            let result = try await app.client.request("account_reset", attempt.parameters)
+            let result = try await app.serviceClient.request("account_reset", attempt.parameters)
             resetMessage = Self.message(for: result["outcome"].text)
             self.snapshot = result["usage"].isNull ? nil : try CodexUsageSnapshot.parse(result["usage"])
             acceptSummary(self.snapshot)

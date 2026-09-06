@@ -27,7 +27,7 @@ final class ProjectMemoryModel: ObservableObject, Identifiable {
     @Published private(set) var recalling = false
     init(app: AppModel, scope: ProjectMemoryScope) { self.app = app; self.scope = scope }
     var current: Bool { app.projectMemory?.id == id && app.selectedID == scope.conversationID && app.selected?.workspacePath == scope.workspace }
-    var locked: Bool { !current || app.busy || app.client.turnOutstanding || loading || saving }
+    var locked: Bool { !current || app.globalBusy || app.client.turnOutstanding || loading || saving }
     var note: JSONValue { .object(["kind": .string(noteKind), "content": .string(content.trimmingCharacters(in: .whitespacesAndNewlines)),
                                  "basis": .string(basis.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Добавлено пользователем в память проекта." : basis.trimmingCharacters(in: .whitespacesAndNewlines)), "supersedes_id": .string(supersedesID)]) }
     func invalidate() { preview = nil; statePreview = nil }
@@ -179,14 +179,14 @@ extension AppModel {
     }
     var pendingProjectNotes: [ProjectNote] { selectedID.map { projectNoteSelections[$0] ?? [] } ?? [] }
     func openProjectMemory() async {
-        guard !busy, !client.turnOutstanding, let selected, let workspace = selected.workspacePath else {
+        guard !globalBusy, !client.turnOutstanding, let selected, let workspace = selected.workspacePath else {
             error = "Сначала выберите рабочую папку диалога."; return
         }
         let panel = ProjectMemoryModel(app: self, scope: ProjectMemoryScope(conversationID: selected.id, workspace: workspace))
         projectMemory = panel; await panel.refresh()
     }
     func removeProjectNote(_ id: String) {
-        guard !busy, let selectedID else { return }
+        guard !globalBusy, let selectedID else { return }
         projectNoteSelections[selectedID]?.removeAll { $0.id == id }; invalidateContextPreview()
     }
 }

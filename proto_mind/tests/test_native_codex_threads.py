@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
+import sys
 from pathlib import Path
 import tempfile
 import unittest
@@ -26,6 +28,61 @@ class CodexThreadStoreTests(unittest.TestCase):
         status = self.store.status(self.conversation, self.workspace)
         self.assertFalse(status["linked"])
         self.assertFalse(self.state.exists())
+
+    def test_independent_processes_do_not_lose_other_conversation_bindings(self):
+        program = """
+import sys, time
+from pathlib import Path
+from proto_mind.native_codex_threads import CodexThreadStore
+store = CodexThreadStore(Path(sys.argv[1]))
+save = store._save
+def slow_save(rows):
+    time.sleep(0.035)
+    save(rows)
+store._save = slow_save
+store.record_new(sys.argv[2], sys.argv[3], None, mode='chat', model='first')
+store.touch(sys.argv[2], sys.argv[3], None, mode='chat', model='updated')
+"""
+        identifiers = [(str(uuid4()), "thread-" + str(index)) for index in range(6)]
+        children = [subprocess.Popen([sys.executable, "-B", "-c", program, str(self.state), conversation, thread],
+                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE) for conversation, thread in identifiers]
+        try:
+            for child in children:
+                _, error = child.communicate(timeout=15)
+                self.assertEqual(child.returncode, 0, error.decode())
+        finally:
+            for child in children:
+                if child.poll() is None: child.kill(); child.wait()
+        for conversation, thread in identifiers:
+            binding = self.store.binding(conversation, None, mode="chat")
+            self.assertEqual((binding["thread_id"], binding["last_model"]), (thread, "updated"))
+        self.assertEqual(len(json.loads(self.store.path.read_text())["bindings"]), len(identifiers))
+
+    def test_parallel_session_log_appends_keep_unique_sequences_and_complete_json(self):
+        program = """
+import sys, time
+from pathlib import Path
+from proto_mind.session_log import SessionOperatorLogger
+logger = SessionOperatorLogger(Path(sys.argv[1]))
+logger._entry = lambda result, text, sequence: {'turn_id': sequence, 'input': text}
+time.sleep(0.2)
+for index in range(4):
+    logger.append_turn(None, sys.argv[2] + str(index) + 'текст ' * 10000)
+"""
+        log = self.state / "session.jsonl"
+        children = [subprocess.Popen([sys.executable, "-B", "-c", program, str(log), str(index)],
+                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE) for index in range(3)]
+        try:
+            for child in children:
+                _, error = child.communicate(timeout=15)
+                self.assertEqual(child.returncode, 0, error.decode())
+        finally:
+            for child in children:
+                if child.poll() is None: child.kill(); child.wait()
+        rows = [json.loads(line) for line in log.read_text().splitlines()]
+        self.assertEqual([row["turn_id"] for row in rows], list(range(1, 13)))
+        self.assertEqual(len({row["input"][:2] for row in rows}), 12)
+        self.assertTrue(all(len(row["input"]) == 60002 for row in rows))
 
     def test_record_persists_private_bounded_binding(self):
         row = self.store.record_new(self.conversation, "thread-fixture", self.workspace,

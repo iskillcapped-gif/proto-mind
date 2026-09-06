@@ -41,7 +41,7 @@ extension NativeChecks {
         try check(try fileBytes(state) == savedBytes && model.entries.count == countBefore + 1, "Identical history save is idempotent and byte-stable")
         model.close()
         let restart = AppModel(configuration: app.client.configuration)
-        defer { restart.client.shutdown() }
+        defer { restart.shutdown() }
         await restart.openSkillHistory(selection)
         guard let history = restart.skillHistory else { throw NativeError.message("Missing history after restart") }
         await history.inspect(entry)

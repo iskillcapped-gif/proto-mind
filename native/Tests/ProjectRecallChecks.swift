@@ -111,7 +111,7 @@ extension NativeChecks {
     static func projectRecallIntegration(fixture: URL, python: URL, root: URL) async throws {
         let state = root.appendingPathComponent("project-recall-ui")
         let app = AppModel(configuration: LaunchConfiguration(projectRoot: fixture, python: python, stateDirectory: state))
-        defer { app.client.shutdown() }
+        defer { app.shutdown() }
         await app.start(); app.setProvider("codex"); await app.bindWorkspace(fixture.path)
         app.setAutoSkillsEnabled(false); app.setComposer("Explain the cobalt palette."); app.flushDraft()
         let core = try fileBytes(fixture), initial = try fileBytes(state), messages = app.messages

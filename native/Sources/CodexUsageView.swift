@@ -9,7 +9,7 @@ struct CodexUsageView: View {
     private var refreshBlocked: Bool {
         usage.refreshing || usage.resetting || !app.cloudConsent || app.connecting || app.loginPending || app.privateBackupRestartRequired
     }
-    private var resetBlocked: Bool { refreshBlocked || app.busy || app.client.turnOutstanding }
+    private var resetBlocked: Bool { refreshBlocked || app.globalBusy || app.client.turnOutstanding }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {

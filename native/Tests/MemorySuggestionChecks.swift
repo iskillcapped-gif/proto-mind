@@ -81,7 +81,7 @@ extension NativeChecks {
         let state = root.appendingPathComponent("suggestion-integration")
         try seedMemorySuggestion(fixture: fixture, state: state, python: python)
         let app = AppModel(configuration: LaunchConfiguration(projectRoot: fixture, python: python, stateDirectory: state))
-        defer { app.client.shutdown() }
+        defer { app.shutdown() }
         await app.start(); app.flushDraft()
         guard let message = app.messages.last, let (report, text) = app.memorySuggestions(for: message) else { throw NativeError.message("Synthetic memory suggestion missing") }
         guard report.items.count == 2 else { throw NativeError.message("Expected two synthetic suggestions: \(report.value.pretty)") }

@@ -160,7 +160,7 @@ class PrivateBackup:
         with ExitStack() as stack:
             memory = MemoryStore(core / "working_memory.json", core / "persistent_memory.json", initialize=False)
             stack.enter_context(memory.transaction())
-            paths = {self.state / ".history.lock", self.state / ".integrations.lock"}
+            paths = {self.state / ".history.lock", self.state / ".integrations.lock", self.state / ".codex_threads.lock"}
             for name in NATIVE_ITEMS:
                 base = self.state / name
                 if base.is_dir() and not base.is_symlink():

@@ -22,33 +22,48 @@ extension AppModel {
             status = "Сначала восстановите сохранение истории"
             return
         }
-        busy = true
+        let state = execution(for: conversationID)
+        state.running = true
         do {
-            let description = try await client.request("describe", ["text": .string(text)])
+            let description = try await state.client.request("describe", ["text": .string(text)])
             guard !description["blocked"].flag else { throw NativeError.message(description["notice"].text) }
+            if description["operator"].flag && executions.values.contains(where: { $0 !== state && $0.running }) {
+                throw NativeError.message("Дождитесь завершения задач перед выполнением команды ядра.")
+            }
             if description["requires_confirmation"].flag {
                 let summary = description["steps"].items.map { "\($0["command"].text)\nИзменяет: \($0["mutates"].text) · риск: \($0["risk"].text)" }.joined(separator: "\n\n")
                 pendingAction = PendingOperatorAction(text: text, conversationID: conversationID, summary: summary)
-                busy = false
+                state.running = false
                 return
             }
-            await perform(text, conversationID: conversationID, confirmed: false, operatorInput: description["operator"].flag)
-        } catch { busy = false; report(error) }
+            await perform(text, execution: state, confirmed: false, operatorInput: description["operator"].flag)
+        } catch {
+            state.running = false
+            if selectedID == conversationID { report(error) }
+            else { append(ChatMessage(role: "report", text: error.localizedDescription, isError: true), to: conversationID); persist() }
+        }
     }
 
     func confirmPending() async {
-        guard let action = pendingAction else { return }
+        guard !globalBusy, let action = pendingAction else { return }
         guard !historyPersistence.blocksSubmission, !store.writeBlocked else {
             status = "Сначала восстановите сохранение истории"
             return
         }
         pendingAction = nil
-        busy = true
-        await perform(action.text, conversationID: action.conversationID, confirmed: true, operatorInput: true)
+        let state = execution(for: action.conversationID)
+        state.running = true
+        await perform(action.text, execution: state, confirmed: true, operatorInput: true)
     }
 
-    private func perform(_ text: String, conversationID: UUID, confirmed: Bool, operatorInput: Bool) async {
-        guard let index = conversations.firstIndex(where: { $0.id == conversationID }) else { busy = false; return }
+    private func perform(_ text: String, execution state: ConversationExecution, confirmed: Bool, operatorInput: Bool) async {
+        let conversationID = state.conversationID
+        guard let index = conversations.firstIndex(where: { $0.id == conversationID }) else { state.running = false; return }
+        // Core/operator mutations block other work while retaining their original session.
+        if operatorInput { operationBusy = true }
+        defer { if operatorInput { operationBusy = false } }
+        let providerClient = state.client
+        let usePersona = !operatorInput && personaEnabled
         invalidateSessionSpinePilot()
         let conversation = conversations[index]
         let history = conversation.history
@@ -61,8 +76,10 @@ extension AppModel {
         let automaticSkills = !operatorInput && conversation.provider == "codex" && conversation.autoSkillsEnabled && skillTask == nil
         let automaticRecall = !operatorInput && conversation.provider == "codex" && conversation.autoProjectRecallEnabled && projectNotes.isEmpty
         let suggestMemory = !operatorInput && conversation.provider == "codex" && conversation.memorySuggestionsEnabled && conversation.workspacePath != nil
-        let grant = !operatorInput && fullAccessEnabled ? agentGrants[conversationID] : nil
-        let reviewedRecall = contextPreview.flatMap { try? NativeProjectRecallReport($0.manifest["knowledge_context"]["project_recall"]) }
+        let grant = !operatorInput && cloudConsent && conversation.provider == "codex"
+            && state.client.connected && agentGrants[conversationID]?.workspace == conversation.workspacePath
+            ? agentGrants[conversationID] : nil
+        let reviewedRecall = (selectedID == conversationID ? contextPreview : nil).flatMap { try? NativeProjectRecallReport($0.manifest["knowledge_context"]["project_recall"]) }
         let expectedProjectSnapshot = automaticRecall && reviewedRecall?.matches(conversation: conversationID, text: text,
             workspace: conversation.workspacePath, mode: grant == nil ? "chat" : "full_access") == true
             ? reviewedRecall?.value["source_snapshot_hash"] : nil
@@ -78,10 +95,15 @@ extension AppModel {
         conversations[index].updatedAt = Date()
         // The editor stays live while the initial request is being prepared.
         // Clear only the submitted text, never a newer draft typed meanwhile.
-        if composer.trimmingCharacters(in: .whitespacesAndNewlines) == text { setComposer("") }
-        stream = ""; agentItems = []; agentReceipt = .null; workLog = .null; autoSkillsReport = nil
-        turnStartedAt = Date(); section = .chat
-        status = grant == nil ? "Proto-Mind думает" : "Агент подключается · полный доступ + интернет"
+        if selectedID == conversationID {
+            if composer.trimmingCharacters(in: .whitespacesAndNewlines) == text { setComposer("") }
+            section = .chat
+        } else if conversations[index].draft.trimmingCharacters(in: .whitespacesAndNewlines) == text {
+            conversations[index].draft = ""; conversations[index].draftContinuation = nil
+        }
+        state.stream = ""; state.agentItems = []; state.agentReceipt = .null; state.workLog = .null; state.autoSkillsReport = nil
+        state.startedAt = Date()
+        state.status = grant == nil ? "Proto-Mind думает" : "Агент подключается · полный доступ + интернет"
         guard persist() else {
             // The provider has not been called. Restore the draft and attachments;
             // a local save failure must not create a failed or duplicate turn.
@@ -90,11 +112,11 @@ extension AppModel {
                 restoreComposer()
                 if composer.isEmpty { setComposer(text, preservingContinuation: true) }
             }
-            busy = false; turnStartedAt = nil
+            state.running = false; state.startedAt = nil
             return
         }
-        activeTaskMessageID = !operatorInput && conversation.provider == "codex" ? userMessage.id : nil
-        taskUpdateTarget = nil; taskUpdatesStopped = false
+        state.sourceMessageID = !operatorInput && conversation.provider == "codex" ? userMessage.id : nil
+        state.updateTarget = nil; state.updatesStopped = false
         do {
             let requestedRunID = operatorInput ? nil : UUID()
             var params: [String: JSONValue] = [
@@ -102,7 +124,7 @@ extension AppModel {
                 "provider": .string(conversation.provider), "model": .string(conversation.model),
                 "reasoning_effort": .string(conversation.provider == "codex" ? conversation.reasoningEffort : ""),
                 "cloud_consent": .bool(cloudConsent), "history": .array(history),
-                "persona_enabled": .bool(!operatorInput && personaEnabled),
+                "persona_enabled": .bool(usePersona),
             ]
             if confirmed { params["confirmed_text"] = .string(text) }
             if let requestedRunID {
@@ -128,9 +150,9 @@ extension AppModel {
                 params["workspace_root"] = .string(root)
                 params["files"] = .array(files)
             }
-            let result = try await client.request("process", params, onID: { self.activeRequest = $0 })
-            if !operatorInput && personaEnabled {
-                lastPersonaTurnReceipt = try NativePersonaTurnReceipt(result["persona_activation"])
+            let result = try await providerClient.request("process", params, onID: { state.requestID = $0 })
+            if usePersona {
+                state.personaReceipt = try NativePersonaTurnReceipt(result["persona_activation"])
             } else if !result["persona_activation"].isNull {
                 throw NativeError.message("Ядро вернуло Persona receipt без активированного opt-in.")
             }
@@ -155,7 +177,7 @@ extension AppModel {
                 guard ["selected", "no_match", "empty", "unavailable"].contains(report.state),
                       report.matches(conversation: conversationID, text: text, workspace: conversation.workspacePath,
                                      mode: grant == nil ? "chat" : "full_access") else { throw NativeAutoSkillsReport.error() }
-                autoSkillsReport = report
+                state.autoSkillsReport = report
             } else if !result["auto_skills"].isNull { throw NativeAutoSkillsReport.error() }
             let raw = result["text"].text
             let body = result["exit_requested"].flag ? "Сессия ядра завершена. История диалога сохранена локально." : evidence.isNull ? raw : evidence["response"].text
@@ -199,7 +221,7 @@ extension AppModel {
                                       pdfContext: result["pdf_context"].items,
                                       agentRun: result["agent_run"].isNull ? nil : result["agent_run"],
                                       workLog: result["work_log"].isNull ? nil : result["work_log"],
-                                      autoSkills: autoSkillsReport?.value,
+                                      autoSkills: state.autoSkillsReport?.value,
                                       knowledgeContext: result["knowledge_context"].isNull ? nil : result["knowledge_context"],
                                       memorySuggestions: suggestions, memorySuggestionSourceID: suggestions == nil ? nil : userMessage.id,
                                       turnReference: turnReference)
@@ -209,9 +231,11 @@ extension AppModel {
                 projectNoteSelections[conversationID] = nil
                 preparedSkillTasks[conversationID] = nil
             }
-            inspectedMessageID = message.id
-            if !result["provider_thread"].isNull { codexThreadStatus = .null }
-            status = "Готов"
+            if selectedID == conversationID {
+                inspectedMessageID = message.id
+                if !result["provider_thread"].isNull { codexThreadStatus = .null }
+            }
+            state.status = "Готов"
         } catch {
             if let current = conversations.firstIndex(where: { $0.id == conversationID }),
                let failed = conversations[current].messages.firstIndex(where: { $0.id == userMessage.id }) {
@@ -219,8 +243,8 @@ extension AppModel {
             }
             let caution = grant == nil ? "" : "\nДействия могли уже изменить файлы. Проверьте журнал и результат перед повтором; автоматического отката нет."
             append(ChatMessage(role: "report", text: error.localizedDescription + caution, isError: true,
-                               agentRun: agentReceipt.isNull ? nil : agentReceipt,
-                               workLog: workLog.isNull ? nil : workLog, autoSkills: autoSkillsReport?.value), to: conversationID)
+                               agentRun: state.agentReceipt.isNull ? nil : state.agentReceipt,
+                               workLog: state.workLog.isNull ? nil : state.workLog, autoSkills: state.autoSkillsReport?.value), to: conversationID)
             if grant != nil { discardAgentGrants(for: conversationID) }
             if let current = conversations.firstIndex(where: { $0.id == conversationID }),
                conversations[current].pendingFiles.isEmpty, conversations[current].pendingImages.isEmpty,
@@ -238,20 +262,22 @@ extension AppModel {
                 }
                 setComposer(text, preservingContinuation: true)
             }
-            status = "Запрос не завершён"
+            state.status = "Запрос не завершён"
         }
-        closeTaskUpdateQueue(); activeTaskMessageID = nil
-        busy = false; stream = ""; activeRequest = nil; agentItems = []; agentReceipt = .null; workLog = .null; turnStartedAt = nil; autoSkillsReport = nil
+        closeTaskUpdateQueue(execution: state)
+        state.clearTurn()
         persist()
-        await refreshCodexThreadStatus()
-        await refresh()
+        if selectedID == conversationID {
+            await refreshCodexThreadStatus()
+            if selectedID == conversationID { await refresh() }
+        }
     }
 
     func stop() async {
-        guard let request = activeRequest else { return }
-        closeTaskUpdateQueue(); persist()
-        do { status = try await client.request("cancel", ["request_id": .string(request)])["notice"].text }
-        catch { report(error) }
+        guard let state = selectedExecution, state.running, let request = state.requestID else { return }
+        closeTaskUpdateQueue(execution: state); persist()
+        do { state.status = try await state.client.request("cancel", ["request_id": .string(request)])["notice"].text }
+        catch { if selectedID == state.conversationID { report(error) } }
     }
 
 }

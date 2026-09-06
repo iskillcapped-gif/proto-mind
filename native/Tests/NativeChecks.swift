@@ -36,6 +36,8 @@ struct NativeChecks {
            let service = LaunchConfiguration.argument("--steering-service") {
             try await taskUpdatesIntegration(fixture: URL(fileURLWithPath: fixture), service: URL(fileURLWithPath: service),
                                              python: URL(fileURLWithPath: python), root: root)
+            try await parallelTasks(fixture: URL(fileURLWithPath: fixture), service: URL(fileURLWithPath: service),
+                                    python: URL(fileURLWithPath: python), root: root)
             print("Native task update checks: \(passed) OK")
             return
         }
@@ -186,6 +188,8 @@ struct NativeChecks {
             if let service = LaunchConfiguration.argument("--steering-service") {
                 try await taskUpdatesIntegration(fixture: URL(fileURLWithPath: fixture), service: URL(fileURLWithPath: service),
                                                  python: URL(fileURLWithPath: python), root: root)
+                try await parallelTasks(fixture: URL(fileURLWithPath: fixture), service: URL(fileURLWithPath: service),
+                                        python: URL(fileURLWithPath: python), root: root)
             }
         }
         print("Native checks: \(passed) OK")
@@ -553,6 +557,17 @@ struct NativeChecks {
         let blocks = MarkdownBlock.parse(source)
         try check(blocks.count == 4 && blocks[0].kind == .heading(1) && blocks[2] == MarkdownBlock(kind: .code("swift"), content: "let x = 1"), "Markdown headings and fenced code keep source text")
         try check(MarkdownBlock.parse("```python\nprint(1)") == [MarkdownBlock(kind: .code("python"), content: "print(1)")], "Unclosed streaming code fence stays readable")
+        let list = MarkdownBlock.parse("Перед списком\n\n- Первый пункт\n  с продолжением\n  - Вложенный пункт\n- Второй пункт\n\n12. Номер двенадцать\n13. Номер тринадцать\n\nПосле списка")
+        try check(list.count == 7 && list[1] == MarkdownBlock(kind: .listItem("•", 0), content: "Первый пункт\nс продолжением")
+                  && list[2].kind == .listItem("•", 1) && list[4].kind == .listItem("12.", 0)
+                  && list.last?.kind == .text, "Lists have hanging markers, nesting and separate following paragraphs")
+        let literals = MarkdownBlock.parse("-1 не маркер\n\n```text\n- буквальный дефис\n```\n\n> Цитата\n> Продолжение\n\n---")
+        try check(literals.map(\.kind) == [.text, .code("text"), .quote, .rule],
+                  "Markdown keeps negative numbers and fenced literals intact and recognizes quotes and rules")
+        let emphasis = MarkdownBlock.inline("обычный **важный** и *курсив*")
+        try check(emphasis.runs.contains { $0.font == NativeTheme.responseFont.weight(.semibold) }
+                  && emphasis.runs.contains { $0.inlinePresentationIntent?.contains(.emphasized) == true },
+                  "Reading typography keeps meaningful emphasis without the default heavy bold weight")
         let links = MarkdownBlock.inline("[unsafe](file:///tmp/test) [safe](https://example.invalid)")
         let urls = links.runs.compactMap(\.link)
         try check(urls.count == 1 && urls.first?.scheme == "https", "Rendered links cannot launch local files or command schemes")
@@ -677,9 +692,9 @@ struct NativeChecks {
         }
         try await workspacePanelIntegration(fixture: fixture, python: python, root: root)
         let app = AppModel(configuration: LaunchConfiguration(projectRoot: fixture, python: python, stateDirectory: root.appendingPathComponent("integration-state")))
-        defer { app.client.shutdown() }
+        defer { app.shutdown() }
         await app.start()
-        try check(app.client.connected && app.bootstrap["registry_count"].integer >= 387, "Native process connects to real Python bridge")
+        try check(app.serviceClient.connected && app.bootstrap["registry_count"].integer >= 387, "Native process connects to real Python bridge")
         app.setProvider("mock")
         await app.submit("/commands status")
         try check(app.messages.last?.role == "report" && app.messages.last?.isError == false, "Operator command returns a report")
@@ -861,7 +876,7 @@ struct NativeChecks {
     static func imageAttachments(fixture: URL, python: URL, root: URL) async throws {
         let state = root.appendingPathComponent("image-input-state")
         let app = AppModel(configuration: LaunchConfiguration(projectRoot: fixture, python: python, stateDirectory: state))
-        defer { app.client.shutdown() }
+        defer { app.shutdown() }
         await app.start()
         app.setProvider("mock")
         let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 16, pixelsHigh: 10,
@@ -1020,7 +1035,7 @@ struct NativeChecks {
     static func attachmentDrops(fixture: URL, python: URL, root: URL) async throws {
         let state = root.appendingPathComponent("attachment-drop-state")
         let app = AppModel(configuration: LaunchConfiguration(projectRoot: fixture, python: python, stateDirectory: state))
-        defer { app.client.shutdown() }
+        defer { app.shutdown() }
         await app.start(); app.setProvider("mock")
         await app.bindWorkspace(fixture.path)
         app.section = .chat; app.setComposer("Inspect these files manually"); app.flushDraft()
@@ -1201,7 +1216,7 @@ struct NativeChecks {
                   && reviewed.value["operator_reviews"].items[0] == saved.value["operator_reviews"].items[0],
                   "A later manual assessment preserves the earlier receipt rather than rewriting history")
         let restarted = AppModel(configuration: LaunchConfiguration(projectRoot: fixture, python: python, stateDirectory: state))
-        defer { restarted.client.shutdown() }
+        defer { restarted.shutdown() }
         let restartBefore = try fileBytes(state)
         await restarted.start()
         try check(restarted.workSessions.first?.value["operator_reviews"].items.count == 2 && (try fileBytes(state)) == restartBefore,
@@ -1395,7 +1410,7 @@ struct NativeChecks {
         try check(restarted.selected?.draftContinuation == parent.reference && restarted.composer == app.composer && !restarted.fullAccessEnabled,
                   "Restart restores a continuation draft but not a running turn or Full Mac grant")
         try check(try fileBytes(state) == privateBeforeRestart, "Restart reads evidence without rewriting history or runs")
-        restarted.client.shutdown()
+        restarted.shutdown()
         let count = app.workSessions.count
         await app.submit()
         try check(app.messages.last?.isError == false && app.workSessions.count == count + 1
@@ -1458,7 +1473,7 @@ struct NativeChecks {
         try check(try fileBytes(state) == after, "Hiding the same observed warning twice is a no-write operation")
 
         let restarted = AppModel(configuration: LaunchConfiguration(projectRoot: fixture, python: python, stateDirectory: state))
-        defer { restarted.client.shutdown() }
+        defer { restarted.shutdown() }
         await restarted.start()
         try check(restarted.isWorkSessionWarningHidden(run) && !restarted.hasWorkSessionNotice && (try fileBytes(state)) == after,
                   "Hidden notice survives restart without rewriting history or changing run evidence")
@@ -1570,7 +1585,7 @@ struct NativeChecks {
         let corruptBytes = Data("corrupt private history fixture".utf8)
         try corruptBytes.write(to: corruptState.appendingPathComponent("conversations.json"))
         let blocked = AppModel(configuration: LaunchConfiguration(projectRoot: fixture, python: python, stateDirectory: corruptState))
-        defer { blocked.client.shutdown() }
+        defer { blocked.shutdown() }
         blocked.conversations = [original]; blocked.selectedID = original.id
         await blocked.refreshWorkSessions()
         let blockedBefore = try fileBytes(corruptState)

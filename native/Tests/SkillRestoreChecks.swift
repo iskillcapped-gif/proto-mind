@@ -6,7 +6,7 @@ extension NativeChecks {
     @MainActor
     static func skillRestore(configuration: LaunchConfiguration, item: LibraryItem, project: URL, state: URL) async throws {
         let app = AppModel(configuration: configuration)
-        defer { app.client.shutdown() }
+        defer { app.shutdown() }
         let before = try fileBytes(project), privateBefore = try fileBytes(state)
         let selection = NativeSkillInspectionSelection(conversationID: app.selectedID, skillID: item.recordId, workspace: app.selected?.workspacePath, expectedSHA256: "")
         await app.openSkillRestore(selection)
@@ -53,7 +53,7 @@ extension NativeChecks {
         try check(app.skillInspection?.report?.lifecycle?.state == .activeRestoredVerified, "Inspector proves the restored durable lifecycle")
         app.skillInspection?.close()
         let restart = AppModel(configuration: configuration)
-        defer { restart.client.shutdown() }
+        defer { restart.shutdown() }
         await restart.openSkillRestore(selection)
         try check(restart.skillRestore?.report?.receipt == nil && restart.skillRestore?.report?.ready == false, "Restart never recreates the detailed receipt or restoration authority")
         await restart.skillRestore?.openEvidence()

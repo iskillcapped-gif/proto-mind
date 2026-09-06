@@ -112,7 +112,7 @@ extension NativeChecks {
                   "Closing and reopening the form does not renew the skill apply budget")
         app.skillAuthoring?.close()
         let restart = AppModel(configuration: app.client.configuration)
-        defer { restart.client.shutdown() }
+        defer { restart.shutdown() }
         await restart.openSkillAuthoring(lessonID: lessonID)
         try check(restart.skillAuthoring?.report?.eligible == false && restart.skillAuthoring?.report?.authoringReceipt == nil,
                   "Restart expires authoring receipts while the existing active skill prevents duplicate creation")

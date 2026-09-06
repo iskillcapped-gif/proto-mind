@@ -16,6 +16,7 @@ import stat
 import time
 from uuid import UUID, uuid4
 
+from proto_mind.native_locks import open_sidecar
 from proto_mind.native_progress import display_text
 from proto_mind.native_desk import CONTEXT_SCHEMA, valid_artifact_snapshot
 from proto_mind.native_images import validate_image_metadata
@@ -293,33 +294,40 @@ class WorkSessionStore:
                         warnings.append("One or more unreadable or invalid work-session files require manual review; they were not changed.")
 
     @staticmethod
-    def _active(directory: int | None) -> str | None:
+    def _active(directory: int | None) -> set[str]:
+        """Observe owners without creating files or releasing another process's locks."""
+        active = set()
         if directory is None:
-            return None
-        descriptor = None
-        try:
-            descriptor = os.open(".writer.lock", os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
-            if not stat.S_ISREG(os.fstat(descriptor).st_mode):
-                raise WorkSessionError("Invalid work-session writer lock.")
+            return active
+        with os.scandir(directory) as entries:
+            names = [entry.name for entry in entries if entry.name.startswith(".run-") and entry.name.endswith(".lock")]
+        # An old app holds this barrier exclusively and stores its run ID here.
+        # New apps hold it shared; each run has its own named ownership lock.
+        for name in [".writer.lock", *names]:
+            descriptor = None
             try:
-                fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                fcntl.flock(descriptor, fcntl.LOCK_UN)
-                return None
-            except BlockingIOError:
-                return _id(os.read(descriptor, 100).decode("ascii"))
-        except FileNotFoundError:
-            return None
-        finally:
-            if descriptor is not None:
-                os.close(descriptor)
+                descriptor = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
+                if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+                    raise WorkSessionError("Invalid work-session writer lock.")
+                try:
+                    operation = fcntl.LOCK_SH if name == ".writer.lock" else fcntl.LOCK_EX
+                    fcntl.flock(descriptor, operation | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    active.add(_id(os.read(descriptor, 100).decode("ascii")) if name == ".writer.lock" else _id(name[5:-5]))
+            except FileNotFoundError:
+                continue
+            finally:
+                if descriptor is not None:
+                    os.close(descriptor)
+        return active
 
     @staticmethod
-    def _view(record: dict, active: str | None) -> dict:
+    def _view(record: dict, active: set[str] | None) -> dict:
         state = record["status"]
         if state == "prepared":
-            state = "preparing" if active == record["id"] else "not_started"
+            state = "preparing" if record["id"] in (active or set()) else "not_started"
         elif state == "dispatching":
-            state = "running" if active == record["id"] else "unknown"
+            state = "running" if record["id"] in (active or set()) else "unknown"
         elif state in {"error", "interrupted"}:
             state = "unknown" if record.get("dispatched_at") else "not_started"
         result = deepcopy(record)
@@ -382,7 +390,7 @@ class WorkSessionStore:
                     "next_cursor": self._cursor(shown[-1], conversation) if shown and len(shown) < remaining else None,
                     "partial": len(shown) < remaining, "runs": shown}
 
-    def _parent(self, records, continuation: object, conversation: str, workspace: dict | None, active: str | None) -> dict:
+    def _parent(self, records, continuation: object, conversation: str, workspace: dict | None, active: set[str] | None) -> dict:
         if not isinstance(continuation, dict):
             raise WorkSessionError("Invalid continuation reference.")
         parent_id = _id(continuation.get("run_id"))
@@ -395,7 +403,7 @@ class WorkSessionStore:
         if (parent is None or parent["project_root"] != self.project_root or parent["conversation_id"] != conversation
                 or parent.get("workspace") != workspace or continuation.get("fingerprint") != fingerprint(parent)):
             raise WorkSessionError("Saved work or its folder changed. Inspect the journal again before preparing a continuation.")
-        if active == parent_id:
+        if parent_id in (active or set()):
             raise WorkSessionError("This work is still owned by an active writer. No continuation was prepared.")
         if child is not None:
             raise WorkSessionError(f"A continuation already exists: {child['id']}. Inspect that run; do not replay the parent.")
@@ -504,12 +512,13 @@ class WorkSessionStore:
 
 
 class WorkSession:
-    """One cooperative cross-process writer, held from prepare through final evidence."""
+    """Per-conversation ownership plus a shared barrier against review/restore/old writers."""
     def __init__(self, store: WorkSessionStore, **values) -> None:
         self.store, self.values = store, values
         self.record: dict = {}
         self.expected: bytes | None = None
         self.directory = self.lock = None
+        self.ownership_locks: dict[str, int] = {}
         self.directory_context = None
         self.last_publish = float("-inf")
         self.failed_write = False
@@ -518,16 +527,19 @@ class WorkSession:
         try:
             self.directory_context = self.store._directory(create=True)
             self.directory = self.directory_context.__enter__()
-            self.lock = os.open(".writer.lock", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600, dir_fd=self.directory)
+            self.lock = open_sidecar(".writer.lock", directory=self.directory)
             if not stat.S_ISREG(os.fstat(self.lock).st_mode):
                 raise WorkSessionError("Invalid work-session writer lock.")
             try:
-                fcntl.flock(self.lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                fcntl.flock(self.lock, fcntl.LOCK_SH | fcntl.LOCK_NB)
             except BlockingIOError:
                 raise WorkSessionError("Another Native window owns the work-session writer. No new turn started.") from None
             values = self.values
             if self.store._raw(self.directory, values["run_id"] + ".json") is not None:
                 raise WorkSessionError("This work-session ID was already used. Inspect its result; no repeated turn was dispatched.")
+            # Claim the conversation before the run so a duplicate submit does
+            # not even create another run lock. Lock files are never unlinked.
+            self._claim(f".conversation-{values['conversation_id']}.lock")
             parent = None
             if values["continuation"] is not None:
                 warnings: list[str] = []
@@ -535,9 +547,9 @@ class WorkSession:
                                            values["conversation_id"], values["workspace"], None)
                 if warnings:
                     raise WorkSessionError(warnings[0])
-            os.ftruncate(self.lock, 0)
-            os.write(self.lock, values["run_id"].encode("ascii"))
-            os.fsync(self.lock)
+            self._claim(f".run-{values['run_id']}.lock")
+            if self.store._raw(self.directory, values["run_id"] + ".json") is not None:
+                raise WorkSessionError("This work-session ID was already used. No repeated turn was dispatched.")
             self.record = {"schema": SCHEMA, "id": values["run_id"], "conversation_id": values["conversation_id"],
                            "project_root": self.store.project_root, "workspace": values["workspace"],
                            "created_at": timestamp(), "updated_at": timestamp(), "status": "prepared",
@@ -559,6 +571,16 @@ class WorkSession:
             self.close()
             raise
 
+    def _claim(self, name: str) -> None:
+        descriptor = open_sidecar(name, directory=self.directory)
+        self.ownership_locks[name] = descriptor
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise WorkSessionError("Invalid work-session ownership lock.")
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise WorkSessionError("Another Native window owns this conversation or run. No new turn started.") from None
+
     def _save(self) -> None:
         if self.failed_write:
             raise WorkSessionError("Durable work evidence failed. The turn was stopped; inspect its unknown outcome before retrying.")
@@ -570,9 +592,10 @@ class WorkSession:
             opened, current = os.fstat(self.directory), self.store.directory.stat(follow_symlinks=False)
             if (opened.st_dev, opened.st_ino) != (current.st_dev, current.st_ino):
                 raise WorkSessionError("Work-session folder changed. No automatic retry.")
-            opened, current = os.fstat(self.lock), os.stat(".writer.lock", dir_fd=self.directory, follow_symlinks=False)
-            if (opened.st_dev, opened.st_ino) != (current.st_dev, current.st_ino):
-                raise WorkSessionError("Work-session writer lock changed. No automatic retry.")
+            for lock_name, descriptor in {".writer.lock": self.lock, **self.ownership_locks}.items():
+                opened, current = os.fstat(descriptor), os.stat(lock_name, dir_fd=self.directory, follow_symlinks=False)
+                if (opened.st_dev, opened.st_ino) != (current.st_dev, current.st_ino):
+                    raise WorkSessionError("Work-session writer lock changed. No automatic retry.")
             data = _bytes(self.record)
             if len(data) > MAX_RECORD_BYTES:
                 raise WorkSessionError("Work-session evidence exceeded its bounded storage limit.")
@@ -706,6 +729,9 @@ class WorkSession:
             self.close()
 
     def close(self) -> None:
+        for descriptor in self.ownership_locks.values():
+            os.close(descriptor)
+        self.ownership_locks.clear()
         if self.lock is not None:
             os.close(self.lock)
             self.lock = None

@@ -127,7 +127,7 @@ extension NativeChecks {
         try check(app.skillDecision == nil, "Decision UI never implicitly selects or creates a conversation")
         app.selectedID = conversation
         let restart = AppModel(configuration: app.client.configuration)
-        defer { restart.client.shutdown() }
+        defer { restart.shutdown() }
         await restart.openSkillDecision(model.scope)
         try check(restart.skillDecision?.report?.receipt == nil && restart.skillDecision?.report?.decisionCount == 0 &&
                   restart.skillDecision?.report?.status == "NOT_READY" && restart.skillDecision?.report?.sourceEligible == true,

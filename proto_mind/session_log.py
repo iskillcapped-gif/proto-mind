@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import fcntl
 import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -39,10 +40,13 @@ class SessionOperatorLogger:
         if not self.enabled:
             return None
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
-        self._sequence += 1
-        entry = self._entry(result, user_input, self._sequence)
-        with self.log_path.open("a", encoding="utf-8") as handle:
+        with self.log_path.open("a+", encoding="utf-8") as handle:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            handle.seek(0)
+            self._sequence = sum(1 for line in handle if line.strip()) + 1
+            entry = self._entry(result, user_input, self._sequence)
             handle.write(json.dumps(entry, ensure_ascii=False, sort_keys=True) + "\n")
+            handle.flush()
         return entry
 
     def status(self) -> SessionLogStatus:

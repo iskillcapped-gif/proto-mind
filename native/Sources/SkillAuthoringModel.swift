@@ -29,7 +29,7 @@ final class SkillAuthoringModel: ObservableObject, Identifiable {
     var current: Bool {
         app.selectedID == conversationID && app.selected?.workspacePath == workspace && app.selected?.archived == false
     }
-    var locked: Bool { app.busy || app.client.turnOutstanding || loading || !current }
+    var locked: Bool { app.globalBusy || app.client.turnOutstanding || loading || !current }
 
     func invalidateConfirmation() { preview = nil; pendingSelection = nil }
 
@@ -116,7 +116,7 @@ final class SkillAuthoringModel: ObservableObject, Identifiable {
 
 extension AppModel {
     func openSkillAuthoring(lessonID: String) async {
-        guard !busy, !client.turnOutstanding, let conversation = selected, !conversation.archived else { return }
+        guard !globalBusy, !client.turnOutstanding, let conversation = selected, !conversation.archived else { return }
         let review = SkillAuthoringModel(app: self, conversationID: conversation.id,
                                         lessonID: lessonID, workspace: conversation.workspacePath)
         skillAuthoring = review

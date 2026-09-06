@@ -5,13 +5,24 @@ import time
 from uuid import uuid4
 
 from proto_mind.native_codex import CodexSubscription, CodexConnectionError, CodexRequestRejected, model_options
-from proto_mind.native_progress import PublicMessages
+from proto_mind.native_progress import PublicMessages, WorkLog
+
+
+def delayed_steering_reply(state, steering, params):
+    """Delay transport delivery after provider acceptance releases its turn lock."""
+    result = steering.send(params)
+    control = state / "steering-control.json"
+    delay = json.loads(control.read_text()).get("reply_delay", 0) if control.exists() else 0
+    if delay:
+        (state / "steering-delayed-reply").write_text(params["message_id"])
+        time.sleep(delay)
+    return result
 
 
 class FixtureRPC:
     def __init__(self, state):
         self.state, self.closed = state, False
-        self.thread_id, self.turn_id = "fixture-thread", None
+        self.thread_id, self.turn_id = "fixture-" + str(uuid4()), None
 
     def control(self):
         path = self.state / "steering-control.json"
@@ -35,6 +46,7 @@ class FixtureRPC:
             with (self.state / "steering-received.jsonl").open("a") as log:
                 log.write(json.dumps(params) + "\n")
             if control.get("outcome") == "unknown": raise CodexConnectionError("Fixture lost reply")
+            time.sleep(control.get("ack_delay", 0))
             return {"turnId": self.turn_id}
         raise AssertionError("Unexpected fixture RPC: " + method)
 
@@ -61,21 +73,23 @@ class FixtureSubscription(CodexSubscription):
         time.sleep(rpc.control().get("ready_delay", 0))
         if self.cancelled.is_set(): raise CodexConnectionError("Fixture stopped before start")
         rpc.turn_id = str(uuid4())
+        (rpc.state / ("steering-started-" + conversation.lower())).write_text(rpc.turn_id)
         self._set_main_turn((rpc.thread_id, rpc.turn_id))
         progress.stage("working")
         messages = PublicMessages(on_delta, progress, limit=5000, error_type=CodexConnectionError)
         messages.observe("item/completed", {"item": {"type": "userMessage", "id": "initial"}})
-        messages.observe("item/completed", {"item": {"type": "agentMessage", "id": "old-answer", "phase": "final_answer", "text": "Предварительный ответ"}})
+        messages.observe("item/completed", {"item": {"type": "agentMessage", "id": "old-answer", "phase": "final_answer", "text": "Предварительный ответ · " + conversation[-8:]}})
         try:
             deadline = time.monotonic() + 180
-            while not (rpc.state / "finish-steering").exists():
+            while not (rpc.state / "finish-steering").exists() and not (rpc.state / ("finish-steering-" + conversation.lower())).exists():
                 if self.cancelled.is_set(): raise CodexConnectionError("Fixture stopped")
                 if time.monotonic() > deadline: raise CodexConnectionError("Fixture deadline")
                 if (rpc.state / "steering-received.jsonl").exists():
                     messages.observe("item/completed", {"item": {"type": "userMessage", "id": "correction"}})
                 time.sleep(0.02)
             received = rpc.state / "steering-received.jsonl"
-            texts = [json.loads(line)["input"][0]["text"] for line in received.read_text().splitlines()] if received.exists() else []
+            texts = [row["input"][0]["text"] for row in (json.loads(line) for line in received.read_text().splitlines())
+                     if row["expectedTurnId"] == rpc.turn_id] if received.exists() else []
             answer = "Задача завершена. Полученные уточнения: " + "; ".join(texts)
             messages.observe("item/completed", {"item": {"type": "agentMessage", "id": "final-answer", "phase": "final_answer", "text": answer}})
             return messages.answer()
@@ -83,4 +97,17 @@ class FixtureSubscription(CodexSubscription):
 
     def interrupt(self): self.cancelled.set()
     def select_skills(self, *args, **kwargs): raise AssertionError("No real selector in this fixture")
-    def agent_answer(self, *args, **kwargs): raise AssertionError("No real tools in this fixture")
+    def agent_answer(self, prompt, instructions, model, on_delta, *, conversation, logical_workspace,
+                     history=None, workspace, on_activity, on_progress=None, reasoning_effort="", images=None, criteria=None):
+        from proto_mind.native_agent import AgentRun
+        run = AgentRun(workspace, on_activity)
+        progress = WorkLog(on_progress, "full_access")
+        run.publish()
+        try:
+            answer = self._chat_answer(prompt, instructions, model, on_delta, progress, reasoning_effort,
+                                       images, conversation, logical_workspace, history)
+            run.finish("completed")
+            return answer
+        finally:
+            if "finished_at" not in run.receipt: run.finish("interrupted" if self.cancelled.is_set() else "failed")
+            progress.finish(run.receipt["status"])

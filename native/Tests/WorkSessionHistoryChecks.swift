@@ -63,7 +63,7 @@ extension NativeChecks {
         }
         let before = try fileBytes(state), projectBefore = try fileBytes(fixture), journalBefore = try fileBytes(journal)
         let app = AppModel(configuration: LaunchConfiguration(projectRoot: fixture, python: python, stateDirectory: state))
-        defer { app.client.shutdown() }
+        defer { app.shutdown() }
         await app.start()
         try check(app.workSessions.count == 30 && app.workSessionsTotal == 66 && app.workSessionsWarning == nil
                   && !app.workSessions.contains(where: { $0.id == runID }),

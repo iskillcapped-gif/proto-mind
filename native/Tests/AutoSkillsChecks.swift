@@ -67,7 +67,7 @@ extension NativeChecks {
     static func autoSkillsIntegration(configuration: LaunchConfiguration, project: URL, state: URL) async throws {
         let privateState = state.deletingLastPathComponent().appendingPathComponent("auto-skills-state")
         let app = AppModel(configuration: LaunchConfiguration(projectRoot: project, python: configuration.python, stateDirectory: privateState))
-        defer { app.client.shutdown() }
+        defer { app.shutdown() }
         await app.start(); app.setProvider("codex"); await app.bindWorkspace(project.path)
         app.setComposer("Inspect the recurring failure safely."); app.flushDraft()
         let before = try fileBytes(project), privateBefore = try fileBytes(privateState)

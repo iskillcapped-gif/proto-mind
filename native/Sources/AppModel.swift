@@ -27,7 +27,9 @@ struct PendingPersonaActivation: Identifiable {
 @MainActor
 final class AppModel: ObservableObject {
     @Published var conversations: [Conversation] = []
-    @Published var selectedID: UUID?
+    @Published var selectedID: UUID? {
+        didSet { if !initializing, let id = selectedID { _ = execution(for: id) } }
+    }
     @Published var section: WorkspaceSection = .chat
     @Published var composer = "" { didSet { draftChanged() } }
     @Published var composerRevision = 0
@@ -39,7 +41,9 @@ final class AppModel: ObservableObject {
     @Published var modelSelectionNotice: String?
     @Published var codexThreadStatus: JSONValue = .null
     @Published var loadingCodexThreadStatus = false
-    @Published var busy = false
+    @Published var idleStatus = "Готов"
+    @Published var operationBusy = false
+    @Published var executions: [UUID: ConversationExecution] = [:]
     @Published var connecting = false
     @Published var cloudConsent = false {
         didSet {
@@ -74,8 +78,6 @@ final class AppModel: ObservableObject {
         }
     }
     @Published var loginPending = false
-    @Published var stream = ""
-    @Published var status = "Запускаем локальное ядро"
     @Published var error: String?
     @Published var historyPersistence = HistoryPersistenceState()
     @Published var showHistoryBackups = false
@@ -96,15 +98,7 @@ final class AppModel: ObservableObject {
     @Published var pendingPersonaActivation: PendingPersonaActivation?
     @Published var pendingAgentAccess: PendingAgentAccess?
     @Published var agentGrants: [UUID: AgentAccessGrant] = [:]
-    @Published var agentItems: [JSONValue] = []
-    @Published var agentReceipt: JSONValue = .null
     @Published var computerUsePermissionIssue = false
-    @Published var workLog: JSONValue = .null
-    @Published var turnStartedAt: Date?
-    @Published var activeTaskMessageID: UUID?
-    @Published var taskUpdateTarget: String?
-    @Published var sendingTaskUpdate = false
-    @Published var taskUpdatesStopped = false
     @Published var showWorkSessions = false
     @Published var showConversationHistory = false
     @Published var transcriptDestination: TranscriptDestination?
@@ -125,7 +119,6 @@ final class AppModel: ObservableObject {
     @Published var projectNoteSelections: [UUID: [ProjectNote]] = [:]
     @Published var skillTask: SkillTaskModel?
     @Published var preparedSkillTasks: [UUID: PreparedSkillTask] = [:]
-    @Published var autoSkillsReport: NativeAutoSkillsReport?
     @Published var showTaskCriteria = false
     @Published var imagePreview: NativeImagePreview?
     @Published var pdfPreview: NativePDFPreview?
@@ -144,7 +137,6 @@ final class AppModel: ObservableObject {
     @Published private(set) var personaReadiness: NativePersonaReadiness?
     @Published private(set) var personaReadinessError: String?
     @Published private(set) var loadingPersonaReadiness = false
-    @Published var lastPersonaTurnReceipt: NativePersonaTurnReceipt?
     @Published var workSessions: [NativeWorkSession] = []
     @Published var workSessionsTotal: Int?
     @Published var workSessionsNextCursor: JSONValue?
@@ -192,10 +184,10 @@ final class AppModel: ObservableObject {
     @Published private(set) var learningReferenceIDs: [String] = []
     @Published var learningReferenceQuery = "" { didSet { invalidateLearningConfirmation() } }
     @Published var learningReason = "" { didSet { invalidateLearningConfirmation() } }
-    let client: BridgeClient
+    let serviceClient: BridgeClient
+    var client: BridgeClient { selectedExecution?.client ?? serviceClient }
     let store: ChatStore
     let preferences: PreferenceStore
-    var activeRequest: String?
     private var started = false
     var initializing = true
     private var restoringPreferences = false
@@ -214,7 +206,7 @@ final class AppModel: ObservableObject {
     private var personaReadinessRequest = UUID()
 
     init(configuration: LaunchConfiguration = .load(), historyStore: ChatStore? = nil) {
-        client = BridgeClient(configuration: configuration)
+        serviceClient = BridgeClient(configuration: configuration)
         store = historyStore ?? ChatStore(directory: configuration.stateDirectory)
         preferences = PreferenceStore(directory: configuration.stateDirectory)
         do {
@@ -239,40 +231,11 @@ final class AppModel: ObservableObject {
             selectedID = chat.id
         }
         composer = selected?.draft ?? ""
-        client.onEvent = { [weak self] event in
-            guard let self, event["request_id"].text == self.activeRequest else { return }
-            if event["event"].text == "answer_delta" { self.stream += event["delta"].text }
-            if event["event"].text == "answer_reset" { self.stream = "" }
-            if event["event"].text == "steering_ready" { self.receiveTaskUpdateTarget(event) }
-            if event["event"].text == "auto_skills", let report = try? NativeAutoSkillsReport(event["report"]) {
-                self.autoSkillsReport = report
-                if report.state == "selecting" { self.status = "Подбираю навык · без инструментов" }
-            }
-            if event["event"].text == "agent_activity" {
-                let item = event["item"]
-                guard !item["id"].text.isEmpty else { return }
-                if let index = self.agentItems.firstIndex(where: { $0["id"] == item["id"] }) {
-                    self.agentItems[index] = item
-                } else if self.agentItems.count < 64 { self.agentItems.append(item) }
-                if item["failure_code"].text == "macos_automation_permission_denied" {
-                    self.computerUsePermissionIssue = true
-                    self.error = "macOS не разрешила Proto-Mind управлять приложениями. Откройте Automation, разрешите Proto-Mind Native и начните новый ход с полным доступом. Автоповтора не было."
-                    self.status = "Нужно разрешение macOS Automation"
-                } else {
-                    self.status = "Агент работает · \(self.agentItems.count) действий"
-                }
-            }
-            if event["event"].text == "agent_run" {
-                self.agentReceipt = event["receipt"]
-                self.agentItems = self.agentReceipt["items"].items
-            }
-            if event["event"].text == "work_log" && event["log"]["schema"].text == "proto_mind.native_work_log.v1" {
-                let incoming = event["log"]
-                if WorkLogEventGate.shouldAccept(current: self.workLog, incoming: incoming) {
-                    self.workLog = incoming
-                }
-            }
+        serviceClient.onEvent = { [weak self] event in
+            guard let self, let state = self.executions.values.first(where: { $0.requestID == event["request_id"].text }) else { return }
+            self.receiveExecutionEvent(event, state: state)
         }
+        if let id = selectedID { _ = execution(for: id) }
         initializing = false
     }
 
@@ -340,7 +303,7 @@ final class AppModel: ObservableObject {
         return params
     }
 
-    func invalidateContextPreview() { contextPreview = nil; contextPreviewError = nil; contextPreviewRequest = UUID() }
+    func invalidateContextPreview() { loadingContextPreview = false; contextPreview = nil; contextPreviewError = nil; contextPreviewRequest = UUID() }
 
     func refreshContextPreview() async {
         guard !busy, let conversationID = selectedID, let params = contextRequestParameters else { return }
@@ -349,7 +312,7 @@ final class AppModel: ObservableObject {
         contextPreview = nil; contextPreviewError = nil; loadingContextPreview = true
         defer { if contextPreviewRequest == request { loadingContextPreview = false } }
         do {
-            let value = try await client.request("context_preview", params)
+            let value = try await turnClient.request("context_preview", params)
             guard contextPreviewRequest == request, selectedID == conversationID else { return }
             guard params == contextRequestParameters else {
                 throw NativeError.message("Состав запроса изменился. Обновите локальный просмотр.")
@@ -374,7 +337,7 @@ final class AppModel: ObservableObject {
         personaPreview = nil; personaPreviewError = nil; loadingPersonaPreview = true
         defer { if personaPreviewRequest == request { loadingPersonaPreview = false } }
         do {
-            let value = try await client.request("persona_preview", params)
+            let value = try await turnClient.request("persona_preview", params)
             guard personaPreviewRequest == request, selectedID == conversationID else { return }
             guard params == personaRequestParameters else {
                 throw NativeError.message("Провайдер, модель или доступ изменились. Обновите PersonaSnapshot.")
@@ -394,7 +357,7 @@ final class AppModel: ObservableObject {
         personaReadiness = nil; personaReadinessError = nil; loadingPersonaReadiness = true
         defer { if personaReadinessRequest == request { loadingPersonaReadiness = false } }
         do {
-            let value = try await client.request("persona_readiness", params)
+            let value = try await turnClient.request("persona_readiness", params)
             guard personaReadinessRequest == request, selectedID == conversationID else { return }
             guard params == personaRequestParameters else {
                 throw NativeError.message("Провайдер, модель или доступ изменились. Обновите readiness evidence.")
@@ -413,7 +376,7 @@ final class AppModel: ObservableObject {
     }
 
     func preparePersonaActivation() async -> Bool {
-        guard !busy, !personaEnabled, let conversation = selected,
+        guard !globalBusy, !personaEnabled, let conversation = selected,
               ["codex", "ollama"].contains(conversation.provider),
               let params = personaRequestParameters else {
             report(NativeError.message("Brother Persona доступна только для выбранного Codex или Ollama диалога."))
@@ -427,7 +390,7 @@ final class AppModel: ObservableObject {
         loadingPersonaReadiness = true
         defer { loadingPersonaReadiness = false }
         do {
-            let readiness = try NativePersonaReadiness(await client.request("persona_readiness", params))
+            let readiness = try NativePersonaReadiness(await turnClient.request("persona_readiness", params))
             guard selectedID == conversationID, params == personaRequestParameters else {
                 throw NativeError.message("Провайдер, модель или доступ изменились. Проверьте readiness заново.")
             }
@@ -454,7 +417,7 @@ final class AppModel: ObservableObject {
     }
 
     func confirmPersonaActivation() async {
-        guard !busy, !personaEnabled, let pending = pendingPersonaActivation,
+        guard !globalBusy, !personaEnabled, let pending = pendingPersonaActivation,
               pending.conversationID == selectedID, let conversation = selected,
               pending.provider == conversation.provider,
               pending.model == conversation.model,
@@ -468,7 +431,7 @@ final class AppModel: ObservableObject {
         loadingPersonaReadiness = true
         defer { loadingPersonaReadiness = false }
         do {
-            let readiness = try NativePersonaReadiness(await client.request("persona_readiness", params))
+            let readiness = try NativePersonaReadiness(await turnClient.request("persona_readiness", params))
             guard selectedID == pending.conversationID, params == personaRequestParameters,
                   readiness.status == "READY", readiness.value["selected_adapter_ready"] == .bool(true),
                   readiness.value["activation_fingerprint"].text == pending.readinessHash else {
@@ -565,7 +528,7 @@ final class AppModel: ObservableObject {
     var computerUseVersion: String { bootstrap["agent"]["computer_use"]["version"].text }
     var fullAccessLabel: String { computerUseAvailable ? "Полный доступ + экран" : "Полный доступ + интернет" }
     var fullAccessEnabled: Bool {
-        guard client.connected, cloudConsent, selected?.provider == "codex", let id = selectedID,
+        guard selectedExecution?.client.connected == true, cloudConsent, selected?.provider == "codex", let id = selectedID,
               let grant = agentGrants[id] else { return false }
         return grant.workspace == selected?.workspacePath
     }
@@ -590,7 +553,7 @@ final class AppModel: ObservableObject {
                 "mode": .string("full_access"), "cloud_consent": .bool(cloudConsent),
                 "confirmation": .string("ALLOW FULL MAC ACCESS")]
             if let workspace = request.workspace { params["workspace_root"] = .string(workspace) }
-            let result = try await client.request("agent_access", params)
+            let result = try await turnClient.request("agent_access", params)
             guard result["mode"].text == "full_access", !result["token"].text.isEmpty,
                   result["workspace_root"] == (request.workspace.map(JSONValue.string) ?? .null),
                   request.conversationID == selectedID, request.workspace == selected?.workspacePath,
@@ -613,7 +576,7 @@ final class AppModel: ObservableObject {
         busy = true
         defer { busy = false }
         do {
-            _ = try await client.request("agent_access", ["conversation_id": .string(id.uuidString), "mode": .string("chat")])
+            _ = try await turnClient.request("agent_access", ["conversation_id": .string(id.uuidString), "mode": .string("chat")])
             error = nil
             status = "Обычный чат · инструменты выключены"
         } catch { report(error) }
@@ -635,7 +598,10 @@ final class AppModel: ObservableObject {
         let ids = id.map { [$0] } ?? Array(agentGrants.keys)
         pendingAgentAccess = nil
         for id in ids where agentGrants.removeValue(forKey: id) != nil {
-            Task { _ = try? await client.request("agent_access", ["conversation_id": .string(id.uuidString), "mode": .string("chat")]) }
+            guard let state = executions[id] else { continue }
+            Task {
+                _ = try? await state.client.request("agent_access", ["conversation_id": .string(id.uuidString), "mode": .string("chat")])
+            }
         }
     }
 
@@ -651,7 +617,7 @@ final class AppModel: ObservableObject {
             return
         }
         do {
-            bootstrap = try await client.request("bootstrap"); status = "Готов"
+            bootstrap = try await serviceClient.request("bootstrap"); status = "Готов"
             await refreshWorkSessions()
             if selected?.provider == "codex" {
                 await refreshCodexThreadStatus()
@@ -662,18 +628,19 @@ final class AppModel: ObservableObject {
     }
 
     func refresh() async {
-        do { bootstrap = try await client.request("bootstrap") }
+        do { bootstrap = try await serviceClient.request("bootstrap") }
         catch { report(error) }
         await refreshWorkSessions()
     }
 
     func login() async {
-        guard !busy, !connecting else { return }
+        guard !globalBusy, !connecting else { return }
+        closeIdleExecutionConnections()
         connecting = true
         codexUsage.clear()
         defer { connecting = false }
         do {
-            let result = try await client.request("account_login")
+            let result = try await serviceClient.request("account_login")
             guard let url = URL(string: result["url"].text), url.scheme == "https",
                   ["auth.openai.com", "chatgpt.com", "openai.com"].contains(url.host ?? "") else {
                 throw NativeError.message("Неожиданный адрес входа; браузер не открыт.")
@@ -689,20 +656,21 @@ final class AppModel: ObservableObject {
         codexUsage.clear()
         defer { connecting = false }
         do {
-            account = try await client.request("account_status")
+            account = try await serviceClient.request("account_status")
             if account["connected"].flag {
                 loginPending = false
-                models = try await client.request("models")["models"].items
+                models = try await serviceClient.request("models")["models"].items
             } else { models = [] }
         } catch { report(error) }
     }
 
     func logout() async {
-        guard !busy, !connecting else { return }
+        guard !globalBusy, !connecting else { return }
+        closeIdleExecutionConnections()
         connecting = true
         defer { connecting = false }
         codexUsage.clear()
-        do { account = try await client.request("account_logout"); models = []; cloudConsent = false; loginPending = false }
+        do { account = try await serviceClient.request("account_logout"); models = []; cloudConsent = false; loginPending = false }
         catch { report(error) }
     }
 
@@ -1282,7 +1250,7 @@ final class AppModel: ObservableObject {
     }
 
     func confirmLearningOperation(token: String, acknowledgeGlobal: Bool) async {
-        guard !busy, !client.turnOutstanding, !loadingLearningReview,
+        guard !globalBusy, !client.turnOutstanding, !loadingLearningReview,
               let selection = pendingLearningSelection, learningSelection == selection,
               let preview = learningPreview, preview.accepts(token: token, acknowledgeGlobal: acknowledgeGlobal) else { return }
         busy = true; committingLearningReview = true

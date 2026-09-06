@@ -92,7 +92,7 @@ extension NativeChecks {
         app.setComposer("Не отправлять и не стирать этот черновик")
         let originalMessages = app.messages
         var busyChanges: [Bool] = []
-        let observation = app.$busy.dropFirst().sink { busyChanges.append($0) }
+        let observation = app.$operationBusy.dropFirst().sink { busyChanges.append($0) }
         defer { observation.cancel() }
         let first = Task { await usage.refresh(app: app) }
         while continuation == nil { await Task.yield() }

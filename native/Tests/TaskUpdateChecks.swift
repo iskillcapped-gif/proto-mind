@@ -16,7 +16,7 @@ extension NativeChecks {
         try code.write(to: bridge, atomically: true, encoding: .utf8)
         let helper = LaunchConfiguration.argument("--pdf-helper").map { URL(fileURLWithPath: $0) }
         let app = AppModel(configuration: LaunchConfiguration(projectRoot: project, python: python, stateDirectory: state, pdfHelper: helper))
-        defer { app.client.shutdown() }
+        defer { app.shutdown() }
         await app.start()
         app.setProvider("codex"); app.cloudConsent = true
         app.setAutoSkillsEnabled(false)

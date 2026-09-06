@@ -24,7 +24,7 @@ final class MemorySuggestionModel: ObservableObject, Identifiable {
         quote = try suggestion.quote(in: text)
     }
     var current: Bool { app.memorySuggestion?.id == id && app.selectedID == scope.conversationID && app.selected?.workspacePath == scope.workspace }
-    var locked: Bool { !current || app.busy || app.client.turnOutstanding || loading || saving || app.selected?.archived == true }
+    var locked: Bool { !current || app.globalBusy || app.client.turnOutstanding || loading || saving || app.selected?.archived == true }
     var parameters: [String: JSONValue] {
         scope.parameters.merging(["run": report.reference, "text": .string(sourceText), "candidate_id": .string(suggestion.id)]) { _, right in right }
     }
@@ -82,7 +82,7 @@ extension AppModel {
         return (report, source.text)
     }
     func openMemorySuggestion(_ suggestion: MemorySuggestion, report: MemorySuggestionsReport, text: String) async {
-        guard !busy, !client.turnOutstanding, let selected, !selected.archived, let workspace = selected.workspacePath else { return }
+        guard !globalBusy, !client.turnOutstanding, let selected, !selected.archived, let workspace = selected.workspacePath else { return }
         do {
             let panel = try MemorySuggestionModel(app: self, scope: ProjectMemoryScope(conversationID: selected.id, workspace: workspace),
                                                  report: report, suggestion: suggestion, text: text)

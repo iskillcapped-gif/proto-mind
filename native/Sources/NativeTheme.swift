@@ -23,6 +23,13 @@ enum NativeTheme {
     static let interfaceFont = Font.system(size: interfaceSize)
     static let messageSize: CGFloat = 15
     static let messageFont = Font.system(size: messageSize)
+    static let responseSize: CGFloat = 14.5
+    static let responseFont = Font.system(size: responseSize, weight: .regular)
+    static let responseLineSpacing: CGFloat = 5
+    static let responseText = Color(nsColor: NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            ? NSColor(white: 0.86, alpha: 1) : NSColor(white: 0.15, alpha: 1)
+    })
     static let codeFont = Font.system(size: codeSize, design: .monospaced)
 }
 

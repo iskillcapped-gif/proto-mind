@@ -283,7 +283,7 @@ private struct ChatView: View {
                                         .font(.system(size: 12)).frame(maxWidth: .infinity).padding(.vertical, 8)
                                         .accessibilityLabel("Показать следующие сообщения")
                                 }
-                                if model.busy {
+                                if model.selectedExecution?.running == true {
                                     VStack(alignment: .leading, spacing: 20) {
                                         WorkTimelineView(log: model.workLog, agentReceipt: model.agentReceipt,
                                                          toolItems: model.agentItems, live: true, startedAt: model.turnStartedAt)
@@ -328,7 +328,7 @@ private struct ChatView: View {
                         .onChange(of: model.stream.count) { _, _ in if followOutput { scrollToLatest(proxy) } }
                         .onChange(of: model.messages.last?.taskUpdates) { _, _ in if followOutput { scrollToLatest(proxy) } }
                         .onChange(of: model.workLog) { _, _ in if followOutput { scrollToLatest(proxy) } }
-                        .onChange(of: model.busy) { _, _ in if followOutput { scrollToLatest(proxy) } }
+                        .onChange(of: model.selectedExecution?.running) { _, _ in if followOutput { scrollToLatest(proxy) } }
                         .overlay(alignment: .bottom) {
                             if !nearBottom || historyWindow != nil {
                                 Button {

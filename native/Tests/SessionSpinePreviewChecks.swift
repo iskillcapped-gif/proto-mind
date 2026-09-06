@@ -7,7 +7,7 @@ extension NativeChecks {
     static func sessionSpineLiveIntegration(fixture: URL, python: URL, state: URL) async throws {
         let before = try fileBytes(state)
         let app = AppModel(configuration: LaunchConfiguration(projectRoot: fixture, python: python, stateDirectory: state))
-        defer { app.client.shutdown() }
+        defer { app.shutdown() }
         let messagesBefore = app.messages
         await app.start()
         guard app.messages.count == 2, let source = app.messages.first, let assistant = app.messages.last,
@@ -189,7 +189,7 @@ extension NativeChecks {
                   "Operator can revoke P2k acceptance without revoking or widening P2j")
 
         let restarted = AppModel(configuration: LaunchConfiguration(projectRoot: fixture, python: python, stateDirectory: state))
-        defer { restarted.client.shutdown() }
+        defer { restarted.shutdown() }
         try check(!restarted.sessionSpinePilotArmed && restarted.sessionSpineReadiness == nil
                   && !restarted.sessionSpineAcceptanceAccepted && restarted.sessionSpineAcceptance == nil,
                   "Per-launch Session Spine opt-in and personal acceptance never survive relaunch")
@@ -346,7 +346,7 @@ extension NativeChecks {
         let recoveredApp = AppModel(
             configuration: LaunchConfiguration(projectRoot: fixture, python: python, stateDirectory: state)
         )
-        defer { recoveredApp.client.shutdown() }
+        defer { recoveredApp.shutdown() }
         await recoveredApp.start()
         guard let recoveredAssistant = recoveredApp.messages.last else {
             throw NativeError.message("P2l restart history did not load")

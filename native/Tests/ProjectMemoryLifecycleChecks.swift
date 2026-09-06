@@ -7,7 +7,7 @@ extension NativeChecks {
     static func projectMemoryLifecycle(fixture: URL, python: URL, root: URL) async throws {
         let state = root.appendingPathComponent("project-memory-lifecycle-ui")
         let app = AppModel(configuration: LaunchConfiguration(projectRoot: fixture, python: python, stateDirectory: state))
-        defer { app.client.shutdown() }
+        defer { app.shutdown() }
         await app.start(); app.setProvider("mock"); await app.bindWorkspace(fixture.path); app.flushDraft()
         let core = try fileBytes(fixture), history = try fileBytes(state), messages = app.messages
         await app.openProjectMemory()
@@ -70,7 +70,7 @@ extension NativeChecks {
         let beforeStale = try fileBytes(state)
         // Another explicit writer changes the ledger between preview and Apply.
         let other = AppModel(configuration: app.client.configuration)
-        defer { other.client.shutdown() }
+        defer { other.shutdown() }
         await other.openProjectMemory()
         other.projectMemory?.content = "A second independently saved note."
         await other.projectMemory?.saveDraft()
@@ -83,7 +83,7 @@ extension NativeChecks {
         await panel.refresh()
         try check(panel.notes.contains { $0.id == current.id && $0.active }, "A refused stale action leaves the current note available")
         let restart = AppModel(configuration: app.client.configuration)
-        defer { restart.client.shutdown() }
+        defer { restart.shutdown() }
         await restart.openProjectMemory()
         try check(restart.projectMemory?.notes == panel.notes && restart.pendingProjectNotes.isEmpty,
                   "Corrected notes and lifecycle state survive restart while pending selections stay temporary")

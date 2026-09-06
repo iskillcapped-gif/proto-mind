@@ -143,7 +143,7 @@ extension NativeChecks {
         try check(app.skillOutcome == nil, "Manual outcome cannot select or create a conversation implicitly")
         app.selectedID = conversation
         let restart = AppModel(configuration: app.client.configuration)
-        defer { restart.client.shutdown() }
+        defer { restart.shutdown() }
         await restart.openSkillOutcome(item)
         try check(restart.skillOutcome?.report?.pilotState == "not_started" && restart.skillOutcome?.report?.receipts.isEmpty == true &&
                   restart.skillOutcome?.report?.sourceEligible == true,

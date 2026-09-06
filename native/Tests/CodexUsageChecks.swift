@@ -62,7 +62,7 @@ extension NativeChecks {
     static func projectlessAccess(fixture: URL, python: URL, root: URL) async throws {
         let state = root.appendingPathComponent("projectless-access")
         let app = AppModel(configuration: LaunchConfiguration(projectRoot: fixture, python: python, stateDirectory: state))
-        defer { app.client.shutdown() }
+        defer { app.shutdown() }
         await app.start()
         app.setProvider("codex")
         app.cloudConsent = true

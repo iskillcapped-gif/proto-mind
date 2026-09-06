@@ -4,7 +4,7 @@ import Foundation
 // Main-actor transitions for this domain; stored state remains in AppModel.
 extension AppModel {
     func newConversation() {
-        guard !busy else { return }
+        guard canNavigateConversations else { return }
         invalidateContextPreview()
         invalidateSessionSpinePilot()
         closeLearningReview()
@@ -38,7 +38,7 @@ extension AppModel {
     }
 
     func select(_ id: UUID) {
-        guard !busy else { return }
+        guard canNavigateConversations, conversations.contains(where: { $0.id == id }) else { return }
         invalidateContextPreview()
         invalidateSessionSpinePilot()
         closeLearningReview()
@@ -187,7 +187,7 @@ extension AppModel {
         do {
             var params: [String: JSONValue] = ["conversation_id": .string(id.uuidString)]
             if let workspace { params["workspace_root"] = .string(workspace) }
-            let value = try await client.request("codex_thread_status", params)
+            let value = try await serviceClient.request("codex_thread_status", params)
             guard selectedID == id, selected?.workspacePath == workspace, selected?.provider == "codex" else { return }
             guard value["schema"].text == "proto_mind.native_codex_threads.v1",
                   !value["linked"].isNull, !value["workspace_matches"].isNull else {
@@ -228,7 +228,7 @@ extension AppModel {
     }
 
     func renameConversation(_ id: UUID, title: String) {
-        guard !busy, let index = conversations.firstIndex(where: { $0.id == id }) else { return }
+        guard !operationBusy, let index = conversations.firstIndex(where: { $0.id == id }) else { return }
         let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty, name.count <= 120 else { report(NativeError.message("Название должно содержать от 1 до 120 символов.")); return }
         conversations[index].title = name
@@ -236,7 +236,7 @@ extension AppModel {
     }
 
     func archiveConversation(_ id: UUID, archived: Bool) {
-        guard !busy, let index = conversations.firstIndex(where: { $0.id == id }) else { return }
+        guard !operationBusy, !isRunning(id), let index = conversations.firstIndex(where: { $0.id == id }) else { return }
         conversations[index].archived = archived
         if archived && selectedID == id {
             if let next = conversations.first(where: { !$0.archived }) { select(next.id) }

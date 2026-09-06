@@ -6,7 +6,7 @@ final class NativeAppDelegate: NSObject, NSApplicationDelegate {
     weak var model: AppModel?
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        if model?.busy == true || model?.client.turnOutstanding == true {
+        if model?.globalBusy == true {
             let alert = NSAlert()
             alert.messageText = "Запрос ещё выполняется"
             alert.informativeText = "Дождитесь завершения или нажмите «Стоп» для Codex. Приложение не будет прерывать запись локального ядра."
@@ -23,7 +23,7 @@ final class NativeAppDelegate: NSObject, NSApplicationDelegate {
             alert.addButton(withTitle: "Выйти без сохранения")
             guard alert.runModal() == .alertSecondButtonReturn else { return .terminateCancel }
         }
-        model?.client.shutdown()
+        model?.shutdown()
         return .terminateNow
     }
 
@@ -53,14 +53,14 @@ struct ProtoMindApp: App {
         .commands {
             CommandGroup(replacing: .newItem) {
                 Button("Новый диалог") { model.newConversation() }
-                    .keyboardShortcut("n").disabled(model.busy)
+                    .keyboardShortcut("n").disabled(!model.canNavigateConversations)
             }
             CommandMenu("Proto-Mind") {
                 Button("Использование Codex…") { model.showCodexUsage = true }
                 Button("Полная копия данных…") { model.showPrivateBackup = true }
-                    .disabled(model.busy || model.client.turnOutstanding)
+                    .disabled(model.globalBusy || model.client.turnOutstanding)
                 Button("Копии диалогов…") { model.openHistoryBackups() }
-                    .disabled(model.busy || model.client.turnOutstanding)
+                    .disabled(model.globalBusy || model.client.turnOutstanding)
                 Button("Каталог команд") { model.section = .commands }
                     .keyboardShortcut("k")
                 Button("Файлы проекта") { model.showProjectFiles() }

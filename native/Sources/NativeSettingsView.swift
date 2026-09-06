@@ -123,14 +123,14 @@ struct NativeSettingsView: View {
                 Text("ChatGPT · по подписке").tag("codex")
                 Text("Ollama · на этом Mac").tag("ollama")
                 Text("Тестовый режим · без модели").tag("mock")
-            }.disabled(model.busy)
+            }.disabled(model.globalBusy)
             if model.selected?.provider == "ollama" {
                 TextField("Модель Ollama", text: Binding(get: { model.selected?.model ?? "" }, set: model.setModel), prompt: Text(model.bootstrap["ollama_model"].text))
-                    .disabled(model.busy)
+                    .disabled(model.globalBusy)
                 Text("Сообщения обрабатываются локально. Для работы запустите Ollama на этом Mac.")
                     .font(.caption).foregroundStyle(.secondary)
                 HStack {
-                    Button("Проверить подключение") { Task { await model.checkOllama() } }.disabled(model.busy)
+                    Button("Проверить подключение") { Task { await model.checkOllama() } }.disabled(model.globalBusy)
                     Spacer()
                     if !model.ollamaStatus.isNull {
                         Label(model.ollamaStatus["connected"].flag ? "Доступна" : "Недоступна", systemImage: model.ollamaStatus["connected"].flag ? "checkmark.circle" : "exclamationmark.circle")
@@ -140,7 +140,7 @@ struct NativeSettingsView: View {
                 if !model.ollamaStatus["models"].items.isEmpty {
                     Menu("Установленные модели") {
                         ForEach(model.ollamaStatus["models"].items.map(\.text), id: \.self) { name in Button(name) { model.setModel(name) } }
-                    }.disabled(model.busy)
+                    }.disabled(model.globalBusy)
                 }
             } else if model.selected?.provider == "codex" {
                 Picker("Модель", selection: Binding(get: { model.selected?.model ?? "" }, set: model.setModel)) {
@@ -149,19 +149,19 @@ struct NativeSettingsView: View {
                     if let selected = model.selected?.model, !selected.isEmpty, model.selectedCodexModel == nil {
                         Text("\(selected) · недоступна").tag(selected)
                     }
-                }.disabled(model.busy)
+                }.disabled(model.globalBusy)
                 Picker("Глубина рассуждения", selection: Binding(get: { model.selected?.reasoningEffort ?? "" }, set: model.setReasoningEffort)) {
                     Text(model.selectedCodexModel?.defaultEffort.map { "По умолчанию · \($0.title)" } ?? "По умолчанию").tag("")
                     ForEach(model.availableReasoningEfforts) { effort in Text(effort.title).tag(effort.rawValue) }
                     if let selected = model.selected?.reasoningEffort, !selected.isEmpty, !model.availableReasoningEfforts.contains(where: { $0.rawValue == selected }) {
                         Text("\(selected) · недоступно").tag(selected)
                     }
-                }.disabled(model.busy)
+                }.disabled(model.globalBusy)
                 HStack {
                     Button("Обновить список") { Task { await model.refreshAccount() } }
                     Spacer()
                     Button("Сбросить выбор") { model.resetCodexSelection() }
-                }.disabled(model.busy || model.connecting)
+                }.disabled(model.globalBusy || model.connecting)
                 Text("Выбор сохраняется для этого диалога. Доступные модели и уровни зависят от аккаунта.")
                     .font(.caption).foregroundStyle(.secondary)
                 if let note = model.modelSelectionWarning ?? model.modelSelectionNotice { Text(note).font(.caption).foregroundStyle(.orange) }
@@ -188,11 +188,11 @@ struct NativeSettingsView: View {
                 Button("Проверить вход") { Task { await model.refreshAccount() } }
                 Spacer()
                 if model.account["connected"].flag { Button("Выйти") { Task { await model.logout() } } }
-            }.disabled(model.busy || model.connecting)
+            }.disabled(model.globalBusy || model.connecting)
             if model.loginPending {
                 Text("Завершите вход в браузере и нажмите «Проверить вход».").font(.caption).foregroundStyle(.secondary)
             }
-            Toggle("Разрешить облачную обработку", isOn: $model.cloudConsent).disabled(model.busy)
+            Toggle("Разрешить облачную обработку", isOn: $model.cloudConsent).disabled(model.globalBusy)
             Text("Сообщения, выбранная память и прикреплённые материалы передаются OpenAI. Разрешение действует на этом Mac и сохраняется после перезапуска.")
                 .font(.caption).foregroundStyle(.secondary)
             DisclosureGroup("Как работает подключение") {
@@ -208,11 +208,11 @@ struct NativeSettingsView: View {
             Text("Brother задаёт устойчивый характер общения и использует память, уже выбранную ядром для ответа.")
                 .font(.callout).foregroundStyle(.secondary)
             if model.personaEnabled {
-                Button("Вернуться к обычному режиму") { model.disablePersona() }.disabled(model.busy)
+                Button("Вернуться к обычному режиму") { model.disablePersona() }.disabled(model.globalBusy)
             } else {
                 Button(model.loadingPersonaReadiness ? "Проверяем совместимость…" : "Проверить и включить…") {
                     Task { if await model.preparePersonaActivation() { confirmPersonaActivation = true } }
-                }.disabled(model.busy || model.loadingPersonaReadiness || !["codex", "ollama"].contains(model.selected?.provider ?? ""))
+                }.disabled(model.globalBusy || model.loadingPersonaReadiness || !["codex", "ollama"].contains(model.selected?.provider ?? ""))
                 if model.selected?.provider == "mock" { Text("Выберите ChatGPT или Ollama для включения Brother.").font(.caption).foregroundStyle(.secondary) }
             }
             Text("Изменение действует со следующего сообщения. Оно не даёт дополнительных разрешений и не стирает прежнюю историю модели.")
@@ -238,13 +238,13 @@ struct NativeSettingsView: View {
                 Text("Диалоги, память, журнал работы и настройки — в одной копии с проверкой файлов и восстановлением.")
                     .font(.callout).foregroundStyle(.secondary)
                 Button("Полная копия данных…") { model.showPrivateBackup = true }.buttonStyle(.borderedProminent)
-                    .disabled(model.busy || model.client.turnOutstanding)
+                    .disabled(model.globalBusy || model.client.turnOutstanding)
             }
             Section("Копии диалогов") {
                 Text("Сохраните отдельную копию или вернитесь к предыдущему состоянию истории.")
                     .font(.callout).foregroundStyle(.secondary)
                 Button("Копии и восстановление…") { model.openHistoryBackups() }.buttonStyle(.borderedProminent)
-                    .disabled(model.busy || model.client.turnOutstanding)
+                    .disabled(model.globalBusy || model.client.turnOutstanding)
                 Text("В копию входят сообщения, черновики и настройки диалогов. Память, журнал задач, облачные сессии и исходные вложения хранятся отдельно.")
                     .font(.caption).foregroundStyle(.secondary)
             }
@@ -268,7 +268,7 @@ struct NativeSettingsView: View {
             Text("Доступ включается отдельно для диалога возле поля сообщения. Он разрешает работу с файлами, терминалом и интернетом, а при доступности — управление экраном. После перезапуска разрешение снимается.")
                 .font(.caption).foregroundStyle(.secondary)
             if model.fullAccessEnabled {
-                Button("Выключить доступ") { Task { await model.disableAgentAccess() } }.disabled(model.busy)
+                Button("Выключить доступ") { Task { await model.disableAgentAccess() } }.disabled(model.globalBusy)
             }
             DisclosureGroup("Ограничения и журнал действий") {
                 Text("Доступ охватывает весь Mac в пределах прав пользователя. Экран может обрабатываться OpenAI. Остановка не откатывает уже выполненные действия. В журнале управления экраном остаются тип действия и приложение, без скриншотов, координат и введённого текста. Это не полный аудит.")
@@ -289,7 +289,7 @@ struct NativeSettingsView: View {
                 Spacer()
                 Button("Начать заново…", role: .destructive) { confirmCodexThreadReset = true }
                     .disabled(!model.codexThreadStatus["linked"].flag && !model.codexThreadStatus["refresh_required"].flag && !model.codexThreadStatus["legacy_binding"].flag)
-            }.disabled(model.busy || model.loadingCodexThreadStatus)
+            }.disabled(model.globalBusy || model.loadingCodexThreadStatus)
             DisclosureGroup("Технические сведения о сессии") {
                 Text("Для чата и полного доступа создаются разные сессии Codex. Следующие сообщения продолжают соответствующую сессию. Обновление инструкций может начать новую сессию, сохраняя прежнюю историю.")
                     .font(.caption).foregroundStyle(.secondary)
@@ -313,7 +313,7 @@ struct NativeSettingsView: View {
                 }
                 if model.sessionSpinePilotArmed {
                     if let rehearsal = model.sessionSpineAcceptance { Text("P2k: \(rehearsal.state) · \(rehearsal.rehearsalHash)").font(.caption.monospaced()).textSelection(.enabled) }
-                    Button("Отменить подготовку") { model.revokeSessionSpinePilot() }.disabled(model.busy)
+                    Button("Отменить подготовку") { model.revokeSessionSpinePilot() }.disabled(model.globalBusy)
                 }
                 Text("P2j/P2k действуют только до перезапуска и ничего не записывают. P2l требует новой проверки, подтверждения и точной фразы для одного связанного хода. Старые ответы без Turn Lineage не переносятся. Существующие ошибки требуют ручной проверки; автоматического ремонта нет.")
                     .font(.caption).foregroundStyle(.secondary)

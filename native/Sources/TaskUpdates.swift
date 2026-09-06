@@ -103,28 +103,31 @@ extension AppModel {
             setComposer(text)
             return
         }
-        await flushTaskUpdates()
+        if let state = selectedExecution { await flushTaskUpdates(execution: state) }
     }
 
-    func receiveTaskUpdateTarget(_ event: JSONValue) {
-        guard UUID(uuidString: event["conversation_id"].text) == selectedID else { return }
-        taskUpdateTarget = UUID(uuidString: event["token"].text)?.uuidString.lowercased()
-        if taskUpdateTarget != nil { Task { await flushTaskUpdates() } }
+    private func canUpdateTask(_ state: ConversationExecution) -> Bool {
+        state.running && state.startedAt != nil && state.sourceMessageID != nil
+            && cloudConsent && !state.updatesStopped && !historyPersistence.blocksSubmission && !store.writeBlocked
     }
 
-    func flushTaskUpdates() async {
-        guard !sendingTaskUpdate, canUpdateTask, let conversationID = selectedID,
-              let sourceID = activeTaskMessageID, let requestID = activeRequest,
-              selected?.messages.first(where: { $0.id == sourceID })?.taskUpdates?.contains(where: { $0.state == .queued }) == true else { return }
-        sendingTaskUpdate = true
+    func receiveTaskUpdateTarget(_ event: JSONValue, execution state: ConversationExecution) {
+        guard UUID(uuidString: event["conversation_id"].text) == state.conversationID else { return }
+        state.updateTarget = UUID(uuidString: event["token"].text)?.uuidString.lowercased()
+        if state.updateTarget != nil { Task { await flushTaskUpdates(execution: state) } }
+    }
+
+    func flushTaskUpdates(execution state: ConversationExecution) async {
+        let conversationID = state.conversationID
+        guard !state.sendingUpdate, canUpdateTask(state),
+              let sourceID = state.sourceMessageID, let requestID = state.requestID else { return }
+        state.sendingUpdate = true
         defer {
-            sendingTaskUpdate = false
-            // A previous task's acknowledgement can arrive after a new task's
-            // ready event. Give that task's saved queue its own sender.
-            if activeTaskMessageID != sourceID { Task { await flushTaskUpdates() } }
+            state.sendingUpdate = false
+            if state.sourceMessageID != sourceID && state.running { Task { await flushTaskUpdates(execution: state) } }
         }
-        while canUpdateTask, selectedID == conversationID, activeTaskMessageID == sourceID,
-              activeRequest == requestID, let target = taskUpdateTarget,
+        while canUpdateTask(state), state.sourceMessageID == sourceID,
+              state.requestID == requestID, let target = state.updateTarget,
               let index = conversations.firstIndex(where: { $0.id == conversationID }),
               let message = conversations[index].messages.firstIndex(where: { $0.id == sourceID }),
               let update = conversations[index].messages[message].taskUpdates?.first(where: { $0.state == .queued }) {
@@ -141,16 +144,16 @@ extension AppModel {
                     "text": .string(update.text), "cloud_consent": .bool(cloudConsent)
                 ]
                 if update.hasAttachments { params["attachments"] = update.attachments }
-                let result = try await client.request("steer", params)
+                let result = try await state.client.request("steer", params)
                 if result["schema"].text == "proto_mind.task_update.v1",
                    result["request_id"].text == requestID,
                    UUID(uuidString: result["conversation_id"].text) == conversationID,
                    UUID(uuidString: result["message_id"].text) == update.id,
                    result["text_sha256"].text == ChatHistoryFormat.hash(Data(update.text.utf8)),
                    result["attachments"] == (update.hasAttachments ? update.attachments : .null),
-                   let state = TaskUpdate.State(rawValue: result["status"].text), [.accepted, .rejected, .unknown].contains(state) {
-                    delivery = state
-                    if state == .rejected, !result["reason"].text.isEmpty {
+                   let deliveryState = TaskUpdate.State(rawValue: result["status"].text), [.accepted, .rejected, .unknown].contains(deliveryState) {
+                    delivery = deliveryState
+                    if deliveryState == .rejected, !result["reason"].text.isEmpty {
                         setTaskUpdateReason(String(result["reason"].text.prefix(600)), id: update.id, source: sourceID, conversation: conversationID)
                     }
                 }
@@ -174,10 +177,10 @@ extension AppModel {
         conversations[index].messages[message].taskUpdates?[update].reason = reason
     }
 
-    func closeTaskUpdateQueue() {
-        taskUpdatesStopped = true; taskUpdateTarget = nil
-        guard let source = activeTaskMessageID,
-              let index = conversations.firstIndex(where: { $0.id == selectedID }),
+    func closeTaskUpdateQueue(execution state: ConversationExecution) {
+        state.updatesStopped = true; state.updateTarget = nil
+        guard let source = state.sourceMessageID,
+              let index = conversations.firstIndex(where: { $0.id == state.conversationID }),
               let message = conversations[index].messages.firstIndex(where: { $0.id == source }),
               let updates = conversations[index].messages[message].taskUpdates else { return }
         for update in updates where update.state == .queued {

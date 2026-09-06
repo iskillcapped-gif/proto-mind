@@ -26,10 +26,10 @@ struct HistoryPersistenceNotice: View {
                 HStack {
                     if !model.historyPersistence.requiresRecovery {
                         Button("Повторить сохранение") { model.retryHistorySave() }
-                            .disabled(model.busy || model.client.turnOutstanding)
+                            .disabled(model.globalBusy || model.client.turnOutstanding)
                     }
                     Button("Копии и восстановление…") { model.openHistoryBackups() }
-                        .disabled(model.busy || model.client.turnOutstanding)
+                        .disabled(model.globalBusy || model.client.turnOutstanding)
                     Button("Показать файл истории") {
                         NSWorkspace.shared.activateFileViewerSelecting([model.store.url])
                     }

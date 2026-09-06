@@ -39,7 +39,7 @@ extension NativeChecks {
         let state = root.appendingPathComponent("private-backup-state")
         let configuration = LaunchConfiguration(projectRoot: project, python: python, stateDirectory: state)
         let app = AppModel(configuration: configuration)
-        defer { app.client.shutdown() }
+        defer { app.shutdown() }
         app.setComposer("Draft included in the complete backup")
         try app.saveHistory()
         let original = app.currentHistoryArchive
@@ -63,7 +63,7 @@ extension NativeChecks {
         try check(try String(data: Data(contentsOf: marker), encoding: .utf8)?.contains("before") == true,
                   "Complete restore brings back the separate core store")
         let restored = AppModel(configuration: configuration)
-        defer { restored.client.shutdown() }
+        defer { restored.shutdown() }
         try check(restored.currentHistoryArchive.conversations == original.conversations && !restored.cloudConsent,
                   "Fresh Native instance reads the original dialogs and draft with cloud access disabled")
         let window = URL(fileURLWithPath: app.privateBackup.result["window_path"].text)

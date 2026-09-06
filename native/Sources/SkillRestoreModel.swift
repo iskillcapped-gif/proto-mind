@@ -16,7 +16,7 @@ final class SkillRestoreModel: ObservableObject, Identifiable {
 
     init(app: AppModel, selection: NativeSkillInspectionSelection) { self.app = app; self.selection = selection }
     var current: Bool { app.skillRestore?.id == id && app.selectedID == selection.conversationID && app.selected?.workspacePath == selection.workspace && app.selected?.archived == false }
-    var locked: Bool { app.busy || app.client.turnOutstanding || loading || !current }
+    var locked: Bool { app.globalBusy || app.client.turnOutstanding || loading || !current }
     var canPrepare: Bool { !locked && report?.ready == true }
     func invalidate() { preview = nil }
 
@@ -89,7 +89,7 @@ final class SkillRestoreModel: ObservableObject, Identifiable {
 
 extension AppModel {
     func openSkillRestore(_ selection: NativeSkillInspectionSelection) async {
-        guard !busy, !client.turnOutstanding, let conversation = selected, !conversation.archived,
+        guard !globalBusy, !client.turnOutstanding, let conversation = selected, !conversation.archived,
               conversation.id == selection.conversationID, conversation.workspacePath == selection.workspace else { return }
         let model = SkillRestoreModel(app: self, selection: selection); skillRestore = model; await model.refresh()
     }

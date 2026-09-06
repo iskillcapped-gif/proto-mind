@@ -129,7 +129,7 @@ struct ConversationHistoryView: View {
                         }
                         messagePreview(match)
                         Button("Открыть это сообщение") { model.returnToConversation(chat.id, messageID: match.id) }
-                            .disabled(model.busy || model.client.turnOutstanding)
+                            .disabled(!model.canNavigateConversations)
                         Divider()
                     }
                     if let lastRequest { messagePreview(lastRequest, title: "Последний запрос") }
@@ -158,15 +158,15 @@ struct ConversationHistoryView: View {
             HStack(spacing: 12) {
                 if chat.archived {
                     Button("Вернуть из архива") { model.archiveConversation(chat.id, archived: false) }
-                        .disabled(model.busy || model.client.turnOutstanding)
+                        .disabled(model.operationBusy || model.isRunning(chat.id))
                     Spacer()
                     Button("Открыть диалог") { model.returnToConversation(chat.id) }
-                        .disabled(model.busy || model.client.turnOutstanding)
+                        .disabled(!model.canNavigateConversations)
                 } else {
                     Text("Ваш черновик сохранится").font(.caption).foregroundStyle(.secondary)
                     Spacer()
                     Button(chat.draft.isEmpty ? "Продолжить диалог" : "К черновику") { model.returnToConversation(chat.id) }
-                        .buttonStyle(.borderedProminent).disabled(model.busy || model.client.turnOutstanding)
+                        .buttonStyle(.borderedProminent).disabled(!model.canNavigateConversations)
                 }
             }.padding(16)
         }

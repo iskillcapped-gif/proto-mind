@@ -19,7 +19,7 @@ extension AppModel {
         do {
             var params: [String: JSONValue] = ["conversation_id": .string(id.uuidString)]
             if let cursor { params["cursor"] = cursor }
-            let raw = try await client.request("work_sessions", params)
+            let raw = try await serviceClient.request("work_sessions", params)
             guard request == workSessionsRequest, id == selectedID else { return }
             let page = try NativeWorkSessionPage(raw, conversation: id, project: client.configuration.projectRoot, cursor: cursor)
             var runs = page.runs
@@ -42,7 +42,7 @@ extension AppModel {
     }
 
     func lookupWorkSession(_ runID: String, conversation: UUID) async throws -> NativeWorkSession {
-        let value = try await client.request("work_session_lookup", ["conversation_id": .string(conversation.uuidString), "run_id": .string(runID)])
+        let value = try await serviceClient.request("work_session_lookup", ["conversation_id": .string(conversation.uuidString), "run_id": .string(runID)])
         guard value["schema"] == .string("proto_mind.native_work_session_lookup.v1"), value["read_only"] == .bool(true) else {
             throw NativeWorkSessionPage.error()
         }

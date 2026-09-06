@@ -85,7 +85,7 @@ extension NativeChecks {
         current.workspacePath = fixture.path
         try store.save(ChatArchive(conversations: [current, linked], selectedID: current.id))
         let app = AppModel(configuration: LaunchConfiguration(projectRoot: fixture, python: python, stateDirectory: state))
-        defer { app.client.shutdown() }
+        defer { app.shutdown() }
         await app.start()
         let journal = state.appendingPathComponent("work_sessions")
         let journalBefore = try fileBytes(journal), projectBefore = try fileBytes(fixture), before = try fileBytes(state)
@@ -170,7 +170,7 @@ extension NativeChecks {
         await restarted.start()
         try check(restarted.composer == app.composer && !restarted.busy && !restarted.fullAccessEnabled
                   && fileBytes(state) == restartBefore, "Restart restores the continuation draft without resuming or rewriting work")
-        restarted.client.shutdown()
+        restarted.shutdown()
         await app.submit()
         try check(app.messages.last?.isError == false && app.workSessions.first?.value["parent_run_id"] == reference["run_id"],
                   "Only explicit Send dispatches a new Mock turn linked to the chosen historical answer")

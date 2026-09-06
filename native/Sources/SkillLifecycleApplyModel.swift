@@ -19,7 +19,7 @@ final class SkillLifecycleApplyModel: ObservableObject, Identifiable {
         app.skillLifecycleApply?.id == id && app.selectedID == selection.scope.conversationID &&
         app.selected?.workspacePath == selection.scope.workspace && app.selected?.archived == false
     }
-    var locked: Bool { app.busy || app.client.turnOutstanding || loading || !current }
+    var locked: Bool { app.globalBusy || app.client.turnOutstanding || loading || !current }
     var canPrepare: Bool { !locked && report?.canApply == true }
     func invalidate() { preview = nil }
 
@@ -102,7 +102,7 @@ final class SkillLifecycleApplyModel: ObservableObject, Identifiable {
 
 extension AppModel {
     func openSkillLifecycleApply(_ selection: NativeSkillLifecycleSelection) async {
-        guard !busy, !client.turnOutstanding, let conversation = selected, !conversation.archived,
+        guard !globalBusy, !client.turnOutstanding, let conversation = selected, !conversation.archived,
               conversation.id == selection.scope.conversationID, conversation.workspacePath == selection.scope.workspace else { return }
         let model = SkillLifecycleApplyModel(app: self, selection: selection)
         skillLifecycleApply = model

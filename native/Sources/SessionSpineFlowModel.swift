@@ -4,7 +4,7 @@ import Foundation
 // Main-actor transitions for this domain; stored state remains in AppModel.
 extension AppModel {
     func openSessionSpine(for message: ChatMessage) async {
-        guard !busy, !client.turnOutstanding, !loadingWorkSessions, !loadingSessionSpinePreview,
+        guard !globalBusy, !client.turnOutstanding, !loadingWorkSessions, !loadingSessionSpinePreview,
               let conversation = selected, let conversationID = selectedID else { return }
         let matches = conversation.messages.indices.filter { conversation.messages[$0].id == message.id }
         guard matches.count == 1, let assistantIndex = matches.first, assistantIndex > 0,
@@ -189,7 +189,7 @@ extension AppModel {
     }
 
     func openSessionSpineWriter(_ rehearsal: NativeSessionSpineAcceptanceRehearsal) async {
-        guard !busy, !client.turnOutstanding, !loadingSessionSpineWriter else { return }
+        guard !globalBusy, !client.turnOutstanding, !loadingSessionSpineWriter else { return }
         loadingSessionSpineWriter = true
         defer { loadingSessionSpineWriter = false }
         do {
@@ -219,7 +219,7 @@ extension AppModel {
         token: String,
         acknowledgement: Bool
     ) async {
-        guard !busy, !client.turnOutstanding, !applyingSessionSpineWriter,
+        guard !globalBusy, !client.turnOutstanding, !applyingSessionSpineWriter,
               sessionSpineWriterReceipt == nil else { return }
         guard preview.accepts(token: token, acknowledgement: acknowledgement) else {
             report(NativeError.message("Точная фраза P2l или acknowledgement не совпали. Ни один файл не записан."))

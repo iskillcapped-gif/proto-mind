@@ -96,7 +96,7 @@ extension AppModel {
     }
 
     func returnToConversation(_ id: UUID, messageID: UUID? = nil) {
-        guard !busy, !client.turnOutstanding, let chat = conversations.first(where: { $0.id == id }),
+        guard canNavigateConversations, let chat = conversations.first(where: { $0.id == id }),
               messageID == nil || chat.messages.contains(where: { $0.id == messageID }) else { return }
         if selectedID != id { select(id) }
         else { flushDraft(); section = .chat }

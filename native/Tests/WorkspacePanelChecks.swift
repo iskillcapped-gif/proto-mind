@@ -67,7 +67,7 @@ extension NativeChecks {
         let state = root.appendingPathComponent("work-panel-state")
         let helper = LaunchConfiguration.argument("--pdf-helper").map { URL(fileURLWithPath: $0).resolvingSymlinksInPath() }
         let app = AppModel(configuration: LaunchConfiguration(projectRoot: fixture, python: python, stateDirectory: state, pdfHelper: helper))
-        defer { app.workspacePanel.closeAll(); app.client.shutdown() }
+        defer { app.workspacePanel.closeAll(); app.shutdown() }
         await app.start(); app.setProvider("mock"); await app.bindWorkspace(fixture.path)
         let source = fixture.appendingPathComponent("panel-readme.md")
         try Data("# A local document\n\nNo model call.\n".utf8).write(to: source)

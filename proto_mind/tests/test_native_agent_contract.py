@@ -77,7 +77,7 @@ class NativeAgentContractTests(unittest.TestCase):
         app = (root / "native" / "Sources" / "AppModel.swift").read_text(encoding="utf-8")
         workspace = (root / "native" / "Sources" / "WorkspaceView.swift").read_text(encoding="utf-8")
         self.assertIn("Privacy_Automation", app)
-        self.assertIn("macos_automation_permission_denied", app)
+        self.assertIn("macos_automation_permission_denied", (root / "native/Sources/ConversationExecution.swift").read_text())
         self.assertIn("Открыть Automation", workspace)
         self.assertTrue((root / "scripts" / "run_native_agent_evals.sh").stat().st_mode & 0o111)
 

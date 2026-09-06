@@ -26,7 +26,7 @@ struct SidebarView: View {
                     Spacer()
                     Text("⌘N").font(.system(size: 11)).foregroundStyle(.secondary)
                 }.font(.system(size: 14)).padding(.horizontal, 12).padding(.vertical, 10)
-            }.buttonStyle(.nativeHover).disabled(model.busy).padding(.horizontal, 12)
+            }.buttonStyle(.nativeHover).disabled(!model.canNavigateConversations).padding(.horizontal, 12)
             if searchVisible || !model.conversationSearch.isEmpty { HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
                 TextField("Поиск диалогов", text: $model.conversationSearch).textFieldStyle(.plain).focused($searchFocused)
@@ -87,13 +87,13 @@ struct SidebarView: View {
             }.frame(minHeight: 0, maxHeight: .infinity).padding(.bottom, 10)
             Divider().padding(.horizontal, 17)
             HStack(spacing: 4) {
-                SidebarMenuView(app: model, usage: model.codexUsage, client: model.client, openSettings: openSettings)
+                SidebarMenuView(app: model, usage: model.codexUsage, client: model.serviceClient, openSettings: openSettings)
                 Menu {
                     Button("Команды", systemImage: "command") { model.section = .commands }
                     Button("Диагностика", systemImage: "waveform.path.ecg") { model.section = .overview }
                     Divider()
                     Button("Копии и восстановление…", systemImage: "clock.arrow.circlepath") { model.openHistoryBackups() }
-                        .disabled(model.busy || model.client.turnOutstanding)
+                        .disabled(model.globalBusy || model.client.turnOutstanding)
                 } label: {
                     Image(systemName: "ellipsis").frame(width: 28, height: 32)
                 }.menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
@@ -117,7 +117,7 @@ struct SidebarView: View {
     }
 
     private func conversationRow(_ chat: Conversation) -> some View {
-        let isWorking = model.busy && model.turnStartedAt != nil && model.selectedID == chat.id
+        let isWorking = model.isRunning(chat.id)
         return Button {
             let query = model.conversationSearch.trimmingCharacters(in: .whitespacesAndNewlines)
             let match = query.isEmpty ? nil : chat.messages.last { $0.searchableText.localizedCaseInsensitiveContains(query) }
@@ -135,11 +135,12 @@ struct SidebarView: View {
             }.padding(.leading, 30).padding(.trailing, 10).padding(.vertical, 9).frame(maxWidth: .infinity, alignment: .leading)
                 .background(model.selectedID == chat.id && model.section == .chat ? NativeTheme.selection : .clear,
                             in: RoundedRectangle(cornerRadius: 9))
-        }.buttonStyle(.nativeHover).disabled(model.busy).help(chat.title)
+        }.buttonStyle(.nativeHover).disabled(!model.canNavigateConversations).help(chat.title)
             .accessibilityLabel(chat.title + (isWorking ? " · Выполняется задача" : ""))
             .contextMenu {
                 Button("Переименовать…") { newTitle = chat.title; renaming = chat }
                 Button(chat.archived ? "Вернуть из архива" : "В архив") { model.archiveConversation(chat.id, archived: !chat.archived) }
+                    .disabled(model.isRunning(chat.id) || model.operationBusy)
             }
     }
 

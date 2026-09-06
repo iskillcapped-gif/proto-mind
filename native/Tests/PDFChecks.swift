@@ -31,7 +31,7 @@ extension NativeChecks {
         let state = root.appendingPathComponent("pdf-state")
         let configuration = LaunchConfiguration(projectRoot: fixture, python: python, stateDirectory: state, pdfHelper: helper)
         let app = AppModel(configuration: configuration)
-        defer { app.client.shutdown() }
+        defer { app.shutdown() }
         await app.start(); app.setProvider("mock")
         let document = try NativeAttachmentDrop.localURL(root.appendingPathComponent("selected document.pdf"))
         let original = try syntheticPDF(["PAGE ONE: Привет, локальный PDF.", "PAGE TWO: SELECTED PRIVATE EXCERPT", "PAGE THREE: NEVER SELECTED"])
