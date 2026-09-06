@@ -472,8 +472,14 @@ private struct MessageView: View {
                                 Button("Цепочка диалога · Session Spine", systemImage: "point.3.connected.trianglepath.dotted") { Task { await model.openSessionSpine(for: message) } }
                                     .disabled(model.busy || model.loadingWorkSessions || model.loadingSessionSpinePreview)
                             }
-                        } label: { Label("Подробнее", systemImage: "ellipsis") }
-                            .menuStyle(.borderlessButton).fixedSize().nativeHoverSurface().accessibilityLabel("Подробнее об ответе")
+                        } label: {
+                            Label {
+                                Text("Подробнее").foregroundColor(.secondary)
+                            } icon: {
+                                Image(systemName: "ellipsis").foregroundColor(.secondary)
+                            }
+                        }
+                            .menuStyle(.borderlessButton).tint(.secondary).fixedSize().nativeHoverSurface().accessibilityLabel("Подробнее об ответе")
                     }
                 }.buttonStyle(.nativeHover).font(.system(size: 13)).foregroundStyle(.secondary).padding(.top, 2)
                 if showRaw { Text(message.raw).font(.system(size: 11, design: .monospaced)).textSelection(.enabled) }
