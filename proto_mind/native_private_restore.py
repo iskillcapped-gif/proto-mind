@@ -27,8 +27,9 @@ def without_authority(name: str, raw: bytes | None) -> bytes | None:
         value = decode(raw)
         if not isinstance(value, dict): raise ValueError("Настройки в копии имеют неизвестный формат.")
         if name.endswith("preferences.json"):
-            if value.get("version") not in {1, 2}: raise ValueError("Версия настроек в копии не поддерживается.")
+            if value.get("version") not in {1, 2, 3}: raise ValueError("Версия настроек в копии не поддерживается.")
             value["cloudProcessingAllowed"] = False
+            if value.get("version") == 3: value["rememberedAgentAccess"] = []
         elif name.endswith("integrations.json"):
             if value.get("schema") != "proto_mind.native_integrations.v1": raise ValueError("Неизвестные настройки подключений в копии.")
             value["github"] = None

@@ -9,6 +9,7 @@ struct PendingAgentAccess: Identifiable {
 struct AgentAccessGrant {
     let token: String
     let workspace: String?
+    var bridgeGeneration: UUID? = nil
 }
 
 struct AgentAccessSheet: View {
@@ -35,7 +36,7 @@ struct AgentAccessSheet: View {
                 Label("OpenAI Computer Use \(model.computerUseVersion.isEmpty ? "установлен" : model.computerUseVersion) · скриншоты, UI-дерево, координаты и введённый текст не сохраняются в журнал Proto-Mind.", systemImage: "display.and.arrow.down")
                     .font(.callout).foregroundStyle(.secondary)
             }
-            Text("Разрешение действует для этого диалога до перезапуска приложения, смены папки/провайдера или выключения режима. Stop или Esc позволяют прервать ход и вернуть управление, но не откатывают уже сделанное и не гарантируют завершения отделённых процессов.")
+            Text("Выбор сохраняется для этого диалога после перезапуска. Смена папки, провайдера или выключение режима сбрасывают доступ. Stop или Esc прерывают ход, но не откатывают уже сделанное и не гарантируют завершения отделённых процессов.")
                 .font(.callout).foregroundStyle(.secondary)
             Toggle("Понимаю область доступа и разрешаю инструменты", isOn: $acknowledged)
             HStack {

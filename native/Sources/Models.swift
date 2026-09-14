@@ -180,18 +180,26 @@ enum NativeError: LocalizedError {
     var errorDescription: String? { if case .message(let message) = self { return message }; return nil }
 }
 
+struct RememberedAgentAccess: Codable, Equatable {
+    let conversationID: UUID
+    let workspace: String?
+}
+
 struct NativePreferences: Codable, Equatable {
     var version: Int
     var cloudProcessingAllowed: Bool
     var personaEnabled: Bool
+    var rememberedAgentAccess: [RememberedAgentAccess]
 
-    init(version: Int = 2, cloudProcessingAllowed: Bool = false, personaEnabled: Bool = false) {
+    init(version: Int = 3, cloudProcessingAllowed: Bool = false, personaEnabled: Bool = false,
+         rememberedAgentAccess: [RememberedAgentAccess] = []) {
         self.version = version
         self.cloudProcessingAllowed = cloudProcessingAllowed
         self.personaEnabled = personaEnabled
+        self.rememberedAgentAccess = rememberedAgentAccess
     }
 
-    enum CodingKeys: String, CodingKey { case version, cloudProcessingAllowed, personaEnabled }
+    enum CodingKeys: String, CodingKey { case version, cloudProcessingAllowed, personaEnabled, rememberedAgentAccess }
 
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
@@ -202,6 +210,8 @@ struct NativePreferences: Codable, Equatable {
         } else {
             personaEnabled = false
         }
+        rememberedAgentAccess = version >= 3
+            ? try values.decodeIfPresent([RememberedAgentAccess].self, forKey: .rememberedAgentAccess) ?? [] : []
     }
 }
 
@@ -223,7 +233,8 @@ final class PreferenceStore {
             let data = try Data(contentsOf: url)
             guard data.count <= 65_536 else { throw NativeError.message("Настройки слишком велики.") }
             let value = try JSONDecoder().decode(NativePreferences.self, from: data)
-            guard [1, 2].contains(value.version), value.version != 1 || !value.personaEnabled else {
+            guard [1, 2, 3].contains(value.version), value.version != 1 || !value.personaEnabled,
+                  Set(value.rememberedAgentAccess.map(\.conversationID)).count == value.rememberedAgentAccess.count else {
                 throw NativeError.message("Неизвестная версия настроек.")
             }
             return value
@@ -246,9 +257,11 @@ final class PreferenceStore {
             throw NativeError.message("Данные восстановлены. Перезапустите Proto-Mind перед изменением настроек.")
         }
         guard !writeBlocked else { throw NativeError.message("Запись настроек заблокирована до ручной проверки файла.") }
-        guard preferences.version == 2 else { throw NativeError.message("Записывать можно только текущую версию настроек.") }
+        guard preferences.version == 3 else { throw NativeError.message("Записывать можно только текущую версию настроек.") }
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
-        try JSONEncoder().encode(preferences).write(to: url, options: .atomic)
+        let data = try JSONEncoder().encode(preferences)
+        guard data.count <= 65_536 else { throw NativeError.message("Настройки слишком велики. Изменение не сохранено; прежние настройки доступны.") }
+        try data.write(to: url, options: .atomic)
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
     }
 }
@@ -271,7 +284,7 @@ struct LaunchConfiguration {
             .flatMap { try? JSONDecoder().decode([String: String].self, from: $0) } ?? [:]
         let root = argument("--project-root") ?? env["PROTO_MIND_PROJECT_ROOT"] ?? bundled["project_root"] ?? FileManager.default.currentDirectoryPath
         let python = argument("--python") ?? env["PROTO_MIND_PYTHON"] ?? bundled["python"] ?? "/opt/homebrew/opt/python@3.11/bin/python3.11"
-        let state = argument("--state-dir").map { URL(fileURLWithPath: $0, isDirectory: true) }
+        let state = (argument("--state-dir") ?? bundled["state_directory"]).map { URL(fileURLWithPath: $0, isDirectory: true) }
             ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/ProtoMindNative", isDirectory: true)
         return LaunchConfiguration(projectRoot: URL(fileURLWithPath: root, isDirectory: true),
                                    python: URL(fileURLWithPath: python), stateDirectory: state,

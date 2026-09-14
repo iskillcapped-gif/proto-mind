@@ -2,11 +2,12 @@ import AppKit
 import SwiftUI
 
 enum NativeSettingsSection: String, CaseIterable, Identifiable {
-    case models, persona, services, data, advanced
+    case models, voice, persona, services, data, advanced
     var id: String { rawValue }
     var title: String {
         switch self {
         case .models: return "Модели"
+        case .voice: return "Голос"
         case .persona: return "Общение"
         case .services: return "Подключения"
         case .data: return "Данные и копии"
@@ -16,6 +17,7 @@ enum NativeSettingsSection: String, CaseIterable, Identifiable {
     var symbol: String {
         switch self {
         case .models: return "slider.horizontal.3"
+        case .voice: return "waveform"
         case .persona: return "bubble.left.and.bubble.right"
         case .services: return "point.3.connected.trianglepath.dotted"
         case .data: return "externaldrive"
@@ -25,6 +27,7 @@ enum NativeSettingsSection: String, CaseIterable, Identifiable {
     var subtitle: String {
         switch self {
         case .models: return "Выберите, с какой моделью продолжить этот диалог."
+        case .voice: return "Разговор и управление задачами через GPT Live 1."
         case .persona: return "Характер общения и использование памяти."
         case .services: return "Сервисы, которыми вы пользуетесь в работе."
         case .data: return "Ваши диалоги и способы их восстановить."
@@ -67,6 +70,12 @@ struct NativeSettingsView: View {
                     case .models:
                         modelSettings
                         if model.selected?.provider == "codex" { accountSettings }
+                    case .voice:
+                        Section { LiveVoiceKeySettings(voice: model.liveVoice) }
+                        Section("Использование API") {
+                            Text("GPT Live 1: $0,05 за минуту подключённого разговора. Обработка команд GPT-5.6 Luna оплачивается дополнительно по тарифу API. Подписка ChatGPT не оплачивает этот голосовой канал.")
+                                .font(.callout).foregroundStyle(.secondary)
+                        }
                     case .persona:
                         personaSettings
                         Section("Память и навыки") {
@@ -265,7 +274,7 @@ struct NativeSettingsView: View {
         Section("Доступ к Mac") {
             Label(model.fullAccessEnabled ? "Полный доступ включён" : "Только чат · инструменты выключены", systemImage: model.fullAccessEnabled ? "exclamationmark.shield" : "lock.shield")
                 .foregroundStyle(model.fullAccessEnabled ? Color.orange : .primary)
-            Text("Доступ включается отдельно для диалога возле поля сообщения. Он разрешает работу с файлами, терминалом и интернетом, а при доступности — управление экраном. После перезапуска разрешение снимается.")
+            Text("Доступ включается отдельно для диалога возле поля сообщения и сохраняется после перезапуска. Он разрешает работу с файлами, терминалом и интернетом, а при доступности — управление экраном. Смена папки или провайдера отключает его.")
                 .font(.caption).foregroundStyle(.secondary)
             if model.fullAccessEnabled {
                 Button("Выключить доступ") { Task { await model.disableAgentAccess() } }.disabled(model.globalBusy)

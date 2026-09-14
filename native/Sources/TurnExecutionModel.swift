@@ -36,6 +36,7 @@ extension AppModel {
                 state.running = false
                 return
             }
+            if !description["operator"].flag { try await ensureAgentAccess(for: state) }
             await perform(text, execution: state, confirmed: false, operatorInput: description["operator"].flag)
         } catch {
             state.running = false
@@ -56,7 +57,7 @@ extension AppModel {
         await perform(action.text, execution: state, confirmed: true, operatorInput: true)
     }
 
-    private func perform(_ text: String, execution state: ConversationExecution, confirmed: Bool, operatorInput: Bool) async {
+    func perform(_ text: String, execution state: ConversationExecution, confirmed: Bool, operatorInput: Bool, useDraft: Bool = true) async {
         let conversationID = state.conversationID
         guard let index = conversations.firstIndex(where: { $0.id == conversationID }) else { state.running = false; return }
         // Core/operator mutations block other work while retaining their original session.
@@ -67,12 +68,12 @@ extension AppModel {
         invalidateSessionSpinePilot()
         let conversation = conversations[index]
         let history = conversation.history
-        let files = operatorInput ? [] : conversation.pendingFiles
-        let images = operatorInput ? [] : conversation.pendingImages
-        let pdfs = operatorInput ? [] : conversation.pendingPDFs
-        let criteria = operatorInput ? [] : conversation.pendingCriteria
-        let projectNotes = operatorInput ? [] : projectNoteSelections[conversationID] ?? []
-        let skillTask = operatorInput ? nil : preparedSkillTasks[conversationID]
+        let files = operatorInput || !useDraft ? [] : conversation.pendingFiles
+        let images = operatorInput || !useDraft ? [] : conversation.pendingImages
+        let pdfs = operatorInput || !useDraft ? [] : conversation.pendingPDFs
+        let criteria = operatorInput || !useDraft ? [] : conversation.pendingCriteria
+        let projectNotes = operatorInput || !useDraft ? [] : projectNoteSelections[conversationID] ?? []
+        let skillTask = operatorInput || !useDraft ? nil : preparedSkillTasks[conversationID]
         let automaticSkills = !operatorInput && conversation.provider == "codex" && conversation.autoSkillsEnabled && skillTask == nil
         let automaticRecall = !operatorInput && conversation.provider == "codex" && conversation.autoProjectRecallEnabled && projectNotes.isEmpty
         let suggestMemory = !operatorInput && conversation.provider == "codex" && conversation.memorySuggestionsEnabled && conversation.workspacePath != nil
@@ -83,10 +84,10 @@ extension AppModel {
         let expectedProjectSnapshot = automaticRecall && reviewedRecall?.matches(conversation: conversationID, text: text,
             workspace: conversation.workspacePath, mode: grant == nil ? "chat" : "full_access") == true
             ? reviewedRecall?.value["source_snapshot_hash"] : nil
-        let continuation = operatorInput ? nil : conversation.draftContinuation
+        let continuation = operatorInput || !useDraft ? nil : conversation.draftContinuation
         let userMessage = ChatMessage(role: "user", text: text, operatorInput: operatorInput, fileContext: files, imageContext: images, pdfContext: pdfs)
         conversations[index].messages.append(userMessage)
-        if !operatorInput {
+        if !operatorInput && useDraft {
             conversations[index].pendingFiles = []; conversations[index].pendingImages = []; conversations[index].pendingPDFs = []
         }
         if conversations[index].title == "Новый диалог" {
@@ -95,10 +96,10 @@ extension AppModel {
         conversations[index].updatedAt = Date()
         // The editor stays live while the initial request is being prepared.
         // Clear only the submitted text, never a newer draft typed meanwhile.
-        if selectedID == conversationID {
+        if useDraft && selectedID == conversationID {
             if composer.trimmingCharacters(in: .whitespacesAndNewlines) == text { setComposer("") }
             section = .chat
-        } else if conversations[index].draft.trimmingCharacters(in: .whitespacesAndNewlines) == text {
+        } else if useDraft && conversations[index].draft.trimmingCharacters(in: .whitespacesAndNewlines) == text {
             conversations[index].draft = ""; conversations[index].draftContinuation = nil
         }
         state.stream = ""; state.agentItems = []; state.agentReceipt = .null; state.workLog = .null; state.autoSkillsReport = nil
@@ -108,7 +109,7 @@ extension AppModel {
             // The provider has not been called. Restore the draft and attachments;
             // a local save failure must not create a failed or duplicate turn.
             conversations[index] = conversation
-            if selectedID == conversationID {
+            if useDraft && selectedID == conversationID {
                 restoreComposer()
                 if composer.isEmpty { setComposer(text, preservingContinuation: true) }
             }
@@ -228,7 +229,7 @@ extension AppModel {
                                       memorySuggestions: suggestions, memorySuggestionSourceID: suggestions == nil ? nil : userMessage.id,
                                       turnReference: turnReference)
             append(message, to: conversationID)
-            if !operatorInput, let current = conversations.firstIndex(where: { $0.id == conversationID }) {
+            if !operatorInput, useDraft, let current = conversations.firstIndex(where: { $0.id == conversationID }) {
                 conversations[current].pendingCriteria = []
                 projectNoteSelections[conversationID] = nil
                 preparedSkillTasks[conversationID] = nil
@@ -247,8 +248,8 @@ extension AppModel {
             append(ChatMessage(role: "report", text: error.localizedDescription + caution, isError: true,
                                agentRun: state.agentReceipt.isNull ? nil : state.agentReceipt,
                                workLog: state.workLog.isNull ? nil : state.workLog, autoSkills: state.autoSkillsReport?.value), to: conversationID)
-            if grant != nil { discardAgentGrants(for: conversationID) }
-            if let current = conversations.firstIndex(where: { $0.id == conversationID }),
+            if grant != nil { discardAgentGrants(for: conversationID, forgetSelection: false) }
+            if useDraft, let current = conversations.firstIndex(where: { $0.id == conversationID }),
                conversations[current].pendingFiles.isEmpty, conversations[current].pendingImages.isEmpty,
                conversations[current].pendingPDFs.isEmpty,
                selectedID != conversationID || composer.isEmpty || composer == conversation.draft {
@@ -258,7 +259,7 @@ extension AppModel {
                 conversations[current].pendingImages = images
                 conversations[current].pendingPDFs = pdfs
             }
-            if selectedID == conversationID && composer.isEmpty {
+            if useDraft && selectedID == conversationID && composer.isEmpty {
                 if let current = conversations.firstIndex(where: { $0.id == conversationID }) {
                     conversations[current].draftContinuation = continuation
                 }
@@ -276,7 +277,12 @@ extension AppModel {
     }
 
     func stop() async {
-        guard let state = selectedExecution, state.running, let request = state.requestID else { return }
+        guard let id = selectedID else { return }
+        await stop(conversationID: id)
+    }
+
+    func stop(conversationID: UUID) async {
+        guard let state = executions[conversationID], state.running, let request = state.requestID else { return }
         closeTaskUpdateQueue(execution: state); persist()
         do { state.status = try await state.client.request("cancel", ["request_id": .string(request)])["notice"].text }
         catch { if selectedID == state.conversationID { report(error) } }

@@ -78,8 +78,17 @@ extension NativeChecks {
                   && app.contextRequestParameters?["access_token"] != nil,
                   "Projectless context uses a real grant without substituting the application project")
         let restart = AppModel(configuration: LaunchConfiguration(projectRoot: fixture, python: python, stateDirectory: state))
-        try check(!restart.fullAccessEnabled && restart.selected?.workspacePath == nil,
-                  "Projectless Full Mac authority does not survive an application restart")
+        defer { restart.shutdown() }
+        try check(restart.fullAccessEnabled && restart.agentGrants.isEmpty && restart.selected?.workspacePath == nil,
+                  "Projectless Full Mac selection survives restart without persisting a bridge token")
+        try await restart.ensureAgentAccess(for: restart.execution(for: restart.selectedID!))
+        try check(restart.agentGrants[restart.selectedID!]?.token != app.agentGrants[app.selectedID!]?.token
+                  && restart.agentGrants[restart.selectedID!] != nil,
+                  "Restart reissues a distinct grant on the new conversation bridge")
+        restart.closeIdleExecutionConnections()
+        try check(restart.fullAccessEnabled && restart.agentGrants.isEmpty, "Idle reconnection preserves selection, not a stale token")
+        try await restart.ensureAgentAccess(for: restart.execution(for: restart.selectedID!))
+        try check(restart.agentGrants[restart.selectedID!] != nil, "Remembered access reconnects after closing idle bridges")
         await app.bindWorkspace(fixture.path)
         try check(app.selected?.workspacePath != nil && !app.fullAccessEnabled,
                   "Choosing a project revokes the earlier projectless grant")

@@ -28,7 +28,12 @@ struct PendingPersonaActivation: Identifiable {
 final class AppModel: ObservableObject {
     @Published var conversations: [Conversation] = []
     @Published var selectedID: UUID? {
-        didSet { if !initializing, let id = selectedID { _ = execution(for: id) } }
+        didSet {
+            if !initializing, let id = selectedID {
+                _ = execution(for: id)
+                liveVoice.updateContext(app: self)
+            }
+        }
     }
     @Published var section: WorkspaceSection = .chat
     @Published var composer = "" { didSet { draftChanged() } }
@@ -36,6 +41,8 @@ final class AppModel: ObservableObject {
     @Published var bootstrap: JSONValue = .null
     @Published var account: JSONValue = .null
     let codexUsage = CodexUsageModel()
+    let liveVoice: LiveVoiceModel
+    @Published var showLiveVoice = false
     @Published var showCodexUsage = false
     @Published var models: [JSONValue] = []
     @Published var modelSelectionNotice: String?
@@ -51,7 +58,7 @@ final class AppModel: ObservableObject {
             do {
                 try savePreferences()
                 invalidateSessionSpinePilot()
-                if !cloudConsent { discardAgentGrants(); codexUsage.clear() }
+                if !cloudConsent { discardAgentGrants(); codexUsage.clear(); liveVoice.stop() }
             }
             catch {
                 restoringPreferences = true
@@ -98,6 +105,8 @@ final class AppModel: ObservableObject {
     @Published var pendingPersonaActivation: PendingPersonaActivation?
     @Published var pendingAgentAccess: PendingAgentAccess?
     @Published var agentGrants: [UUID: AgentAccessGrant] = [:]
+    @Published var rememberedAgentAccess: [RememberedAgentAccess] = []
+    var restoringAgentAccess: [UUID: Task<AgentAccessGrant, Error>] = [:]
     @Published var computerUsePermissionIssue = false
     @Published var showWorkSessions = false
     @Published var showConversationHistory = false
@@ -206,6 +215,7 @@ final class AppModel: ObservableObject {
     private var personaReadinessRequest = UUID()
 
     init(configuration: LaunchConfiguration = .load(), historyStore: ChatStore? = nil) {
+        liveVoice = LiveVoiceModel(stateDirectory: configuration.stateDirectory)
         serviceClient = BridgeClient(configuration: configuration)
         store = historyStore ?? ChatStore(directory: configuration.stateDirectory)
         preferences = PreferenceStore(directory: configuration.stateDirectory)
@@ -223,6 +233,7 @@ final class AppModel: ObservableObject {
             let saved = try preferences.load()
             cloudConsent = saved.cloudProcessingAllowed
             personaEnabled = saved.personaEnabled
+            rememberedAgentAccess = saved.cloudProcessingAllowed ? saved.rememberedAgentAccess : []
         }
         catch { self.error = error.localizedDescription }
         if conversations.isEmpty {
@@ -239,11 +250,12 @@ final class AppModel: ObservableObject {
         initializing = false
     }
 
-    private func savePreferences() throws {
+    func savePreferences() throws {
         guard !privateBackupRestartRequired else { throw NativeError.message("Перезапустите Proto-Mind после восстановления данных.") }
         try preferences.save(NativePreferences(
             cloudProcessingAllowed: cloudConsent,
-            personaEnabled: personaEnabled
+            personaEnabled: personaEnabled,
+            rememberedAgentAccess: cloudConsent ? rememberedAgentAccess : []
         ))
     }
 
@@ -307,6 +319,7 @@ final class AppModel: ObservableObject {
     func invalidateContextPreview() { loadingContextPreview = false; contextPreview = nil; contextPreviewError = nil; contextPreviewRequest = UUID() }
 
     func refreshContextPreview() async {
+        guard !busy, await prepareSelectedAgentAccess() else { return }
         guard !busy, let conversationID = selectedID, let params = contextRequestParameters else { return }
         let request = UUID()
         contextPreviewRequest = request
@@ -332,6 +345,7 @@ final class AppModel: ObservableObject {
     }
 
     func refreshPersonaPreview() async {
+        guard !busy, await prepareSelectedAgentAccess() else { return }
         guard !busy, let conversationID = selectedID, let params = personaRequestParameters else { return }
         let request = UUID()
         personaPreviewRequest = request
@@ -352,6 +366,7 @@ final class AppModel: ObservableObject {
     }
 
     func refreshPersonaReadiness() async {
+        guard !busy, await prepareSelectedAgentAccess() else { return }
         guard !busy, let conversationID = selectedID, let params = personaRequestParameters else { return }
         let request = UUID()
         personaReadinessRequest = request
@@ -377,6 +392,7 @@ final class AppModel: ObservableObject {
     }
 
     func preparePersonaActivation() async -> Bool {
+        guard !globalBusy, await prepareSelectedAgentAccess() else { return false }
         guard !globalBusy, !personaEnabled, let conversation = selected,
               ["codex", "ollama"].contains(conversation.provider),
               let params = personaRequestParameters else {
@@ -418,6 +434,7 @@ final class AppModel: ObservableObject {
     }
 
     func confirmPersonaActivation() async {
+        guard !globalBusy, await prepareSelectedAgentAccess() else { return }
         guard !globalBusy, !personaEnabled, let pending = pendingPersonaActivation,
               pending.conversationID == selectedID, let conversation = selected,
               pending.provider == conversation.provider,
@@ -529,9 +546,8 @@ final class AppModel: ObservableObject {
     var computerUseVersion: String { bootstrap["agent"]["computer_use"]["version"].text }
     var fullAccessLabel: String { computerUseAvailable ? "Полный доступ + экран" : "Полный доступ + интернет" }
     var fullAccessEnabled: Bool {
-        guard selectedExecution?.client.connected == true, cloudConsent, selected?.provider == "codex", let id = selectedID,
-              let grant = agentGrants[id] else { return false }
-        return grant.workspace == selected?.workspacePath
+        guard let conversation = selected else { return false }
+        return hasAgentAccessSelection(conversation)
     }
 
     func requestAgentAccess() {
@@ -560,7 +576,18 @@ final class AppModel: ObservableObject {
                   request.conversationID == selectedID, request.workspace == selected?.workspacePath,
                   cloudConsent, selected?.provider == "codex" else { throw NativeError.message("Не удалось проверить разрешение агента.") }
             invalidateSessionSpinePilot()
-            agentGrants[request.conversationID] = AgentAccessGrant(token: result["token"].text, workspace: request.workspace)
+            agentGrants[request.conversationID] = AgentAccessGrant(token: result["token"].text, workspace: request.workspace,
+                bridgeGeneration: execution(for: request.conversationID).client.connectionGeneration)
+            let previous = rememberedAgentAccess
+            rememberedAgentAccess.removeAll { $0.conversationID == request.conversationID }
+            rememberedAgentAccess.append(RememberedAgentAccess(conversationID: request.conversationID, workspace: request.workspace))
+            do { try savePreferences() }
+            catch {
+                rememberedAgentAccess = previous
+                agentGrants.removeValue(forKey: request.conversationID)
+                _ = try? await execution(for: request.conversationID).client.request("agent_access", ["conversation_id": .string(request.conversationID.uuidString), "mode": .string("chat")])
+                throw error
+            }
             invalidateContextPreview()
             error = nil
             status = computerUseAvailable
@@ -571,7 +598,12 @@ final class AppModel: ObservableObject {
 
     func disableAgentAccess() async {
         guard !busy, let id = selectedID else { return }
+        let previous = rememberedAgentAccess
+        rememberedAgentAccess.removeAll { $0.conversationID == id }
+        do { try savePreferences() }
+        catch { rememberedAgentAccess = previous; report(error); return }
         invalidateSessionSpinePilot()
+        restoringAgentAccess.removeValue(forKey: id)?.cancel()
         agentGrants.removeValue(forKey: id)
         invalidateContextPreview()
         busy = true
@@ -595,9 +627,14 @@ final class AppModel: ObservableObject {
         computerUsePermissionIssue = false
     }
 
-    func discardAgentGrants(for id: UUID? = nil) {
-        let ids = id.map { [$0] } ?? Array(agentGrants.keys)
+    func discardAgentGrants(for id: UUID? = nil, forgetSelection: Bool = true) {
+        let ids = id.map { [$0] } ?? Array(Set(agentGrants.keys).union(rememberedAgentAccess.map(\.conversationID)))
+        if forgetSelection {
+            rememberedAgentAccess.removeAll { id == nil || $0.conversationID == id }
+            if !initializing { do { try savePreferences() } catch { report(error) } }
+        }
         pendingAgentAccess = nil
+        for id in ids { restoringAgentAccess.removeValue(forKey: id)?.cancel() }
         for id in ids where agentGrants.removeValue(forKey: id) != nil {
             guard let state = executions[id] else { continue }
             Task {

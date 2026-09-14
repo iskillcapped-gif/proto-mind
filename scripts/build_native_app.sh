@@ -4,15 +4,16 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 PROJECT_DIR="$(pwd)"
 source "${PROJECT_DIR}/scripts/python_common.sh"
+source "${PROJECT_DIR}/scripts/swift_common.sh"
 PYTHON_BIN="$(select_proto_mind_python "${PROJECT_DIR}")" || {
   echo "Proto-Mind Native requires Python 3.11+." >&2
   exit 1
 }
 command -v swift >/dev/null || { echo "Install Apple Command Line Tools before building." >&2; exit 1; }
 
-swift build --package-path native -c release --product ProtoMindNative
-swift build --package-path native -c release --product ProtoMindPDF
-BIN_DIR="$(swift build --package-path native -c release --show-bin-path)"
+swift build "${PROTO_MIND_SWIFT_BUILD_ARGS[@]}" -c release --product ProtoMindNative
+swift build "${PROTO_MIND_SWIFT_BUILD_ARGS[@]}" -c release --product ProtoMindPDF
+BIN_DIR="$(swift build "${PROTO_MIND_SWIFT_BUILD_ARGS[@]}" -c release --show-bin-path)"
 APP_DIR="${PROJECT_DIR}/dist/Proto-Mind Native.app"
 CONTENTS="${APP_DIR}/Contents"
 mkdir -p "${CONTENTS}/MacOS" "${CONTENTS}/Resources"

@@ -61,6 +61,7 @@ struct ComposerView: View {
                         if model.selected?.provider == "codex" { ComposerAccessMenu(model: model) }
                         Spacer(minLength: 8)
                         ModelSelectionMenu(model: model, openSettings: { openSettings() })
+                        LiveVoiceButton(app: model, voice: model.liveVoice)
                         sendButton
                     }
                     VStack(spacing: 8) {
@@ -73,6 +74,7 @@ struct ComposerView: View {
                         HStack(spacing: 8) {
                             Spacer(minLength: 0)
                             ModelSelectionMenu(model: model, openSettings: { openSettings() })
+                            LiveVoiceButton(app: model, voice: model.liveVoice)
                             sendButton
                         }
                     }
@@ -81,6 +83,9 @@ struct ComposerView: View {
             .background(NativeTheme.composer, in: RoundedRectangle(cornerRadius: 20))
             .overlay(RoundedRectangle(cornerRadius: 20).stroke(NativeTheme.hairline))
         }.frame(maxWidth: NativeTheme.columnWidth).frame(maxWidth: .infinity)
+            .popover(isPresented: $model.showLiveVoice, arrowEdge: .top) {
+                LiveVoiceView(app: model, voice: model.liveVoice)
+            }
             .sheet(isPresented: $starterSkillsOpen) { StarterSkillsView(client: model.client) }
     }
 

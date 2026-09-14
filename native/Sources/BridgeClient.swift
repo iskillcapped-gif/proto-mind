@@ -14,6 +14,7 @@ final class BridgeClient: ObservableObject {
     private var turnRequestID: String?
     private var shuttingDown = false
     private var generation = UUID()
+    var connectionGeneration: UUID { generation }
 
     init(configuration: LaunchConfiguration) { self.configuration = configuration }
 

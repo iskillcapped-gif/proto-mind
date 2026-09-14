@@ -2,12 +2,14 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Микрофон используется для разговора с Proto-Mind через OpenAI GPT Live. Звук передаётся OpenAI только во время включённого разговора.</string>
   <key>CFBundleName</key><string>Proto-Mind Native</string>
   <key>CFBundleDisplayName</key><string>Proto-Mind Native</string>
   <key>CFBundleExecutable</key><string>ProtoMindNative</string>
   <key>CFBundleIdentifier</key><string>local.proto-mind.native</string>
-  <key>CFBundleVersion</key><string>69</string>
-  <key>CFBundleShortVersionString</key><string>0.57.1</string>
+  <key>CFBundleVersion</key><string>70</string>
+  <key>CFBundleShortVersionString</key><string>0.58.0</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleIconFile</key><string>ProtoMindCube</string>
   <key>LSMinimumSystemVersion</key><string>14.0</string>

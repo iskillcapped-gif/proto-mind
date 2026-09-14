@@ -1,6 +1,6 @@
 # Proto-Mind: Current Direction
 
-Updated: 2026-09-06. Current release: Native **0.57.1 (69)**.
+Updated: 2026-09-14. Current release: Native **0.58.0 (70)**.
 
 Proto-Mind is a personal macOS assistant. The immediate goal is a dependable, approachable application that can support the operator's planned expansion. The everyday layout, working panel and conversation polish are delivered. On September 5 the operator requested useful service connections, starting with GitHub. GitHub, complete local private-state backups, subscription usage with explicit earned resets, Full Mac access without a selected project, live text/attachment updates to running Codex tasks and a sidebar-confined limits menu with explicit account identity are now delivered. Reply typography and parallel conversations are also implemented; memory and continuity workflows remain available.
 
@@ -65,6 +65,10 @@ Selection still uses finite local vocabulary and literal qualifiers; it is not g
 
 Release 0.57.1 removes the short Codex turn timers and total action cutoff for new Native tasks. Recent public evidence remains bounded and marked partial when rotated; Stop and failure handling remain available. Existing contracts/history stay readable. See the [release checks](NATIVE_MACOS_ROADMAP.md#long-running-tasks--native-0571).
 
+## Live Voice Delivered
+
+Release 0.58.0 adds GPT Live 1 voice with a separate OpenAI API key, native audio and Responses-backed command routing. Voice can manage known projects and existing/new tasks while the task model keeps its own memory and permissions. Full Mac selection is remembered per dialog/workspace; bridge tokens remain temporary. Stopping voice does not stop work. A local/free voice alternative and permanent conversational voice memory remain separate future work. VIREN continues as an independent project. See the [release contract](NATIVE_MACOS_ROADMAP.md#live-voice--native-0580).
+
 ## Next Candidate: Everyday Document Work
 
 The next useful candidate is original PDF viewing in the working panel, with clear page navigation and the existing explicit attachment controls. The current panel can inspect selected PDF text but does not render the original layout. Keep viewing separate from sending document contents. This candidate has not been started; the operator's larger functional expansion remains to be scoped.
@@ -75,7 +79,7 @@ The operator plans a substantial functional expansion and will supply its scope 
 
 - Further practical memory correction, scope and retrieval quality from new ordinary-task examples.
 - Continuity across tasks and sessions, with stronger recovery for linked history and work records.
-- Richer document/artifact handling, voice input and provider capability parity.
+- Richer document/artifact handling, local/free voice and provider capability parity.
 - Narrower tool modes, reviewed procedures and useful background/parallel work with visible limits.
 - Cross-installation backup migration and simpler local runtime packaging when needed.
 

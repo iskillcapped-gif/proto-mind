@@ -149,6 +149,7 @@ final class PrivateBackupModel: ObservableObject {
         app.privateBackupRestartRequired = true
         app.draftSave?.cancel()
         app.agentGrants.removeAll(); app.pendingAgentAccess = nil
+        app.rememberedAgentAccess.removeAll()
         app.codexUsage.clear()
         app.invalidateSessionSpinePilot()
         app.shutdown()

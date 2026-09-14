@@ -70,6 +70,8 @@ extension AppModel {
     }
 
     func shutdown() {
+        liveVoice.shutdown()
+        restoringAgentAccess.values.forEach { $0.cancel() }; restoringAgentAccess.removeAll()
         for state in executions.values { state.client.shutdown() }
         serviceClient.shutdown()
     }

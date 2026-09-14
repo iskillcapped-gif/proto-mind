@@ -16,6 +16,10 @@ struct NativeChecks {
 
     @MainActor
     static func main() async throws {
+        if let directory = LaunchConfiguration.argument("--live-api-smoke"), let pcm = LaunchConfiguration.argument("--synthetic-pcm") {
+            try await liveVoiceAPIProbe(stateDirectory: URL(fileURLWithPath: directory), pcm: URL(fileURLWithPath: pcm))
+            return
+        }
         if let state = LaunchConfiguration.argument("--history-write-probe") {
             historyWriteProbe(URL(fileURLWithPath: state)); return
         }
@@ -24,6 +28,16 @@ struct NativeChecks {
         if CommandLine.arguments.contains("--history-only") {
             try chatStorage(root: root)
             print("Native history checks: \(passed) OK")
+            return
+        }
+        if CommandLine.arguments.contains("--live-voice-only"),
+           let fixture = LaunchConfiguration.argument("--fixture"), let python = LaunchConfiguration.argument("--python"),
+           let service = LaunchConfiguration.argument("--steering-service") {
+            try liveVoiceContracts(root: root)
+            try await projectlessAccess(fixture: URL(fileURLWithPath: fixture), python: URL(fileURLWithPath: python), root: root)
+            try await liveVoiceIntegration(fixture: URL(fileURLWithPath: fixture), service: URL(fileURLWithPath: service),
+                                           python: URL(fileURLWithPath: python), root: root)
+            print("Native Live voice checks: \(passed) OK")
             return
         }
         if CommandLine.arguments.contains("--usage-only") {
@@ -143,6 +157,12 @@ struct NativeChecks {
         try check(app.composerRevision == 1 && app.composer == "prepared command", "Explicit composer replacement has a revision")
 
         try preferencesAndLegacyHistory(root: root)
+        try liveVoiceContracts(root: root)
+        if let fixture = LaunchConfiguration.argument("--fixture"), let python = LaunchConfiguration.argument("--python"),
+           let service = LaunchConfiguration.argument("--steering-service") {
+            try await liveVoiceIntegration(fixture: URL(fileURLWithPath: fixture), service: URL(fileURLWithPath: service),
+                                           python: URL(fileURLWithPath: python), root: root)
+        }
         try privateBackupContracts(root: root)
         try await codexUsageContracts(root: root)
         try personaActivationContracts(root: root)
@@ -437,7 +457,7 @@ struct NativeChecks {
         try check(!defaults.cloudProcessingAllowed && !defaults.personaEnabled && !FileManager.default.fileExists(atPath: directory.path), "Cloud and Persona preferences default off without creating files")
         try preferences.save(NativePreferences(cloudProcessingAllowed: true, personaEnabled: true))
         let current = try PreferenceStore(directory: directory).load()
-        try check(current.version == 2 && current.cloudProcessingAllowed && current.personaEnabled, "Explicit cloud consent and Persona opt-in survive restart in preferences v2")
+        try check(current.version == 3 && current.cloudProcessingAllowed && current.personaEnabled, "Explicit cloud consent and Persona opt-in survive restart in preferences v3")
         try check(try FileManager.default.attributesOfItem(atPath: preferences.url.path)[.posixPermissions] as? Int == 0o600, "Private consent settings permissions")
         let legacyPreferences = Data("{\"cloudProcessingAllowed\":true,\"version\":1}".utf8)
         try legacyPreferences.write(to: preferences.url)
@@ -855,7 +875,7 @@ struct NativeChecks {
                   "Persona readiness confirmation preview performs no writes or model turn")
         await app.confirmPersonaActivation()
         let enabledPreferences = try PreferenceStore(directory: state).load()
-        try check(app.personaEnabled && enabledPreferences.version == 2 && enabledPreferences.personaEnabled,
+        try check(app.personaEnabled && enabledPreferences.version == 3 && enabledPreferences.personaEnabled,
                   "Fresh matching readiness evidence enables one persistent local opt-in")
         let stateAfterEnable = try fileBytes(state)
         let changedAfterEnable = Set(stateAfterEnable.keys.filter { stateBefore[$0] != stateAfterEnable[$0] })
@@ -1636,9 +1656,17 @@ struct NativeChecks {
                   && grantedContext?["access_token"]?.text == app.agentGrants[app.selectedID!]?.token
                   && grantedContext?["persona_enabled"] == .bool(false),
                   "Context inspection receives the current in-memory Full Mac grant without inventing Persona state")
-        try check(try fileBytes(state) == beforeState && fileBytes(fixture.appendingPathComponent("proto_mind/data")) == beforeData, "Grant creates no history/settings/core-store files")
+        let afterGrantState = try fileBytes(state)
+        let grantChangedPaths = Set(afterGrantState.keys).union(beforeState.keys).filter { afterGrantState[$0] != beforeState[$0] }
+        let afterGrantCore = try fileBytes(fixture.appendingPathComponent("proto_mind/data"))
+        try check(grantChangedPaths.count == 1 && grantChangedPaths.allSatisfy { URL(fileURLWithPath: $0).lastPathComponent == "preferences.json" }
+                  && afterGrantCore == beforeData,
+                  "Remembering a grant changes only preferences, never history or core stores")
+        try check(!(try String(contentsOf: app.preferences.url, encoding: .utf8)).contains(app.agentGrants[app.selectedID!]!.token),
+                  "Remembered permissions never persist a process token")
         let restart = AppModel(configuration: LaunchConfiguration(projectRoot: fixture, python: python, stateDirectory: state))
-        try check(restart.agentGrants.isEmpty && !restart.fullAccessEnabled && restart.cloudConsent, "Cloud consent survives restart but Full Mac permission does not")
+        defer { restart.shutdown() }
+        try check(restart.agentGrants.isEmpty && restart.fullAccessEnabled && restart.cloudConsent, "Cloud consent and Full Mac selection survive restart without a process grant")
         app.error = "Earlier configuration warning"
         await app.disableAgentAccess()
         try check(!app.fullAccessEnabled && app.agentGrants.isEmpty && app.error == nil, "Disable clears stale errors and returns to chat without a target command")

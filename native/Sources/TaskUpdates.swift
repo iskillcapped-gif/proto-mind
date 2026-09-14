@@ -106,6 +106,26 @@ extension AppModel {
         if let state = selectedExecution { await flushTaskUpdates(execution: state) }
     }
 
+    func enqueueVoiceTaskUpdate(_ text: String, execution state: ConversationExecution) throws -> JSONValue {
+        guard canUpdateTask(state), let sourceID = state.sourceMessageID,
+              let index = conversations.firstIndex(where: { $0.id == state.conversationID }),
+              let message = conversations[index].messages.firstIndex(where: { $0.id == sourceID }),
+              text.unicodeScalars.count <= 20_000, !text.contains("\0"),
+              (conversations[index].messages[message].taskUpdates?.count ?? 0) < 32 else {
+            throw NativeError.message("Задача пока не готова принять уточнение или очередь заполнена. Сообщение не отправлено.")
+        }
+        let previous = conversations[index]
+        let update = TaskUpdate(text: text)
+        conversations[index].messages[message].taskUpdates = (previous.messages[message].taskUpdates ?? []) + [update]
+        guard persist() else {
+            conversations[index] = previous
+            throw NativeError.message("Не удалось сохранить уточнение. Оно не отправлено.")
+        }
+        Task { await flushTaskUpdates(execution: state) }
+        return .object(["status": .string("queued"), "conversation_id": .string(state.conversationID.uuidString),
+                        "update_id": .string(update.id.uuidString)])
+    }
+
     private func canUpdateTask(_ state: ConversationExecution) -> Bool {
         state.running && state.startedAt != nil && state.sourceMessageID != nil
             && cloudConsent && !state.updatesStopped && !historyPersistence.blocksSubmission && !store.writeBlocked

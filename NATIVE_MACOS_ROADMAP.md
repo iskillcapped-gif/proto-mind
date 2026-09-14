@@ -4,6 +4,20 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Live Voice — Native 0.58.0
+
+The waveform button beside Send opens a native GPT Live 1 conversation. The primary WebSocket uses continuous mono PCM16 at 24 kHz; AVAudioEngine captures and plays audio with voice processing for echo cancellation. Microphone access and a saved API key are checked before opening the billable session. Start is explicit, mute sends silence locally, and hangup closes the session while preserving accepted working tasks. No audio is recorded to disk and remote session storage is disabled. Captions are a bounded, temporary display, not authoritative task boundaries.
+
+Responses delegation uses GPT-5.6 Luna to call the finite project/task interface: list known projects and tasks, open/create a task, submit a message, inspect status, or request cancellation. Completed function items are bound to their response/delegation; partial arguments and repeated call IDs cannot execute actions. Task messages use the existing conversation execution and history writer. Corrections are persisted in the original user message before delivery. Voice never consumes a typed draft, its attachments, criteria or prepared context. A received answer and an independently verified result remain different states.
+
+API keys live in macOS Keychain, scoped to the Native state location. Settings and backups contain no key. Voice uses OpenAI API billing independently of the existing Codex account: [GPT Live 1](https://developers.openai.com/api/docs/models/gpt-live-1) is $0.05/minute at this release, with separate backend usage. API configuration follows the official [Live WebSocket](https://developers.openai.com/api/docs/guides/voice-websockets?api=live) and [delegation](https://developers.openai.com/api/docs/guides/live-delegation) contracts. No key, balance, or account metadata is embedded in the bundle.
+
+Preferences v3 remember Full Mac selection for the exact conversation and optional workspace. Actual grants remain in memory and are issued afresh by each bridge. Workspace/provider changes, explicit disabling, cloud-consent revocation and recovery clear the selection; task interruption rotates the process grant without forgetting the choice. v1/v2 preferences remain read-only compatible until an explicit save, oversized settings cannot replace a readable file, and private restore removes remembered access. The original preference file was copied before installing the change.
+
+Verification: **2,298 Python tests and 1,324 Native checks pass**. New checks cover protocol boundaries, malformed/repeated calls, bounded context, preference restart/reconnection, actual fixture task execution/steering, draft preservation, and independent voice/task shutdown. A live API test sends synthesized Russian speech, receives `list_projects`, returns only a synthetic project, receives the spoken answer and final `session.closed` usage of **20 seconds**. A separate disposable native UI run verifies API-key setup and a real microphone/connection start; this is not a claim of exhaustive acoustic testing across Mac audio devices. Ordinary suites never open a paid session.
+
+Build scripts use two jobs by default and the installed macOS 26.5 SDK when the CLT macOS 27 interface requires an unavailable SwiftUI macro plugin. `PROTO_MIND_SWIFT_SDK` overrides the SDK; the system developer selection is unchanged. VIREN, local/free voice, permanent voice-conversation memory and visual input to Live remain outside this release.
+
 ## Architecture Decision
 
 Use a real SwiftUI/AppKit application with a Codex-inspired sidebar, conversation workspace, composer, file/browser panel and separately accessible answer evidence. Preserve the existing Python cognitive core and its memory, learning and permission logic.

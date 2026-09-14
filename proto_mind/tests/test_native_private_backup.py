@@ -13,6 +13,15 @@ from proto_mind.private_state_gate import RESTORE_MARKER, generation, require_av
 
 
 class PrivateBackupTests(unittest.TestCase):
+    def test_restore_removes_remembered_mac_access_without_changing_original(self):
+        raw = encoded({"version": 3, "cloudProcessingAllowed": True, "personaEnabled": True,
+                       "rememberedAgentAccess": [{"conversationID": "fixture", "workspace": None}]})
+        result = json.loads(without_authority("native/preferences.json", raw))
+        self.assertFalse(result["cloudProcessingAllowed"])
+        self.assertEqual(result["rememberedAgentAccess"], [])
+        self.assertTrue(result["personaEnabled"])
+        self.assertEqual(len(json.loads(raw)["rememberedAgentAccess"]), 1)
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
