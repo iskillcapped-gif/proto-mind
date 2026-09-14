@@ -16,6 +16,9 @@ struct NativeChecks {
 
     @MainActor
     static func main() async throws {
+        if CommandLine.arguments.contains("--live-audio-device-smoke"), let pcm = LaunchConfiguration.argument("--synthetic-pcm") {
+            try await liveVoiceAudioDeviceProbe(pcm: URL(fileURLWithPath: pcm)); return
+        }
         if let directory = LaunchConfiguration.argument("--live-api-smoke"), let pcm = LaunchConfiguration.argument("--synthetic-pcm") {
             try await liveVoiceAPIProbe(stateDirectory: URL(fileURLWithPath: directory), pcm: URL(fileURLWithPath: pcm))
             return
@@ -34,6 +37,7 @@ struct NativeChecks {
            let fixture = LaunchConfiguration.argument("--fixture"), let python = LaunchConfiguration.argument("--python"),
            let service = LaunchConfiguration.argument("--steering-service") {
             try liveVoiceContracts(root: root)
+            try await liveVoiceAudioConversion()
             try await projectlessAccess(fixture: URL(fileURLWithPath: fixture), python: URL(fileURLWithPath: python), root: root)
             try await liveVoiceIntegration(fixture: URL(fileURLWithPath: fixture), service: URL(fileURLWithPath: service),
                                            python: URL(fileURLWithPath: python), root: root)
@@ -158,6 +162,7 @@ struct NativeChecks {
 
         try preferencesAndLegacyHistory(root: root)
         try liveVoiceContracts(root: root)
+        try await liveVoiceAudioConversion()
         if let fixture = LaunchConfiguration.argument("--fixture"), let python = LaunchConfiguration.argument("--python"),
            let service = LaunchConfiguration.argument("--steering-service") {
             try await liveVoiceIntegration(fixture: URL(fileURLWithPath: fixture), service: URL(fileURLWithPath: service),

@@ -1,8 +1,9 @@
 import AVFoundation
 import Foundation
+import OSLog
 
 /// Conversion runs off the audio render thread with a small bounded backlog.
-private final class LiveVoiceCapture: @unchecked Sendable {
+final class LiveVoiceCapture: @unchecked Sendable {
     private let queue = DispatchQueue(label: "local.proto-mind.live.capture", qos: .userInitiated)
     private let lock = NSLock()
     private var pending = 0
@@ -15,6 +16,12 @@ private final class LiveVoiceCapture: @unchecked Sendable {
     init(input: AVAudioFormat, onPCM: @escaping (Data) -> Void, onFailure: @escaping () -> Void) throws {
         guard let format = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 24_000, channels: 1, interleaved: true),
               let converter = AVAudioConverter(from: input, to: format) else { throw NativeError.message("Не удалось настроить формат микрофона.") }
+        // Voice Processing I/O on macOS can expose a multichannel client format
+        // without a standard channel layout. The default converter map may then
+        // select no source for mono and silently produce zeros. The processed
+        // microphone is channel zero; select it explicitly instead of downmixing
+        // an unspecified layout (which may also contain reference channels).
+        converter.channelMap = [0]
         self.format = format; self.converter = converter; self.onPCM = onPCM; self.onFailure = onFailure
     }
 
@@ -66,8 +73,21 @@ final class LiveVoiceAudio {
     private var capture: LiveVoiceCapture?
     private var queuedFrames = 0
     private var generation = UUID()
+    private var playbackGeneration = UUID()
     private var observer: NSObjectProtocol?
+    private var recovery: Task<Void, Never>?
+    private var recovering = false
+    private var recoveryTimes: [Date] = []
+    private var enabled = false
+    private var captureSession = UUID()
+    private var lastCapture: Date?
+    private(set) var capturedFrames = 0
+    private(set) var playedFrames = 0
     private let playbackFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 24_000, channels: 1, interleaved: false)!
+    private let makeEngine: () -> AVAudioEngine
+    private let logger = Logger(subsystem: "local.proto-mind.native", category: "voice-audio")
+
+    init(makeEngine: @escaping () -> AVAudioEngine = { AVAudioEngine() }) { self.makeEngine = makeEngine }
 
     static func requestMicrophone() async -> Bool {
         switch AVCaptureDevice.authorizationStatus(for: .audio) {
@@ -77,17 +97,36 @@ final class LiveVoiceAudio {
         }
     }
 
-    func start() throws {
+    func start() async throws {
         stop()
+        let session = UUID(); captureSession = session
+        enabled = true; capturedFrames = 0; playedFrames = 0; recoveryTimes = []
+        do {
+            try startEngine()
+            // A started engine can still fail to render. Do not open the paid
+            // network session until real capture callbacks arrive, even silence.
+            let deadline = Date().addingTimeInterval(5)
+            while enabled, captureSession == session, capturedFrames == 0, Date() < deadline {
+                try await Task.sleep(for: .milliseconds(50))
+            }
+            try Task.checkCancellation()
+            guard captureSession == session else { throw CancellationError() }
+            guard enabled, capturedFrames > 0 else { throw NativeError.message("Микрофон не передаёт звук. Проверьте выбранное устройство в настройках macOS.") }
+        } catch { if captureSession == session { stop() }; throw error }
+    }
+
+    private func startEngine() throws {
         let generation = UUID(); self.generation = generation
-        let engine = AVAudioEngine()
+        let engine = makeEngine()
         let input = engine.inputNode
         try input.setVoiceProcessingEnabled(true)
         let format = input.outputFormat(forBus: 0)
+        logger.info("Preparing voice audio: \(format.channelCount) input channels at \(format.sampleRate) Hz")
         guard format.sampleRate > 0, format.channelCount > 0 else { throw NativeError.message("Микрофон недоступен.") }
         let capture = try LiveVoiceCapture(input: format, onPCM: { [weak self] bytes in
             Task { @MainActor in
                 guard let self, self.generation == generation else { return }
+                self.lastCapture = Date(); self.capturedFrames += bytes.count / 2
                 self.onPCM?(bytes)
             }
         }, onFailure: { [weak self] in
@@ -112,9 +151,49 @@ final class LiveVoiceAudio {
         observer = NotificationCenter.default.addObserver(forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main) { [weak self] _ in
             Task { @MainActor in
                 guard let self, self.generation == generation else { return }
-                self.onFailure?("Аудиоустройство изменилось. Подключите голос снова.")
+                self.configurationChanged()
             }
         }
+    }
+
+    /// Notifications can be queued by our own Voice Processing setup. Recheck
+    /// the engine after the notification returns rather than destroying it in
+    /// Core Audio's callback. Recover the local graph without restarting Live.
+    private func configurationChanged() {
+        guard enabled, recovery == nil else { return }
+        recovery = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(200))
+            guard let self, !Task.isCancelled, self.enabled else { return }
+            self.recovery = nil
+            // A running graph may still be warming up. Capture health has its
+            // own deadline; a notification alone must not restart that graph.
+            if self.engine?.isRunning == true { return }
+            self.recoveryTimes.removeAll { Date().timeIntervalSince($0) > 5 }
+            guard self.recoveryTimes.count < 3 else {
+                self.onFailure?("Не удалось стабилизировать аудиоустройство. Проверьте микрофон и наушники в настройках macOS."); return
+            }
+            self.recoveryTimes.append(Date()); self.recovering = true
+            do {
+                if let engine = self.engine, let capture = self.capture,
+                   engine.inputNode.outputFormat(forBus: 0) == capture.converter.inputFormat {
+                    // Voice Processing can stop its engine while settling the
+                    // aggregate device, without changing the client format.
+                    // Recreating it here repeats that negotiation indefinitely.
+                    self.logger.info("Restarting the existing voice audio graph after configuration change")
+                    self.clearPlayback()
+                    engine.prepare(); try engine.start(); self.player?.play()
+                } else {
+                    self.logger.info("Rebuilding voice audio for a changed microphone format")
+                    self.releaseEngine(); try self.startEngine()
+                }
+            }
+            catch { self.onFailure?("Не удалось переподключить аудиоустройство: \(error.localizedDescription)") }
+            self.recovering = false
+        }
+    }
+
+    var captureIsFlowing: Bool {
+        enabled && (recovering || recovery != nil || lastCapture.map { Date().timeIntervalSince($0) < 3 } == true)
     }
 
     func play(_ data: Data) throws {
@@ -132,20 +211,47 @@ final class LiveVoiceAudio {
             }
         }
         queuedFrames += frames
-        let generation = generation
+        let generation = playbackGeneration
         player.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { [weak self] _ in
             Task { @MainActor in
-                guard let self, self.generation == generation else { return }
+                guard let self, self.playbackGeneration == generation else { return }
                 self.queuedFrames -= frames
+                self.playedFrames += frames
             }
         }
     }
 
     func stop() {
+        captureSession = UUID()
+        enabled = false; recovery?.cancel(); recovery = nil; recovering = false
+        lastCapture = nil
+        releaseEngine()
+    }
+
+    private func releaseEngine() {
         generation = UUID()
         if let observer { NotificationCenter.default.removeObserver(observer) }; observer = nil
         capture?.stop(); capture = nil
         if let engine { engine.inputNode.removeTap(onBus: 0); engine.stop() }
-        player?.stop(); engine = nil; player = nil; queuedFrames = 0
+        clearPlayback(); engine = nil; player = nil
+    }
+
+    private func clearPlayback() {
+        playbackGeneration = UUID()
+        player?.stop(); queuedFrames = 0
+    }
+}
+
+enum LiveVoiceSignal {
+    static func level(_ pcm: Data) -> Double {
+        guard !pcm.isEmpty, pcm.count % 2 == 0 else { return 0 }
+        let energy = pcm.withUnsafeBytes { bytes in
+            stride(from: 0, to: bytes.count, by: 2).reduce(0.0) { sum, offset in
+                let sample = Double(bytes.loadUnaligned(fromByteOffset: offset, as: Int16.self).littleEndian) / 32768
+                return sum + sample * sample
+            }
+        }
+        let rms = sqrt(energy / Double(pcm.count / 2))
+        return min(1, max(0, (20 * log10(max(rms, 0.000_001)) + 60) / 60))
     }
 }

@@ -20,6 +20,7 @@ final class LiveVoiceModel: ObservableObject {
     @Published private(set) var startedAt: Date?
     @Published private(set) var finalUsage: JSONValue = .null
     @Published private(set) var contextTitle = ""
+    @Published private(set) var inputLevel = 0.0
     let keychain: LiveVoiceKeychain
     private let transport = LiveVoiceTransport()
     private let audio = LiveVoiceAudio()
@@ -27,6 +28,8 @@ final class LiveVoiceModel: ObservableObject {
     private var calls: [LiveVoiceCall] = []
     private var worker: Task<Void, Never>?
     private var connectionDeadline: Task<Void, Never>?
+    private var audioMonitor: Task<Void, Never>?
+    private var opening = LiveVoiceOpening()
     private var sleepObserver: NSObjectProtocol?
     private(set) var generation = UUID()
     private weak var app: AppModel?
@@ -40,7 +43,9 @@ final class LiveVoiceModel: ObservableObject {
         transport.onFailure = { [weak self] in self?.fail($0, connectionLost: true) }
         audio.onFailure = { [weak self] in self?.fail($0) }
         audio.onPCM = { [weak self] data in
-            guard let self, self.phase == .active else { return }
+            guard let self, self.phase == .active || self.phase == .connecting else { return }
+            self.inputLevel = self.muted ? 0 : LiveVoiceSignal.level(data)
+            guard self.phase == .active else { return }
             let bytes = self.muted ? Data(count: data.count) : data
             self.transport.send(.object(["type": .string("session.input_audio.append"), "audio": .string(bytes.base64EncodedString())]))
         }
@@ -66,7 +71,7 @@ final class LiveVoiceModel: ObservableObject {
         self.app = app; generation = UUID()
         let generation = generation
         phase = .connecting; error = nil; captions = []; action = ""; finalUsage = .null; muted = false; startedAt = nil
-        calls = []; delegations = LiveVoiceDelegations()
+        calls = []; delegations = LiveVoiceDelegations(); opening = LiveVoiceOpening(); inputLevel = 0
         do {
             try PrivateStateAccess.requireAvailable(app.serviceClient.configuration.stateDirectory)
             let key = try keychain.read()
@@ -75,15 +80,26 @@ final class LiveVoiceModel: ObservableObject {
             guard self.generation == generation, phase == .connecting else { return }
             guard allowed else { throw NativeError.message("Разрешите микрофон для Proto-Mind в настройках конфиденциальности macOS.") }
             // Validate the audio device before opening a billable API session.
-            try audio.start()
+            try await audio.start()
+            guard self.generation == generation, phase == .connecting else { return }
             contextTitle = app.selected?.title ?? "Новый диалог"
             transport.connect(key: key, start: LiveVoiceProtocol.start(context: context(app)))
+            audioMonitor = Task { [weak self] in
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: .seconds(1))
+                    guard let self, !Task.isCancelled, self.generation == generation,
+                          self.phase == .connecting || self.phase == .active else { return }
+                    if !self.audio.captureIsFlowing {
+                        self.fail("Поток микрофона остановился. Проверьте аудиоустройство и начните разговор снова."); return
+                    }
+                }
+            }
             connectionDeadline = Task { [weak self] in
                 try? await Task.sleep(nanoseconds: 45_000_000_000)
                 guard let self, !Task.isCancelled, self.generation == generation, self.phase == .connecting else { return }
                 self.fail("GPT Live не подтвердил подключение. Проверьте доступ API-ключа и баланс.", connectionLost: true)
             }
-        } catch { fail(error.localizedDescription, connectionLost: true) }
+        } catch { if self.generation == generation { fail(error.localizedDescription, connectionLost: true) } }
     }
 
     func stop() {
@@ -91,6 +107,7 @@ final class LiveVoiceModel: ObservableObject {
         let wasActive = phase == .active
         generation = UUID(); worker?.cancel(); worker = nil; calls = []
         connectionDeadline?.cancel(); connectionDeadline = nil
+        audioMonitor?.cancel(); audioMonitor = nil; inputLevel = 0
         audio.stop()
         if wasActive { phase = .closing; transport.close() }
         else { transport.abort(); phase = .idle }
@@ -98,13 +115,15 @@ final class LiveVoiceModel: ObservableObject {
     }
 
     func shutdown() {
-        audio.stop(); transport.abort(); worker?.cancel(); connectionDeadline?.cancel()
+        audio.stop(); transport.abort(); worker?.cancel(); connectionDeadline?.cancel(); audioMonitor?.cancel()
+        inputLevel = 0
         calls = []; phase = .idle; generation = UUID()
     }
 
     func toggleMute() {
         guard phase == .active else { return }
         muted.toggle()
+        if muted { inputLevel = 0 }
         transport.send(.object(["type": .string(muted ? "session.input_audio.mute" : "session.input_audio.unmute")]))
     }
 
@@ -136,13 +155,16 @@ final class LiveVoiceModel: ObservableObject {
                 guard phase == .connecting else { return }
                 connectionDeadline?.cancel(); connectionDeadline = nil
                 phase = .active; startedAt = Date()
-                transport.send(LiveVoiceProtocol.append("session.instructions.append", "Коротко поздоровайся с пользователем по-русски и спроси, чем займёмся. Одно предложение."))
+                if let greeting = opening.begin() { transport.send(greeting) }
+            case "session.instructions.appended":
+                if phase == .active, let prompt = opening.acknowledge(event) { transport.send(prompt) }
             case "session.output_audio.delta":
                 guard phase == .active else { return }
                 guard let bytes = Data(base64Encoded: event["delta"].text) else { throw NativeError.message("Неверный звук в ответе GPT Live.") }
                 try audio.play(bytes)
             case "session.input_transcript.delta", "session.output_transcript.delta":
                 guard phase == .active else { return }
+                if event["type"].text == "session.input_transcript.delta", !event["delta"].text.isEmpty { opening.heardUser = true }
                 addCaption(role: event["type"].text.contains("input") ? "Вы" : "Proto-Mind", event: event)
             case "response.event":
                 guard phase == .active else { return }
@@ -157,6 +179,7 @@ final class LiveVoiceModel: ObservableObject {
                 finalUsage = event["usage"]
                 generation = UUID(); worker?.cancel(); worker = nil; calls = []
                 audio.stop(); transport.abort(); connectionDeadline?.cancel()
+                audioMonitor?.cancel(); audioMonitor = nil; inputLevel = 0
                 if phase != .failed { phase = .idle }
             case "error":
                 let message = event["error"]["message"].text
@@ -205,6 +228,7 @@ final class LiveVoiceModel: ObservableObject {
         error = String(text.replacingOccurrences(of: "sk-[A-Za-z0-9_-]+", with: "[ключ скрыт]", options: .regularExpression).prefix(700))
         phase = .failed; generation = UUID(); audio.stop()
         connectionDeadline?.cancel(); worker?.cancel(); worker = nil; calls = []
+        audioMonitor?.cancel(); audioMonitor = nil; inputLevel = 0
         if wasActive && !connectionLost { transport.close() } else { transport.abort() }
     }
 }

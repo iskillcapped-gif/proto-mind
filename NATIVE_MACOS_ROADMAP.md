@@ -4,6 +4,20 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Live Voice audio repair — Native 0.58.1
+
+The first microphone test reproduced nonzero input from macOS Voice Processing I/O but all-zero mono PCM after conversion. Its discrete multichannel format has no ordinary speaker layout: the default converter mapping can leave mono without a source. `LiveVoiceCapture` now explicitly selects microphone channel zero. Regression fixtures exercise 1, 2 and 9 input channels and check the actual converted signal and sample count; the previous mapping fails the fixture.
+
+Starting a voice call waits for actual microphone callbacks before opening the paid session. A low-frequency health check notices a stalled capture stream. Core Audio configuration notifications are deferred and revalidated: a running graph stays running; a stopped graph with the same microphone format restarts in place. Recreating a settling Voice Processing aggregate repeatedly can itself cause repeated configuration stops. A changed microphone format rebuilds the graph locally, without recreating the API session or replaying accepted commands. Stale playback is discarded before recovery. Rapid repeated device failures still end visibly. The microphone meter shows received signal separately from connection and task status.
+
+The opening follows the [Live greeting sequence](https://developers.openai.com/api/docs/guides/live-conversations#greet-before-the-caller-speaks): correlated instructions acknowledgment, then one commentary prompt while audio continues. An unrelated acknowledgment, duplicate acknowledgment or already-started user speech cannot issue a second opening prompt.
+
+The explicit `--live-audio-device-smoke --synthetic-pcm PATH` check opens the actual audio engine without an API request or recording microphone audio. Three starts, benign notifications, a forced engine stop/restart, playback completion and engine release on hangup were checked on the MacBook's built-in devices. The probe holds only a weak engine reference so it cannot mask a lifecycle defect. Each run confirmed all 66,902 synthetic speech frames played. Ordinary regression suites do not open the microphone or API. The opt-in API probe also supports `--with-greeting --with-audio-device` for received speech plus real playback.
+
+Verification: **1,332 Native checks pass**, plus **12 actual-device checks**. The opt-in API/device probe received the Russian greeting before its synthetic caller spoke, completed `list_projects` against a fixture, and received the spoken result. All 673,920 received audio frames reached playback completion; the session closed with **29 seconds** of reported usage. This checks the built-in microphone/speakers, not every possible external audio route. No Python runtime code changed in this patch.
+
+The installed app was also checked with the operator speaking: greeting, microphone transcription, spoken replies, and a second call without restarting the app. The second call exercised an actual Core Audio stop and successfully restarted the same graph; its meter showed live microphone signal. Both calls were ended. Existing messages and drafts remained intact, and preferences matched their pre-restart hash; the spoken test command added its own interrupted task entry to history.
+
 ## Live Voice — Native 0.58.0
 
 The waveform button beside Send opens a native GPT Live 1 conversation. The primary WebSocket uses continuous mono PCM16 at 24 kHz; AVAudioEngine captures and plays audio with voice processing for echo cancellation. Microphone access and a saved API key are checked before opening the billable session. Start is explicit, mute sends silence locally, and hangup closes the session while preserving accepted working tasks. No audio is recorded to disk and remote session storage is disabled. Captions are a bounded, temporary display, not authoritative task boundaries.

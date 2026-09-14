@@ -70,6 +70,19 @@ struct LiveVoiceView: View {
             if !voice.action.isEmpty, voice.connected {
                 Text(voice.action).font(.caption).foregroundStyle(.secondary).lineLimit(2)
             }
+            if voice.inCall {
+                HStack(spacing: 8) {
+                    Image(systemName: voice.muted ? "mic.slash" : "mic")
+                    Text(voice.muted ? "Микрофон выключен" : voice.connected ? "Слушаю" : "Подключаюсь…")
+                    Spacer()
+                    HStack(alignment: .center, spacing: 3) {
+                        ForEach(0..<8) { index in
+                            Capsule().fill(!voice.muted && voice.inputLevel > Double(index) / 8 ? Color.primary : Color.secondary.opacity(0.2))
+                                .frame(width: 3, height: 6 + Double(index % 4) * 3)
+                        }
+                    }.accessibilityLabel("Уровень микрофона").accessibilityValue("\(Int(voice.inputLevel * 100))%")
+                }.font(.caption).foregroundStyle(.secondary)
+            }
             if !app.cloudConsent { Toggle("Разрешить обработку в OpenAI", isOn: $app.cloudConsent).font(.callout) }
             HStack(spacing: 12) {
                 if voice.inCall {

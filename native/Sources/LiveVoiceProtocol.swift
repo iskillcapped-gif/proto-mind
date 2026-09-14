@@ -58,7 +58,7 @@ enum LiveVoiceProtocol {
         function("stop_task", "Request cancellation of one exact running task. Does not roll back changes.", ["conversation_id": id])
     ]
 
-    static func append(_ type: String, _ text: String) -> JSONValue {
+    static func append(_ type: String, _ text: String, eventID: String = UUID().uuidString) -> JSONValue {
         // The API allows 500 tokens here. A UTF-8 byte ceiling is conservative
         // even for emoji/code, unlike counting graphemes or guessing tokens.
         var content = ""
@@ -67,13 +67,34 @@ enum LiveVoiceProtocol {
             if content.utf8.count + next.utf8.count > 400 { break }
             content += next
         }
-        return .object(["type": .string(type), "delegation_id": .null, "content": .string(content)])
+        return .object(["type": .string(type), "event_id": .string(eventID), "delegation_id": .null, "content": .string(content)])
     }
 
     static func toolResult(callID: String, result: JSONValue) throws -> JSONValue {
         let text = String(decoding: try JSONEncoder().encode(result), as: UTF8.self)
         return .object(["type": .string("response.item.create"), "event_id": .string(UUID().uuidString),
             "item": .object(["type": .string("function_call_output"), "call_id": .string(callID), "output": .string(text)])])
+    }
+}
+
+struct LiveVoiceOpening {
+    private var instructionID: String?
+    private var prompted = false
+    var heardUser = false
+
+    mutating func begin() -> JSONValue? {
+        guard instructionID == nil else { return nil }
+        let id = UUID().uuidString; instructionID = id
+        return LiveVoiceProtocol.append("session.instructions.append",
+            "Говори по-русски. Если разговор ещё не начался, сразу, не ожидая речи пользователя, поздоровайся: «Привет, брат! Чем займёмся?» Затем слушай.", eventID: id)
+    }
+
+    mutating func acknowledge(_ event: JSONValue) -> JSONValue? {
+        guard !prompted, let instructionID, event["type"].text == "session.instructions.appended",
+              event["client_event_id"].text == instructionID else { return nil }
+        prompted = true
+        guard !heardUser else { return nil }
+        return LiveVoiceProtocol.append("session.commentary.append", "Начни разговор сейчас, следуя переданным инструкциям приветствия.")
     }
 }
 

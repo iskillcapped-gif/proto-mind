@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import AVFoundation
 
 extension NativeChecks {
     static func voiceCall(_ name: String, _ args: [String: JSONValue] = [:], id: String = UUID().uuidString) throws -> LiveVoiceCall {
@@ -21,6 +22,20 @@ extension NativeChecks {
         let unicode = String(repeating: "😀й", count: 600)
         try check(LiveVoiceProtocol.append("session.commentary.append", unicode)["content"].text.utf8.count <= 400,
                   "Live context hints remain below the token ceiling even with multibyte text")
+        var opening = LiveVoiceOpening()
+        let greeting = opening.begin()!
+        try check(!greeting["event_id"].text.isEmpty && opening.begin() == nil,
+                  "Opening greeting is issued once with a correlated event ID")
+        try check(opening.acknowledge(.object(["type": .string("session.instructions.appended"), "client_event_id": .string("old")])) == nil,
+                  "An unrelated context acknowledgment cannot trigger a greeting")
+        let acknowledgment: JSONValue = .object(["type": .string("session.instructions.appended"), "client_event_id": greeting["event_id"]])
+        try check(opening.acknowledge(acknowledgment)?["type"].text == "session.commentary.append"
+                  && opening.acknowledge(acknowledgment) == nil, "Greeting prompt follows its own acknowledged instructions once")
+        var interrupted = LiveVoiceOpening()
+        let interruptedGreeting = interrupted.begin()!
+        interrupted.heardUser = true
+        try check(interrupted.acknowledge(.object(["type": .string("session.instructions.appended"), "client_event_id": interruptedGreeting["event_id"]])) == nil,
+                  "Greeting does not restart a conversation after the caller has spoken")
         let preferences = PreferenceStore(directory: root.appendingPathComponent("voice-preferences"))
         _ = try preferences.load()
         try preferences.save(NativePreferences())
