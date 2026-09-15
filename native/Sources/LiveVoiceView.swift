@@ -1,11 +1,28 @@
 import SwiftUI
 
+extension AppModel {
+    /// Every voice entry uses the same one-click path. An existing call only reveals its controls.
+    func presentLiveVoice(openSettings: () -> Void) {
+        guard liveVoice.inCall || (liveVoice.hasKey && cloudConsent) else {
+            showLiveVoice = false
+            settingsSection = .voice
+            openSettings()
+            return
+        }
+        section = .chat
+        if desktop.enabled { desktop.expand(animated: false) }
+        showLiveVoice = true
+        Task { await liveVoice.start(app: self) }
+    }
+}
+
 struct LiveVoiceButton: View {
     @ObservedObject var app: AppModel
     @ObservedObject var voice: LiveVoiceModel
+    @Environment(\.openSettings) private var openSettings
 
     var body: some View {
-        Button { app.showLiveVoice.toggle() } label: {
+        Button { app.presentLiveVoice(openSettings: { openSettings() }) } label: {
             Image(systemName: voice.inCall ? "waveform.circle.fill" : "waveform")
                 .font(.system(size: 20, weight: .regular))
                 .foregroundStyle(voice.inCall ? NativeTheme.accent : .secondary)
@@ -19,7 +36,7 @@ struct LiveVoiceButton: View {
 struct LiveVoiceView: View {
     @ObservedObject var app: AppModel
     @ObservedObject var voice: LiveVoiceModel
-    @State private var showingKey = false
+    @Environment(\.openSettings) private var openSettings
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -30,14 +47,14 @@ struct LiveVoiceView: View {
                     Text("GPT Live 1").font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
-                Button { showingKey.toggle() } label: { Image(systemName: "gearshape") }
-                    .buttonStyle(.nativeHover).help("Настройки API-ключа")
+                Button {
+                    app.showLiveVoice = false; app.settingsSection = .voice; openSettings()
+                } label: { Image(systemName: "gearshape") }
+                    .buttonStyle(.nativeHover).help("Настройки голоса")
                 Button { app.showLiveVoice = false } label: { Image(systemName: "chevron.down") }
                     .buttonStyle(.nativeHover).help("Свернуть разговор")
             }
-            if !voice.hasKey || showingKey {
-                LiveVoiceKeySettings(voice: voice)
-            } else {
+            Group {
                 Label(voice.contextTitle.isEmpty ? app.selected?.title ?? "Новый диалог" : voice.contextTitle,
                       systemImage: "folder").font(.callout).lineLimit(2).foregroundStyle(.secondary)
                 if voice.captions.isEmpty {
@@ -83,7 +100,6 @@ struct LiveVoiceView: View {
                     }.accessibilityLabel("Уровень микрофона").accessibilityValue("\(Int(voice.inputLevel * 100))%")
                 }.font(.caption).foregroundStyle(.secondary)
             }
-            if !app.cloudConsent { Toggle("Разрешить обработку в OpenAI", isOn: $app.cloudConsent).font(.callout) }
             HStack(spacing: 12) {
                 if voice.inCall {
                     Button { voice.toggleMute() } label: {
@@ -98,7 +114,7 @@ struct LiveVoiceView: View {
                     Button(voice.phase == .closing ? "Завершаю…" : "Завершить") { voice.stop() }
                         .tint(.red).disabled(voice.phase == .closing)
                 } else {
-                    Button { Task { await voice.start(app: app) } } label: {
+                    Button { app.presentLiveVoice(openSettings: { openSettings() }) } label: {
                         Label("Начать разговор", systemImage: "waveform").frame(maxWidth: .infinity)
                     }.buttonStyle(.borderedProminent).disabled(!voice.hasKey || !app.cloudConsent || app.operationBusy)
                 }

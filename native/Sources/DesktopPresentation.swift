@@ -4,8 +4,10 @@ import SwiftUI
 
 /// Window geometry is UI state only. It never participates in dialog or voice ownership.
 enum DesktopGeometry {
-    static let coreSize = NSSize(width: 88, height: 108)
-    static let minimumWorkspace = NSSize(width: 580, height: 500)
+    static let coreSize = NSSize(width: 88, height: 116)
+    static let minimumWorkspace = NSSize(width: 780, height: 520)
+
+    static func sidebarWidth(total: CGFloat) -> CGFloat { min(260, max(220, total * 0.23)) }
 
     static func fit(_ frame: NSRect, within screen: NSRect) -> NSRect {
         let width = min(max(1, frame.width.isFinite ? frame.width : 800), screen.width)
@@ -33,10 +35,22 @@ enum DesktopGeometry {
     }
 }
 
+/// Only glass backgrounds change; text and controls keep their own contrast.
+enum DesktopGlassAppearance {
+    static let chatDefault = 0.34
+    static let sidebarDefault = 0.25
+    static func normalized(_ value: Double, fallback: Double) -> Double {
+        value.isFinite ? min(1, max(0, value)) : fallback
+    }
+}
+
 @MainActor
 final class DesktopPresentation: ObservableObject {
     @Published private(set) var enabled = false
     @Published private(set) var expanded = false
+    @Published private(set) var chatTransparency: Double
+    @Published private(set) var sidebarTransparency: Double
+    @Published private(set) var coreHovered = false
     private(set) weak var window: NSWindow?
     private(set) var corePanel: NSPanel?
     private weak var app: AppModel?
@@ -48,6 +62,7 @@ final class DesktopPresentation: ObservableObject {
     private var changingWindow = false
     private var transition = UUID()
     private var windowDelegate: DesktopWindowDelegate?
+    private var openSettings: () -> Void = {}
 
     private struct WindowAppearance {
         let frame: NSRect
@@ -65,9 +80,29 @@ final class DesktopPresentation: ObservableObject {
         let digest = SHA256.hash(data: Data(stateDirectory.standardizedFileURL.path.utf8))
             .map { String(format: "%02x", $0) }.joined()
         preferenceKey = "desktopPresentation.v1." + digest
+        chatTransparency = DesktopGlassAppearance.normalized(
+            defaults.object(forKey: preferenceKey + ".chatTransparency") as? Double ?? DesktopGlassAppearance.chatDefault,
+            fallback: DesktopGlassAppearance.chatDefault)
+        sidebarTransparency = DesktopGlassAppearance.normalized(
+            defaults.object(forKey: preferenceKey + ".sidebarTransparency") as? Double ?? DesktopGlassAppearance.sidebarDefault,
+            fallback: DesktopGlassAppearance.sidebarDefault)
     }
 
-    func attach(window: NSWindow, app: AppModel) {
+    func setChatTransparency(_ value: Double) {
+        chatTransparency = DesktopGlassAppearance.normalized(value, fallback: DesktopGlassAppearance.chatDefault)
+        defaults.set(chatTransparency, forKey: preferenceKey + ".chatTransparency")
+    }
+
+    func setSidebarTransparency(_ value: Double) {
+        sidebarTransparency = DesktopGlassAppearance.normalized(value, fallback: DesktopGlassAppearance.sidebarDefault)
+        defaults.set(sidebarTransparency, forKey: preferenceKey + ".sidebarTransparency")
+    }
+
+    func openVoice() { app?.presentLiveVoice(openSettings: openSettings) }
+    func updateCoreHover(_ inside: Bool) { coreHovered = inside }
+
+    func attach(window: NSWindow, app: AppModel, openSettings: @escaping () -> Void = {}) {
+        self.openSettings = openSettings
         guard self.window !== window else { return }
         removeObservers()
         self.window = window; self.app = app
@@ -110,12 +145,16 @@ final class DesktopPresentation: ObservableObject {
         let screens = NSScreen.screens.map(\.visibleFrame)
         let savedCore = savedFrame("core")
         let screen = DesktopGeometry.screen(for: savedCore ?? window.frame, screens: screens)
-        let initial = NSRect(x: screen.maxX - 116, y: screen.midY - 54, width: 88, height: 108)
+        let initial = NSRect(origin: NSPoint(x: screen.maxX - 116, y: screen.midY - DesktopGeometry.coreSize.height / 2), size: DesktopGeometry.coreSize)
         let coreOrigin = (savedCore ?? initial).origin
         core.setFrame(DesktopGeometry.fit(NSRect(origin: coreOrigin, size: DesktopGeometry.coreSize), within: screen), display: false)
         let savedWorkspace = savedFrame("workspace")
-        let size = savedWorkspace?.size ?? NSSize(width: 800, height: 740)
-        let target = savedWorkspace.map { DesktopGeometry.fit($0, within: DesktopGeometry.screen(for: $0, screens: screens)) }
+        let size = savedWorkspace?.size ?? NSSize(width: 1080, height: 760)
+        let target = savedWorkspace.map { frame in
+            let widened = NSRect(origin: frame.origin, size: NSSize(width: max(frame.width, DesktopGeometry.minimumWorkspace.width),
+                                                                  height: max(frame.height, DesktopGeometry.minimumWorkspace.height)))
+            return DesktopGeometry.fit(widened, within: DesktopGeometry.screen(for: frame, screens: screens))
+        }
             ?? DesktopGeometry.workspace(beside: core.frame, size: size, screen: screen)
         window.setFrame(target, display: true)
         if presentsWindows { core.orderFrontRegardless() }
@@ -165,6 +204,7 @@ final class DesktopPresentation: ObservableObject {
         transition = UUID(); changingWindow = true
         saveWorkspaceFrame(force: true)
         enabled = false; expanded = false
+        coreHovered = false
         corePanel?.orderOut(nil)
         window.alphaValue = 1
         for kind in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
@@ -204,7 +244,7 @@ final class DesktopPresentation: ObservableObject {
         removeObservers(); corePanel?.orderOut(nil); corePanel?.contentView = nil; corePanel = nil
         if window?.delegate === windowDelegate { window?.delegate = windowDelegate?.previous }
         windowDelegate = nil
-        window = nil; app = nil
+        window = nil; app = nil; openSettings = {}; coreHovered = false
     }
 
     private func removeObservers() {
@@ -245,7 +285,7 @@ final class DesktopPresentation: ObservableObject {
         panel.isOpaque = false; panel.backgroundColor = .clear; panel.hasShadow = false
         panel.level = .floating; panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
         panel.isReleasedWhenClosed = false
-        let host = DesktopCoreDragView(rootView: DesktopCoreView(app: app, voice: app.liveVoice, desktop: self))
+        let host = DesktopCoreHost(rootView: DesktopCoreView(app: app, voice: app.liveVoice, desktop: self))
         host.desktop = self; panel.contentView = host
         corePanel = panel
         return panel
@@ -274,7 +314,29 @@ private final class DesktopCorePanel: NSPanel {
     override var canBecomeMain: Bool { false }
 }
 
-private final class DesktopCoreDragView: NSHostingView<DesktopCoreView> {
+final class DesktopCoreHost: NSHostingView<DesktopCoreView> {
+    weak var desktop: DesktopPresentation?
+    private var hoverArea: NSTrackingArea?
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let hoverArea { removeTrackingArea(hoverArea) }
+        // The core is nonactivating: hovering must also work while another app is active.
+        let area = NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self, userInfo: nil)
+        addTrackingArea(area); hoverArea = area
+    }
+    override func mouseEntered(with event: NSEvent) { desktop?.updateCoreHover(true) }
+    override func mouseExited(with event: NSEvent) { desktop?.updateCoreHover(false) }
+}
+
+struct DesktopCoreHandle: NSViewRepresentable {
+    let desktop: DesktopPresentation
+    func makeNSView(context: Context) -> DesktopCoreDragView { let view = DesktopCoreDragView(); view.desktop = desktop; return view }
+    func updateNSView(_ view: DesktopCoreDragView, context: Context) { view.desktop = desktop }
+}
+
+/// The cube owns dragging. The buttons below it retain native hit testing and accessibility.
+final class DesktopCoreDragView: NSView {
     weak var desktop: DesktopPresentation?
     private var startPoint = NSPoint.zero
     private var startFrame = NSRect.zero
@@ -305,33 +367,45 @@ private final class DesktopCoreDragView: NSHostingView<DesktopCoreView> {
         let menu = NSMenu()
         let toggle = NSMenuItem(title: desktop?.expanded == true ? "Свернуть в ядро" : "Открыть Proto-Mind", action: #selector(toggleWorkspace), keyEquivalent: "")
         toggle.target = self; menu.addItem(toggle)
+        let voice = NSMenuItem(title: "Голос Proto-Mind", action: #selector(openVoice), keyEquivalent: "")
+        voice.target = self; menu.addItem(voice)
         let restore = NSMenuItem(title: "Обычное окно", action: #selector(restoreWorkspace), keyEquivalent: "")
         restore.target = self; menu.addItem(restore)
         NSMenu.popUpContextMenu(menu, with: event, for: self)
     }
     @objc private func toggleWorkspace() { desktop?.expanded == true ? desktop?.collapse() : desktop?.expand() }
     @objc private func restoreWorkspace() { desktop?.restoreWindow() }
+    @objc private func openVoice() { desktop?.openVoice() }
     override func isAccessibilityElement() -> Bool { true }
     override func accessibilityRole() -> NSAccessibility.Role? { .button }
     override func accessibilityLabel() -> String? { "Ядро Proto-Mind" }
-    override func accessibilityHelp() -> String? { "Нажмите, чтобы раскрыть или свернуть чат. Перетащите в удобное место." }
+    override func accessibilityHelp() -> String? { "Нажмите, чтобы раскрыть или свернуть чат и боковую панель. Перетащите в удобное место." }
     override func accessibilityPerformPress() -> Bool { toggleWorkspace(); return true }
+    override func accessibilityCustomActions() -> [NSAccessibilityCustomAction]? {
+        [NSAccessibilityCustomAction(name: "Голос Proto-Mind", handler: { [weak self] in
+            guard let desktop = self?.desktop else { return false }; desktop.openVoice(); return true
+        }), NSAccessibilityCustomAction(name: "Обычное окно", handler: { [weak self] in
+            guard let desktop = self?.desktop else { return false }; desktop.restoreWindow(); return true
+        })]
+    }
 }
 
 struct DesktopWindowAttachment: NSViewRepresentable {
     let app: AppModel
+    let openSettings: () -> Void
     func makeNSView(context: Context) -> Attachment {
-        let view = Attachment(); view.app = app; return view
+        let view = Attachment(); view.app = app; view.openSettings = openSettings; return view
     }
-    func updateNSView(_ nsView: Attachment, context: Context) { nsView.app = app }
+    func updateNSView(_ nsView: Attachment, context: Context) { nsView.app = app; nsView.openSettings = openSettings }
     final class Attachment: NSView {
         weak var app: AppModel?
+        var openSettings: () -> Void = {}
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
             guard let window, let app else { return }
-            DispatchQueue.main.async { [weak window, weak app] in
+            DispatchQueue.main.async { [weak window, weak app, openSettings] in
                 guard let window, let app else { return }
-                app.desktop.attach(window: window, app: app)
+                app.desktop.attach(window: window, app: app, openSettings: openSettings)
             }
         }
     }

@@ -4,6 +4,16 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Floating Sidebar and Voice Controls — Native 0.60.0
+
+The existing floating window now contains the full shared sidebar beside its chat, each on an independently adjustable glass background. Settings → Оформление has two transparency sliders, persisted in the existing UI-only state-directory namespace. The sliders change backgrounds only; text, buttons, drafts and task state retain their opacity and ownership. Reduced Transparency keeps both surfaces opaque, preserving the stored choices for when that system setting is disabled. Existing window frames are fitted to the larger minimum workspace.
+
+The 88 × 116-point nonactivating core reveals microphone and normal-window controls below the cube on hover. An always-active tracking area works while another application owns keyboard focus; entering or leaving never starts audio or changes modes. A separate cube handle owns click/drag events, leaving both buttons their normal hit testing. The core also exposes both actions through accessibility and its context menu. The tiny active-microphone indicator remains visible when the controls hide. Returning to ordinary mode uses the existing window and restores its appearance.
+
+Both microphone entries share one launch path: a configured voice session starts immediately and shows conversation controls; an existing call reveals its controls without starting another session. A missing API key or disabled cloud consent opens Settings → Голос. API-key controls and consent have moved out of the conversation popover. macOS microphone permission still applies. Folding, hovering and restarting the application never start a call. This release changes no API protocol, billing policy, account selection or access grants.
+
+Verification: **1,362 Native checks pass**, covering persistent independent transparency, namespace isolation, invalid preference values, always-active hover entry/exit, drag/click separation, accessibility actions and preservation of drafts, task execution and microphone-off state. A disposable signed app verified the full sidebar/chat, both settings sections, changed slider values surviving restart, cube expand/collapse, normal-window restoration and the cube’s voice action. The UI automation provider cannot move the pointer inside a nonactivating panel; hover behavior is covered by local Native event checks, while the two actions were exercised through accessibility. No microphone or paid voice API session was opened. No Python runtime code or private-state format changed.
+
 ## Computer Use Cleanup — Native 0.59.1
 
 A completed Mail task left the shared service capturing its window. The signed helper resolves the running service beneath `CODEX_HOME`; Native supplied its isolated account profile, where that installation does not exist. The previous notify command therefore returned zero without sending a release. Only the signed Computer Use helper now receives the verified installation home. The Codex server retains Native's account, credentials and history namespace.

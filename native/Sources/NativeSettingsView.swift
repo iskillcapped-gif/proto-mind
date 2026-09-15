@@ -2,12 +2,13 @@ import AppKit
 import SwiftUI
 
 enum NativeSettingsSection: String, CaseIterable, Identifiable {
-    case models, voice, persona, services, data, advanced
+    case models, voice, appearance, persona, services, data, advanced
     var id: String { rawValue }
     var title: String {
         switch self {
         case .models: return "Модели"
         case .voice: return "Голос"
+        case .appearance: return "Оформление"
         case .persona: return "Общение"
         case .services: return "Подключения"
         case .data: return "Данные и копии"
@@ -18,6 +19,7 @@ enum NativeSettingsSection: String, CaseIterable, Identifiable {
         switch self {
         case .models: return "slider.horizontal.3"
         case .voice: return "waveform"
+        case .appearance: return "paintpalette"
         case .persona: return "bubble.left.and.bubble.right"
         case .services: return "point.3.connected.trianglepath.dotted"
         case .data: return "externaldrive"
@@ -28,6 +30,7 @@ enum NativeSettingsSection: String, CaseIterable, Identifiable {
         switch self {
         case .models: return "Выберите, с какой моделью продолжить этот диалог."
         case .voice: return "Разговор и управление задачами через GPT Live 1."
+        case .appearance: return "Прозрачность парящего рабочего пространства."
         case .persona: return "Характер общения и использование памяти."
         case .services: return "Сервисы, которыми вы пользуетесь в работе."
         case .data: return "Ваши диалоги и способы их восстановить."
@@ -71,11 +74,18 @@ struct NativeSettingsView: View {
                         modelSettings
                         if model.selected?.provider == "codex" { accountSettings }
                     case .voice:
+                        Section {
+                            Toggle("Разрешить обработку в OpenAI", isOn: $model.cloudConsent).disabled(model.globalBusy)
+                            Text("Кнопка микрофона сразу начинает разговор. После запуска приложения голос остаётся выключенным.")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
                         Section { LiveVoiceKeySettings(voice: model.liveVoice) }
                         Section("Использование API") {
                             Text("GPT Live 1: $0,05 за минуту подключённого разговора. Обработка команд GPT-5.6 Luna оплачивается дополнительно по тарифу API. Подписка ChatGPT не оплачивает этот голосовой канал.")
                                 .font(.callout).foregroundStyle(.secondary)
                         }
+                    case .appearance:
+                        DesktopAppearanceSettings(desktop: model.desktop)
                     case .persona:
                         personaSettings
                         Section("Память и навыки") {
@@ -328,5 +338,43 @@ struct NativeSettingsView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
+    }
+}
+
+struct DesktopAppearanceSettings: View {
+    @ObservedObject var desktop: DesktopPresentation
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    var body: some View {
+        Section("Прозрачность фона") {
+            transparencySlider("Окно чата", value: Binding(get: { desktop.chatTransparency }, set: desktop.setChatTransparency))
+            transparencySlider("Левая колонка", value: Binding(get: { desktop.sidebarTransparency }, set: desktop.setSidebarTransparency))
+            Text("Слева — плотный фон, справа — прозрачный. Текст и кнопки остаются чёткими. Изменения видны сразу в парящем режиме и сохраняются после перезапуска.")
+                .font(.caption).foregroundStyle(.secondary)
+            if reduceTransparency {
+                Label("В macOS включено уменьшение прозрачности. Фон остаётся непрозрачным, выбранные значения сохранены.", systemImage: "accessibility")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Button("Вернуть исходную прозрачность") {
+                desktop.setChatTransparency(DesktopGlassAppearance.chatDefault)
+                desktop.setSidebarTransparency(DesktopGlassAppearance.sidebarDefault)
+            }
+        }
+        if !desktop.enabled {
+            Section { Button("Включить парящий режим") { desktop.enable() } }
+        }
+    }
+
+    private func transparencySlider(_ title: String, value: Binding<Double>) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text(title)
+                Spacer()
+                Text("\(Int((value.wrappedValue * 100).rounded()))%")
+                    .monospacedDigit().foregroundStyle(.secondary)
+            }
+            Slider(value: value, in: 0...1, step: 0.01) { Text(title) }
+                .labelsHidden().accessibilityValue("\(Int((value.wrappedValue * 100).rounded())) процентов")
+        }.padding(.vertical, 6)
     }
 }

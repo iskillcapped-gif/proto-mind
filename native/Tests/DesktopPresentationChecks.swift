@@ -29,6 +29,12 @@ extension NativeChecks {
         let state = root.appendingPathComponent("desktop-presentation")
         let app = AppModel(configuration: LaunchConfiguration(projectRoot: root, python: root, stateDirectory: state))
         let desktop = DesktopPresentation(stateDirectory: state, defaults: defaults, presentsWindows: false)
+        desktop.setChatTransparency(0.72)
+        desktop.setSidebarTransparency(0.18)
+        let otherState = DesktopPresentation(stateDirectory: root.appendingPathComponent("other-desktop"), defaults: defaults, presentsWindows: false)
+        try check(otherState.chatTransparency == DesktopGlassAppearance.chatDefault
+                  && otherState.sidebarTransparency == DesktopGlassAppearance.sidebarDefault,
+                  "Glass preferences are isolated from other private-state namespaces")
         let window = NSWindow(contentRect: NSRect(x: 100, y: 100, width: 1000, height: 700),
                               styleMask: [.titled, .resizable, .closable], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
@@ -53,14 +59,37 @@ extension NativeChecks {
                   && app.composer == "Unsent draft survives every presentation",
                   "Collapsing does not stop or replace the running task, selected dialog or draft")
         let corePanel = desktop.corePanel!
+        corePanel.contentView?.layoutSubtreeIfNeeded()
+        let coreHost = corePanel.contentView as! DesktopCoreHost
+        coreHost.updateTrackingAreas()
+        try check(coreHost.trackingAreas.contains { $0.options.contains(.activeAlways) }
+                  && !desktop.coreHovered,
+                  "Hidden core controls track hovering even when another app owns keyboard focus")
+        let hover = NSEvent.enterExitEvent(with: .mouseEntered, location: .zero, modifierFlags: [], timestamp: 1,
+                                          windowNumber: corePanel.windowNumber, context: nil, eventNumber: 1,
+                                          trackingNumber: 1, userData: nil)!
+        coreHost.mouseEntered(with: hover)
+        try check(desktop.coreHovered && !desktop.expanded && !app.liveVoice.inCall,
+                  "Entering the core reveals controls without opening a window or starting voice")
+        coreHost.mouseExited(with: hover)
+        try check(!desktop.coreHovered, "Leaving the entire core hides its controls again")
+        func dragHandle(_ view: NSView) -> DesktopCoreDragView? {
+            if let handle = view as? DesktopCoreDragView { return handle }
+            return view.subviews.compactMap { dragHandle($0) }.first
+        }
+        guard let handle = corePanel.contentView.flatMap({ dragHandle($0) }) else {
+            throw NativeError.message("Core drag handle was not mounted")
+        }
+        try check(handle.accessibilityCustomActions()?.map(\.name) == ["Голос Proto-Mind", "Обычное окно"],
+                  "Both core actions remain accessible without pointer hovering")
         let origin = corePanel.frame.origin
         func mouse(_ type: NSEvent.EventType, _ point: NSPoint) -> NSEvent {
             NSEvent.mouseEvent(with: type, location: point, modifierFlags: [], timestamp: 1,
                               windowNumber: corePanel.windowNumber, context: nil, eventNumber: 1, clickCount: 1, pressure: 1)!
         }
-        corePanel.contentView?.mouseDown(with: mouse(.leftMouseDown, NSPoint(x: 44, y: 40)))
-        corePanel.contentView?.mouseDragged(with: mouse(.leftMouseDragged, NSPoint(x: 24, y: 65)))
-        corePanel.contentView?.mouseUp(with: mouse(.leftMouseUp, NSPoint(x: 44, y: 40)))
+        handle.mouseDown(with: mouse(.leftMouseDown, NSPoint(x: 44, y: 60)))
+        handle.mouseDragged(with: mouse(.leftMouseDragged, NSPoint(x: 24, y: 85)))
+        handle.mouseUp(with: mouse(.leftMouseUp, NSPoint(x: 44, y: 60)))
         try check(corePanel.frame.origin != origin && !desktop.expanded,
                   "Dragging follows event coordinates, moves the core and does not turn into a click")
         desktop.expand(animated: false)
@@ -78,13 +107,18 @@ extension NativeChecks {
         execution.running = false
 
         let host = NSHostingController(rootView: FloatingWorkspaceView(app: app, desktop: desktop))
-        for width: CGFloat in [580, 800, 1100] {
+        for width: CGFloat in [780, 940, 1100] {
             let size = host.sizeThatFits(in: CGSize(width: width, height: 740))
             try check(size.width <= width + 1 && size.height <= 741, "Glass workspace stays inside a \(Int(width))-point window")
         }
         desktop.enable(animated: false)
         desktop.shutdown()
         let restored = DesktopPresentation(stateDirectory: state, defaults: defaults, presentsWindows: false)
+        try check(restored.chatTransparency == 0.72 && restored.sidebarTransparency == 0.18,
+                  "Both glass backgrounds keep independent transparency across restart")
+        restored.setChatTransparency(.nan); restored.setSidebarTransparency(4)
+        try check(restored.chatTransparency == DesktopGlassAppearance.chatDefault && restored.sidebarTransparency == 1,
+                  "Invalid glass opacity cannot make the whole window or its controls disappear")
         restored.attach(window: window, app: app)
         try check(restored.enabled && restored.expanded && !app.liveVoice.inCall,
                   "Desktop mode survives restart without automatically opening the microphone")
@@ -95,5 +129,10 @@ extension NativeChecks {
         audio.stop()
         try check(playbackLevel == 0 && audio.capturedFrames == 0,
                   "Stopped playback clears the desktop glow without starting an audio device")
+        var settingsOpened = false
+        app.presentLiveVoice { settingsOpened = true }
+        try check(settingsOpened && app.settingsSection == .voice && !app.showLiveVoice
+                  && !app.liveVoice.inCall && !app.cloudConsent,
+                  "Unconfigured voice opens Settings directly without capturing audio or changing consent")
     }
 }

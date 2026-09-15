@@ -4,6 +4,7 @@ struct SidebarView: View {
     @ObservedObject var model: AppModel
     @Binding var libraryExpanded: Bool
     let openSettings: () -> Void
+    @Environment(\.desktopGlass) private var desktopGlass
     @State private var renaming: Conversation?
     @State private var newTitle = ""
     @FocusState private var searchFocused: Bool
@@ -101,7 +102,7 @@ struct SidebarView: View {
             }.padding(.horizontal, 12).padding(.vertical, 9)
         }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .disclosureGroupStyle(NativeDisclosureStyle())
-            .background { SidebarMaterial().ignoresSafeArea() }
+            .background { if !desktopGlass { SidebarMaterial().ignoresSafeArea() } }
             .sheet(item: $renaming) { chat in
                 VStack(alignment: .leading, spacing: 18) {
                     Text("Название диалога").font(.title3.weight(.semibold))

@@ -24,7 +24,7 @@ struct WorkspaceView: View {
         }
         .frame(minWidth: desktop.enabled ? DesktopGeometry.minimumWorkspace.width : 940,
                minHeight: desktop.enabled ? DesktopGeometry.minimumWorkspace.height : 640)
-        .background(DesktopWindowAttachment(app: model))
+        .background(DesktopWindowAttachment(app: model, openSettings: { openSettings() }))
         .tint(NativeTheme.accent)
         .font(NativeTheme.interfaceFont)
         .buttonStyle(.nativeHover)

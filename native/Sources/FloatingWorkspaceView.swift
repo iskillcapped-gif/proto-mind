@@ -13,74 +13,60 @@ struct FloatingWorkspaceView: View {
     @ObservedObject var app: AppModel
     @ObservedObject var desktop: DesktopPresentation
     @Environment(\.openSettings) private var openSettings
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-    @State private var conversationsOpen = false
+    @State private var libraryExpanded = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-            Rectangle().fill(Color.primary.opacity(0.07)).frame(height: 1).padding(.horizontal, 20)
-            HistoryPersistenceNotice(model: app)
-            if let error = app.error, error != app.historyPersistence.failure {
-                HStack(alignment: .top) {
-                    Image(systemName: "exclamationmark.circle").foregroundStyle(.orange)
-                    Text(error).font(.callout).textSelection(.enabled)
-                    Spacer()
-                    Button { app.clearError() } label: { Image(systemName: "xmark") }
-                }.padding(14).background(Color.orange.opacity(0.08))
+        GeometryReader { geometry in
+            HStack(spacing: 10) {
+                SidebarView(model: app, libraryExpanded: $libraryExpanded, openSettings: { openSettings() })
+                    .frame(width: DesktopGeometry.sidebarWidth(total: geometry.size.width))
+                    .background(DesktopGlassBackground(transparency: desktop.sidebarTransparency, tint: NativeTheme.sidebar))
+                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    .overlay(glassBorder(radius: 22))
+                VStack(spacing: 0) {
+                    header
+                    Rectangle().fill(Color.primary.opacity(0.07)).frame(height: 1).padding(.horizontal, 20)
+                    HistoryPersistenceNotice(model: app)
+                    if let error = app.error, error != app.historyPersistence.failure {
+                        HStack(alignment: .top) {
+                            Image(systemName: "exclamationmark.circle").foregroundStyle(.orange)
+                            Text(error).font(.callout).textSelection(.enabled)
+                            Spacer()
+                            Button { app.clearError() } label: { Image(systemName: "xmark") }
+                        }.padding(14).background(Color.orange.opacity(0.08))
+                    }
+                    WorkspaceSplitView(model: app, panel: app.workspacePanel)
+                }
+                .background(DesktopGlassBackground(transparency: desktop.chatTransparency, tint: NativeTheme.canvas))
+                .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+                .overlay(glassBorder(radius: 26))
             }
-            WorkspaceSplitView(model: app, panel: app.workspacePanel)
         }
         .environment(\.desktopGlass, true)
-        .background {
-            if reduceTransparency { NativeTheme.canvas }
-            else {
-                DesktopGlassMaterial()
-                NativeTheme.canvas.opacity(0.66)
-                LinearGradient(colors: [Color.white.opacity(0.055), .clear, Color.teal.opacity(0.025)], startPoint: .topLeading, endPoint: .bottomTrailing)
-            }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 26, style: .continuous)
-                .strokeBorder(LinearGradient(colors: [.white.opacity(0.25), .white.opacity(0.04), .white.opacity(0.12)], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1)
-                .allowsHitTesting(false)
-        }
         .ignoresSafeArea()
         .toolbar(.hidden, for: .windowToolbar)
+        .onChange(of: app.section) { _, next in if next.libraryCollection != nil { libraryExpanded = true } }
         .onExitCommand { desktop.collapse() }
+    }
+
+    private func glassBorder(radius: CGFloat) -> some View {
+        RoundedRectangle(cornerRadius: radius, style: .continuous)
+            .strokeBorder(LinearGradient(colors: [.white.opacity(0.25), .white.opacity(0.04), .white.opacity(0.12)],
+                                         startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1)
+            .allowsHitTesting(false)
     }
 
     private var header: some View {
         HStack(spacing: 8) {
-            CubeEmblem().frame(width: 25, height: 29).padding(.trailing, 5)
-            Button { conversationsOpen.toggle() } label: {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Proto-Mind").font(.system(size: 12, weight: .semibold))
-                    HStack(spacing: 5) {
-                        Text(app.selected?.title ?? "Новый диалог").lineLimit(1)
-                        Image(systemName: "chevron.down").font(.system(size: 8, weight: .semibold))
-                    }.font(.system(size: 11)).foregroundStyle(.secondary)
-                }.frame(maxWidth: 260, alignment: .leading).contentShape(Rectangle())
-            }.buttonStyle(.nativeHover).help("Переключить диалог").accessibilityLabel("Диалоги")
-                .popover(isPresented: $conversationsOpen, arrowEdge: .bottom) { conversationPicker }
+            Text(app.selected?.title ?? "Новый диалог")
+                .font(.system(size: 13, weight: .medium)).lineLimit(1)
+                .frame(maxWidth: 260, alignment: .leading)
             // Only the empty header area drags the window; buttons and text keep their own input.
             DesktopWindowDragArea().frame(height: 36).frame(maxWidth: .infinity)
-            headerButton("Новый диалог", icon: "square.and.pencil") { app.newConversation(); app.section = .chat }
-                .disabled(!app.canNavigateConversations)
             headerButton("Файлы и браузер", icon: "sidebar.right") {
                 app.workspacePanel.visible.toggle(); app.workspacePanel.expanded = false
                 if app.workspacePanel.visible && app.workspacePanel.selectedID == nil { Task { await app.refreshWorkspace() } }
             }
-            Menu {
-                Button("Журнал работы") { app.openWorkSessions() }
-                Button("Лимиты Codex") { app.showCodexUsage = true }
-                Button("Настройки") { openSettings() }
-                Divider()
-                Button("Обычное окно") { desktop.restoreWindow() }
-            } label: { Image(systemName: "ellipsis").frame(width: 28, height: 30) }
-                .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().help("Меню")
-            headerButton("Обычное окно", icon: "arrow.up.left.and.arrow.down.right") { desktop.restoreWindow() }
             headerButton("Свернуть в ядро · Esc", icon: "minus") { desktop.collapse() }
                 .accessibilityLabel("Свернуть в ядро")
         }.padding(.horizontal, 20).padding(.vertical, 14)
@@ -91,37 +77,6 @@ struct FloatingWorkspaceView: View {
             .buttonStyle(.nativeHover).foregroundStyle(.secondary).help(title).accessibilityLabel(title)
     }
 
-    private var conversationPicker: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Диалоги").font(.system(size: 14, weight: .semibold))
-                Spacer()
-                Button("История") { conversationsOpen = false; app.showConversationHistory = true }
-            }.padding(.horizontal, 10).padding(.top, 8)
-            ScrollView {
-                LazyVStack(spacing: 2) {
-                    ForEach(app.conversations.filter { !$0.archived }.prefix(40)) { conversation in
-                        Button {
-                            app.select(conversation.id); app.section = .chat; conversationsOpen = false
-                        } label: {
-                            HStack(spacing: 10) {
-                                Image(systemName: conversation.workspacePath == nil ? "bubble.left" : "folder").foregroundStyle(.secondary)
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(conversation.title).font(.system(size: 13)).lineLimit(1)
-                                    if let path = conversation.workspacePath {
-                                        Text(URL(fileURLWithPath: path).lastPathComponent).font(.system(size: 11)).foregroundStyle(.secondary)
-                                    }
-                                }
-                                Spacer()
-                                if app.isRunning(conversation.id) { ProgressView().controlSize(.mini) }
-                                else if app.selectedID == conversation.id { Image(systemName: "checkmark").font(.system(size: 11)) }
-                            }.padding(10).contentShape(Rectangle())
-                        }.buttonStyle(.nativeHover).disabled(!app.canNavigateConversations)
-                    }
-                }
-            }.frame(maxHeight: 360)
-        }.padding(8).frame(width: 330)
-    }
 }
 
 struct FloatingWelcomeView: View {
@@ -148,15 +103,8 @@ struct DesktopCoreView: View {
     private var working: Bool { app.executions.values.contains { $0.running } }
     private var active: Bool { working || voice.inCall }
     private var voiceLevel: Double { max(voice.inputLevel, voice.outputLevel) }
-    private var statusIcon: String {
-        if voice.connected { return voice.muted ? "mic.slash.fill" : "mic.fill" }
-        if voice.inCall { return "ellipsis" }
-        if working { return "ellipsis" }
-        return "mic.slash"
-    }
-
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 4) {
             ZStack {
                 Ellipse().fill(Color.teal.opacity(active ? 0.18 : 0.07)).frame(width: 57, height: 29).blur(radius: 10).offset(y: 27)
                 if working {
@@ -170,21 +118,34 @@ struct DesktopCoreView: View {
                     .shadow(color: Color.teal.opacity(voice.connected ? 0.16 + voiceLevel * 0.5 : 0.1), radius: 8)
                     .scaleEffect(reduceMotion ? 1 : 1 + voiceLevel * 0.045)
                     .animation(reduceMotion ? nil : .easeOut(duration: 0.1), value: voiceLevel)
-            }.frame(width: 80, height: 78)
-            HStack(spacing: 4) {
-                Image(systemName: statusIcon).font(.system(size: 8, weight: .medium))
-                if voice.connected && !voice.muted {
-                    ForEach(0..<3) { index in
-                        Capsule().frame(width: 2, height: 3 + voice.inputLevel * Double(index == 1 ? 8 : 5))
-                    }
+                if voice.inCall {
+                    Circle().fill(voice.connected && !voice.muted ? Color.teal : .secondary)
+                        .frame(width: 5, height: 5).offset(x: 25, y: 26)
                 }
-            }.foregroundStyle(voice.connected && !voice.muted ? Color.teal : Color.secondary)
-                .padding(.horizontal, 7).frame(height: 16)
+            }.frame(width: 80, height: 78)
+                .overlay(DesktopCoreHandle(desktop: desktop))
+            HStack(spacing: 6) {
+                Button { desktop.openVoice() } label: {
+                    Image(systemName: voice.inCall ? (voice.muted ? "mic.slash.fill" : "mic.fill") : "mic")
+                        .foregroundStyle(voice.inCall ? Color.teal : .primary)
+                        .frame(width: 30, height: 26)
+                }.help(voice.inCall ? "Управление разговором" : "Начать голосовой разговор")
+                    .accessibilityLabel("Голос Proto-Mind")
+                Button { desktop.restoreWindow() } label: {
+                    Image(systemName: "arrow.up.left.and.arrow.down.right").frame(width: 30, height: 26)
+                }.help("Обычное окно").accessibilityLabel("Обычное окно")
+            }.font(.system(size: 11, weight: .medium)).buttonStyle(.plain)
                 .background(.regularMaterial, in: Capsule())
-        }.frame(width: 88, height: 108)
+                .overlay(Capsule().strokeBorder(.white.opacity(0.15)).allowsHitTesting(false))
+                .opacity(desktop.coreHovered ? 1 : 0)
+                .allowsHitTesting(desktop.coreHovered)
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: desktop.coreHovered)
+        }.frame(width: DesktopGeometry.coreSize.width, height: DesktopGeometry.coreSize.height)
+            .contentShape(Rectangle())
             .help(voice.connected ? (voice.muted ? "Микрофон выключен" : "Голос включён")
-                  : voice.inCall ? (voice.phase == .connecting ? "Подключение голоса…" : "Завершение разговора…") : "Proto-Mind · микрофон выключен")
+                  : voice.inCall ? "Подключение или завершение разговора…" : "Proto-Mind · микрофон выключен")
     }
+
 }
 
 /// A vector counterpart of the app's cube, crisp at small desktop sizes.
@@ -215,6 +176,25 @@ struct CubeEmblem: View {
                 context.stroke(path(points, close: false), with: .color(.white.opacity(0.83)), style: StrokeStyle(lineWidth: 4.5 * sx, lineCap: .round, lineJoin: .round))
             }
         }.accessibilityHidden(true)
+    }
+}
+
+struct DesktopGlassBackground: View {
+    let transparency: Double
+    let tint: Color
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    var body: some View {
+        ZStack {
+            if reduceTransparency { tint }
+            else {
+                DesktopGlassMaterial().opacity(1 - transparency)
+                tint.opacity(1 - transparency)
+                LinearGradient(colors: [.white.opacity(0.045), .clear, .teal.opacity(0.025)],
+                               startPoint: .topLeading, endPoint: .bottomTrailing)
+                    .opacity(1 - transparency)
+            }
+        }.allowsHitTesting(false).accessibilityHidden(true)
     }
 }
 
