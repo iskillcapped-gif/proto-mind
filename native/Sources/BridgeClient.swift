@@ -38,6 +38,19 @@ final class BridgeClient: ObservableObject {
         if let codex = configuration.codexExecutable, !FileManager.default.isExecutableFile(atPath: codex.path) {
             throw NativeError.message("Не найден встроенный Codex. Установите полную копию Proto-Mind.app заново.")
         }
+        if configuration.isPortable {
+            // Some core logs inherit their parent permissions. Protect both owned
+            // namespaces before any child can create a store, log or account file.
+            for directory in [configuration.projectRoot, configuration.stateDirectory] {
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true,
+                                                        attributes: [.posixPermissions: 0o700])
+                let attributes = try FileManager.default.attributesOfItem(atPath: directory.path)
+                guard attributes[.type] as? FileAttributeType == .typeDirectory else {
+                    throw NativeError.message("Папка профиля должна быть обычным каталогом, а не ссылкой.")
+                }
+                try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
+            }
+        }
         let process = Process()
         let stdin = Pipe(), stdout = Pipe()
         process.executableURL = configuration.python

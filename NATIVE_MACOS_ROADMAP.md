@@ -16,8 +16,10 @@ personal data paths are unchanged; no automatic migration runs.
 bundle. Mutable core and Native state use sibling directories under the current
 user's `Application Support/ProtoMind`. Bridge launches use installed code as
 their working directory, isolated Python import settings and an explicit Codex
-executable. A missing bundled Codex cannot silently select a system account or
-runtime. Chat sandbox access covers only the bundled runtime/helper paths and
+executable. Both private namespaces have owner-only directory permissions before
+the bridge starts. A missing bundled Codex cannot silently select a system account or
+runtime. A missing config file cannot switch the distributed bundle to the
+developer profile. Chat sandbox access covers only the bundled runtime/helper paths and
 the existing private execution roots. Updates can replace or move the bundle
 without changing the profile path.
 
@@ -29,8 +31,9 @@ catalog's default model; saved conversations keep their previous selection.
 Voice/API, GitHub CLI, Ollama and the proprietary signed Computer Use helper
 remain optional separate connections, described in the installation guide.
 
-Verification: **2,313 Python tests** plus compileall and **1,433 Native checks**
-pass; optional pytest is absent/skipped. Another **150 focused tests** pass with
+Verification: **2,313 Python tests** plus compileall and **1,435 Native checks**
+pass; the subsequent missing-config guard passes **20 focused Native launch
+checks**. Optional pytest is absent/skipped. Another **150 focused tests** pass with
 the packaged Python 3.12. A relocated bundle with spaces in its path starts its
 bridge, saves/reloads synthetic core memory, verifies a private backup, reads
 signed-out Codex status, and starts/cancels browser authentication without a

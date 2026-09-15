@@ -290,16 +290,20 @@ struct LaunchConfiguration {
                        bundled: bundled, resources: Bundle.main.resourceURL,
                        home: FileManager.default.homeDirectoryForCurrentUser,
                        currentDirectory: FileManager.default.currentDirectoryPath,
-                       pdfHelper: Bundle.main.url(forAuxiliaryExecutable: "ProtoMindPDF"))
+                       pdfHelper: Bundle.main.url(forAuxiliaryExecutable: "ProtoMindPDF"),
+                       bundleIdentifier: Bundle.main.bundleIdentifier)
     }
 
     static func resolve(arguments: [String], environment env: [String: String], bundled: [String: String],
-                        resources: URL?, home: URL, currentDirectory: String, pdfHelper: URL?) -> LaunchConfiguration {
+                        resources: URL?, home: URL, currentDirectory: String, pdfHelper: URL?,
+                        bundleIdentifier: String? = nil) -> LaunchConfiguration {
         func option(_ name: String) -> String? {
             guard let index = arguments.firstIndex(of: name), index + 1 < arguments.count else { return nil }
             return arguments[index + 1]
         }
-        if bundled["distribution"] == "portable" {
+        // A missing/damaged config must never turn a distributed app into a
+        // developer launcher that could load the operator's separate profile.
+        if bundled["distribution"] == "portable" || bundleIdentifier == "local.proto-mind.desktop" {
             // The bundle is read-only code. Updates replace it without replacing the user's profile.
             // Explicit profile overrides are for isolated QA; inherited developer paths are ignored.
             let profile = option("--profile-root").map { URL(fileURLWithPath: $0, isDirectory: true) }

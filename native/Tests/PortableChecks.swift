@@ -14,6 +14,11 @@ extension NativeChecks {
         try check(configuration.codexExecutable == resources.appendingPathComponent("runtime/codex/bin/codex"), "Portable Codex preserves its official package layout")
         try check(configuration.stateDirectory.deletingLastPathComponent() == configuration.projectRoot.deletingLastPathComponent(), "Core and Native stores are separate siblings compatible with backup inventory")
         try check(!FileManager.default.fileExists(atPath: home.path), "Resolving portable paths does not initialize private data")
+        let missingConfig = LaunchConfiguration.resolve(arguments: [], environment: inherited, bundled: [:],
+            resources: resources, home: home, currentDirectory: "/developer/private", pdfHelper: nil,
+            bundleIdentifier: "local.proto-mind.desktop")
+        try check(missingConfig.isPortable && missingConfig.stateDirectory == configuration.stateDirectory
+                  && missingConfig.codeRoot == configuration.codeRoot, "Missing portable config cannot select the developer's code or personal profile")
         let moved = LaunchConfiguration.resolve(arguments: [], environment: [:], bundled: ["distribution": "portable"],
             resources: root.appendingPathComponent("Updated.app/Contents/Resources"), home: home, currentDirectory: "/tmp", pdfHelper: nil)
         try check(moved.stateDirectory == configuration.stateDirectory && moved.projectRoot == configuration.projectRoot,
@@ -43,6 +48,10 @@ extension NativeChecks {
         let bridge = BridgeClient(configuration: config)
         defer { bridge.shutdown() }
         let initial = try await bridge.request("bootstrap")
+        for directory in [config.projectRoot, config.stateDirectory] {
+            let permissions = try FileManager.default.attributesOfItem(atPath: directory.path)[.posixPermissions] as? NSNumber
+            try check(permissions?.intValue == 0o700, "Portable private namespace is accessible only to its owner: \(directory.lastPathComponent)")
+        }
         try check(!initial.isNull && initial["operator_name"].text.isEmpty, "Separated bridge bootstraps a fresh profile without copying the operator's identity")
         try check(!FileManager.default.fileExists(atPath: config.projectRoot.appendingPathComponent("proto_mind/main.py").path),
                   "Bridge starts with source outside its writable root")

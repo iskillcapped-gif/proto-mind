@@ -36,7 +36,8 @@ the DMG, installation notes, and a DMG SHA-256 file. Nothing is uploaded.
 The portable config contains only `distribution: portable`; runtime paths are
 resolved relative to the running bundle. Per-user state lives in two siblings:
 `~/Library/Application Support/ProtoMind/core` and `.../native`. Keeping these
-separate preserves the private-backup inventory and restore barriers.
+separate preserves the private-backup inventory and restore barriers. Native
+enforces owner-only directory permissions on both before starting the bridge.
 
 For isolated checks, launch the executable with `--profile-root /absolute/qa`.
 This redirects both stores and scopes UI preferences/keychain lookup to that
