@@ -60,6 +60,11 @@ final class DesktopCompanionWindows: ObservableObject {
 
     func surface(_ id: DesktopCompanionID) -> DesktopCompanion { surfaces.first { $0.id == id }! }
     func owns(_ window: NSWindow) -> Bool { surfaces.contains { $0.window === window } }
+    /// Voice and explicitly independent free windows never join a workspace fade.
+    var workspaceWindows: [NSWindow] {
+        surfaces.filter { $0.visible && ($0.docked || !keepDetachedVisible) }
+            .compactMap(\.window).filter { $0.isVisible || !presentsWindows }
+    }
     func containsVisibleWindow(at point: NSPoint) -> Bool {
         surfaces.contains { $0.window.map { $0.isVisible && $0.frame.contains(point) } == true }
     }
@@ -232,6 +237,13 @@ final class DesktopCompanionWindows: ObservableObject {
     }
 
     func layout() {
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0
+            layoutWindows()
+        }
+    }
+
+    private func layoutWindows() {
         guard !layingOut else { return }
         layingOut = true
         defer { layingOut = false }
@@ -252,8 +264,11 @@ final class DesktopCompanionWindows: ObservableObject {
         if workspace.frame != row.workspace { workspace.setFrame(row.workspace, display: true) }
         if docked.isEmpty { workspaceHome = nil }
         let covering = docked.first { $0.expanded }?.id
+        var prepared: [NSWindow] = []
         for item in surfaces {
-            let shown = item.visible && (desktop.expanded || (!item.docked && keepDetachedVisible))
+            let independent = !item.docked && keepDetachedVisible
+            let finishingFade = desktop.hidingWorkspace && item.window?.isVisible == true
+            let shown = item.visible && (desktop.expanded || finishingFade || independent)
                 && (!item.docked || covering == nil || covering == item.id)
             guard shown else {
                 hideWindow(item)
@@ -276,8 +291,18 @@ final class DesktopCompanionWindows: ObservableObject {
             }
             if !item.dragging && window.frame != target { window.setFrame(target, display: true) }
             item.appliedSize = window.frame.size
+            if independent { window.animator().alphaValue = 1 }
+            else if !window.isVisible { window.animator().alphaValue = workspace.alphaValue }
+            if presentsWindows && !window.isVisible {
+                window.contentView?.layoutSubtreeIfNeeded()
+                window.displayIfNeeded()
+            }
             if item.docked && window.parent !== workspace { workspace.addChildWindow(window, ordered: .above) }
-            if presentsWindows && !window.isVisible { window.orderFrontRegardless() }
+            prepared.append(window)
+        }
+        // Building the second surface must not delay the first surface's reveal.
+        if presentsWindows {
+            for window in prepared where !window.isVisible { window.orderFrontRegardless() }
         }
         desktop.updateCompanionHover(!hovered.isEmpty)
         if presentsWindows { desktop.corePanel?.orderFrontRegardless() }
@@ -314,6 +339,10 @@ final class DesktopCompanionWindows: ObservableObject {
         guard let window = item.window else { return }
         window.parent?.removeChildWindow(window)
         window.makeFirstResponder(nil); window.orderOut(nil)
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0
+            window.animator().alphaValue = 1
+        }
     }
 
     private func storeFreeFrame(_ item: DesktopCompanion) {
@@ -328,6 +357,7 @@ final class DesktopCompanionWindows: ObservableObject {
         window.title = "Proto-Mind · " + item.id.title
         window.isReleasedWhenClosed = false; window.isFloatingPanel = true; window.hidesOnDeactivate = false
         window.isOpaque = false; window.backgroundColor = .clear; window.hasShadow = true
+        window.animationBehavior = .none
         window.level = .floating; window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
         window.minSize = DesktopCompanionGeometry.minimum
         let delegate = DesktopCompanionDelegate(owner: self, id: item.id)

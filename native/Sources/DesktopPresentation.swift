@@ -66,6 +66,9 @@ final class DesktopPresentation: ObservableObject {
     private var original: WindowAppearance?
     private var changingWindow = false
     private var transition = UUID()
+    // Logical folding happens immediately; the window group stays mounted until
+    // its shared fade finishes. Layout must not order companions out early.
+    private(set) var hidingWorkspace = false
     private var windowDelegate: DesktopWindowDelegate?
     private var openSettings: () -> Void = {}
     private var workspaceHovered = false
@@ -75,6 +78,7 @@ final class DesktopPresentation: ObservableObject {
     private var hoverTask: Task<Void, Never>?
     private var previewPointerTask: Task<Void, Never>?
     private let pointerLocation: (() -> NSPoint)?
+    private let reduceMotion: () -> Bool
     private var interactionMonitor: Any?
     private var companionSubscription: AnyCancellable?
 
@@ -86,14 +90,17 @@ final class DesktopPresentation: ObservableObject {
         let collection: NSWindow.CollectionBehavior
         let minimum: NSSize
         let transparentTitlebar: Bool
+        let animationBehavior: NSWindow.AnimationBehavior
     }
 
     init(stateDirectory: URL, defaults: UserDefaults = .standard, presentsWindows: Bool = true,
-         pointerLocation: (() -> NSPoint)? = { NSEvent.mouseLocation }) {
+         pointerLocation: (() -> NSPoint)? = { NSEvent.mouseLocation },
+         reduceMotion: @escaping () -> Bool = { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }) {
         companions = DesktopCompanionWindows(stateDirectory: stateDirectory, defaults: defaults, presentsWindows: presentsWindows)
         self.defaults = defaults
         self.presentsWindows = presentsWindows
         self.pointerLocation = pointerLocation
+        self.reduceMotion = reduceMotion
         let digest = SHA256.hash(data: Data(stateDirectory.standardizedFileURL.path.utf8))
             .map { String(format: "%02x", $0) }.joined()
         preferenceKey = "desktopPresentation.v1." + digest
@@ -287,7 +294,8 @@ final class DesktopPresentation: ObservableObject {
         guard !enabled, let window, let app, window.attachedSheet == nil else { return }
         original = WindowAppearance(frame: window.frame, background: window.backgroundColor,
                                     opaque: window.isOpaque, level: window.level, collection: window.collectionBehavior,
-                                    minimum: window.minSize, transparentTitlebar: window.titlebarAppearsTransparent)
+                                    minimum: window.minSize, transparentTitlebar: window.titlebarAppearsTransparent,
+                                    animationBehavior: window.animationBehavior)
         changingWindow = true
         enabled = true; expanded = true
         // SwiftUI owns its toolbar/background host. Keep the titled frame alive;
@@ -297,6 +305,7 @@ final class DesktopPresentation: ObservableObject {
             window.standardWindowButton(kind)?.isHidden = true
         }
         window.isOpaque = false; window.backgroundColor = .clear; window.hasShadow = true
+        window.animationBehavior = .none
         window.level = .floating; window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
         window.minSize = DesktopGeometry.minimumWorkspace
         let core = makeCore(app: app)
@@ -335,28 +344,39 @@ final class DesktopPresentation: ObservableObject {
     private func showWorkspace(preview: Bool, animated: Bool) {
         guard enabled, let window else { return }
         guard !preview || !window.isMiniaturized else { return }
-        let alreadyExpanded = expanded
-        transition = UUID(); previewing = preview; expanded = true
-        recoverVisibleFrames()
-        window.alphaValue = animated && !alreadyExpanded && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 0 : 1
-        if presentsWindows {
-            if preview {
-                // Hover is visual only: leave the active app and keyboard responder alone.
-                window.orderFrontRegardless()
+        let wasPresented = expanded || hidingWorkspace
+        cancelWindowTransition()
+        previewing = preview; expanded = true
+        let shouldAnimate = animated && !reduceMotion()
+        let startAlpha: CGFloat = shouldAnimate ? (wasPresented ? window.alphaValue : 0) : 1
+        // Prepare every surface before any fade begins. The zero-duration group
+        // also makes nonanimated ordering atomic and cancels old alpha animations.
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0
+            window.animator().alphaValue = startAlpha
+            recoverVisibleFrames()
+            for companion in companions.workspaceWindows { companion.animator().alphaValue = startAlpha }
+            if presentsWindows {
+                window.contentView?.layoutSubtreeIfNeeded()
+                window.displayIfNeeded()
+                if preview {
+                    // Hover is visual only: leave the active app and keyboard responder alone.
+                    window.orderFrontRegardless()
+                } else {
+                    NSApp.activate(ignoringOtherApps: true)
+                    if window.isMiniaturized { window.deminiaturize(nil) }
+                    window.makeKeyAndOrderFront(nil)
+                }
                 corePanel?.orderFrontRegardless()
-            } else {
-                NSApp.activate(ignoringOtherApps: true)
-                if window.isMiniaturized { window.deminiaturize(nil) }
-                window.makeKeyAndOrderFront(nil)
             }
         }
-        if window.alphaValue < 1 {
+        if startAlpha < 1 {
+            let group = [window] + companions.workspaceWindows
             NSAnimationContext.runAnimationGroup { context in
                 context.duration = 0.18
-                window.animator().alphaValue = 1
+                for surface in group { surface.animator().alphaValue = 1 }
             }
         }
-        companions.layout()
         if preview { trackPreviewPointer() }
     }
 
@@ -367,25 +387,47 @@ final class DesktopPresentation: ObservableObject {
         guard app?.historyPersistence.failure == nil else { return }
         cancelHoverTransition()
         saveWorkspaceFrame()
-        let token = UUID(); transition = token
+        cancelWindowTransition()
+        let token = transition
+        hidingWorkspace = true
         expanded = false; previewing = false; workspaceHovered = false; companionHovered = false
-        companions.layout()
+        let group = [window] + companions.workspaceWindows
         hoverSuppressed = coreHovered
         let finish: @MainActor @Sendable () -> Void = { [weak self, weak window] in
             guard let self, self.transition == token, !self.expanded else { return }
-            window?.orderOut(nil); window?.alphaValue = 1
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0
+                self.hidingWorkspace = false
+                self.companions.layout()
+                window?.orderOut(nil)
+                window?.animator().alphaValue = 1
+            }
         }
-        if animated && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+        if animated && !reduceMotion() {
             NSAnimationContext.runAnimationGroup({ context in
-                context.duration = 0.16; window.animator().alphaValue = 0
+                context.duration = 0.16
+                for surface in group { surface.animator().alphaValue = 0 }
             }, completionHandler: { Task { @MainActor in finish() } })
         } else { finish() }
+    }
+
+    private func cancelWindowTransition() {
+        transition = UUID()
+        hidingWorkspace = false
+        // A direct property assignment does not reliably stop an animator proxy.
+        // AppKit supports cancellation by retargeting in a zero-duration context.
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0
+            for surface in [window].compactMap({ $0 }) + companions.surfaces.compactMap(\.window) {
+                surface.animator().alphaValue = surface.alphaValue
+            }
+        }
     }
 
     func restoreWindow() {
         guard enabled, let window, let original, window.attachedSheet == nil else { return }
         cancelHoverTransition()
-        transition = UUID(); changingWindow = true
+        cancelWindowTransition(); changingWindow = true
         saveWorkspaceFrame(force: true)
         enabled = false; expanded = false; previewing = false
         companions.leaveFloatingMode()
@@ -397,6 +439,7 @@ final class DesktopPresentation: ObservableObject {
         }
         window.isOpaque = original.opaque; window.backgroundColor = original.background
         window.titlebarAppearsTransparent = original.transparentTitlebar
+        window.animationBehavior = original.animationBehavior
         window.level = original.level; window.collectionBehavior = original.collection
         window.minSize = original.minimum
         let screen = DesktopGeometry.screen(for: original.frame, screens: NSScreen.screens.map(\.visibleFrame))
@@ -426,7 +469,7 @@ final class DesktopPresentation: ObservableObject {
     }
 
     func shutdown() {
-        transition = UUID()
+        cancelWindowTransition()
         cancelHoverTransition()
         companions.shutdown(); companionSubscription = nil
         removeObservers(); corePanel?.orderOut(nil); corePanel?.contentView = nil; corePanel = nil

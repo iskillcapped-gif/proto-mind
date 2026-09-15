@@ -4,6 +4,23 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Synchronized Cube Transitions — Native 0.65.4
+
+The chat and its companion windows now share one AppKit fade. The complete group
+is prepared before the animation starts, and companions keep their child-window
+ownership until the common fade out finishes. Floating windows disable AppKit's
+independent automatic ordering effects. Reopening or returning to normal mode
+cancels prior alpha animations; an obsolete completion cannot hide the new view.
+The cube, voice window and explicitly independent detached windows remain outside
+the group. Reduce Motion and nonanimated presentation update the group immediately.
+
+Verification: 423 interface checks and all 1,672 Native checks passed. New checks
+sample real AppKit window opacity and ordering throughout both transitions,
+including attached/detached companions, mid-fade reversal, layout during folding,
+explicit presentation, covering expansion, independent visibility and Reduce Motion.
+Task ownership, drafts, history and microphone state remain unchanged. No live
+model or microphone call is needed for these checks.
+
 ## Cube Hover Recovery — Native 0.65.3
 
 Showing or focusing a companion no longer pins a hover preview. A local input

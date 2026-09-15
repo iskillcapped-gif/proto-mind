@@ -265,6 +265,7 @@ extension NativeChecks {
         try check(first.window == nil && second.window == nil && first.panel.tabs.isEmpty && second.panel.tabs.isEmpty,
                   "Shutdown releases both floating windows and their owned sessions")
         try await companionHoverRecovery(root: root)
+        try await desktopWindowTransitions(root: root)
     }
 }
 
