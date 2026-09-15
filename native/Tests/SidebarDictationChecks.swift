@@ -18,7 +18,7 @@ private final class FixtureDictationSpeech: DictationRecognizing {
 
 extension NativeChecks {
     @MainActor
-    static func sidebarProjectOrdering(root: URL) throws {
+    static func sidebarProjectOrdering(root: URL) async throws {
         let suite = "proto-mind-sidebar-checks." + UUID().uuidString
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
@@ -35,6 +35,19 @@ extension NativeChecks {
         try check(!FileManager.default.fileExists(atPath: state.path) && defaults.dictionaryRepresentation().keys.allSatisfy { !$0.hasPrefix("sidebarProjectOrder") },
                   "Reading sidebar order creates no private state or preference writes")
         let transfer = SidebarProjectTransfer(id: original[2], owner: order.owner)
+        let provider = NSItemProvider()
+        provider.register(transfer)
+        var loaded: SidebarProjectTransfer?
+        let loading = provider.loadTransferable(type: SidebarProjectTransfer.self) { result in
+            Task { @MainActor in loaded = try? result.get() }
+        }
+        for _ in 0..<100 {
+            if loaded != nil { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        loading.cancel()
+        try check(loaded?.id == transfer.id && loaded?.owner == order.owner,
+                  "The native drag provider preserves the private project payload consumed by the drop delegate")
         try check(order.move(transfer, to: original[0], after: false, conversations: conversations), "Dragging a project upward moves the whole group")
         let expected = [original[2], original[0], original[1], original[3]]
         try check(order.ids == expected && SidebarProjectOrder(stateDirectory: state, defaults: defaults).ids == expected,
@@ -54,6 +67,13 @@ extension NativeChecks {
                   "A newly added project follows the manual order without resetting existing projects")
         try check(SidebarProjectOrder(stateDirectory: root.appendingPathComponent("separate-profile"), defaults: defaults).ids.isEmpty,
                   "Project order is isolated by application profile")
+        try check(SidebarProjectEdge.at(y: 15, height: 120) == .before
+                  && SidebarProjectEdge.at(y: 105, height: 120) == .after,
+                  "A drop anywhere in a project group selects its upper or lower boundary")
+        try check(SidebarProjectEdge.at(y: 62, height: 120, previous: .before) == .before
+                  && SidebarProjectEdge.at(y: 58, height: 120, previous: .after) == .after
+                  && SidebarProjectEdge.at(y: 70, height: 120, previous: .before) == .after,
+                  "The insertion indicator stays stable near the midpoint and changes after crossing it")
         let app = AppModel(configuration: .init(projectRoot: root, python: root, stateDirectory: state), uiDefaults: defaults)
         defer { app.shutdown() }
         app.conversations = conversations; app.selectedID = a.id
@@ -71,6 +91,27 @@ extension NativeChecks {
 
     @MainActor
     static func composerDictation(root: URL) async throws {
+        var transcript = DictationTranscript()
+        transcript.hypothesize("Первая неготовая фраза")
+        transcript.hypothesize("Первая фраза")
+        transcript.completeUtterance("Первая фраза.")
+        transcript.hypothesize("После")
+        transcript.hypothesize("После паузы продолжаю")
+        try check(transcript.text == "Первая фраза. После паузы продолжаю",
+                  "A new utterance after a pause preserves the completed sentence while revising only its own partial text")
+        transcript.completeUtterance("После паузы продолжаю.")
+        transcript.hypothesize("После паузы")
+        transcript.completeUtterance("После паузы продолжаю.")
+        try check(transcript.text == "Первая фраза. После паузы продолжаю. После паузы продолжаю.",
+                  "Intentionally repeated utterances are retained rather than removed as duplicate text")
+        transcript.hypothesize("")
+        transcript.completeUtterance("  \n")
+        try check(transcript.text == "Первая фраза. После паузы продолжаю. После паузы продолжаю.",
+                  "Apple's empty final result after silence cannot erase any completed utterance")
+        transcript = DictationTranscript()
+        transcript.hypothesize("Новый сеанс")
+        try check(transcript.text == "Новый сеанс", "A new recording starts a fresh utterance accumulator")
+
         let suite = "proto-mind-dictation-checks." + UUID().uuidString
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
@@ -101,6 +142,25 @@ extension NativeChecks {
         try check(!dictation.active && app.composer == "Брат 💙, Давай продолжим.", "The final transcript is left as an editable unsent message")
         app.flushDraft()
         try check(try ChatStore(directory: state).load().conversations.first?.draft == app.composer, "Dictated text uses the ordinary verified draft persistence path")
+
+        await dictation.start(app: app)
+        let base = app.composer
+        var phrases = DictationTranscript()
+        phrases.hypothesize("Начало мысли")
+        phrases.completeUtterance("Начало мысли.")
+        speech.onText?(phrases.text, false)
+        phrases.hypothesize("Допол")
+        speech.onText?(phrases.text, false)
+        phrases.completeUtterance("Дополнение после паузы.")
+        speech.onText?(phrases.text, false)
+        try check(dictation.phase == .listening && app.composer == base + " Начало мысли. Дополнение после паузы."
+                  && app.selected?.draft == app.composer && app.selected?.pendingFiles == files,
+                  "Utterance completion keeps dictation listening and saves both phrases beside the original draft and attachments")
+        dictation.finish()
+        speech.onText?(phrases.text, true)
+        try check(!dictation.active && app.composer == base + " Начало мысли. Дополнение после паузы."
+                  && app.selected?.messages.isEmpty == true,
+                  "Finishing a multi-utterance recording retains the entire editable message without submitting it")
 
         await dictation.start(app: app)
         let delayed = speech.onText

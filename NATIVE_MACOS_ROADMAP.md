@@ -4,6 +4,35 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Dictation Pauses and Project Dragging — Native 0.63.1
+
+Dictation now uses Apple's multi-utterance recognition delegate. Completed
+utterances accumulate separately from the current partial; a pause, revised
+partial, repeated sentence or empty task-final result cannot replace earlier
+speech. Recording and the editable draft retain their existing cancellation,
+navigation and submission boundaries. [Apple delegate contract](https://developer.apple.com/documentation/speech/sfspeechrecognitiontaskdelegate).
+
+Sidebar projects animate as whole groups, with a compact folder preview and a
+line marking the insertion boundary. The full group accepts a drop, with a small
+midpoint dead band to avoid indicator flicker. Hovering does not reorder or save
+anything; release performs the move. Reduce Motion disables the movement animation.
+The private drag representation is restricted to this process and still validates
+the profile owner. Context-menu and accessibility moves remain available.
+
+Synthetic Russian audio reproduced the old reset across 4- and 9-second pauses.
+The production speech backend then retained all three utterances; a second run
+also retained an intentionally repeated sentence and continued after 65 seconds
+of silence. Both runs used on-device Apple Speech with no microphone capture,
+OpenAI call or personal audio. They verify transcript continuity, not microphone
+accuracy. Disposable UI checks inspected normal/floating layouts and moved a whole
+group through accessibility without changing the draft. Physical drag feel remains
+a manual check; the computer-use drag attempts did not yield a verified drop.
+
+Verification: **1,487 full Native checks pass**, including native drag-provider
+decoding, insertion-boundary stability, multi-utterance draft persistence and the
+existing late-callback/navigation protections. Both release executables build.
+No Python runtime code, personal-state schema or account configuration changed.
+
 ## Project Order and Dictation — Native 0.63.0
 
 Project headings in the sidebar carry a private typed drag payload. Drop in the

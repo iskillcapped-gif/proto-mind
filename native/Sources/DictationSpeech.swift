@@ -36,6 +36,8 @@ final class DictationSpeech: DictationRecognizing {
     private var recognizer: SFSpeechRecognizer?
     private var request: SFSpeechAudioBufferRecognitionRequest?
     private var task: SFSpeechRecognitionTask?
+    private var events: DictationSpeechEvents?
+    private var transcript = DictationTranscript()
     private var generation = UUID()
     private var monitor: Task<Void, Never>?
     private var receivingAudio = false
@@ -77,19 +79,33 @@ final class DictationSpeech: DictationRecognizing {
             guard let self, self.generation == token else { return }
             self.fail(message)
         }
-        task = recognizer.recognitionTask(with: request) { [weak self] result, error in
-            let text = result?.bestTranscription.formattedString
-            let final = result?.isFinal == true
-            Task { @MainActor in
+        // The result-handler API starts a new bestTranscription after a pause,
+        // even with isFinal == false. The delegate distinguishes an utterance
+        // ending from the entire recognition task ending.
+        recognizer.queue = .main
+        let events = DictationSpeechEvents { [weak self] event in
+            DispatchQueue.main.async {
                 guard let self, self.generation == token else { return }
-                if let text { self.onText?(text, final) }
-                guard self.generation == token else { return }
-                if final { self.cancel() }
-                else if let error {
-                    self.fail("Не удалось закончить диктовку. Уже распознанный текст сохранён. " + String(error.localizedDescription.prefix(200)))
+                switch event {
+                case .partial(let text):
+                    self.transcript.hypothesize(text)
+                    self.onText?(self.transcript.text, false)
+                case .utterance(let text):
+                    self.transcript.completeUtterance(text)
+                    self.onText?(self.transcript.text, false)
+                case .finished(let failure):
+                    if let failure {
+                        self.fail("Не удалось закончить диктовку. Уже распознанный текст сохранён. " + String(failure.prefix(200)))
+                    } else {
+                        let text = self.transcript.text
+                        self.cancel()
+                        self.onText?(text, true)
+                    }
                 }
             }
         }
+        self.events = events
+        task = recognizer.recognitionTask(with: request, delegate: events)
         do {
             try await audio.start()
             try validate(token)
@@ -119,6 +135,7 @@ final class DictationSpeech: DictationRecognizing {
         generation = UUID(); receivingAudio = false
         audio.stop(); monitor?.cancel(); monitor = nil
         task?.cancel(); task = nil; request = nil; recognizer = nil
+        events = nil; transcript = DictationTranscript()
     }
 
     private func fail(_ message: String) { cancel(); onFailure?(message) }
@@ -146,5 +163,49 @@ final class DictationSpeech: DictationRecognizing {
             if let address = source.baseAddress { memcpy(destination, address, data.count) }
         }
         return buffer
+    }
+}
+
+/// Only the current utterance is revisable. Text equality is deliberately not
+/// used to find boundaries: repeating the same sentence is valid dictation.
+struct DictationTranscript {
+    private var completed: [String] = []
+    private var partial = ""
+    var text: String { (completed + [partial]).filter { !$0.isEmpty }.joined(separator: " ") }
+
+    mutating func hypothesize(_ text: String) {
+        let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !text.isEmpty { partial = text }
+    }
+
+    mutating func completeUtterance(_ text: String) {
+        let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        completed.append(text)
+        partial = ""
+    }
+}
+
+private final class DictationSpeechEvents: NSObject, SFSpeechRecognitionTaskDelegate {
+    enum Event: Sendable {
+        case partial(String), utterance(String), finished(String?)
+    }
+    private let receive: @Sendable (Event) -> Void
+    init(receive: @escaping @Sendable (Event) -> Void) { self.receive = receive }
+
+    func speechRecognitionTask(_ task: SFSpeechRecognitionTask, didHypothesizeTranscription transcription: SFTranscription) {
+        receive(.partial(transcription.formattedString))
+    }
+
+    func speechRecognitionTask(_ task: SFSpeechRecognitionTask, didFinishRecognition result: SFSpeechRecognitionResult) {
+        receive(.utterance(result.bestTranscription.formattedString))
+    }
+
+    func speechRecognitionTask(_ task: SFSpeechRecognitionTask, didFinishSuccessfully successfully: Bool) {
+        receive(.finished(successfully ? nil : (task.error?.localizedDescription ?? "Распознавание прервано.")))
+    }
+
+    func speechRecognitionTaskWasCancelled(_ task: SFSpeechRecognitionTask) {
+        receive(.finished("Распознавание отменено системой."))
     }
 }
