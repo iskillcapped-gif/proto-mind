@@ -3,6 +3,7 @@ import SwiftUI
 extension AppModel {
     /// Every voice entry uses the same one-click path. An existing call only reveals its controls.
     func presentLiveVoice(openSettings: () -> Void) {
+        dictation.stop()
         guard liveVoice.inCall || (liveVoice.hasKey && cloudConsent) else {
             showLiveVoice = false
             settingsSection = .voice

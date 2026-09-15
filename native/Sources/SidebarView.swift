@@ -84,12 +84,7 @@ struct SidebarView: View {
                                 .accessibilityLabel(model.showArchived ? "Вернуться к диалогам" : "Архив диалогов")
                         }.foregroundStyle(.secondary).padding(.horizontal, 11).padding(.top, 24).padding(.bottom, 4)
                         LazyVStack(alignment: .leading, spacing: 3) {
-                            ForEach(ConversationGroup.make(model.visibleConversations)) { group in
-                                Label(group.title, systemImage: "folder").font(.system(size: 13)).foregroundStyle(.secondary)
-                                    .padding(.horizontal, 11).padding(.top, 14).padding(.bottom, 5)
-                                    .help(group.workspace ?? "Диалоги без папки проекта")
-                                ForEach(group.conversations) { conversationRow($0) }
-                            }
+                            SidebarProjectsView(app: model, order: model.sidebarProjectOrder, row: conversationRow)
                             if model.visibleConversations.isEmpty {
                                 Text(model.conversationSearch.isEmpty ? "Здесь появятся ваши диалоги" : "Ничего не найдено")
                                     .font(.system(size: 12)).foregroundStyle(.secondary).padding(12)
@@ -100,6 +95,7 @@ struct SidebarView: View {
                 Divider().padding(.horizontal, 17)
                 HStack(spacing: 4) {
                     SidebarMenuView(app: model, usage: model.codexUsage, client: model.serviceClient, openSettings: openSettings, columnWidth: max(1, geometry.size.width - 24))
+                    LiveVoiceButton(app: model, voice: model.liveVoice)
                     Button { toolsOpen.toggle() } label: {
                         Image(systemName: "ellipsis").frame(width: 28, height: 32)
                     }.buttonStyle(.nativeHover).help("Команды, диагностика и копии").accessibilityLabel("Инструменты")

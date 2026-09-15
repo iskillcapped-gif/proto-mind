@@ -29,7 +29,7 @@ enum NativeSettingsSection: String, CaseIterable, Identifiable {
     var subtitle: String {
         switch self {
         case .models: return "Выберите, с какой моделью продолжить этот диалог."
-        case .voice: return "Разговор и управление задачами через GPT Live 1."
+        case .voice: return "Диктовка сообщений и голосовой разговор."
         case .appearance: return "Прозрачность парящего рабочего пространства."
         case .persona: return "Характер общения и использование памяти."
         case .services: return "Сервисы, которыми вы пользуетесь в работе."
@@ -112,9 +112,10 @@ struct NativeSettingsView: View {
                         modelSettings
                         if model.selected?.provider == "codex" { accountSettings }
                     case .voice:
-                        Section {
+                        Section("Диктовка") { DictationSettings(dictation: model.dictation) }
+                        Section("Голосовой разговор") {
                             Toggle("Разрешить обработку в OpenAI", isOn: $model.cloudConsent).disabled(model.globalBusy)
-                            Text("Кнопка микрофона сразу начинает разговор. После запуска приложения голос остаётся выключенным.")
+                            Text("Кнопка голосовой волны рядом с «Меню» сразу начинает разговор. После запуска приложения голос остаётся выключенным.")
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                         Section { LiveVoiceKeySettings(voice: model.liveVoice) }

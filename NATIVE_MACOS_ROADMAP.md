@@ -4,6 +4,45 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Project Order and Dictation — Native 0.63.0
+
+Project headings in the sidebar carry a private typed drag payload. Drop in the
+upper or lower half of another heading to place the whole project before or
+after it. Context-menu and accessibility actions offer the same moves. Manual
+order applies across search/archive views; later activity cannot undo it. New
+projects follow the saved order. UI preferences are namespaced by state directory
+in UserDefaults, without changing dialog history, permissions or backup schemas.
+
+The composer microphone now inserts Apple Speech partial/final transcripts into
+an unsent draft. It preserves existing text, attachments and continuation; manual
+editing, submission, conversation changes, leaving/folding the chat and opening
+another workspace screen stop capture and reject late callbacks. Finishing
+dictation stops the microphone immediately and allows up to three seconds for
+final text. Sleep and application shutdown stop capture. Active task lifetimes
+are unaffected. The ordinary voice conversation moves beside **Меню**, retaining
+the independent voice window and the existing cube entry.
+
+Russian is the initial dictation language; Russian, Ukrainian, English and system
+language choices live in **Настройки → Голос → Диктовка**. Language persists, microphone
+state does not. Apple Speech explicitly uses on-device recognition when supported;
+otherwise recognition may use Apple's servers through the system speech permission.
+The Info.plist permission explanation and voice settings describe that distinction.
+The pipeline reuses the validated 24 kHz microphone conversion/device recovery and
+has no OpenAI transport or audio-file writer. Dictation and GPT Live never share
+the microphone concurrently. [Apple Speech request contract](https://developer.apple.com/documentation/speech/sfspeechaudiobufferrecognitionrequest).
+
+Verification: **229 focused interface checks and 1,478 full Native checks pass**.
+New checks cover cross-profile ordering, duplicate folder names, restart, search,
+new projects, invalid drags, active tasks, partial/final dictation, manual edits,
+draft persistence, attachments, navigation, failures, cancellation during permission
+setup, language persistence and signed PCM conversion. A separate application using
+the production speech backend recognized a synthetic Russian phrase on-device,
+without opening a microphone or calling OpenAI; this is not an acoustic accuracy
+benchmark. Disposable UI checks exercised project movement through accessibility,
+the relocated voice entry and both normal/floating layouts. Computer-use coordinate
+drag attempts did not produce a drop; physical mouse drag remains a manual UX check.
+No Python runtime source changed and no paid API session was opened.
+
 ## Core Hover Preview — Native 0.62.1
 
 Hovering over the folded core for 180 ms reveals the existing chat and sidebar

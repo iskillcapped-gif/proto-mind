@@ -70,6 +70,7 @@ extension AppModel {
     }
 
     func shutdown() {
+        dictation.shutdown()
         presentations.shutdown()
         desktop.shutdown()
         liveVoice.shutdown()

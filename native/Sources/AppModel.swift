@@ -29,19 +29,24 @@ final class AppModel: ObservableObject {
     @Published var conversations: [Conversation] = []
     @Published var selectedID: UUID? {
         didSet {
+            if !initializing, oldValue != selectedID { dictation.stop() }
             if !initializing, let id = selectedID {
                 _ = execution(for: id)
                 liveVoice.updateContext(app: self)
             }
         }
     }
-    @Published var section: WorkspaceSection = .chat
-    @Published var composer = "" { didSet { draftChanged() } }
+    @Published var section: WorkspaceSection = .chat {
+        didSet { if !initializing, section != .chat { dictation.stop() } }
+    }
+    @Published var composer = "" { didSet { if !initializing { dictation.composerChanged() }; draftChanged() } }
     @Published var composerRevision = 0
     @Published var bootstrap: JSONValue = .null
     @Published var account: JSONValue = .null
     let codexUsage = CodexUsageModel()
     let liveVoice: LiveVoiceModel
+    let dictation: DictationModel
+    let sidebarProjectOrder: SidebarProjectOrder
     let desktop: DesktopPresentation
     let presentations = WorkspacePresentations()
     @Published var showSettings = false
@@ -222,9 +227,12 @@ final class AppModel: ObservableObject {
     private var personaPreviewRequest = UUID()
     private var personaReadinessRequest = UUID()
 
-    init(configuration: LaunchConfiguration = .load(), historyStore: ChatStore? = nil) {
-        desktop = DesktopPresentation(stateDirectory: configuration.stateDirectory)
+    init(configuration: LaunchConfiguration = .load(), historyStore: ChatStore? = nil,
+         uiDefaults: UserDefaults = .standard, dictationSpeech: DictationRecognizing? = nil) {
+        desktop = DesktopPresentation(stateDirectory: configuration.stateDirectory, defaults: uiDefaults)
         liveVoice = LiveVoiceModel(stateDirectory: configuration.stateDirectory)
+        dictation = DictationModel(stateDirectory: configuration.stateDirectory, defaults: uiDefaults, speech: dictationSpeech)
+        sidebarProjectOrder = SidebarProjectOrder(stateDirectory: configuration.stateDirectory, defaults: uiDefaults)
         serviceClient = BridgeClient(configuration: configuration)
         store = historyStore ?? ChatStore(directory: configuration.stateDirectory)
         preferences = PreferenceStore(directory: configuration.stateDirectory)
@@ -259,6 +267,7 @@ final class AppModel: ObservableObject {
         if let id = selectedID { _ = execution(for: id) }
         presentations.reveal = { [weak self] in
             guard let self else { return }
+            self.dictation.stop()
             if self.desktop.enabled { self.desktop.expand(animated: false) }
             else { self.desktop.window?.makeKeyAndOrderFront(nil) }
         }

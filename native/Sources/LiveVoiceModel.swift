@@ -67,6 +67,7 @@ final class LiveVoiceModel: ObservableObject {
 
     func start(app: AppModel) async {
         guard !inCall else { return }
+        app.dictation.stop()
         guard app.cloudConsent, !app.privateBackupRestartRequired, !app.operationBusy else {
             error = "Разрешите облачную обработку в настройках и завершите восстановление данных."; phase = .failed; return
         }

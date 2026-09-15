@@ -94,6 +94,8 @@ struct NativeChecks {
             return
         }
         if CommandLine.arguments.contains("--interface-only") {
+            try sidebarProjectOrdering(root: root)
+            try await composerDictation(root: root)
             try githubContracts(root: root)
             try interfaceLayout(root: root)
             try await desktopPresentation(root: root)
@@ -214,6 +216,8 @@ struct NativeChecks {
         try sidebarLayout(root: root)
         try githubContracts(root: root)
         try interfaceLayout(root: root)
+        try sidebarProjectOrdering(root: root)
+        try await composerDictation(root: root)
         try await desktopPresentation(root: root)
         try await workspacePresentations(root: root)
         try chatPresentation(root: root)

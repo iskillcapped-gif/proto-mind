@@ -50,11 +50,13 @@ struct ComposerView: View {
                     }
                     NativeComposer(text: $model.composer, revision: model.composerRevision, enabled: model.selected?.archived != true,
                                    focusOnRevision: model.transcriptDestination?.messageID == nil,
-                                   onStop: { if desktopGlass { model.desktop.collapse() } else if model.busy { Task { await model.stop() } } },
+                                   onStop: { if model.dictation.active { model.dictation.finish() }
+                                       else if desktopGlass { model.desktop.collapse() } else if model.busy { Task { await model.stop() } } },
                                    canDrop: model.canReceiveAttachments, onDrop: { model.receiveAttachmentDrop($0) },
                                    onDropHover: { model.attachmentDropTargeted = $0 }, onDropError: { model.error = $0 }) { Task { await model.submit() } }
                         .frame(height: min(160, max(66, CGFloat(model.composer.components(separatedBy: "\n").count) * 23 + 30)))
                 }
+                DictationStatusView(dictation: model.dictation)
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: 8) {
                         attachmentMenu
@@ -62,7 +64,7 @@ struct ComposerView: View {
                         if model.selected?.provider == "codex" { ComposerAccessMenu(model: model) }
                         Spacer(minLength: 8)
                         ModelSelectionMenu(model: model, openSettings: { openSettings() })
-                        LiveVoiceButton(app: model, voice: model.liveVoice)
+                        DictationButton(app: model, dictation: model.dictation, voice: model.liveVoice)
                         sendButton
                     }
                     VStack(spacing: 8) {
@@ -75,7 +77,7 @@ struct ComposerView: View {
                         HStack(spacing: 8) {
                             Spacer(minLength: 0)
                             ModelSelectionMenu(model: model, openSettings: { openSettings() })
-                            LiveVoiceButton(app: model, voice: model.liveVoice)
+                            DictationButton(app: model, dictation: model.dictation, voice: model.liveVoice)
                             sendButton
                         }
                     }

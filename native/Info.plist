@@ -3,18 +3,26 @@
 <plist version="1.0">
 <dict>
     <key>NSMicrophoneUsageDescription</key>
-    <string>Микрофон используется для разговора с Proto-Mind через OpenAI GPT Live. Звук передаётся OpenAI только во время включённого разговора.</string>
+    <string>Микрофон используется только при включённой диктовке или голосовом разговоре. Диктовку распознаёт Apple, голосовой разговор передаётся OpenAI.</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>Диктовка превращает речь в черновик сообщения. Если распознавание на устройстве недоступно для выбранного языка, звук обрабатывается Apple. Текст не отправляется в чат автоматически.</string>
   <key>CFBundleName</key><string>Proto-Mind Native</string>
   <key>CFBundleDisplayName</key><string>Proto-Mind Native</string>
   <key>CFBundleExecutable</key><string>ProtoMindNative</string>
   <key>CFBundleIdentifier</key><string>local.proto-mind.native</string>
-  <key>CFBundleVersion</key><string>77</string>
-  <key>CFBundleShortVersionString</key><string>0.62.1</string>
+  <key>CFBundleVersion</key><string>78</string>
+  <key>CFBundleShortVersionString</key><string>0.63.0</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleIconFile</key><string>ProtoMindCube</string>
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>NSHighResolutionCapable</key><true/>
   <key>NSPrincipalClass</key><string>NSApplication</string>
+  <key>UTExportedTypeDeclarations</key>
+  <array><dict>
+    <key>UTTypeIdentifier</key><string>local.proto-mind.sidebar-project</string>
+    <key>UTTypeDescription</key><string>Proto-Mind sidebar project</string>
+    <key>UTTypeConformsTo</key><array><string>public.data</string></array>
+  </dict></array>
   <key>NSAppTransportSecurity</key>
   <dict>
     <!-- User-directed web browsing; URLSession keeps the default transport policy. -->

@@ -4,6 +4,7 @@ import Foundation
 // Main-actor transitions for this domain; stored state remains in AppModel.
 extension AppModel {
     func submit(_ supplied: String? = nil) async {
+        if supplied == nil { dictation.stop() }
         let draftText = (supplied ?? composer).trimmingCharacters(in: .whitespacesAndNewlines)
         let text = draftText.isEmpty && hasPendingMessageAttachments
             ? (busy ? "Учти вложения в текущей задаче." : "Посмотри вложения.") : draftText

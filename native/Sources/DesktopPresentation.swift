@@ -294,6 +294,7 @@ final class DesktopPresentation: ObservableObject {
 
     func collapse(animated: Bool = true) {
         guard enabled, expanded, let window, window.attachedSheet == nil else { return }
+        app?.dictation.stop()
         app?.flushDraft()
         guard app?.historyPersistence.failure == nil else { return }
         cancelHoverTransition()
