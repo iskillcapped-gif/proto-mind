@@ -28,7 +28,8 @@ extension NativeChecks {
         defer { defaults.removePersistentDomain(forName: suite) }
         let state = root.appendingPathComponent("desktop-presentation")
         let app = AppModel(configuration: LaunchConfiguration(projectRoot: root, python: root, stateDirectory: state))
-        let desktop = DesktopPresentation(stateDirectory: state, defaults: defaults, presentsWindows: false)
+        // Raw tracking-callback checks; real-window pointer recovery is covered in DesktopHoverChecks.
+        let desktop = DesktopPresentation(stateDirectory: state, defaults: defaults, presentsWindows: false, pointerLocation: nil)
         desktop.setChatTransparency(0.72)
         desktop.setSidebarTransparency(0.18)
         let otherState = DesktopPresentation(stateDirectory: root.appendingPathComponent("other-desktop"), defaults: defaults, presentsWindows: false)
@@ -175,7 +176,7 @@ extension NativeChecks {
         try await Task.sleep(for: .milliseconds(260))
         try check(desktop.window == nil && !desktop.expanded,
                   "Shutting down cancels a pending hover reveal")
-        let restored = DesktopPresentation(stateDirectory: state, defaults: defaults, presentsWindows: false)
+        let restored = DesktopPresentation(stateDirectory: state, defaults: defaults, presentsWindows: false, pointerLocation: nil)
         try check(restored.chatTransparency == 0.72 && restored.sidebarTransparency == 0.18,
                   "Both glass backgrounds keep independent transparency across restart")
         restored.setChatTransparency(.nan); restored.setSidebarTransparency(4)

@@ -73,6 +73,8 @@ final class DesktopPresentation: ObservableObject {
     private var coreInteracting = false
     private var hoverSuppressed = false
     private var hoverTask: Task<Void, Never>?
+    private var previewPointerTask: Task<Void, Never>?
+    private let pointerLocation: (() -> NSPoint)?
     private var interactionMonitor: Any?
     private var companionSubscription: AnyCancellable?
 
@@ -86,10 +88,12 @@ final class DesktopPresentation: ObservableObject {
         let transparentTitlebar: Bool
     }
 
-    init(stateDirectory: URL, defaults: UserDefaults = .standard, presentsWindows: Bool = true) {
+    init(stateDirectory: URL, defaults: UserDefaults = .standard, presentsWindows: Bool = true,
+         pointerLocation: (() -> NSPoint)? = { NSEvent.mouseLocation }) {
         companions = DesktopCompanionWindows(stateDirectory: stateDirectory, defaults: defaults, presentsWindows: presentsWindows)
         self.defaults = defaults
         self.presentsWindows = presentsWindows
+        self.pointerLocation = pointerLocation
         let digest = SHA256.hash(data: Data(stateDirectory.standardizedFileURL.path.utf8))
             .map { String(format: "%02x", $0) }.joined()
         preferenceKey = "desktopPresentation.v1." + digest
@@ -135,7 +139,7 @@ final class DesktopPresentation: ObservableObject {
     }
 
     private func scheduleHoverTransition() {
-        cancelHoverTransition()
+        hoverTask?.cancel(); hoverTask = nil
         guard enabled, !coreInteracting else { return }
         if !expanded, coreHovered, !hoverSuppressed {
             hoverTask = Task { @MainActor [weak self] in
@@ -144,6 +148,8 @@ final class DesktopPresentation: ObservableObject {
                       !self.coreInteracting, !self.expanded else { return }
                 self.showWorkspace(preview: true, animated: true)
             }
+        } else if previewing, pointerLocation != nil {
+            trackPreviewPointer()
         } else if previewing, !coreHovered, !workspaceHovered, !companionHovered {
             hoverTask = Task { @MainActor [weak self] in
                 // Leave time to cross the gap between the core and its workspace.
@@ -155,7 +161,50 @@ final class DesktopPresentation: ObservableObject {
         }
     }
 
-    private func cancelHoverTransition() { hoverTask?.cancel(); hoverTask = nil }
+    private func cancelHoverTransition() {
+        hoverTask?.cancel(); hoverTask = nil
+        previewPointerTask?.cancel(); previewPointerTask = nil
+    }
+
+    private func trackPreviewPointer() {
+        guard previewing, pointerLocation != nil, previewPointerTask == nil else { return }
+        // Child windows can receive an enter without a matching exit when they
+        // appear behind the cube or their tracking areas are rebuilt. While peeking,
+        // actual pointer geometry is authoritative. No polling runs when pinned/hidden.
+        previewPointerTask = Task { @MainActor [weak self] in
+            var outsideSince: ContinuousClock.Instant?
+            while !Task.isCancelled {
+                do { try await Task.sleep(for: .milliseconds(100)) } catch { return }
+                guard let self, self.enabled, self.previewing, let point = self.pointerLocation?() else { return }
+                let overCore = self.corePanel.map { $0.isVisible && $0.frame.contains(point) } == true
+                if self.coreHovered != overCore { self.coreHovered = overCore }
+                if !overCore { self.hoverSuppressed = false }
+                let inside = [self.corePanel, self.window].compactMap { $0 }.contains {
+                    $0.isVisible && $0.frame.contains(point)
+                } || self.companions.containsVisibleWindow(at: point)
+                if inside || self.coreInteracting { outsideSince = nil }
+                else {
+                    if outsideSince == nil { outsideSince = .now }
+                    if let outsideSince, outsideSince.duration(to: .now) >= .milliseconds(320) {
+                        self.collapse()
+                        return
+                    }
+                }
+            }
+        }
+    }
+
+    func handleWorkspaceInteraction(_ event: NSEvent) {
+        guard previewing, let target = event.window,
+              target === window || companions.owns(target) else { return }
+        switch event.type {
+        case .leftMouseDown, .rightMouseDown, .otherMouseDown, .keyDown:
+            // Only intentional input pins a preview; ordering/focus notifications
+            // also happen as a side effect of revealing an AppKit child window.
+            expand(animated: false)
+        default: break
+        }
+    }
 
     func beginCoreInteraction() { coreInteracting = true; cancelHoverTransition() }
     func endCoreInteraction() { coreInteracting = false; scheduleHoverTransition() }
@@ -225,14 +274,8 @@ final class DesktopPresentation: ObservableObject {
         observers.append(NotificationCenter.default.addObserver(forName: NSWindow.willBeginSheetNotification, object: window, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.expand(animated: false) }
         })
-        observers.append(NotificationCenter.default.addObserver(forName: NSWindow.didBecomeKeyNotification, object: window, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated {
-                if self?.previewing == true { self?.expand(animated: false) }
-            }
-        })
-        interactionMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self] event in
-            // An intentional click turns a peek into a workspace before controls run.
-            if let self, self.previewing, event.window === self.window { self.expand(animated: false) }
+        interactionMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown, .keyDown]) { [weak self] event in
+            self?.handleWorkspaceInteraction(event)
             return event
         }
         if defaults.bool(forKey: preferenceKey + ".enabled") { enable(animated: false) }
@@ -314,6 +357,7 @@ final class DesktopPresentation: ObservableObject {
             }
         }
         companions.layout()
+        if preview { trackPreviewPointer() }
     }
 
     func collapse(animated: Bool = true) {

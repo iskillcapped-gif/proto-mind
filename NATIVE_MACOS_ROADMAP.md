@@ -4,6 +4,23 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Cube Hover Recovery — Native 0.65.3
+
+Showing or focusing a companion no longer pins a hover preview. A local input
+monitor pins only intentional mouse-down/key-down events in the workspace or its
+companions; cube actions and explicit presentation commands retain their behavior.
+
+During a preview, a cancellable pointer check uses the actual visible window frames
+to detect leaving the group, including lost exits from overlapping/rebuilt tracking
+areas. Crossing into the chat or a companion keeps the preview open. Tracking stops
+when the workspace is pinned, hidden or shut down; it is never a task/sensor session.
+
+Verification: 407 interface checks and the complete 1,656-check Native suite passed.
+The regression uses real AppKit windows with injected pointer positions: focus
+changes without input, missing companion exits, attached/detached companions,
+continued hover inside a companion, click/key pinning, and stopped polling after
+pin/hide/shutdown. Task ownership, drafts, history and microphone state are preserved.
+
 ## Companion Window Behavior — Native 0.65.2
 
 The first and second companions keep their upper/lower slots even when a neighbour

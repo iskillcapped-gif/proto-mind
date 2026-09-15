@@ -68,7 +68,7 @@ extension NativeChecks {
 
         _ = NSApplication.shared
         let app = AppModel(configuration: LaunchConfiguration(projectRoot: root, python: root, stateDirectory: state), uiDefaults: defaults)
-        let desktop = DesktopPresentation(stateDirectory: state, defaults: defaults, presentsWindows: true)
+        let desktop = DesktopPresentation(stateDirectory: state, defaults: defaults, presentsWindows: true, pointerLocation: nil)
         let window = CompanionDragCheckWindow(contentRect: NSRect(x: 100, y: 100, width: 1080, height: 720), styleMask: [.titled, .resizable, .closable], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         defer { desktop.shutdown(); app.shutdown(); window.close() }
@@ -264,6 +264,7 @@ extension NativeChecks {
         desktop.shutdown()
         try check(first.window == nil && second.window == nil && first.panel.tabs.isEmpty && second.panel.tabs.isEmpty,
                   "Shutdown releases both floating windows and their owned sessions")
+        try await companionHoverRecovery(root: root)
     }
 }
 

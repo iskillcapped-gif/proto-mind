@@ -59,6 +59,10 @@ final class DesktopCompanionWindows: ObservableObject {
     }
 
     func surface(_ id: DesktopCompanionID) -> DesktopCompanion { surfaces.first { $0.id == id }! }
+    func owns(_ window: NSWindow) -> Bool { surfaces.contains { $0.window === window } }
+    func containsVisibleWindow(at point: NSPoint) -> Bool {
+        surfaces.contains { $0.window.map { $0.isVisible && $0.frame.contains(point) } == true }
+    }
     var preferredWorkspaceFrame: NSRect? { workspaceHome }
     var hasStack: Bool { surfaces.allSatisfy { $0.visible && $0.docked && !$0.expanded } }
     var topHeight: CGFloat { lastRow?.panels[.first]?.height ?? 0 }
@@ -372,6 +376,5 @@ private final class DesktopCompanionDelegate: NSObject, NSWindowDelegate {
     func windowShouldClose(_ sender: NSWindow) -> Bool { owner?.toggle(id); return false }
     func windowDidMove(_ notification: Notification) { owner?.surfaceMoved(id) }
     func windowDidResize(_ notification: Notification) { owner?.surfaceMoved(id, resized: true) }
-    func windowDidBecomeKey(_ notification: Notification) { owner?.pinPreview() }
     func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize { owner?.constrainResize(id, size: frameSize) ?? frameSize }
 }
