@@ -8,6 +8,7 @@ from pathlib import Path
 import plistlib
 import subprocess
 import tempfile
+import threading
 import unittest
 from unittest.mock import Mock, patch
 from uuid import uuid4
@@ -20,6 +21,8 @@ from proto_mind import native_computer_use as computer_use
 from proto_mind.native_work_sessions import workspace_identity
 from proto_mind.config import ProtoMindConfig
 from proto_mind.tests.test_native import FakeRPC, FakeSubscription
+
+COMPUTER_USE_COMMAND = str(Path("/verified profile") / computer_use.CLIENT_RELATIVE_PATH)
 
 
 class FakeAgentSubscription(FakeSubscription):
@@ -236,6 +239,14 @@ class NativeAgentPermissionTests(unittest.TestCase):
 
 
 class AgentRPC(FakeRPC):
+    def request(self, method, params=None, **kwargs):
+        result = super().request(method, params, **kwargs)
+        if method == "command/exec":
+            if self.closed:
+                raise codex.CodexConnectionError("cleanup reached a closed parent")
+            return {"exitCode": 0, "stdout": "", "stderr": ""}
+        return result
+
     def __init__(self, executable, home, workspace, *, full_access=False, computer_use=None):
         super().__init__(executable, home, workspace)
         self.full_access = full_access
@@ -300,7 +311,7 @@ class CodexAgentAdapterTests(unittest.TestCase):
         self.logical_workspace = workspace_identity(self.workspace)
         capability = patch.object(codex, "discover_computer_use", return_value={
             "available": True, "provider": "openai_signed_local_service", "version": "fixture",
-            "reason": "verified", "command": "/verified/SkyComputerUseClient",
+            "reason": "verified", "command": COMPUTER_USE_COMMAND,
         })
         capability.start()
         self.addCleanup(capability.stop)
@@ -325,10 +336,10 @@ class CodexAgentAdapterTests(unittest.TestCase):
             self.assertIn(option, chat)
         self.assertEqual(codex.codex_process_command("codex", Path("/tmp/profile"), self.workspace, full_access=True)[0], "codex")
         self.assertEqual(codex.codex_process_command("codex", Path("/tmp/profile"), self.workspace)[0], "/usr/bin/sandbox-exec")
-        cua = codex.codex_arguments(full_access=True, computer_use_command="/verified/SkyComputerUseClient")
+        cua = codex.codex_arguments(full_access=True, computer_use_command=COMPUTER_USE_COMMAND)
         for option in ('features.computer_use=true',
-                       'notify=["/verified/SkyComputerUseClient", "turn-ended"]',
-                       'mcp_servers.computer-use.command="/verified/SkyComputerUseClient"',
+                       'notify=' + json.dumps(computer_use.computer_use_notify_command(COMPUTER_USE_COMMAND)),
+                       'mcp_servers.computer-use.command=' + json.dumps(COMPUTER_USE_COMMAND),
                        'mcp_servers.computer-use.args=["mcp"]',
                        'mcp_servers.computer-use.required=true',
                        'mcp_servers.computer-use.supports_parallel_tool_calls=false'):
@@ -339,17 +350,111 @@ class CodexAgentAdapterTests(unittest.TestCase):
         self.assertIn("notify=[]", full)
 
     def test_computer_use_turn_end_cleanup_hook_is_exact_and_scoped(self):
-        cua = codex.codex_arguments(full_access=True, computer_use_command="/verified/SkyComputerUseClient")
+        cua = codex.codex_arguments(full_access=True, computer_use_command=COMPUTER_USE_COMMAND)
         notify = [value for value in cua if value.startswith("notify=")]
-        self.assertEqual(notify, ['notify=["/verified/SkyComputerUseClient", "turn-ended"]'])
+        expected = ["/usr/bin/env", "CODEX_HOME=/verified profile", COMPUTER_USE_COMMAND, "turn-ended"]
+        self.assertEqual(notify, ['notify=' + json.dumps(expected)])
+        self.assertIn('mcp_servers.computer-use.env.CODEX_HOME="/verified profile"', cua)
+        self.assertEqual(codex.codex_environment(self.client.home)["CODEX_HOME"], str(self.client.home))
         self.assertNotIn("turn-ended", codex.codex_arguments(full_access=True))
         self.assertNotIn("turn-ended", codex.codex_arguments())
 
     def test_computer_use_timeout_is_bounded_without_parallel_retry(self):
-        cua = codex.codex_arguments(full_access=True, computer_use_command="/verified/SkyComputerUseClient")
+        cua = codex.codex_arguments(full_access=True, computer_use_command=COMPUTER_USE_COMMAND)
         self.assertIn(f"mcp_servers.computer-use.tool_timeout_sec={codex.COMPUTER_USE_TOOL_TIMEOUT_SECONDS}", cua)
         self.assertEqual(codex.COMPUTER_USE_TOOL_TIMEOUT_SECONDS, 30)
         self.assertIn("mcp_servers.computer-use.supports_parallel_tool_calls=false", cua)
+
+    def test_release_finishes_before_parent_close_and_final_receipt(self):
+        self.assertEqual(self.answer(), "Verified fixture.")
+        rpc = [rpc for rpc in self.transports if rpc.full_access][-1]
+        self.assertEqual(rpc.calls[-1][0], "command/exec")
+        payload = json.loads(rpc.calls[-1][1]["command"][-1])
+        self.assertEqual(payload, {"type": "agent-turn-complete", "thread-id": "agent-thread", "turn-id": "turn"})
+        self.assertTrue(rpc.closed)
+        self.assertEqual(self.events[-1]["receipt"]["computer_use_cleanup"], {"status": "requested"})
+
+    def test_release_runs_on_stop_and_provider_failure(self):
+        for stop in (True, False):
+            with self.subTest(stop=stop):
+                self.client.cancelled.clear()
+                def transform(rpc):
+                    original = rpc.next_event
+                    def next_event(timeout):
+                        if stop:
+                            self.client.cancelled.set()
+                            return original(timeout)
+                        raise codex.CodexConnectionError("fixture disconnect")
+                    rpc.next_event = next_event
+                self.transform = transform
+                with self.assertRaises(codex.CodexConnectionError):
+                    self.answer()
+                rpc = [rpc for rpc in self.transports if rpc.full_access][-1]
+                self.assertEqual([method for method, _ in rpc.calls][-2:], ["turn/interrupt", "command/exec"])
+                self.assertEqual(self.events[-1]["receipt"]["computer_use_cleanup"]["status"], "requested")
+                self.assertTrue(rpc.closed)
+
+    def test_uncertain_start_releases_only_its_thread_without_inventing_a_turn(self):
+        def transform(rpc):
+            original = rpc.request
+            def request(method, params=None, **kwargs):
+                if method == "turn/start":
+                    raise codex.CodexConnectionError("start response lost")
+                return original(method, params, **kwargs)
+            rpc.request = request
+        self.transform = transform
+        with self.assertRaisesRegex(codex.CodexConnectionError, "start response lost"):
+            self.answer()
+        rpc = [rpc for rpc in self.transports if rpc.full_access][-1]
+        payload = json.loads(rpc.calls[-1][1]["command"][-1])
+        self.assertEqual(payload, {"type": "agent-turn-complete", "thread-id": "agent-thread"})
+        self.assertTrue(rpc.closed)
+
+    def test_release_failure_is_visible_without_erasing_answer_or_retrying(self):
+        for failure in (codex.CodexConnectionError("private failure detail"), {"exitCode": 1, "stderr": "private output"}):
+            with self.subTest(failure=type(failure).__name__):
+                def transform(rpc):
+                    original = rpc.request
+                    def request(method, params=None, **kwargs):
+                        if method == "command/exec":
+                            rpc.calls.append((method, params))
+                            if isinstance(failure, Exception):
+                                raise failure
+                            return failure
+                        return original(method, params, **kwargs)
+                    rpc.request = request
+                self.transform = transform
+                self.assertEqual(self.answer(), "Verified fixture.")
+                rpc = [rpc for rpc in self.transports if rpc.full_access][-1]
+                receipt = self.events[-1]["receipt"]
+                self.assertEqual(receipt["status"], "completed")
+                self.assertEqual(receipt["computer_use_cleanup"]["status"], "unconfirmed")
+                self.assertIn("Не удалось подтвердить отключение", " ".join(receipt["warnings"]))
+                self.assertNotIn("private failure detail", json.dumps(receipt))
+                self.assertNotIn("private output", json.dumps(receipt))
+                self.assertEqual(sum(method == "command/exec" for method, _ in rpc.calls), 1)
+                self.assertTrue(rpc.closed)
+
+    def test_no_release_before_generation_or_without_computer_use(self):
+        self.client.cancelled.set()
+        with self.assertRaises(codex.TurnCancelled):
+            self.answer()
+        self.assertFalse(self.transports)
+        self.client.cancelled.clear()
+        with patch.object(codex, "discover_computer_use", return_value={"available": False}):
+            self.assertEqual(self.answer(), "Verified fixture.")
+        self.assertFalse(any(method == "command/exec" for rpc in self.transports for method, _ in rpc.calls))
+
+    def test_receipt_publish_failure_still_releases_and_closes_parent(self):
+        original = agent.AgentRun.finish
+        def finish(run, *args, **kwargs):
+            original(run, *args, **kwargs)
+            raise OSError("fixture disk failure")
+        with patch.object(agent.AgentRun, "finish", finish), self.assertRaises(OSError):
+            self.answer()
+        rpc = [rpc for rpc in self.transports if rpc.full_access][-1]
+        self.assertEqual(rpc.calls[-1][0], "command/exec")
+        self.assertTrue(rpc.closed)
 
     def test_computer_use_turn_gets_fresh_state_guidance_even_on_durable_thread(self):
         self.assertEqual(self.answer(), "Verified fixture.")
@@ -699,6 +804,59 @@ class ComputerUseDiscoveryTests(unittest.TestCase):
         ):
             with self.subTest(changed=changed), self.assertRaises(ValueError):
                 computer_use.validate_computer_use_status(changed)
+
+
+class ComputerUseLifecycleTests(unittest.TestCase):
+    def test_release_payload_is_private_bounded_and_separate_for_two_tasks(self):
+        first, second = Mock(), Mock()
+        for rpc in (first, second):
+            rpc.request.return_value = {"exitCode": 0}
+        codex.end_computer_use_turn(first, COMPUTER_USE_COMMAND, "thread-a", "turn-a")
+        codex.end_computer_use_turn(second, COMPUTER_USE_COMMAND, "thread-b", "turn-b")
+        for rpc, suffix in ((first, "a"), (second, "b")):
+            args, kwargs = rpc.request.call_args
+            self.assertEqual(args[0], "command/exec")
+            self.assertEqual(args[1]["command"][:4],
+                             ["/usr/bin/env", "CODEX_HOME=/verified profile", COMPUTER_USE_COMMAND, "turn-ended"])
+            self.assertEqual(json.loads(args[1]["command"][-1]), {
+                "type": "agent-turn-complete", "thread-id": "thread-" + suffix, "turn-id": "turn-" + suffix})
+            self.assertEqual(args[1]["timeoutMs"], 5000)
+            self.assertEqual(kwargs["timeout"], 7)
+
+    def test_release_rejects_unscoped_identifiers_and_invalid_installation(self):
+        rpc = Mock()
+        for thread, turn in (("", "turn"), ("thread", ""), ("a" * 129, None), (None, "turn"), ("thread", "bad\nturn")):
+            with self.subTest(thread=thread, turn=turn), self.assertRaises(codex.CodexConnectionError):
+                codex.end_computer_use_turn(rpc, COMPUTER_USE_COMMAND, thread, turn)
+        for command in ("relative", "/unverified/helper"):
+            with self.assertRaises(ValueError):
+                codex.end_computer_use_turn(rpc, command, "thread", "turn")
+        rpc.request.assert_not_called()
+
+    def test_release_does_not_treat_missing_or_boolean_exit_code_as_success(self):
+        rpc = Mock()
+        for result in ({}, {"exitCode": True}, {"exitCode": False}, {"exitCode": 124}):
+            rpc.request.return_value = result
+            with self.subTest(result=result), self.assertRaises(codex.CodexConnectionError):
+                codex.end_computer_use_turn(rpc, COMPUTER_USE_COMMAND, "thread", "turn")
+
+    def test_parent_exit_is_graceful_then_bounded_if_hung(self):
+        for timeouts in (0, 1, 2):
+            with self.subTest(timeouts=timeouts):
+                rpc = object.__new__(codex.CodexRPC)
+                rpc.lock = threading.Lock()
+                rpc.process = Mock()
+                rpc.process.poll.return_value = None
+                rpc.process.wait.side_effect = [subprocess.TimeoutExpired("fixture", 1)] * timeouts + [0]
+                rpc.close()
+                names = [call[0] for call in rpc.process.mock_calls]
+                expected = ["stdin.close", "poll", "wait"]
+                if timeouts >= 1:
+                    expected += ["terminate", "wait"]
+                if timeouts == 2:
+                    expected += ["kill", "wait"]
+                self.assertEqual(names, expected)
+                self.assertTrue(rpc.closed)
 
 
 if __name__ == "__main__":

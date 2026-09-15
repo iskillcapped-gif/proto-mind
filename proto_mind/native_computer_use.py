@@ -22,6 +22,23 @@ COMPUTER_USE_TOOLS = frozenset({
     "press_key", "scroll", "drag", "select_text", "perform_secondary_action",
 })
 REQUIRED_COMPUTER_USE_TOOLS = frozenset({"get_app_state", "click", "type_text", "press_key", "scroll"})
+CLIENT_RELATIVE_PATH = Path("computer-use/Codex Computer Use.app/Contents/SharedSupport/"
+                            "SkyComputerUseClient.app/Contents/MacOS/SkyComputerUseClient")
+
+
+def computer_use_notify_command(command: str) -> list[str]:
+    """Give only the signed helper its installation home, never the Codex server.
+
+    The helper locates the running service under CODEX_HOME. In Native's isolated
+    account profile it silently returns success without sending turn-ended.
+    Discovery verifies this exact installation layout before it reaches here.
+    """
+    path = Path(command)
+    suffix = CLIENT_RELATIVE_PATH.parts
+    if not path.is_absolute() or path.parts[-len(suffix):] != suffix:
+        raise ValueError("Computer Use installation path is invalid.")
+    runtime_home = path.parents[len(suffix) - 1]
+    return ["/usr/bin/env", f"CODEX_HOME={runtime_home}", command, "turn-ended"]
 
 
 def _paths(home: Path) -> tuple[Path, Path, Path]:

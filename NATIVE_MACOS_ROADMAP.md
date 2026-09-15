@@ -4,6 +4,16 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Computer Use Cleanup — Native 0.59.1
+
+A completed Mail task left the shared service capturing its window. The signed helper resolves the running service beneath `CODEX_HOME`; Native supplied its isolated account profile, where that installation does not exist. The previous notify command therefore returned zero without sending a release. Only the signed Computer Use helper now receives the verified installation home. The Codex server retains Native's account, credentials and history namespace.
+
+Normal completion, Stop and provider failure attempt an awaited release through the still-live Codex parent with the exact thread/turn IDs. A lost start acknowledgment can release the known thread without inventing a turn ID. The local command has a five-second deadline and contains no prompt, answer or credential; it does not start a model turn. Native closes the parent afterward, allowing EOF shutdown before bounded terminate/kill fallback. Publishing a final receipt cannot skip process shutdown. Cleanup failure leaves the answer intact and shows an explicit warning rather than claiming capture stopped. The receipt distinguishes a release request from an independent screen-state audit. Saved Full Mac selection remains enabled for the next task.
+
+Live diagnosis used Codex CLI 0.153.4 and the installed signed service. The old isolated-home handler returned zero in 0.01 seconds while ScreenCaptureKit continued receiving frames. With the correct home and a Codex parent, the handler returned zero and the same active stream logged `stopCaptureWithCompletionHandler`; subsequent observation showed no new frames. The fixed runtime then verified all ten allowlisted MCP tools, repeated the scoped release in 0.075 seconds and exited normally. These checks made no model request, reopened no mailbox and did not kill the shared service.
+
+Verification: **2,308 Python tests** plus compileall and **1,353 Native checks** pass; optional pytest is absent/skipped. Regressions cover completed/stopped/failed turns, an uncertain start, two distinct release scopes, cleanup timeout/nonzero/malformed results, private-output omission, no release before generation or without Computer Use, publication failure and bounded graceful process shutdown. No private-state migration is required.
+
 ## Floating Workspace — Native 0.59.0
 
 The sidebar menu and ⌘⌥J switch the existing workspace into a floating glass presentation. A separate 88 × 108-point nonactivating panel holds a vector cube. Clicking it reveals or folds the chat; dragging moves the core without taking keyboard focus. The workspace keeps ordinary dialog selection, composition, voice, file/browser tabs, evidence and approval sheets. Esc and Close fold a floating workspace instead of stopping work or destroying its window. The normal window remains available from the header and core context menu.

@@ -28,6 +28,7 @@ from proto_mind.native_pdf import SelectedPDF, pdf_context_message
 from proto_mind.native_codex_threads import CodexThreadStore, CodexThreadStoreError
 from proto_mind.native_computer_use import (
     COMPUTER_USE_TOOLS,
+    computer_use_notify_command,
     discover_computer_use,
     validate_computer_use_status,
 )
@@ -211,14 +212,15 @@ def codex_arguments(*, full_access: bool = False, computer_use_command: str = ""
             "features.unified_exec": True,
         })
         if computer_use_command:
+            notify_command = computer_use_notify_command(computer_use_command)
             config.update({
                 "features.computer_use": True,
-                # The signed client owns the provider's end-of-turn cleanup.
-                # Without this Codex notify hook its desktop-managed service can
-                # retain active capture/UI state after the MCP process exits.
-                "notify": [computer_use_command, "turn-ended"],
+                # Only this helper sees the installation home. The app-server
+                # keeps Native's independent account/history profile.
+                "notify": notify_command,
                 "mcp_servers.computer-use.command": computer_use_command,
                 "mcp_servers.computer-use.args": ["mcp"],
+                "mcp_servers.computer-use.env.CODEX_HOME": notify_command[1].split("=", 1)[1],
                 "mcp_servers.computer-use.enabled_tools": sorted(COMPUTER_USE_TOOLS),
                 "mcp_servers.computer-use.startup_timeout_sec": 15,
                 "mcp_servers.computer-use.tool_timeout_sec": COMPUTER_USE_TOOL_TIMEOUT_SECONDS,
@@ -300,6 +302,30 @@ def safe_turn_error(turn: dict) -> str:
     }
     message = messages.get(code, "Codex did not complete the turn.") if isinstance(code, str) else "Codex did not complete the turn."
     return message + " No memory update or automatic retry was applied."
+
+
+def end_computer_use_turn(rpc, command: str, thread_id: str, turn_id: str | None) -> None:
+    """Await a scoped release through the still-live, trusted Codex parent.
+
+    The signed service authenticates the helper's process ancestry. Launching it
+    directly from Python can time out; notify alone is asynchronous and misses
+    cancellation/disconnect paths. No prompt, answer or credentials are passed.
+    """
+    def valid_id(value):
+        return (isinstance(value, str) and 0 < len(value) <= 128
+                and value.isascii() and all(char.isalnum() or char in "_-" for char in value))
+
+    if not valid_id(thread_id) or (turn_id is not None and not valid_id(turn_id)):
+        raise CodexConnectionError("Computer Use cleanup could not identify the task.")
+    payload = {"type": "agent-turn-complete", "thread-id": thread_id}
+    if turn_id is not None:
+        payload["turn-id"] = turn_id
+    result = rpc.request("command/exec", {
+        "command": [*computer_use_notify_command(command), json.dumps(payload)],
+        "timeoutMs": 5000, "outputBytesCap": 1024,
+    }, timeout=7)
+    if type(result.get("exitCode")) is not int or result["exitCode"] != 0:
+        raise CodexConnectionError("Computer Use cleanup did not complete.")
 
 
 class CodexRPC:
@@ -444,12 +470,16 @@ class CodexRPC:
         if self.process.stdin:
             self.process.stdin.close()
         if self.process.poll() is None:
-            self.process.terminate()
             try:
-                self.process.wait(timeout=3)
+                # Let EOF drain lifecycle notifications and MCP shutdown first.
+                self.process.wait(timeout=1)
             except subprocess.TimeoutExpired:
-                self.process.kill()
-                self.process.wait(timeout=3)
+                self.process.terminate()
+                try:
+                    self.process.wait(timeout=3)
+                except subprocess.TimeoutExpired:
+                    self.process.kill()
+                    self.process.wait(timeout=3)
 
 
 class CodexSubscription:
@@ -865,16 +895,22 @@ class CodexSubscription:
             prompt = self._bootstrap_prompt(prompt, history or [], first_turn)
             if computer_use.get("available") is True:
                 prompt = computer_use_turn_prompt(prompt)
+            rpc = self.rpc
+            cleanup = (lambda thread, turn: end_computer_use_turn(rpc, computer_use["command"], thread, turn)) \
+                if computer_use.get("available") is True else None
             return run_agent_turn(self.rpc, workspace, thread_id, prompt, self.cancelled,
                                   on_delta, run, self._set_main_turn, self.interrupt, progress,
-                                  reasoning_effort=reasoning_effort, images=images)
+                                  reasoning_effort=reasoning_effort, images=images, end_computer_use=cleanup)
         finally:
-            if "finished_at" not in run.receipt:
-                run.finish("interrupted" if self.cancelled.is_set() else "failed",
-                           "Agent did not start generation; no automatic retry.")
-            progress.finish(run.receipt["status"])
-            # A full-access process never remains idle for account/library requests.
-            self.close()
+            try:
+                if "finished_at" not in run.receipt:
+                    run.finish("interrupted" if self.cancelled.is_set() else "failed",
+                               "Agent did not start generation; no automatic retry.")
+                progress.finish(run.receipt["status"])
+            finally:
+                # A full-access process never remains idle for account/library requests,
+                # even when publishing the final receipt fails.
+                self.close()
 
     def close(self) -> None:
         if self.rpc:

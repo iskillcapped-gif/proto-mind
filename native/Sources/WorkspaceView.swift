@@ -469,6 +469,12 @@ private struct MessageView: View {
                     MessageMarkdownView(text: message.text, copy: model.copy, openLink: { model.openWorkspaceLink($0) })
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                if message.agentRun?["computer_use_cleanup"]["status"].text == "unconfirmed" {
+                    Label("Не удалось подтвердить отключение Computer Use. Если управление осталось активно, остановите его в панели Computer Use.",
+                          systemImage: "exclamationmark.triangle")
+                        .font(.system(size: 12)).foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 attachments
                 if let (report, text) = model.memorySuggestions(for: message) { MemorySuggestionCard(app: model, report: report, text: text) }
                 if let receipt = message.agentRun { CompletedFileChangesView(receipt: receipt, openLink: { model.openWorkspaceLink($0) }) }

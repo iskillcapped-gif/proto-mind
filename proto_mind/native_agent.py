@@ -315,10 +315,12 @@ def computer_use_turn_prompt(prompt: str) -> str:
 
 def run_agent_turn(rpc, workspace: Path, thread_id: str, prompt: str,
                    cancelled, on_delta, run: AgentRun, set_active, interrupt, progress: WorkLog | None = None,
-                   *, reasoning_effort: str = "", images: list[SelectedImage] | None = None) -> str:
+                   *, reasoning_effort: str = "", images: list[SelectedImage] | None = None,
+                   end_computer_use=None) -> str:
     """Use official built-in Codex tools; never dispatch model text via Proto-Mind."""
     run.publish()
     final_status, failure = "failed", ""
+    turn_id, generation_requested = None, False
     try:
         if cancelled.is_set():
             raise TurnCancelled("Agent turn stopped before generation.")
@@ -330,6 +332,7 @@ def run_agent_turn(rpc, workspace: Path, thread_id: str, prompt: str,
         turn_params = {"threadId": thread_id, "input": [{"type": "text", "text": prompt}, *image_input]}
         if reasoning_effort:
             turn_params["effort"] = reasoning_effort
+        generation_requested = True
         turn = rpc.request("turn/start", turn_params)
         turn_id = turn["turn"]["id"]
         set_active((thread_id, turn_id))
@@ -378,5 +381,17 @@ def run_agent_turn(rpc, workspace: Path, thread_id: str, prompt: str,
         interrupt()
         raise
     finally:
-        set_active(None)
-        run.finish(final_status, failure)
+        try:
+            set_active(None)
+        finally:
+            if generation_requested and end_computer_use is not None:
+                try:
+                    end_computer_use(thread_id, turn_id)
+                    # Acknowledges the release request, not an independent screen audit.
+                    run.receipt["computer_use_cleanup"] = {"status": "requested"}
+                except Exception:
+                    run.receipt["computer_use_cleanup"] = {"status": "unconfirmed"}
+                    run.receipt["warnings"].append(
+                        "Не удалось подтвердить отключение Computer Use. "
+                        "Если управление экраном осталось активно, остановите его в панели Computer Use.")
+            run.finish(final_status, failure)
