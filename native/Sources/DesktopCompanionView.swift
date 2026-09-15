@@ -34,11 +34,45 @@ struct DesktopCompanionView: View {
             CompanionCornerControl(upperCorner: surface.id == .second, expanded: surface.expanded,
                 title: surface.id.title) { owner.toggleExpansion(surface.id) }
         }
+        .overlay(alignment: surface.id == .first ? .bottom : .top) {
+            if owner.hasStack {
+                CompanionSplitHandle(owner: owner).frame(height: 7).padding(.horizontal, 38)
+                    .help("Изменить высоту боковых окон")
+                    .accessibilityElement().accessibilityLabel("Высота боковых окон")
+                    .accessibilityValue("Верхнее окно \(Int(owner.topFraction * 100)) процентов")
+                    .accessibilityAdjustableAction { direction in
+                        owner.setTopFraction(owner.topFraction + (direction == .increment ? 0.05 : -0.05))
+                    }
+            }
+        }
         .background(CompanionHoverRegion(owner: owner, id: surface.id))
         .environment(\.desktopGlass, true)
         .onExitCommand {
             if surface.expanded { owner.toggleExpansion(surface.id) }
             else { owner.toggle(surface.id) }
+        }
+    }
+}
+
+struct CompanionSplitHandle: NSViewRepresentable {
+    let owner: DesktopCompanionWindows
+    func makeNSView(context: Context) -> ResizeArea { let view = ResizeArea(); view.owner = owner; return view }
+    func updateNSView(_ view: ResizeArea, context: Context) { view.owner = owner }
+    final class ResizeArea: NSView {
+        weak var owner: DesktopCompanionWindows?
+        private var startY: CGFloat = 0
+        private var startHeight: CGFloat = 0
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+        override var mouseDownCanMoveWindow: Bool { false }
+        override func resetCursorRects() { addCursorRect(bounds, cursor: .resizeUpDown) }
+        override func mouseDown(with event: NSEvent) {
+            owner?.pinPreview()
+            startY = window?.convertPoint(toScreen: event.locationInWindow).y ?? 0
+            startHeight = owner?.topHeight ?? 0
+        }
+        override func mouseDragged(with event: NSEvent) {
+            guard let point = window?.convertPoint(toScreen: event.locationInWindow) else { return }
+            owner?.resizeStack(topHeight: startHeight + startY - point.y)
         }
     }
 }

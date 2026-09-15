@@ -5,7 +5,7 @@ import SwiftUI
 
 /// Window geometry is UI state only. It never participates in dialog or voice ownership.
 enum DesktopGeometry {
-    static let coreSize = NSSize(width: 128, height: 116)
+    static let coreSize = NSSize(width: 136, height: 124)
     static let minimumWorkspace = NSSize(width: 780, height: 520)
 
     static func sidebarWidth(total: CGFloat) -> CGFloat { min(260, max(220, total * 0.23)) }

@@ -46,12 +46,7 @@ struct ProtoMindApp: App {
                     .keyboardShortcut("n").disabled(!model.canNavigateConversations)
             }
             CommandMenu("Proto-Mind") {
-                Button("Переключить парящий режим") { model.desktop.toggleMode() }
-                    .keyboardShortcut("j", modifiers: [.command, .option])
-                Button("Боковое окно 1") { model.desktop.companions.toggle(.first) }
-                    .keyboardShortcut("1", modifiers: [.command, .option]).disabled(!model.desktop.enabled)
-                Button("Боковое окно 2") { model.desktop.companions.toggle(.second) }
-                    .keyboardShortcut("2", modifiers: [.command, .option]).disabled(!model.desktop.enabled)
+                DesktopWindowCommands(desktop: model.desktop)
                 Divider()
                 Button("Использование Codex…") { model.showCodexUsage = true }
                 Button("Полная копия данных…") { model.showPrivateBackup = true }
@@ -70,5 +65,17 @@ struct ProtoMindApp: App {
                     .disabled(model.busy)
             }
         }
+    }
+}
+
+private struct DesktopWindowCommands: View {
+    @ObservedObject var desktop: DesktopPresentation
+    var body: some View {
+        Button("Переключить парящий режим") { desktop.toggleMode() }
+            .keyboardShortcut("j", modifiers: [.command, .option])
+        Button("Боковое окно 1") { desktop.companions.toggle(.first) }
+            .keyboardShortcut("1", modifiers: [.command, .option]).disabled(!desktop.enabled)
+        Button("Боковое окно 2") { desktop.companions.toggle(.second) }
+            .keyboardShortcut("2", modifiers: [.command, .option]).disabled(!desktop.enabled)
     }
 }

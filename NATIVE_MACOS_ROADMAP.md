@@ -4,6 +4,33 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Stacked Companion Windows — Native 0.65.1
+
+The two attached companions now share one right-hand column. They divide the
+workspace height equally by default, preserving the 8-point gap. Resizing either
+window's shared edge adjusts both heights; an explicit drag strip and accessibility
+increment/decrement actions offer the same control. Split proportions persist per
+profile. A single attached window fills the height. Reattaching beside the workspace
+or above/below the attached sibling restores the split; free frames remain separate.
+Heights are rounded once and derived together to avoid native-frame rounding drift.
+
+Attached windows are AppKit child windows of the workspace. Parent movement moves
+the group directly; position notifications only update its geometry reference.
+The custom title strip moves the parent once per drag event, without entering a
+second drag loop. Detach, hide, regular mode and shutdown remove child ownership.
+Expansion and main presentations keep the sidebar and settings reachable.
+
+All four controls around the cube have larger rectangular hit areas and the same
+hover/press feedback. Companion commands observe desktop mode directly, so their
+enabled state updates immediately when switching modes.
+
+Focused verification: 374 Native interface checks passed, including complementary
+resize, split bounds, sibling snap, direct parent and header-event group movement,
+retained tabs/drafts and preference isolation. Disposable UI checks exercised shared
+edge dragging, detach/reattach with saved proportions, settings and mode shortcuts.
+The complete Native suite then passed all 1,623 checks. No live model or microphone
+session was started by the manual UI checks.
+
 ## Floating Companion Windows — Native 0.65.0
 
 The internal workspace retains its existing tabs, with one full-height panel by

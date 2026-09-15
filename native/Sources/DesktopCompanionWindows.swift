@@ -35,10 +35,13 @@ final class DesktopCompanionWindows: ObservableObject {
     private var workspaceHome: NSRect?
     private var lastRow: DesktopCompanionGeometry.Row?
     private var hovered: Set<DesktopCompanionID> = []
+    @Published private(set) var topFraction: CGFloat = 0.5
 
     init(stateDirectory: URL, defaults: UserDefaults = .standard, presentsWindows: Bool = true) {
         self.defaults = defaults; self.presentsWindows = presentsWindows
         key = "desktopCompanions.v1." + SHA256.hash(data: Data(stateDirectory.standardizedFileURL.path.utf8)).map { String(format: "%02x", $0) }.joined()
+        let fraction = defaults.object(forKey: key + ".topFraction") as? Double ?? 0.5
+        topFraction = fraction.isFinite ? min(0.9, max(0.1, fraction)) : 0.5
         for surface in surfaces {
             let prefix = key + "." + surface.id.rawValue
             surface.visible = defaults.bool(forKey: prefix + ".visible")
@@ -54,11 +57,17 @@ final class DesktopCompanionWindows: ObservableObject {
 
     func surface(_ id: DesktopCompanionID) -> DesktopCompanion { surfaces.first { $0.id == id }! }
     var preferredWorkspaceFrame: NSRect? { workspaceHome }
+    var hasStack: Bool { surfaces.allSatisfy { $0.visible && $0.docked && !$0.expanded } }
+    var topHeight: CGFloat { lastRow?.panels[.first]?.height ?? 0 }
+    func resizeStack(topHeight: CGFloat) {
+        guard hasStack, let workspace = desktop?.window else { return }
+        setTopFraction(topHeight / max(2, workspace.frame.height - DesktopCompanionGeometry.gap))
+    }
     var minimumWorkspaceWidth: CGFloat {
         let count = surfaces.filter { $0.visible && $0.docked }.count
         guard count > 0 else { return DesktopGeometry.minimumWorkspace.width }
         let bounds = screen(for: desktop?.window?.frame ?? .zero)
-        return min(640, max(1, bounds.width - CGFloat(count) * DesktopCompanionGeometry.gap) * 0.52)
+        return min(640, max(1, bounds.width - DesktopCompanionGeometry.gap) * 0.52)
     }
     func attach(desktop: DesktopPresentation, app: AppModel) { self.desktop = desktop; self.app = app }
 
@@ -126,7 +135,11 @@ final class DesktopCompanionWindows: ObservableObject {
             workspaceHome?.size.height = window.frame.height
             if resized { workspaceHome?.size.width = window.frame.width }
         }
-        layout()
+        if !resized, let row = lastRow, row.workspace.size == window.frame.size {
+            // AppKit moves attached child windows in the same WindowServer operation.
+            // Update our reference only; setting their frames here causes visible chasing.
+            lastRow = row.moved(to: window.frame.origin)
+        } else { layout() }
     }
 
     func updateHover(_ id: DesktopCompanionID, inside: Bool) {
@@ -146,8 +159,7 @@ final class DesktopCompanionWindows: ObservableObject {
     func endDrag(_ id: DesktopCompanionID) {
         let item = surface(id)
         item.dragging = false
-        if let frame = item.window?.frame, let anchor = dockingAnchor(for: id),
-           DesktopCompanionGeometry.shouldAttach(frame, beside: anchor) {
+        if let frame = item.window?.frame, canDock(frame, id: id) {
             item.docked = true; item.expanded = false; item.panel.expanded = false
         } else { storeFreeFrame(item) }
         item.dockingSuggested = false
@@ -159,10 +171,19 @@ final class DesktopCompanionWindows: ObservableObject {
         let item = surface(id)
         guard let window = item.window else { return }
         if item.dragging {
-            item.dockingSuggested = dockingAnchor(for: id).map { DesktopCompanionGeometry.shouldAttach(window.frame, beside: $0) } ?? false
+            item.dockingSuggested = canDock(window.frame, id: id)
         } else if item.docked {
-            if resized && !item.expanded { item.width = window.frame.width }
-            save(item); layout()
+            // Position-only notifications also arrive when the parent moves its children.
+            guard resized, !item.expanded else { return }
+            let docked = surfaces.filter { $0.visible && $0.docked }
+            if abs(window.frame.width - (lastRow?.panels[id]?.width ?? 0)) > 0.5 {
+                for sibling in docked { sibling.width = window.frame.width; save(sibling) }
+            }
+            if docked.count == 2, let workspace = desktop?.window,
+               abs(window.frame.height - (lastRow?.panels[id]?.height ?? 0)) > 0.5 {
+                let available = max(2, workspace.frame.height - DesktopCompanionGeometry.gap)
+                setTopFraction(id == .first ? window.frame.height / available : 1 - window.frame.height / available)
+            } else { layout() }
         } else { storeFreeFrame(item); save(item) }
     }
 
@@ -170,7 +191,17 @@ final class DesktopCompanionWindows: ObservableObject {
         let item = surface(id)
         guard item.docked, !item.dragging, let workspace = desktop?.window else { return size }
         if item.expanded { return item.window?.frame.size ?? size }
-        return NSSize(width: max(DesktopCompanionGeometry.minimum.width, size.width), height: workspace.frame.height)
+        let count = surfaces.filter { $0.visible && $0.docked }.count
+        let available = max(2, workspace.frame.height - DesktopCompanionGeometry.gap)
+        let minimum = min(DesktopCompanionGeometry.minimumStackHeight, available / 2)
+        return NSSize(width: max(DesktopCompanionGeometry.minimum.width, size.width),
+                      height: count == 2 ? min(available - minimum, max(minimum, size.height)) : workspace.frame.height)
+    }
+
+    func setTopFraction(_ fraction: CGFloat) {
+        topFraction = fraction.isFinite ? min(0.9, max(0.1, fraction)) : 0.5
+        defaults.set(topFraction, forKey: key + ".topFraction")
+        layout()
     }
 
     func layout() {
@@ -178,14 +209,17 @@ final class DesktopCompanionWindows: ObservableObject {
         layingOut = true
         defer { layingOut = false }
         guard let desktop, desktop.enabled, let workspace = desktop.window else {
-            for item in surfaces { item.window?.makeFirstResponder(nil); item.window?.orderOut(nil) }
+            for item in surfaces { hideWindow(item) }
             return
         }
         let docked = surfaces.filter { $0.visible && $0.docked }
+        for item in surfaces where !item.docked || !item.visible {
+            if let window = item.window { window.parent?.removeChildWindow(window) }
+        }
         if !docked.isEmpty && workspaceHome == nil { workspaceHome = workspace.frame }
         let desired = workspaceHome ?? workspace.frame
         let bounds = screen(for: workspace.frame)
-        let row = DesktopCompanionGeometry.row(workspace: desired, widths: Dictionary(uniqueKeysWithValues: docked.map { ($0.id, $0.width) }), screen: bounds)
+        let row = DesktopCompanionGeometry.row(workspace: desired, widths: Dictionary(uniqueKeysWithValues: docked.map { ($0.id, $0.width) }), screen: bounds, topFraction: topFraction)
         lastRow = row
         workspace.minSize = NSSize(width: min(DesktopGeometry.minimumWorkspace.width, row.workspace.width), height: min(DesktopGeometry.minimumWorkspace.height, bounds.height))
         if workspace.frame != row.workspace { workspace.setFrame(row.workspace, display: true) }
@@ -194,20 +228,26 @@ final class DesktopCompanionWindows: ObservableObject {
         for item in surfaces {
             let shown = item.visible && (!item.docked || desktop.expanded) && (!item.docked || covering == nil || covering == item.id)
             guard shown else {
-                item.window?.makeFirstResponder(nil); item.window?.orderOut(nil)
+                hideWindow(item)
                 hovered.remove(item.id)
                 continue
             }
             let window = makeWindow(item)
             let target: NSRect
-            if item.docked { target = item.expanded ? row.expanded : row.panels[item.id]! }
+            if item.docked {
+                target = item.expanded ? row.expanded : row.panels[item.id]!
+                window.minSize = NSSize(width: min(DesktopCompanionGeometry.minimum.width, target.width),
+                                        height: min(DesktopCompanionGeometry.minimumStackHeight, target.height))
+            }
             else {
+                window.minSize = DesktopCompanionGeometry.minimum
                 let fallback = NSRect(x: bounds.midX - 190, y: bounds.midY - 260, width: item.width, height: 520)
                 let saved = item.expanded ? item.expandedFrame : item.compactFrame
                 let frame = saved ?? (item.expanded ? DesktopCompanionGeometry.enlarged(fallback, screen: bounds) : fallback)
                 target = DesktopGeometry.fit(frame, within: screen(for: frame))
             }
             if !item.dragging && window.frame != target { window.setFrame(target, display: true) }
+            if item.docked && window.parent !== workspace { workspace.addChildWindow(window, ordered: .above) }
             if presentsWindows && !window.isVisible { window.orderFrontRegardless() }
         }
         desktop.updateCompanionHover(!hovered.isEmpty)
@@ -215,7 +255,7 @@ final class DesktopCompanionWindows: ObservableObject {
     }
 
     func leaveFloatingMode() {
-        for item in surfaces { item.window?.makeFirstResponder(nil); item.window?.orderOut(nil) }
+        for item in surfaces { hideWindow(item) }
         hovered.removeAll(); desktop?.updateCompanionHover(false)
         workspaceHome = nil; lastRow = nil
     }
@@ -224,18 +264,27 @@ final class DesktopCompanionWindows: ObservableObject {
         for item in surfaces {
             storeFreeFrame(item); save(item)
             item.panel.closeAll()
+            if let window = item.window { window.parent?.removeChildWindow(window) }
             item.window?.delegate = nil; item.window?.orderOut(nil); item.window?.contentView = nil
             item.window = nil; item.delegate = nil
         }
         subscriptions.removeAll(); hovered.removeAll(); desktop = nil; app = nil
     }
 
-    private func dockingAnchor(for id: DesktopCompanionID) -> NSRect? {
-        guard desktop?.enabled == true, desktop?.expanded == true, let workspace = desktop?.window else { return nil }
-        if id == .second, surface(.first).visible, surface(.first).docked {
-            return lastRow?.panels[.first]
-        }
-        return workspace.frame
+    private func canDock(_ frame: NSRect, id: DesktopCompanionID) -> Bool {
+        guard desktop?.enabled == true, desktop?.expanded == true, let workspace = desktop?.window else { return false }
+        if DesktopCompanionGeometry.shouldAttach(frame, beside: workspace.frame) { return true }
+        let siblingID: DesktopCompanionID = id == .first ? .second : .first
+        let sibling = surface(siblingID)
+        return sibling.visible && sibling.docked && lastRow?.panels[siblingID].map {
+            DesktopCompanionGeometry.shouldStack(frame, with: $0, id: id)
+        } == true
+    }
+
+    private func hideWindow(_ item: DesktopCompanion) {
+        guard let window = item.window else { return }
+        window.parent?.removeChildWindow(window)
+        window.makeFirstResponder(nil); window.orderOut(nil)
     }
 
     private func storeFreeFrame(_ item: DesktopCompanion) {

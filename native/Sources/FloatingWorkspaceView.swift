@@ -107,16 +107,16 @@ struct DesktopCoreView: View {
                 ForEach(DesktopCompanionID.allCases) { id in
                     Button { desktop.companions.toggle(id) } label: {
                         Text(id == .first ? "1" : "2").font(.system(size: 11, weight: .medium))
-                            .frame(width: 28, height: 28)
+                            .frame(width: 34, height: 34).contentShape(Rectangle())
                             .background(desktop.companions.surface(id).visible ? Color.teal.opacity(0.22) : .clear, in: RoundedRectangle(cornerRadius: 8))
-                    }.buttonStyle(.plain).foregroundStyle(.primary)
+                    }.buttonStyle(.nativeHover).foregroundStyle(.primary)
                         .help("Показать или скрыть · " + id.title)
                         .accessibilityLabel("Боковое " + id.title.lowercased())
                         .accessibilityValue(desktop.companions.surface(id).visible ? "Показано" : "Скрыто")
                 }
             }.padding(3).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
                 .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.white.opacity(0.15)).allowsHitTesting(false))
-                .padding(.bottom, 30)
+                .padding(.bottom, 38)
                 .opacity(desktop.coreHovered ? 1 : 0).allowsHitTesting(desktop.coreHovered)
                 .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: desktop.coreHovered)
         VStack(spacing: 4) {
@@ -143,13 +143,13 @@ struct DesktopCoreView: View {
                 Button { desktop.openVoice() } label: {
                     Image(systemName: voice.inCall ? (voice.muted ? "mic.slash.fill" : "mic.fill") : "mic")
                         .foregroundStyle(voice.inCall ? Color.teal : .primary)
-                        .frame(width: 30, height: 26)
+                        .frame(width: 34, height: 32).contentShape(Rectangle())
                 }.help(voice.inCall ? "Управление разговором" : "Начать голосовой разговор")
                     .accessibilityLabel("Голос Proto-Mind")
                 Button { desktop.restoreWindow() } label: {
-                    Image(systemName: "arrow.up.left.and.arrow.down.right").frame(width: 30, height: 26)
+                    Image(systemName: "arrow.up.left.and.arrow.down.right").frame(width: 34, height: 32).contentShape(Rectangle())
                 }.help("Обычное окно").accessibilityLabel("Обычное окно")
-            }.font(.system(size: 11, weight: .medium)).buttonStyle(.plain)
+            }.font(.system(size: 11, weight: .medium)).buttonStyle(.nativeHover).padding(3)
                 .background(.regularMaterial, in: Capsule())
                 .overlay(Capsule().strokeBorder(.white.opacity(0.15)).allowsHitTesting(false))
                 .opacity(desktop.coreHovered ? 1 : 0)
@@ -227,7 +227,21 @@ struct DesktopWindowDragArea: NSViewRepresentable {
     func makeNSView(context: Context) -> DragArea { DragArea() }
     func updateNSView(_ view: DragArea, context: Context) {}
     final class DragArea: NSView {
-        override var mouseDownCanMoveWindow: Bool { true }
-        override func mouseDown(with event: NSEvent) { window?.performDrag(with: event) }
+        private var startPoint = NSPoint.zero
+        private var startOrigin = NSPoint.zero
+        override var mouseDownCanMoveWindow: Bool { false }
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+        override func mouseDown(with event: NSEvent) {
+            startPoint = window?.convertPoint(toScreen: event.locationInWindow) ?? event.locationInWindow
+            startOrigin = window?.frame.origin ?? .zero
+        }
+        override func mouseDragged(with event: NSEvent) {
+            guard let window else { return }
+            let point = window.convertPoint(toScreen: event.locationInWindow)
+            // Move the parent once. AppKit moves its attached children atomically;
+            // do not enter a second drag loop or reposition each child afterward.
+            window.setFrameOrigin(NSPoint(x: startOrigin.x + point.x - startPoint.x,
+                                          y: startOrigin.y + point.y - startPoint.y))
+        }
     }
 }

@@ -8,19 +8,37 @@ extension NativeChecks {
             for widths: [DesktopCompanionID: CGFloat] in [[:], [.first: 380], [.second: 900], [.first: 380, .second: 460], [.first: 2000, .second: 1800]] {
                 let row = DesktopCompanionGeometry.row(workspace: NSRect(x: screen.maxX - 700, y: screen.maxY - 400, width: 1080, height: 780), widths: widths, screen: screen)
                 try check(screen.insetBy(dx: -0.1, dy: -0.1).contains(row.bounds), "Attached row stays within its monitor, including narrow and negative-coordinate screens")
-                var previous = row.workspace
                 for id in DesktopCompanionID.allCases {
                     if let frame = row.panels[id] {
-                        try check(abs(frame.minX - previous.maxX - DesktopCompanionGeometry.gap) < 0.1 && frame.minY == row.workspace.minY && frame.height == row.workspace.height,
-                                  "Attached windows share workspace height and have independent non-overlapping widths")
-                        previous = frame
+                        try check(abs(frame.minX - row.workspace.maxX - DesktopCompanionGeometry.gap) < 0.1
+                                  && frame.height <= row.workspace.height && frame.minY >= row.workspace.minY,
+                                  "Attached windows share a right-hand column within the workspace height")
                     }
+                }
+                if let top = row.panels[.first], let bottom = row.panels[.second] {
+                    try check(abs(top.height - bottom.height) < 0.1 && top.width == bottom.width
+                              && top.maxY == row.workspace.maxY && bottom.minY == row.workspace.minY
+                              && abs(top.minY - bottom.maxY - DesktopCompanionGeometry.gap) < 0.1,
+                              "Two attached windows divide the workspace height equally with a small vertical gap")
                 }
                 try check(row.expanded.minX > row.workspace.minX && abs(row.expanded.maxX - row.bounds.maxX) < 0.1 && row.expanded.height == row.workspace.height,
                           "Attached expansion covers the workspace and companions while preserving the sidebar")
             }
         }
         let anchor = NSRect(x: 100, y: 100, width: 800, height: 650)
+        let stacked = DesktopCompanionGeometry.row(workspace: anchor, widths: [.first: 380, .second: 380],
+                                                   screen: NSRect(x: 0, y: 0, width: 1800, height: 1000), topFraction: 0.7)
+        try check(stacked.panels[.first]!.height > stacked.panels[.second]!.height
+                  && abs(stacked.panels.values.reduce(0) { $0 + $1.height } + DesktopCompanionGeometry.gap - anchor.height) < 0.1,
+                  "Unequal split heights remain complementary and preserve the total height")
+        try check(DesktopCompanionGeometry.shouldStack(stacked.panels[.second]!, with: stacked.panels[.first]!, id: .second)
+                  && DesktopCompanionGeometry.shouldStack(stacked.panels[.first]!, with: stacked.panels[.second]!, id: .first)
+                  && !DesktopCompanionGeometry.shouldStack(stacked.panels[.second]!.offsetBy(dx: 800, dy: 0), with: stacked.panels[.first]!, id: .second),
+                  "Sibling docking accepts the adjoining horizontal edges and rejects distant columns")
+        for fraction: CGFloat in [-20, 0, 0.5, 1, 20, .nan] {
+            let height = DesktopCompanionGeometry.topHeight(total: 520, fraction: fraction)
+            try check(height >= 200 && height <= 312, "Split limits keep both attached windows usable")
+        }
         try check(DesktopCompanionGeometry.shouldAttach(NSRect(x: 910, y: 150, width: 350, height: 400), beside: anchor)
                   && !DesktopCompanionGeometry.shouldAttach(NSRect(x: 940, y: 150, width: 350, height: 400), beside: anchor)
                   && !DesktopCompanionGeometry.shouldAttach(NSRect(x: 910, y: 900, width: 350, height: 400), beside: anchor),
@@ -64,9 +82,41 @@ extension NativeChecks {
         companions.toggle(.first); companions.toggle(.second)
         let first = companions.surface(.first), second = companions.surface(.second)
         guard let firstWindow = first.window, let secondWindow = second.window else { throw NativeError.message("Companion windows not created") }
-        try check(firstWindow !== secondWindow && firstWindow !== window && firstWindow.frame.height == window.frame.height
-                  && secondWindow.frame.minX > firstWindow.frame.maxX && firstWindow.canBecomeKey,
-                  "Companions are separate interactive AppKit windows arranged beside the main workspace")
+        try check(firstWindow !== secondWindow && firstWindow !== window && firstWindow.frame.maxY == window.frame.maxY
+                  && secondWindow.frame.minY == window.frame.minY && firstWindow.frame.minX == secondWindow.frame.minX
+                  && firstWindow.canBecomeKey && firstWindow.parent === window && secondWindow.parent === window,
+                  "Stacked companions are interactive child windows in the main window's system movement group")
+        let startMain = window.frame, startFirst = firstWindow.frame, startSecond = secondWindow.frame
+        window.setFrameOrigin(NSPoint(x: startMain.minX - 45, y: startMain.minY + 25))
+        try check(firstWindow.frame == startFirst.offsetBy(dx: -45, dy: 25)
+                  && secondWindow.frame == startSecond.offsetBy(dx: -45, dy: 25),
+                  "Moving the parent synchronously moves both children by the same delta without a follow-up layout")
+        let mainHandle = DesktopWindowDragArea.DragArea(frame: NSRect(x: 400, y: 600, width: 200, height: 32))
+        window.contentView?.addSubview(mainHandle)
+        let dragFirst = firstWindow.frame, dragSecond = secondWindow.frame
+        func mainMouse(_ type: NSEvent.EventType, _ point: NSPoint) -> NSEvent {
+            NSEvent.mouseEvent(with: type, location: point, modifierFlags: [], timestamp: 1,
+                windowNumber: window.windowNumber, context: nil, eventNumber: 1, clickCount: 1, pressure: 1)!
+        }
+        mainHandle.mouseDown(with: mainMouse(.leftMouseDown, NSPoint(x: 450, y: 610)))
+        mainHandle.mouseDragged(with: mainMouse(.leftMouseDragged, NSPoint(x: 420, y: 590)))
+        mainHandle.mouseUp(with: mainMouse(.leftMouseUp, NSPoint(x: 420, y: 590)))
+        try check(firstWindow.frame == dragFirst.offsetBy(dx: -30, dy: -20)
+                  && secondWindow.frame == dragSecond.offsetBy(dx: -30, dy: -20),
+                  "Header drag events move the entire attached group in one step")
+        mainHandle.removeFromSuperview()
+        companions.setTopFraction(0.6)
+        let beforeResize = firstWindow.frame.height
+        var resized = secondWindow.frame; resized.size.height += 30
+        secondWindow.setFrame(resized, display: false)
+        try check(abs(firstWindow.frame.height - beforeResize + 30) < 0.5
+                  && abs(firstWindow.frame.height + secondWindow.frame.height + DesktopCompanionGeometry.gap - window.frame.height) < 0.5,
+                  "Resizing one attached window immediately resizes the other while keeping the total height (before \(beforeResize), top \(firstWindow.frame.height), bottom \(secondWindow.frame.height), total \(window.frame.height), fraction \(companions.topFraction))")
+        let beforeSplit = firstWindow.frame.height
+        companions.resizeStack(topHeight: beforeSplit + 20)
+        try check(abs(firstWindow.frame.height - beforeSplit - 20) < 0.5,
+                  "Dragging the shared split updates both frames through the same geometry")
+        companions.setTopFraction(0.5)
         func dragArea(_ view: NSView) -> CompanionDragArea.DragArea? {
             if let view = view as? CompanionDragArea.DragArea { return view }
             return view.subviews.compactMap { dragArea($0) }.first
@@ -86,6 +136,8 @@ extension NativeChecks {
         handle.mouseDragged(with: mouse(.leftMouseDragged, NSPoint(x: 70, y: 540)))
         handle.mouseUp(with: mouse(.leftMouseUp, NSPoint(x: 70, y: 540)))
         try check(!first.docked && firstWindow.frame != beforeDrag, "Native drag events detach and move the companion without depending on global cursor polling")
+        try check(firstWindow.parent == nil && secondWindow.parent === window && secondWindow.frame.height == window.frame.height,
+                  "Detachment leaves the movement group and the remaining attached window fills the height")
         companions.toggleDocking(.first)
         let browser = NativeBrowserTab()
         let browserID = first.panel.open(.browser(browser))
@@ -93,8 +145,8 @@ extension NativeChecks {
         let terminalID = second.panel.open(.terminal(terminal))
         let small = firstWindow.frame
         companions.toggleExpansion(.first)
-        try check(firstWindow.frame.minX == window.frame.minX + DesktopGeometry.sidebarWidth(total: window.frame.width) + 10
-                  && firstWindow.frame.maxX >= secondWindow.frame.maxX && first.expanded,
+        try check(abs(firstWindow.frame.minX - (window.frame.minX + DesktopGeometry.sidebarWidth(total: window.frame.width) + 10)) <= 1
+                  && firstWindow.frame.maxX >= secondWindow.frame.maxX - 1 && first.expanded,
                   "A docked corner expands exactly to the sidebar and over the second window")
         companions.toggleExpansion(.first)
         try check(firstWindow.frame == small && first.panel.selectedID == browserID && second.panel.selectedID == terminalID,
@@ -116,10 +168,11 @@ extension NativeChecks {
         try check(second.window === secondWindow && second.panel.selectedID == terminalID && secondWindow.frame == free && !terminal.running,
                   "Hide and show retain the same terminal and NSWindow without launching a process")
         companions.beginDrag(.second)
-        secondWindow.setFrameOrigin(NSPoint(x: firstWindow.frame.maxX + 10, y: firstWindow.frame.minY + 20))
+        secondWindow.setFrameOrigin(NSPoint(x: firstWindow.frame.minX + 5, y: firstWindow.frame.minY - DesktopCompanionGeometry.gap - secondWindow.frame.height))
         companions.endDrag(.second)
-        try check(second.docked && secondWindow.frame.height == window.frame.height,
-                  "Dragging beside the preceding window snaps back to the full-height row")
+        try check(second.docked && secondWindow.parent === window
+                  && abs(firstWindow.frame.height + secondWindow.frame.height + DesktopCompanionGeometry.gap - window.frame.height) < 0.5,
+                  "Dragging beneath the sibling snaps back into the shared-height column")
         companions.toggleExpansion(.second)
         desktop.revealMainContent()
         try check(!second.expanded && !first.expanded && desktop.expanded, "Opening main content clears covering expansions so settings and confirmations remain usable")
@@ -130,12 +183,14 @@ extension NativeChecks {
                   "Folding the workspace retains companion choices, the running conversation and draft")
         desktop.expand(animated: false)
         companions.setTransparency(0.13, for: .first); companions.setTransparency(0.77, for: .second)
+        companions.setTopFraction(0.65)
         desktop.restoreWindow(); desktop.enable(animated: false)
         try check(first.window === firstWindow && second.window === secondWindow && first.panel.selectedID == browserID && second.panel.selectedID == terminalID,
                   "Normal and floating mode transitions retain companion browser and terminal ownership")
         let saved = DesktopCompanionWindows(stateDirectory: state, defaults: defaults, presentsWindows: false)
         let other = DesktopCompanionWindows(stateDirectory: root.appendingPathComponent("other-companions"), defaults: defaults, presentsWindows: false)
         try check(saved.surface(.first).transparency == 0.13 && saved.surface(.second).transparency == 0.77 && !saved.surface(.second).docked
+                  && saved.topFraction == 0.65 && other.topFraction == 0.5
                   && !other.surface(.first).visible && other.surface(.first).transparency == DesktopGlassAppearance.chatDefault,
                   "Separate transparency, docking and visibility preferences persist only in their UI profile")
         saved.setTransparency(.nan, for: .first); saved.setTransparency(9, for: .second)
