@@ -271,6 +271,11 @@ struct LaunchConfiguration {
     let python: URL
     let stateDirectory: URL
     var pdfHelper: URL? = nil
+    var sourceRoot: URL? = nil
+    var codexExecutable: URL? = nil
+    var isPortable = false
+
+    var codeRoot: URL { sourceRoot ?? projectRoot }
 
     static func argument(_ name: String) -> String? {
         guard let index = CommandLine.arguments.firstIndex(of: name), index + 1 < CommandLine.arguments.count else { return nil }
@@ -278,17 +283,40 @@ struct LaunchConfiguration {
     }
 
     static func load() -> LaunchConfiguration {
-        let env = ProcessInfo.processInfo.environment
         let bundled = Bundle.main.url(forResource: "native-config", withExtension: "json")
             .flatMap { try? Data(contentsOf: $0) }
             .flatMap { try? JSONDecoder().decode([String: String].self, from: $0) } ?? [:]
-        let root = argument("--project-root") ?? env["PROTO_MIND_PROJECT_ROOT"] ?? bundled["project_root"] ?? FileManager.default.currentDirectoryPath
-        let python = argument("--python") ?? env["PROTO_MIND_PYTHON"] ?? bundled["python"] ?? "/opt/homebrew/opt/python@3.11/bin/python3.11"
-        let state = (argument("--state-dir") ?? bundled["state_directory"]).map { URL(fileURLWithPath: $0, isDirectory: true) }
-            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/ProtoMindNative", isDirectory: true)
+        return resolve(arguments: CommandLine.arguments, environment: ProcessInfo.processInfo.environment,
+                       bundled: bundled, resources: Bundle.main.resourceURL,
+                       home: FileManager.default.homeDirectoryForCurrentUser,
+                       currentDirectory: FileManager.default.currentDirectoryPath,
+                       pdfHelper: Bundle.main.url(forAuxiliaryExecutable: "ProtoMindPDF"))
+    }
+
+    static func resolve(arguments: [String], environment env: [String: String], bundled: [String: String],
+                        resources: URL?, home: URL, currentDirectory: String, pdfHelper: URL?) -> LaunchConfiguration {
+        func option(_ name: String) -> String? {
+            guard let index = arguments.firstIndex(of: name), index + 1 < arguments.count else { return nil }
+            return arguments[index + 1]
+        }
+        if bundled["distribution"] == "portable" {
+            // The bundle is read-only code. Updates replace it without replacing the user's profile.
+            // Explicit profile overrides are for isolated QA; inherited developer paths are ignored.
+            let profile = option("--profile-root").map { URL(fileURLWithPath: $0, isDirectory: true) }
+                ?? home.appendingPathComponent("Library/Application Support/ProtoMind", isDirectory: true)
+            let runtime = (resources ?? URL(fileURLWithPath: "/missing-protomind-resources"))
+            return LaunchConfiguration(projectRoot: profile.appendingPathComponent("core", isDirectory: true),
+                python: runtime.appendingPathComponent("runtime/python/bin/python3"),
+                stateDirectory: profile.appendingPathComponent("native", isDirectory: true), pdfHelper: pdfHelper,
+                sourceRoot: runtime.appendingPathComponent("core", isDirectory: true),
+                codexExecutable: runtime.appendingPathComponent("runtime/codex/bin/codex"), isPortable: true)
+        }
+        let root = option("--project-root") ?? env["PROTO_MIND_PROJECT_ROOT"] ?? bundled["project_root"] ?? currentDirectory
+        let python = option("--python") ?? env["PROTO_MIND_PYTHON"] ?? bundled["python"] ?? "/opt/homebrew/opt/python@3.11/bin/python3.11"
+        let state = (option("--state-dir") ?? bundled["state_directory"]).map { URL(fileURLWithPath: $0, isDirectory: true) }
+            ?? home.appendingPathComponent("Library/Application Support/ProtoMindNative", isDirectory: true)
         return LaunchConfiguration(projectRoot: URL(fileURLWithPath: root, isDirectory: true),
                                    python: URL(fileURLWithPath: python), stateDirectory: state,
-                                   pdfHelper: argument("--pdf-helper").map { URL(fileURLWithPath: $0).resolvingSymlinksInPath() }
-                                    ?? Bundle.main.url(forAuxiliaryExecutable: "ProtoMindPDF"))
+                                   pdfHelper: option("--pdf-helper").map { URL(fileURLWithPath: $0).resolvingSymlinksInPath() } ?? pdfHelper)
     }
 }

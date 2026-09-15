@@ -4,6 +4,49 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Portable First Installation — Native 0.62.0
+
+The separate **Proto-Mind.app** beta targets Apple Silicon and macOS 14+.
+It embeds pinned CPython 3.12.14 and Codex 0.153.4 runtimes, with verified archive
+hashes and upstream notices. The allowlisted Python package and the Swift app
+share the development source tree. The developer bundle, account and existing
+personal data paths are unchanged; no automatic migration runs.
+
+`LaunchConfiguration` resolves installed code and binaries inside the running
+bundle. Mutable core and Native state use sibling directories under the current
+user's `Application Support/ProtoMind`. Bridge launches use installed code as
+their working directory, isolated Python import settings and an explicit Codex
+executable. A missing bundled Codex cannot silently select a system account or
+runtime. Chat sandbox access covers only the bundled runtime/helper paths and
+the existing private execution roots. Updates can replace or move the bundle
+without changing the profile path.
+
+The first-connection page appears inside the workspace, checks the local core,
+offers the user's ChatGPT sign-in, and keeps cloud consent explicit. It can be
+skipped and reopened from Settings. Its dismissal is namespace-scoped UI state;
+it cannot grant access or activate voice. Fresh portable dialogs use the Codex
+catalog's default model; saved conversations keep their previous selection.
+Voice/API, GitHub CLI, Ollama and the proprietary signed Computer Use helper
+remain optional separate connections, described in the installation guide.
+
+Verification: **2,313 Python tests** plus compileall and **1,433 Native checks**
+pass; optional pytest is absent/skipped. Another **150 focused tests** pass with
+the packaged Python 3.12. A relocated bundle with spaces in its path starts its
+bridge, saves/reloads synthetic core memory, verifies a private backup, reads
+signed-out Codex status, and starts/cancels browser authentication without a
+credential or model turn. Its 17 Mach-O files have no absolute non-system
+library dependency. Codesign verification still passes after use, with no
+core data or Python caches added inside the bundle. GUI checks exercised the
+welcome screen, unsigned-in status, Settings/help navigation, draft persistence
+and restart after relocation. All runtime checks used disposable profiles.
+
+This is **an ad-hoc signed beta**, not a notarized public download. Apple
+Developer ID, notarization and testing the downloaded artifact on a second Mac
+remain distribution gates. The current Mac is macOS 26.6.2; macOS 14 was not
+physically tested. No microphone, paid model request, account import, public
+upload or modification to the running developer application was part of these
+checks. [Install guide](INSTALL_MACOS.md) · [Packaging workflow](native/Distribution/README.md).
+
 ## Unified Workspace Screens — Native 0.61.0
 
 Auxiliary screens now replace the chat content within the existing workspace in both ordinary and floating modes. This includes Settings, quotas, response details, conversation/run history, backup workflows, memory/persona/skill screens, attachment previews, Session Spine and nested confirmations. Back and Escape dismiss only the top screen. Parent views and the underlying transcript stay mounted; source bindings and dismissal callbacks remain authoritative. Source-local form state is evaluated inside SwiftUI rendering so validation continues updating. In-progress save/commit guards also block Back and navigation; hidden pages cannot receive keyboard shortcuts. Selecting a dialog returns to that chat. Native open/save panels attach to the workspace window, including when launched from floating controls. Exit warnings use the same inline presentation and retain the existing unsaved/shared-operation checks.

@@ -1471,9 +1471,10 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Proto-Mind native stdio bridge")
     parser.add_argument("--project-root", type=Path, required=True)
     parser.add_argument("--state-dir", type=Path, required=True)
+    parser.add_argument("--code-root", type=Path, help="Read-only installed source, separate from writable project data")
     parser.add_argument("--pdf-helper", type=Path)
     args = parser.parse_args()
-    if not (args.project_root / "proto_mind" / "main.py").is_file():
+    if not ((args.code_root or args.project_root) / "proto_mind" / "main.py").is_file():
         parser.error("Project root does not contain Proto-Mind.")
     backend = NativeBackend(args.project_root, args.state_dir, pdf_helper=args.pdf_helper)
     serve(backend, sys.stdin, sys.stdout)

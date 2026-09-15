@@ -2,11 +2,19 @@
 
 Proto-Mind is a personal cognitive-agent architecture and native macOS workspace.
 
+**Portable beta for other users — 0.62.0 (76):** a separate Apple Silicon macOS
+application includes Python and Codex, a first-connection screen and its own
+per-user profile. It needs no source checkout, Homebrew or Node to launch.
+[Install and connect](INSTALL_MACOS.md) · [Build and distribution status](native/Distribution/README.md).
+The current package is an ad-hoc signed beta; Apple notarization and a second-Mac
+installation check remain before public distribution. Development continues in
+the same source tree, with the existing personal installation kept separate.
+
 For current development guidance, see [`AGENTS.md`](AGENTS.md). The [current priority map](PROTO_MIND_EVOLUTION_ROADMAP.md) identifies completed work and the next product stage. Architectural context and historical evidence live in `PROTO_MIND_ARCHITECT_LEDGER.md`.
 
 ## Native macOS Direction
 
-Post-contest personal development now targets a real SwiftUI/AppKit application with a conversation workspace, while preserving the existing Python cognitive core and operator commands. The current native workspace is **Native 0.61.0 / Floating Workspace**, extending source-grounded memory suggestions, automatic project recall, mode-bound Codex continuity, Full Mac Computer Use, durable sessions, selected PDF/image/text inputs, live Web Search, attachment recovery/drop, run notices, the Context And Artifact Desk, manual acceptance, EV-01 reliable work sessions, an inspectable Brother self-model and explicit Native candidate-to-lesson-to-skill review; it does not replace the submitted contest build.
+Post-contest personal development now targets a real SwiftUI/AppKit application with a conversation workspace, while preserving the existing Python cognitive core and operator commands. The current native workspace is **Native 0.62.0 / Portable First Installation**, extending source-grounded memory suggestions, automatic project recall, mode-bound Codex continuity, Full Mac Computer Use, durable sessions, selected PDF/image/text inputs, live Web Search, attachment recovery/drop, run notices, the Context And Artifact Desk, manual acceptance, EV-01 reliable work sessions, an inspectable Brother self-model and explicit Native candidate-to-lesson-to-skill review; it does not replace the submitted contest build.
 
 **Floating Workspace (Native 0.61.0):** choose **Меню → Парящий режим** or **⌘⌥J**. The cube opens and folds the chat and full left sidebar. Hovering reveals voice and **Обычное окно** below it. Settings, limits, history, previews and confirmations now open **inside the chat area**, sharing its transparency; Back/Esc returns to the previous screen. Native file pickers attach to this workspace. The voice conversation has an independent movable window with the same glass appearance. The compact sidebar menu fits its column, with the core weekly quota (and five-hour quota only when supplied) above its actions. Model and effort selection has two clear tabs. API controls live in **Настройки → Голос**; **Оформление** provides separate chat/sidebar transparency. Mode, geometry and transparency persist as local UI preferences. Folding the workspace preserves running tasks, voice and drafts; restarting never starts the microphone. [Behavior and checks](NATIVE_MACOS_ROADMAP.md#unified-workspace-screens--native-0610).
 

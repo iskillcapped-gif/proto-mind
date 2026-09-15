@@ -45,6 +45,7 @@ final class AppModel: ObservableObject {
     let desktop: DesktopPresentation
     let presentations = WorkspacePresentations()
     @Published var showSettings = false
+    @Published var showFirstLaunch = false
     @Published var exitPrompt: WorkspaceExitPrompt?
     var discardUnsavedOnExit = false
     @Published var showLiveVoice = false {
@@ -245,7 +246,8 @@ final class AppModel: ObservableObject {
         }
         catch { self.error = error.localizedDescription }
         if conversations.isEmpty {
-            let chat = Conversation()
+            var chat = Conversation()
+            if configuration.isPortable { chat.provider = "codex"; chat.model = "" }
             conversations = [chat]
             selectedID = chat.id
         }
@@ -667,6 +669,7 @@ final class AppModel: ObservableObject {
             report(error)
             return
         }
+        showFirstLaunch = FirstLaunch.shouldPresent(serviceClient.configuration)
         do {
             bootstrap = try await serviceClient.request("bootstrap"); status = "Готов"
             await refreshWorkSessions()

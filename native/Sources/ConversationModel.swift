@@ -22,7 +22,8 @@ extension AppModel {
         skillTask?.close()
         sessionSpinePreview = nil
         flushDraft()
-        let chat = Conversation()
+        var chat = Conversation()
+        if serviceClient.configuration.isPortable { chat.provider = "codex"; chat.model = "" }
         conversations.insert(chat, at: 0)
         selectedID = chat.id
         transcriptDestination = nil

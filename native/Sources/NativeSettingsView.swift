@@ -215,6 +215,7 @@ struct NativeSettingsView: View {
 
     private var accountSettings: some View {
         Section("Аккаунт ChatGPT") {
+            Button("Помощь с первым подключением…") { model.showFirstLaunch = true }
             HStack {
                 Label(model.account.isNull ? "Вход ещё не проверен" : model.account["connected"].flag ? "Подключено" : "Не подключено", systemImage: model.account["connected"].flag ? "checkmark.circle" : "person.crop.circle")
                 Spacer()

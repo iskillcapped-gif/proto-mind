@@ -28,6 +28,16 @@ struct NativeChecks {
         }
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("proto-native-checks-" + UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
+        let portableRoot = FileManager.default.temporaryDirectory.appendingPathComponent("proto-portable-checks-" + UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: portableRoot) }
+        try portableConfiguration(root: portableRoot)
+        if let fixture = LaunchConfiguration.argument("--fixture"), let python = LaunchConfiguration.argument("--python") {
+            try await portableBridge(fixture: URL(fileURLWithPath: fixture), python: URL(fileURLWithPath: python), root: portableRoot)
+        }
+        if CommandLine.arguments.contains("--portable-only") {
+            print("Native portable checks: \(passed) OK")
+            return
+        }
         if CommandLine.arguments.contains("--history-only") {
             try chatStorage(root: root)
             print("Native history checks: \(passed) OK")

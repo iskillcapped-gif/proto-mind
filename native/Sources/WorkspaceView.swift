@@ -32,6 +32,9 @@ struct WorkspaceView: View {
         .onChange(of: model.section) { _, next in if next.libraryCollection != nil { libraryExpanded = true } }
         .workspaceSheet(item: $model.exitPrompt) { WorkspaceExitView(app: model, prompt: $0) }
         .workspaceSheet(isPresented: $model.showSettings) { NativeSettingsView(model: model) }
+        .workspaceSheet(isPresented: $model.showFirstLaunch, onDismiss: {
+            FirstLaunch.dismiss(model.serviceClient.configuration)
+        }) { FirstLaunchView(model: model) }
         .workspaceSheet(isPresented: $model.showInspector) {
             EvidenceInspectorView(model: model).workspacePageSize(width: 560, height: 680)
         }

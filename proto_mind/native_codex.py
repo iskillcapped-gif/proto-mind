@@ -161,6 +161,20 @@ def require_image_model(options: list[dict], model: str) -> None:
         raise CodexConnectionError("The current catalog does not confirm image input for this model. Choose a vision-capable model or remove the images; no fallback was used.")
 
 
+def find_codex_executable() -> str:
+    bundled = os.environ.get("PROTO_MIND_CODEX_EXECUTABLE")
+    if bundled:
+        candidate = Path(bundled)
+        if not candidate.is_absolute() or not candidate.is_file() or not os.access(candidate, os.X_OK):
+            raise CodexConnectionError("Встроенный Codex недоступен. Переустановите полную копию приложения.")
+        return str(candidate.resolve())
+    executable = shutil.which("codex") or next((candidate for candidate in
+        ("/opt/homebrew/bin/codex", "/usr/local/bin/codex") if os.access(candidate, os.X_OK)), None)
+    if not executable:
+        raise CodexConnectionError("Codex CLI is not installed. Install it before connecting ChatGPT.")
+    return executable
+
+
 def codex_environment(home: Path, *, full_access: bool = False) -> dict[str, str]:
     # No inherited API keys, remote endpoints, Codex hooks, or parent session IDs.
     env = {key: value for key, value in os.environ.items()
@@ -173,6 +187,8 @@ def codex_environment(home: Path, *, full_access: bool = False) -> dict[str, str
     paths = env.get("PATH", "").split(os.pathsep)
     if sys.platform == "darwin":
         paths = ["/opt/homebrew/bin", "/usr/local/bin", *paths]
+    if os.environ.get("PROTO_MIND_CODEX_EXECUTABLE"):
+        paths.insert(0, str(Path(find_codex_executable()).parent))
     paths += ["/usr/bin", "/bin", "/usr/sbin", "/sbin"]
     env["PATH"] = os.pathsep.join(dict.fromkeys(path for path in paths if os.path.isabs(path)))
     if full_access:
@@ -250,6 +266,14 @@ def codex_process_command(executable: str, home: Path, workspace: Path, *, full_
         Path("/usr/local/lib"), Path("/usr/local/bin"), Path("/private/etc"),
         Path("/Library/Keychains"), *private_roots, workspace.resolve(),
     ]
+    # A standalone release and its sibling helpers can live inside a relocated .app.
+    # Grant only that runtime directory, not the user's source tree or private stores.
+    if os.environ.get("PROTO_MIND_CODEX_EXECUTABLE"):
+        runtime = Path(find_codex_executable()).parent
+        read_roots.append(runtime)
+        if (runtime.parent / "codex-package.json").is_file():
+            read_roots.extend(runtime.parent / name for name in ("codex-resources", "codex-path"))
+            read_roots.append(runtime.parent / "codex-package.json")
 
     def paths(roots: list[Path]) -> str:
         return " ".join(f"(subpath {json.dumps(str(path), ensure_ascii=False)})" for path in roots)
@@ -500,14 +524,7 @@ class CodexSubscription:
         if self.rpc is not None:
             self.rpc.close()
             self.rpc = None
-        executable = shutil.which("codex")
-        if not executable:
-            for candidate in ("/opt/homebrew/bin/codex", "/usr/local/bin/codex"):
-                if os.access(candidate, os.X_OK):
-                    executable = candidate
-                    break
-        if not executable:
-            raise CodexConnectionError("Codex CLI is not installed. Install it before connecting ChatGPT.")
+        executable = find_codex_executable()
         if self.home.resolve() == (Path.home() / ".codex").resolve():
             raise CodexConnectionError("Proto-Mind requires its own Codex profile.")
         self.home.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -872,10 +889,7 @@ class CodexSubscription:
             ))
             run.publish()
             self.close()
-            executable = shutil.which("codex") or next((candidate for candidate in
-                ("/opt/homebrew/bin/codex", "/usr/local/bin/codex") if os.access(candidate, os.X_OK)), None)
-            if not executable:
-                raise CodexConnectionError("Codex CLI is unavailable.")
+            executable = find_codex_executable()
             if self.cancelled.is_set():
                 raise TurnCancelled("Agent stopped before connecting.")
             self.rpc = self.transport_factory(

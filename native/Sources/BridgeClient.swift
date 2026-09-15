@@ -30,18 +30,34 @@ final class BridgeClient: ObservableObject {
         let generation = generation
         buffer.removeAll()
         guard FileManager.default.isExecutableFile(atPath: configuration.python.path),
-              FileManager.default.fileExists(atPath: configuration.projectRoot.appendingPathComponent("proto_mind/main.py").path) else {
-            throw NativeError.message("Не найден Python 3.11+ или проект Proto-Mind. Пересобери native launcher.")
+              FileManager.default.fileExists(atPath: configuration.codeRoot.appendingPathComponent("proto_mind/main.py").path) else {
+            throw NativeError.message(configuration.isPortable
+                ? "Не найдено встроенное ядро. Установите полную копию Proto-Mind.app заново; личные данные хранятся отдельно."
+                : "Не найден Python 3.11+ или проект Proto-Mind. Пересобери native launcher.")
+        }
+        if let codex = configuration.codexExecutable, !FileManager.default.isExecutableFile(atPath: codex.path) {
+            throw NativeError.message("Не найден встроенный Codex. Установите полную копию Proto-Mind.app заново.")
         }
         let process = Process()
         let stdin = Pipe(), stdout = Pipe()
         process.executableURL = configuration.python
         process.arguments = ["-u", "-m", "proto_mind.native_bridge", "--project-root", configuration.projectRoot.path,
                              "--state-dir", configuration.stateDirectory.path]
+        if configuration.sourceRoot != nil {
+            process.arguments?.append(contentsOf: ["--code-root", configuration.codeRoot.path])
+        }
         if let helper = configuration.pdfHelper { process.arguments?.append(contentsOf: ["--pdf-helper", helper.path]) }
-        process.currentDirectoryURL = configuration.projectRoot
+        process.currentDirectoryURL = configuration.codeRoot
         var environment = ProcessInfo.processInfo.environment
-        environment["PYTHONPATH"] = configuration.projectRoot.path
+        environment["PYTHONPATH"] = configuration.codeRoot.path
+        environment["PYTHONNOUSERSITE"] = "1"
+        environment.removeValue(forKey: "PYTHONHOME")
+        environment.removeValue(forKey: "PYTHONSTARTUP")
+        if configuration.isPortable {
+            environment = environment.filter { !$0.key.hasPrefix("PROTO_MIND_") }
+            environment["PROTO_MIND_DATA_DIR"] = configuration.projectRoot.appendingPathComponent("proto_mind/data").path
+        }
+        if let codex = configuration.codexExecutable { environment["PROTO_MIND_CODEX_EXECUTABLE"] = codex.path }
         environment["PYTHONDONTWRITEBYTECODE"] = "1"
         environment["PYTHONIOENCODING"] = "utf-8"
         process.environment = environment
