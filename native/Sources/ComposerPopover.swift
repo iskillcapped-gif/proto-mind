@@ -4,9 +4,9 @@ import SwiftUI
 // AppKit menus and NSPopover may flip below the anchor. Composer panels instead
 // occupy only the available space above it; long contents scroll within that space.
 enum ComposerPopoverPlacement {
-    static func frame(anchor: CGRect, screen: CGRect, size: CGSize, trailing: Bool, confinedToColumn: Bool = false) -> CGRect {
+    static func frame(anchor: CGRect, screen: CGRect, size: CGSize, trailing: Bool, confinedToColumn: Bool = false, columnWidth: CGFloat? = nil) -> CGRect {
         let bounds = screen.insetBy(dx: 8, dy: 8)
-        let column = confinedToColumn ? bounds.intersection(CGRect(x: anchor.minX, y: bounds.minY, width: anchor.width, height: bounds.height)) : bounds
+        let column = confinedToColumn ? bounds.intersection(CGRect(x: anchor.minX, y: bounds.minY, width: columnWidth ?? anchor.width, height: bounds.height)) : bounds
         guard !column.isNull, column.width > 0 else { return .zero }
         let width = min(size.width, column.width)
         let bottom = max(bounds.minY, anchor.maxY + 8)
@@ -17,9 +17,9 @@ enum ComposerPopoverPlacement {
 }
 
 extension View {
-    func composerPopover<Content: View>(isPresented: Binding<Bool>, width: CGFloat = 300, trailing: Bool = false, confinedToColumn: Bool = false,
+    func composerPopover<Content: View>(isPresented: Binding<Bool>, width: CGFloat = 300, trailing: Bool = false, confinedToColumn: Bool = false, columnWidth: CGFloat? = nil,
                                        @ViewBuilder content: @escaping () -> Content) -> some View {
-        background(ComposerPopoverAnchor(isPresented: isPresented, width: width, trailing: trailing, confinedToColumn: confinedToColumn, content: content))
+        background(ComposerPopoverAnchor(isPresented: isPresented, width: width, trailing: trailing, confinedToColumn: confinedToColumn, columnWidth: columnWidth, content: content))
     }
 }
 
@@ -28,6 +28,7 @@ private struct ComposerPopoverAnchor<Content: View>: NSViewRepresentable {
     let width: CGFloat
     let trailing: Bool
     let confinedToColumn: Bool
+    let columnWidth: CGFloat?
     @ViewBuilder let content: () -> Content
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -39,7 +40,7 @@ private struct ComposerPopoverAnchor<Content: View>: NSViewRepresentable {
             // Hosting updates cannot synchronously change the source SwiftUI tree.
             DispatchQueue.main.async { [weak view, weak coordinator] in
                 guard let view, let coordinator, isPresented else { return }
-                coordinator.show(anchor: view, width: width, trailing: trailing, confinedToColumn: confinedToColumn, content: AnyView(content()))
+                coordinator.show(anchor: view, width: width, trailing: trailing, confinedToColumn: confinedToColumn, columnWidth: columnWidth, content: AnyView(content()))
             }
         } else { coordinator.close() }
     }
@@ -58,16 +59,16 @@ private struct ComposerPopoverAnchor<Content: View>: NSViewRepresentable {
         private weak var priorResponder: NSResponder?
         private weak var owner: NSWindow?
 
-        func show(anchor: NSView, width: CGFloat, trailing: Bool, confinedToColumn: Bool, content: AnyView) {
+        func show(anchor: NSView, width: CGFloat, trailing: Bool, confinedToColumn: Bool, columnWidth: CGFloat?, content: AnyView) {
             guard let window = anchor.window, let screen = window.screen else { return }
             let rect = window.convertToScreen(anchor.convert(anchor.bounds, to: nil))
             let bounds = confinedToColumn ? screen.visibleFrame.intersection(window.frame) : screen.visibleFrame
-            let fittedWidth = min(width, confinedToColumn ? rect.width : width, max(0, bounds.width - 16))
+            let fittedWidth = min(width, confinedToColumn ? (columnWidth ?? rect.width) : width, max(0, bounds.width - 16))
             let measured = NSHostingController(rootView: content.frame(width: fittedWidth))
                 .sizeThatFits(in: CGSize(width: fittedWidth, height: 10000))
             let frame = ComposerPopoverPlacement.frame(anchor: rect, screen: bounds,
                                                        size: CGSize(width: fittedWidth, height: measured.height), trailing: trailing,
-                                                       confinedToColumn: confinedToColumn)
+                                                       confinedToColumn: confinedToColumn, columnWidth: columnWidth)
             guard frame.height > 0 else { dismiss?(); return }
             let root = AnyView(
                 ScrollView { content.frame(maxWidth: .infinity, alignment: .leading) }

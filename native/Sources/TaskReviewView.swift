@@ -139,7 +139,7 @@ struct TaskCriteriaView: View {
                     } catch { self.error = error.localizedDescription }
                 }.disabled(model.busy).keyboardShortcut(.return, modifiers: .command)
             }
-        }.padding(26).frame(width: 620, height: 440).background(NativeTheme.canvas)
+        }.padding(26).workspacePageSize(width: 620, height: 440).workspaceBackground(NativeTheme.canvas)
             .font(NativeTheme.interfaceFont).buttonStyle(.nativeHover)
     }
 }
@@ -198,7 +198,7 @@ struct TaskReviewView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }.padding(22).frame(maxWidth: .infinity, alignment: .leading)
         }
-        .sheet(item: $confirmation) { preview in confirmationSheet(preview) }
+        .workspaceSheet(item: $confirmation) { preview in confirmationSheet(preview) }
         .onChange(of: checks) { lastPreview = nil; error = nil }
         .onChange(of: decision) { lastPreview = nil; error = nil }
         .onChange(of: note) { lastPreview = nil; error = nil }
@@ -310,7 +310,7 @@ struct TaskReviewView: View {
                     }
                 }.disabled(model.busy || loading)
             }
-        }.padding(26).frame(width: 560).background(NativeTheme.canvas)
+        }.padding(26).workspacePageSize(width: 560).workspaceBackground(NativeTheme.canvas)
             .font(NativeTheme.interfaceFont).buttonStyle(.nativeHover)
     }
 }

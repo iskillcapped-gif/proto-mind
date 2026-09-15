@@ -12,7 +12,7 @@ extension EnvironmentValues {
 struct FloatingWorkspaceView: View {
     @ObservedObject var app: AppModel
     @ObservedObject var desktop: DesktopPresentation
-    @Environment(\.openSettings) private var openSettings
+    private func openSettings() { app.openSettings() }
     @State private var libraryExpanded = false
 
     var body: some View {
@@ -35,7 +35,7 @@ struct FloatingWorkspaceView: View {
                             Button { app.clearError() } label: { Image(systemName: "xmark") }
                         }.padding(14).background(Color.orange.opacity(0.08))
                     }
-                    WorkspaceSplitView(model: app, panel: app.workspacePanel)
+                    WorkspaceContentHost(app: app, presentations: app.presentations)
                 }
                 .background(DesktopGlassBackground(transparency: desktop.chatTransparency, tint: NativeTheme.canvas))
                 .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
@@ -46,7 +46,7 @@ struct FloatingWorkspaceView: View {
         .ignoresSafeArea()
         .toolbar(.hidden, for: .windowToolbar)
         .onChange(of: app.section) { _, next in if next.libraryCollection != nil { libraryExpanded = true } }
-        .onExitCommand { desktop.collapse() }
+        .onExitCommand { if app.presentations.pages.isEmpty { desktop.collapse() } else { app.presentations.dismissTop() } }
     }
 
     private func glassBorder(radius: CGFloat) -> some View {
@@ -207,7 +207,7 @@ private struct DesktopGlassMaterial: NSViewRepresentable {
     func updateNSView(_ view: NSVisualEffectView, context: Context) {}
 }
 
-private struct DesktopWindowDragArea: NSViewRepresentable {
+struct DesktopWindowDragArea: NSViewRepresentable {
     func makeNSView(context: Context) -> DragArea { DragArea() }
     func updateNSView(_ view: DragArea, context: Context) {}
     final class DragArea: NSView {

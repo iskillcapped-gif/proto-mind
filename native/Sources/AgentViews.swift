@@ -45,7 +45,7 @@ struct AgentAccessSheet: View {
                 Button("Включить полный доступ") { Task { await model.confirmAgentAccess() } }
                     .buttonStyle(.borderedProminent).nativeHoverSurface().disabled(!acknowledged || model.busy)
             }
-        }.padding(28).frame(width: 600)
+        }.padding(28).workspacePageSize(width: 600)
     }
 }
 

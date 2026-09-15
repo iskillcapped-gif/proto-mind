@@ -93,12 +93,12 @@ struct CodexUsageView: View {
                 Button("Обновить") { Task { await usage.refresh(app: app) } }
                     .disabled(refreshBlocked)
             }.font(.callout)
-        }.padding(24).frame(width: 560, height: 610)
+        }.padding(24).workspacePageSize(width: 560, height: 610)
             .task { await usage.refresh(app: app) }
-            .interactiveDismissDisabled(usage.resetting)
-            .alert("Использовать один сброс?", isPresented: $confirmingReset, presenting: proposedReset) { attempt in
-                Button("Отмена", role: .cancel) { proposedReset = nil }
-                Button("Сбросить лимит") { Task { await usage.consume(attempt, app: app) } }
+            .workspaceDismissDisabled(usage.resetting)
+            .workspaceAlert("Использовать один сброс?", isPresented: $confirmingReset, presenting: proposedReset) { attempt in
+                Button("Отмена", role: .cancel) { confirmingReset = false; proposedReset = nil }
+                Button("Сбросить лимит") { confirmingReset = false; proposedReset = nil; Task { await usage.consume(attempt, app: app) } }
             } message: { _ in
                 Text("Codex использует один доступный сброс для аккаунта \(usage.snapshot?.email ?? "ChatGPT"). Это действие нельзя отменить. Если подходящего лимита нет, сброс не расходуется.")
             }

@@ -54,7 +54,7 @@ struct SkillDecisionView: View {
                     if value != nil { scroll.scrollTo("decision-confirmation", anchor: .top) }
                 }
             }
-        }.frame(width: 850, height: 720).buttonStyle(.nativeHover).interactiveDismissDisabled(model.committing)
+        }.workspacePageSize(width: 850, height: 720).buttonStyle(.nativeHover).workspaceDismissDisabled(model.committing)
     }
 
     private func overview(_ report: NativeSkillDecisionReview) -> some View {

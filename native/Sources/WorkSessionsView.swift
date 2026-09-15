@@ -82,6 +82,9 @@ struct WorkSessionsView: View {
     }
 
     var body: some View {
+        GeometryReader { geometry in
+            let compact = geometry.size.width < 700
+            let split = compact ? AnyLayout(VStackLayout(spacing: 0)) : AnyLayout(HStackLayout(spacing: 0))
         VStack(spacing: 0) {
             HStack(spacing: 12) {
                 Label("Журнал работы", systemImage: "clock.arrow.circlepath").font(.title3.weight(.semibold))
@@ -108,7 +111,7 @@ struct WorkSessionsView: View {
                         .foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 430)
                 }.frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                HStack(spacing: 0) {
+                split {
                     ScrollView {
                         LazyVStack(spacing: 6) {
                             ForEach(model.workSessions) { run in
@@ -137,7 +140,7 @@ struct WorkSessionsView: View {
                                     .frame(maxWidth: .infinity).padding(.vertical, 8)
                             }
                         }.padding(12)
-                    }.frame(width: 245)
+                    }.frame(width: compact ? nil : 245, height: compact ? min(170, geometry.size.height * 0.28) : nil)
                     Divider()
                     if let selected {
                         VStack(spacing: 0) {
@@ -165,7 +168,8 @@ struct WorkSessionsView: View {
                 Text(model.workSessionsPath).textSelection(.enabled).lineLimit(2)
             }.font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading).padding(16)
         }
-        .frame(width: 850, height: 660).background(NativeTheme.canvas)
+        }
+        .workspacePageSize(width: 850, height: 660).workspaceBackground(NativeTheme.canvas)
         .font(NativeTheme.interfaceFont).buttonStyle(.nativeHover).disclosureGroupStyle(NativeDisclosureStyle())
         .task { model.workSessionsActionError = nil; await model.refreshWorkSessions() }
     }

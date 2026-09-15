@@ -40,7 +40,7 @@ extension AppModel {
     var anyTaskRunning: Bool { executions.values.contains { $0.running || $0.client.turnOutstanding } || serviceClient.turnOutstanding }
     var globalBusy: Bool { operationBusy || anyTaskRunning || executions.values.contains { $0.sendingUpdate } }
     var canNavigateConversations: Bool {
-        !operationBusy && !connecting && !loadingDroppedAttachments && !loadingImagePreview && !loadingPDFPreview
+        !operationBusy && !connecting && !loadingDroppedAttachments && !loadingImagePreview && !loadingPDFPreview && !presentations.locked
     }
     var busy: Bool {
         get { operationBusy || selectedExecution?.running == true }
@@ -70,6 +70,7 @@ extension AppModel {
     }
 
     func shutdown() {
+        presentations.shutdown()
         desktop.shutdown()
         liveVoice.shutdown()
         restoringAgentAccess.values.forEach { $0.cancel() }; restoringAgentAccess.removeAll()

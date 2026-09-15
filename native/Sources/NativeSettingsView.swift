@@ -49,25 +49,63 @@ struct NativeSettingsView: View {
     }
 
     var body: some View {
-        HStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 5) {
-                Text("Настройки").font(.system(size: 17, weight: .semibold)).padding(.horizontal, 12).padding(.top, 20).padding(.bottom, 18)
-                ForEach(NativeSettingsSection.allCases) { section in
-                    Button { model.settingsSection = section } label: {
-                        Label(section.title, systemImage: section.symbol).font(.system(size: 13))
-                            .frame(maxWidth: .infinity, alignment: .leading).padding(11)
-                            .background(model.settingsSection == section ? NativeTheme.selection : .clear, in: RoundedRectangle(cornerRadius: 9))
-                    }.buttonStyle(.nativeHover)
+        GeometryReader { geometry in
+            let compact = geometry.size.width < 740
+            let layout = compact ? AnyLayout(VStackLayout(spacing: 0)) : AnyLayout(HStackLayout(spacing: 0))
+            layout {
+                if compact {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 5) {
+                            ForEach(NativeSettingsSection.allCases) { section in sectionButton(section) }
+                        }.padding(12)
+                    }.fixedSize(horizontal: false, vertical: true)
+                } else {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("Настройки").font(.system(size: 17, weight: .semibold))
+                            .padding(.horizontal, 12).padding(.top, 20).padding(.bottom, 18)
+                        ForEach(NativeSettingsSection.allCases) { section in sectionButton(section) }
+                        Spacer(minLength: 0)
+                        Label("Proto-Mind", systemImage: "cube.transparent.fill")
+                            .font(.system(size: 12)).foregroundStyle(.secondary).padding(12)
+                    }.padding(.horizontal, 10).padding(.bottom, 8).frame(width: 185)
+                        .workspaceBackground(NativeTheme.sidebar)
                 }
-                Spacer(minLength: 0)
-                Label("Proto-Mind", systemImage: "cube.transparent.fill")
-                    .font(.system(size: 12)).foregroundStyle(.secondary).padding(12)
-            }.padding(.horizontal, 10).padding(.bottom, 8).frame(width: 185).background(NativeTheme.sidebar)
-            VStack(alignment: .leading, spacing: 0) {
-                VStack(alignment: .leading, spacing: 7) {
-                    Text(model.settingsSection.title).font(.system(size: 24, weight: .semibold))
-                    Text(model.settingsSection.subtitle).font(.system(size: 13)).foregroundStyle(.secondary)
-                }.padding(.horizontal, 26).padding(.top, 28).padding(.bottom, 12)
+                VStack(alignment: .leading, spacing: 0) {
+                    VStack(alignment: .leading, spacing: 7) {
+                        Text(model.settingsSection.title).font(.system(size: 23, weight: .semibold))
+                        Text(model.settingsSection.subtitle).font(.system(size: 13)).foregroundStyle(.secondary)
+                    }.padding(.horizontal, 24).padding(.top, compact ? 12 : 28).padding(.bottom, 12)
+                    settingsForm
+                }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            }
+        }.workspaceBackground(NativeTheme.canvas)
+        .font(NativeTheme.interfaceFont).buttonStyle(.nativeHover).tint(NativeTheme.accent)
+        .navigationTitle("Настройки Proto-Mind")
+        .task(id: codexThreadTaskID) { await model.refreshCodexThreadStatus() }
+        .workspaceConfirmationDialog("Начать новую сессию ChatGPT?", isPresented: $confirmCodexThreadReset, titleVisibility: .visible) {
+            Button("Начать новую сессию", role: .destructive) { confirmCodexThreadReset = false; Task { await model.resetCodexThread() } }
+            Button("Отмена", role: .cancel) { confirmCodexThreadReset = false }
+        } message: {
+            Text("Следующее сообщение начнёт новую сессию модели. Диалоги Proto-Mind и прежние записи Codex сохранятся. Полный доступ к Mac будет выключен.")
+        }
+        .workspaceConfirmationDialog("Включить Brother?", isPresented: $confirmPersonaActivation, titleVisibility: .visible) {
+            Button("Проверить и включить") { confirmPersonaActivation = false; Task { await model.confirmPersonaActivation() } }
+            Button("Отмена", role: .cancel) { confirmPersonaActivation = false; model.cancelPersonaActivation() }
+        } message: {
+            Text("Совместимость будет проверена повторно. Изменение действует со следующего сообщения и не добавляет доступа к файлам или инструментам.")
+        }
+    }
+
+    private func sectionButton(_ section: NativeSettingsSection) -> some View {
+        Button { model.settingsSection = section } label: {
+            Label(section.title, systemImage: section.symbol).font(.system(size: 13))
+                .padding(11).frame(maxWidth: .infinity, alignment: .leading)
+                .background(model.settingsSection == section ? NativeTheme.selection : .clear,
+                            in: RoundedRectangle(cornerRadius: 9))
+        }.buttonStyle(.nativeHover)
+    }
+
+    private var settingsForm: some View {
                 Form {
                     switch model.settingsSection {
                     case .models:
@@ -116,23 +154,7 @@ struct NativeSettingsView: View {
                         Section { Label(error, systemImage: "exclamationmark.circle").foregroundStyle(.orange).font(.callout).textSelection(.enabled) }
                     }
                 }.formStyle(.grouped)
-            }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).background(NativeTheme.canvas)
-        }
-        .font(NativeTheme.interfaceFont).buttonStyle(.nativeHover).tint(NativeTheme.accent)
-        .navigationTitle("Настройки Proto-Mind")
-        .task(id: codexThreadTaskID) { await model.refreshCodexThreadStatus() }
-        .confirmationDialog("Начать новую сессию ChatGPT?", isPresented: $confirmCodexThreadReset, titleVisibility: .visible) {
-            Button("Начать новую сессию", role: .destructive) { Task { await model.resetCodexThread() } }
-            Button("Отмена", role: .cancel) {}
-        } message: {
-            Text("Следующее сообщение начнёт новую сессию модели. Диалоги Proto-Mind и прежние записи Codex сохранятся. Полный доступ к Mac будет выключен.")
-        }
-        .confirmationDialog("Включить Brother?", isPresented: $confirmPersonaActivation, titleVisibility: .visible) {
-            Button("Проверить и включить") { Task { await model.confirmPersonaActivation() } }
-            Button("Отмена", role: .cancel) { model.cancelPersonaActivation() }
-        } message: {
-            Text("Совместимость будет проверена повторно. Изменение действует со следующего сообщения и не добавляет доступа к файлам или инструментам.")
-        }
+                    .scrollContentBackground(.hidden)
     }
 
     private var modelSettings: some View {

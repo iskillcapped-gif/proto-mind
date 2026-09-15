@@ -11,8 +11,8 @@ struct MemoryWorkshopView: View {
                 workshop
             }
         }
-        .frame(minWidth: 760, idealWidth: 860, minHeight: 580, idealHeight: 700)
-        .interactiveDismissDisabled(model.committingLearningReview)
+        .workspacePageSize(width: 860, height: 700)
+        .workspaceDismissDisabled(model.committingLearningReview)
         .task { if model.memoryWorkshop == nil { await model.refreshMemoryWorkshop() } }
     }
 

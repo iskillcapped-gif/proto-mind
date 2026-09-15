@@ -235,7 +235,7 @@ struct NativeSessionSpinePreview: Identifiable, Equatable {
 struct SessionSpinePreviewView: View {
     @ObservedObject var model: AppModel
     let preview: NativeSessionSpinePreview
-    @Environment(\.dismiss) private var dismiss
+    @WorkspaceDismiss private var dismiss
 
     var body: some View {
         VStack(spacing: 0) {
@@ -298,9 +298,9 @@ struct SessionSpinePreviewView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }.padding(22).frame(maxWidth: .infinity, alignment: .leading)
             }
-        }.frame(width: 780, height: 680).background(NativeTheme.canvas)
+        }.workspacePageSize(width: 780, height: 680).workspaceBackground(NativeTheme.canvas)
             .font(NativeTheme.interfaceFont).buttonStyle(.nativeHover)
-            .sheet(item: $model.sessionSpineReadiness) {
+            .workspaceSheet(item: $model.sessionSpineReadiness) {
                 SessionSpineReadinessView(model: model, readiness: $0)
             }
     }

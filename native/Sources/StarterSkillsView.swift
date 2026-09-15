@@ -44,7 +44,7 @@ struct StarterSkillsSnapshot: Equatable {
 
 struct StarterSkillsView: View {
     let client: BridgeClient
-    @Environment(\.dismiss) private var dismiss
+    @WorkspaceDismiss private var dismiss
     @State private var snapshot: StarterSkillsSnapshot?
     @State private var error = ""
 
@@ -84,7 +84,7 @@ struct StarterSkillsView: View {
             } else { ProgressView("Читаю локальный набор…"); Spacer() }
             Text("Только просмотр. Личная библиотека, память и настройки не меняются. Отправка задачи остаётся отдельным действием.")
                 .font(.caption).foregroundStyle(.secondary)
-        }.padding(24).frame(width: 740, height: 620)
+        }.padding(24).workspacePageSize(width: 740, height: 620)
             .task {
                 do { snapshot = try StarterSkillsSnapshot(await client.request("starter_skills")) }
                 catch { self.error = error.localizedDescription }

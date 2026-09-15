@@ -45,7 +45,7 @@ struct SkillTaskView: View {
                         .disabled(!model.ready || !acknowledgement).buttonStyle(.borderedProminent).nativeHoverSurface()
                 }
             }.padding(20)
-        }.frame(width: 850, height: 760).background(NativeTheme.canvas)
+        }.workspacePageSize(width: 850, height: 760).workspaceBackground(NativeTheme.canvas)
             .font(NativeTheme.interfaceFont).buttonStyle(.nativeHover).disclosureGroupStyle(NativeDisclosureStyle())
             .onChange(of: model.goal) { model.invalidate(); acknowledgement = false }
             .onChange(of: model.criteriaText) { model.invalidate(); acknowledgement = false }

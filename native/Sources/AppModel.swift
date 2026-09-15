@@ -43,7 +43,13 @@ final class AppModel: ObservableObject {
     let codexUsage = CodexUsageModel()
     let liveVoice: LiveVoiceModel
     let desktop: DesktopPresentation
-    @Published var showLiveVoice = false
+    let presentations = WorkspacePresentations()
+    @Published var showSettings = false
+    @Published var exitPrompt: WorkspaceExitPrompt?
+    var discardUnsavedOnExit = false
+    @Published var showLiveVoice = false {
+        didSet { if oldValue != showLiveVoice { desktop.setVoiceVisible(showLiveVoice, app: self) } }
+    }
     @Published var showCodexUsage = false
     @Published var models: [JSONValue] = []
     @Published var modelSelectionNotice: String?
@@ -249,6 +255,11 @@ final class AppModel: ObservableObject {
             self.receiveExecutionEvent(event, state: state)
         }
         if let id = selectedID { _ = execution(for: id) }
+        presentations.reveal = { [weak self] in
+            guard let self else { return }
+            if self.desktop.enabled { self.desktop.expand(animated: false) }
+            else { self.desktop.window?.makeKeyAndOrderFront(nil) }
+        }
         initializing = false
     }
 
@@ -728,7 +739,11 @@ final class AppModel: ObservableObject {
         panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.allowsMultipleSelection = false
         panel.prompt = "Подключить только для чтения"
         panel.directoryURL = selected?.workspacePath.map { URL(fileURLWithPath: $0) } ?? client.configuration.projectRoot
-        if panel.runModal() == .OK, let url = panel.url { Task { await bindWorkspace(url.path) } }
+        let conversationID = selectedID
+        presentFilePicker(panel) { [weak self] response in
+            guard response == .OK, let url = panel.url, let self, self.selectedID == conversationID else { return }
+            Task { await self.bindWorkspace(url.path) }
+        }
     }
 
     func bindWorkspace(_ path: String) async {
@@ -849,8 +864,7 @@ final class AppModel: ObservableObject {
             guard response == .OK, let url = panel.url, let self, self.selectedID == conversationID else { return }
             Task { await self.previewImage(url.path) }
         }
-        if let window = NSApp.keyWindow { panel.beginSheetModal(for: window, completionHandler: completion) }
-        else { panel.begin(completionHandler: completion) }
+        presentFilePicker(panel, completion: completion)
     }
 
     func previewImage(_ path: String, expectedSHA: String? = nil, canAttach: Bool = true, inWorkspacePanel: Bool = false) async {
@@ -1019,8 +1033,7 @@ final class AppModel: ObservableObject {
             guard response == .OK, let url = panel.url, let self, self.selectedID == conversationID else { return }
             Task { await self.previewPDF(url.path) }
         }
-        if let window = NSApp.keyWindow { panel.beginSheetModal(for: window, completionHandler: completion) }
-        else { panel.begin(completionHandler: completion) }
+        presentFilePicker(panel, completion: completion)
     }
 
     func readPDFPreview(_ path: String, pages: [Int], conversation: Conversation,

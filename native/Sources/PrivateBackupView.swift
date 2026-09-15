@@ -77,10 +77,10 @@ struct PrivateBackupView: View {
                     }
                 }.frame(maxWidth: .infinity, alignment: .leading)
             }
-        }.padding(24).frame(width: 730, height: 630)
+        }.padding(24).workspacePageSize(width: 730, height: 630)
             .task { await backup.refresh(app: app) }
-            .interactiveDismissDisabled(backup.working || backup.restartRequired)
-            .confirmationDialog(action == "rollback" ? "Вернуть прежние данные?" : "Восстановить данные из копии?", isPresented: Binding(get: { action != nil }, set: { if !$0 { action = nil } }), titleVisibility: .visible) {
+            .workspaceDismissDisabled(backup.working || backup.restartRequired)
+            .workspaceConfirmationDialog(action == "rollback" ? "Вернуть прежние данные?" : "Восстановить данные из копии?", isPresented: Binding(get: { action != nil }, set: { if !$0 { action = nil } }), titleVisibility: .visible) {
                 Button(action == "rollback" ? "Вернуть прежние данные" : "Восстановить данные", role: .destructive) {
                     let selected = action; action = nil
                     Task {

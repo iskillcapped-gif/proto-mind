@@ -16,6 +16,9 @@ struct ConversationHistoryView: View {
     private var searchKey: String { "\(scope.rawValue):\(revision):\(query)" }
 
     var body: some View {
+        GeometryReader { geometry in
+            let compact = geometry.size.width < 700
+            let split = compact ? AnyLayout(VStackLayout(spacing: 0)) : AnyLayout(HStackLayout(spacing: 0))
         VStack(spacing: 0) {
             HStack {
                 Label("История диалогов", systemImage: "clock.arrow.circlepath").font(.title3.weight(.semibold))
@@ -23,7 +26,7 @@ struct ConversationHistoryView: View {
                 Button { model.showConversationHistory = false } label: { Image(systemName: "xmark") }
                     .keyboardShortcut(.cancelAction).accessibilityLabel("Закрыть историю")
             }.padding(20)
-            HStack(spacing: 14) {
+            (compact ? AnyLayout(VStackLayout(spacing: 10)) : AnyLayout(HStackLayout(spacing: 14))) {
                 HStack {
                     Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
                     TextField("Название, текст или папка проекта", text: $query).textFieldStyle(.plain).focused($searchFocused)
@@ -34,7 +37,7 @@ struct ConversationHistoryView: View {
                 }.padding(10).background(NativeTheme.composer, in: RoundedRectangle(cornerRadius: 9))
                 Picker("Показать", selection: $scope) {
                     ForEach(ConversationHistoryScope.allCases) { Text($0.title).tag($0) }
-                }.pickerStyle(.segmented).labelsHidden().frame(width: 225)
+                }.pickerStyle(.segmented).labelsHidden().frame(width: compact ? nil : 225)
             }.padding(.horizontal, 20).padding(.bottom, 16)
             Divider()
             if searching {
@@ -47,7 +50,7 @@ struct ConversationHistoryView: View {
                         .font(.callout).foregroundStyle(.secondary)
                 }.frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                HStack(spacing: 0) {
+                split {
                     ScrollView {
                         LazyVStack(spacing: 5) {
                             ForEach(results.prefix(visibleLimit)) { result in row(result) }
@@ -55,7 +58,7 @@ struct ConversationHistoryView: View {
                                 Button("Показать ещё") { visibleLimit += 60 }.padding(12)
                             }
                         }.padding(12)
-                    }.frame(width: 285)
+                    }.frame(width: compact ? nil : 285, height: compact ? min(170, geometry.size.height * 0.28) : nil)
                     Divider()
                     if let selected { detail(selected) }
                 }
@@ -66,7 +69,8 @@ struct ConversationHistoryView: View {
                 Spacer()
                 Text("Поиск на этом Mac · без запроса к модели")
             }.font(.caption).foregroundStyle(.secondary).padding(16)
-        }.frame(width: 900, height: 690).background(NativeTheme.canvas)
+        }
+        }.workspacePageSize(width: 900, height: 690).workspaceBackground(NativeTheme.canvas)
             .font(NativeTheme.interfaceFont).buttonStyle(.nativeHover)
             .onAppear { query = model.conversationSearch; searchFocused = true }
             .onChange(of: selectedID) { _, _ in matchIndex = 0 }

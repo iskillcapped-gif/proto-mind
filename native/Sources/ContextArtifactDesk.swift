@@ -526,7 +526,7 @@ struct ContextDeskView: View {
                 Spacer()
                 Button("К сообщению") { model.showContextDesk = false }
             }.padding(18)
-        }.frame(width: 850, height: 680).background(NativeTheme.canvas)
+        }.workspacePageSize(width: 850, height: 680).workspaceBackground(NativeTheme.canvas)
             .font(NativeTheme.interfaceFont).buttonStyle(.nativeHover).disclosureGroupStyle(NativeDisclosureStyle())
             .task { await model.refreshContextPreview() }
     }

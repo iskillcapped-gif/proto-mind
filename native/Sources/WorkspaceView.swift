@@ -8,7 +8,7 @@ struct WorkspaceView: View {
     @ObservedObject var model: AppModel
     @ObservedObject var panel: WorkspacePanelModel
     @ObservedObject var desktop: DesktopPresentation
-    @Environment(\.openSettings) private var openSettings
+    private func openSettings() { model.openSettings() }
     @State private var libraryExpanded = false
 
     init(model: AppModel) {
@@ -30,10 +30,12 @@ struct WorkspaceView: View {
         .buttonStyle(.nativeHover)
         .disclosureGroupStyle(NativeDisclosureStyle())
         .onChange(of: model.section) { _, next in if next.libraryCollection != nil { libraryExpanded = true } }
-        .sheet(isPresented: $model.showInspector) {
-            EvidenceInspectorView(model: model).frame(width: 560, height: 680)
+        .workspaceSheet(item: $model.exitPrompt) { WorkspaceExitView(app: model, prompt: $0) }
+        .workspaceSheet(isPresented: $model.showSettings) { NativeSettingsView(model: model) }
+        .workspaceSheet(isPresented: $model.showInspector) {
+            EvidenceInspectorView(model: model).workspacePageSize(width: 560, height: 680)
         }
-        .sheet(item: $model.pendingAction) { action in
+        .workspaceSheet(item: $model.pendingAction) { action in
             VStack(alignment: .leading, spacing: 20) {
                 Label("Подтвердить команду", systemImage: "hand.raised").font(.title2.weight(.semibold))
                 Text("Эта команда меняет состояние или требует повышенного внимания. Модель не запрашивала её выполнение: ниже именно ваш ввод.")
@@ -47,38 +49,39 @@ struct WorkspaceView: View {
                     Spacer()
                     Button("Выполнить мой ввод") { Task { await model.confirmPending() } }.buttonStyle(.borderedProminent).nativeHoverSurface()
                 }
-            }.padding(28).frame(width: 560)
+            }.padding(28).workspacePageSize(width: 560)
         }
-        .sheet(item: $model.pendingAgentAccess) { request in AgentAccessSheet(model: model, request: request) }
-        .sheet(isPresented: $model.showWorkSessions, onDismiss: {
+        .workspaceSheet(item: $model.pendingAgentAccess) { request in AgentAccessSheet(model: model, request: request) }
+        .workspaceSheet(isPresented: $model.showWorkSessions, onDismiss: {
             if model.selected?.draftContinuation != nil { model.focusReturnedDraft() }
         }) { WorkSessionsView(model: model) }
-        .sheet(isPresented: $model.showConversationHistory, onDismiss: { model.focusReturnedDraft() }) {
+        .workspaceSheet(isPresented: $model.showConversationHistory, onDismiss: { model.focusReturnedDraft() }) {
             ConversationHistoryView(model: model)
         }
-        .sheet(isPresented: $model.showHistoryBackups) { HistoryBackupsView(model: model) }
-        .sheet(isPresented: $model.showPrivateBackup, onDismiss: {
+        .workspaceSheet(isPresented: $model.showHistoryBackups) { HistoryBackupsView(model: model) }
+        .workspaceSheet(isPresented: $model.showPrivateBackup, onDismiss: {
             if model.quitAfterPrivateBackup { NSApp.terminate(nil) }
         }) { PrivateBackupView(app: model, backup: model.privateBackup) }
-        .sheet(isPresented: $model.showCodexUsage) { CodexUsageView(app: model, usage: model.codexUsage) }
-        .sheet(item: $model.sessionSpinePreview) { SessionSpinePreviewView(model: model, preview: $0) }
-        .sheet(isPresented: $model.showContextDesk) { ContextDeskView(model: model) }
-        .sheet(isPresented: $model.showPersonaInspector) { PersonaInspectorView(model: model) }
-        .sheet(isPresented: $model.showMemoryWorkshop) { MemoryWorkshopView(model: model) }
-        .sheet(item: $model.skillAuthoring) { SkillAuthoringView(model: $0) }
-        .sheet(item: $model.skillInspection) { SkillInspectionView(model: $0) }
-        .sheet(item: $model.skillOutcome) { SkillOutcomeView(model: $0) }
-        .sheet(item: $model.skillDecision) { SkillDecisionView(model: $0) }
-        .sheet(item: $model.skillLifecycleApply) { SkillLifecycleApplyView(model: $0) }
-        .sheet(item: $model.skillRestore) { SkillRestoreView(model: $0) }
-        .sheet(item: $model.skillHistory) { SkillHistoryView(model: $0) }
-        .sheet(item: $model.projectMemory) { ProjectMemoryView(model: $0) }
-        .sheet(item: $model.memorySuggestion) { MemorySuggestionView(model: $0) }
-        .sheet(item: $model.skillTask) { SkillTaskView(model: $0) }
-        .sheet(isPresented: $model.showTaskCriteria) { TaskCriteriaView(model: model) }
-        .sheet(item: $model.imagePreview) { ImageAttachmentPreviewView(model: model, preview: $0) }
-        .sheet(item: $model.pdfPreview) { PDFAttachmentPreviewView(model: model, preview: $0) }
-        .sheet(item: $model.attachmentDropPreview) { AttachmentDropPreviewView(model: model, preview: $0) }
+        .workspaceSheet(isPresented: $model.showCodexUsage) { CodexUsageView(app: model, usage: model.codexUsage) }
+        .workspaceSheet(item: $model.sessionSpinePreview) { SessionSpinePreviewView(model: model, preview: $0) }
+        .workspaceSheet(isPresented: $model.showContextDesk) { ContextDeskView(model: model) }
+        .workspaceSheet(isPresented: $model.showPersonaInspector) { PersonaInspectorView(model: model) }
+        .workspaceSheet(isPresented: $model.showMemoryWorkshop) { MemoryWorkshopView(model: model) }
+        .workspaceSheet(item: $model.skillAuthoring) { SkillAuthoringView(model: $0) }
+        .workspaceSheet(item: $model.skillInspection) { SkillInspectionView(model: $0) }
+        .workspaceSheet(item: $model.skillOutcome) { SkillOutcomeView(model: $0) }
+        .workspaceSheet(item: $model.skillDecision) { SkillDecisionView(model: $0) }
+        .workspaceSheet(item: $model.skillLifecycleApply) { SkillLifecycleApplyView(model: $0) }
+        .workspaceSheet(item: $model.skillRestore) { SkillRestoreView(model: $0) }
+        .workspaceSheet(item: $model.skillHistory) { SkillHistoryView(model: $0) }
+        .workspaceSheet(item: $model.projectMemory) { ProjectMemoryView(model: $0) }
+        .workspaceSheet(item: $model.memorySuggestion) { MemorySuggestionView(model: $0) }
+        .workspaceSheet(item: $model.skillTask) { SkillTaskView(model: $0) }
+        .workspaceSheet(isPresented: $model.showTaskCriteria) { TaskCriteriaView(model: model) }
+        .workspaceSheet(item: $model.imagePreview) { ImageAttachmentPreviewView(model: model, preview: $0) }
+        .workspaceSheet(item: $model.pdfPreview) { PDFAttachmentPreviewView(model: model, preview: $0) }
+        .workspaceSheet(item: $model.attachmentDropPreview) { AttachmentDropPreviewView(model: model, preview: $0) }
+        .environment(\.workspacePresentations, model.presentations)
     }
 
     private var regularWorkspace: some View {
@@ -100,7 +103,7 @@ struct WorkspaceView: View {
                         Button { model.clearError() } label: { Image(systemName: "xmark") }.buttonStyle(.nativeHover)
                     }.padding(14).background(Color.orange.opacity(0.09))
                 }
-                WorkspaceSplitView(model: model, panel: panel)
+                WorkspaceContentHost(app: model, presentations: model.presentations)
             }
             .background(canvas)
             .toolbar {

@@ -61,7 +61,10 @@ final class PrivateBackupModel: ObservableObject {
         panel.title = "Сохранить полную копию данных Proto-Mind"
         panel.nameFieldStringValue = "Proto-Mind \(Date().formatted(.iso8601.year().month().day())).protomind-backup"
         panel.canCreateDirectories = true
-        if panel.runModal() == .OK, let url = panel.url { Task { await create(at: url, app: app) } }
+        app.presentFilePicker(panel) { [weak self, weak app] response in
+            guard response == .OK, let url = panel.url, let self, let app else { return }
+            Task { await self.create(at: url, app: app) }
+        }
     }
 
     func chooseSource(app: AppModel) {
@@ -70,7 +73,10 @@ final class PrivateBackupModel: ObservableObject {
         panel.title = "Выберите полную копию Proto-Mind"
         panel.message = "Выберите папку с расширением .protomind-backup."
         panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.allowsMultipleSelection = false
-        if panel.runModal() == .OK, let url = panel.url { Task { await inspect(url, app: app) } }
+        app.presentFilePicker(panel) { [weak self, weak app] response in
+            guard response == .OK, let url = panel.url, let self, let app else { return }
+            Task { await self.inspect(url, app: app) }
+        }
     }
 
     func create(at url: URL, app: AppModel) async {

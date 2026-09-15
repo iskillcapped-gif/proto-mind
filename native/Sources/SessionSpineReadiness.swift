@@ -172,7 +172,7 @@ struct NativeSessionSpineActivationReadiness: Identifiable, Equatable {
 struct SessionSpineReadinessView: View {
     @ObservedObject var model: AppModel
     let readiness: NativeSessionSpineActivationReadiness
-    @Environment(\.dismiss) private var dismiss
+    @WorkspaceDismiss private var dismiss
     @State private var acknowledged = false
 
     private var current: NativeSessionSpineActivationReadiness {
@@ -255,9 +255,9 @@ struct SessionSpineReadinessView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }.padding(22).frame(maxWidth: .infinity, alignment: .leading)
             }
-        }.frame(width: 760, height: 690).background(NativeTheme.canvas)
+        }.workspacePageSize(width: 760, height: 690).workspaceBackground(NativeTheme.canvas)
             .font(NativeTheme.interfaceFont).buttonStyle(.nativeHover)
-            .sheet(item: $model.sessionSpineAcceptance) {
+            .workspaceSheet(item: $model.sessionSpineAcceptance) {
                 SessionSpineAcceptanceView(model: model, rehearsal: $0)
             }
     }

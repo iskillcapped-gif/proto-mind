@@ -87,7 +87,7 @@ struct ProjectMemoryView: View {
                     Text("Эти действия меняют только память выбранного проекта. Они не вызывают модель, не запускают задачу и не прикрепляют заметку автоматически. Общая старая память хранится отдельно.").font(.caption).foregroundStyle(.secondary)
                 }.padding(22)
             }
-        }.frame(width: 850, height: 740).buttonStyle(.nativeHover).interactiveDismissDisabled(model.saving)
+        }.workspacePageSize(width: 850, height: 740).buttonStyle(.nativeHover).workspaceDismissDisabled(model.saving)
             .onChange(of: model.note) { model.invalidate() }
     }
 }

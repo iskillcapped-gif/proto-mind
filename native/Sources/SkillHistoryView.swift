@@ -52,7 +52,7 @@ struct SkillHistoryView: View {
                     Text("Только отдельный личный архив learning_history. Без записи в общую память/навыки, модели, запуска задач, миграции или автоматического восстановления.").font(.caption).foregroundStyle(.secondary)
                 }.padding(22).textSelection(.enabled)
             }
-        }.frame(width: 850, height: 720).buttonStyle(.nativeHover).interactiveDismissDisabled(model.saving)
+        }.workspacePageSize(width: 850, height: 720).buttonStyle(.nativeHover).workspaceDismissDisabled(model.saving)
             .onChange(of: model.preview?["preview_fingerprint"].text) { token = ""; acknowledgement = false }
     }
 }

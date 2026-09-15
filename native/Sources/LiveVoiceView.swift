@@ -9,8 +9,6 @@ extension AppModel {
             openSettings()
             return
         }
-        section = .chat
-        if desktop.enabled { desktop.expand(animated: false) }
         showLiveVoice = true
         Task { await liveVoice.start(app: self) }
     }
@@ -19,7 +17,7 @@ extension AppModel {
 struct LiveVoiceButton: View {
     @ObservedObject var app: AppModel
     @ObservedObject var voice: LiveVoiceModel
-    @Environment(\.openSettings) private var openSettings
+    private func openSettings() { app.openSettings() }
 
     var body: some View {
         Button { app.presentLiveVoice(openSettings: { openSettings() }) } label: {
@@ -36,7 +34,7 @@ struct LiveVoiceButton: View {
 struct LiveVoiceView: View {
     @ObservedObject var app: AppModel
     @ObservedObject var voice: LiveVoiceModel
-    @Environment(\.openSettings) private var openSettings
+    private func openSettings() { app.openSettings() }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -46,7 +44,7 @@ struct LiveVoiceView: View {
                     Text("Голос Proto-Mind").font(.system(size: 18, weight: .semibold))
                     Text("GPT Live 1").font(.caption).foregroundStyle(.secondary)
                 }
-                Spacer()
+                DesktopWindowDragArea().frame(maxWidth: .infinity).frame(height: 34)
                 Button {
                     app.showLiveVoice = false; app.settingsSection = .voice; openSettings()
                 } label: { Image(systemName: "gearshape") }
@@ -123,9 +121,8 @@ struct LiveVoiceView: View {
                  ? "Можно свернуть и продолжать говорить. «Завершить» отключает голос; рабочие задачи продолжаются."
                  : "Микрофон и речь передаются OpenAI. $0,05/мин разговора + обработка команд API; отдельно от подписки ChatGPT.")
                 .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-        }.padding(22).frame(width: 410, height: 545)
-            .background(NativeTheme.composer, in: RoundedRectangle(cornerRadius: 16))
-            .overlay(RoundedRectangle(cornerRadius: 16).stroke(NativeTheme.hairline))
+        }.padding(22).padding(.top, 14)
+            .frame(minWidth: 350, idealWidth: 410, maxWidth: .infinity, minHeight: 440, idealHeight: 545, maxHeight: .infinity)
     }
 
     private func duration(_ seconds: TimeInterval) -> String {

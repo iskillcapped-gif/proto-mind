@@ -517,7 +517,7 @@ struct PersonaInspectorView: View {
                   systemImage: model.personaEnabled ? "person.crop.circle.badge.checkmark" : "eye")
                 .font(.caption).foregroundStyle(.secondary).padding(14)
         }
-        .frame(minWidth: 680, idealWidth: 760, minHeight: 620, idealHeight: 740)
+        .workspacePageSize(width: 760, height: 740)
         .task { await model.refreshPersonaInspector() }
     }
 

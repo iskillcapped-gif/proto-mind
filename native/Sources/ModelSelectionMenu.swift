@@ -2,6 +2,12 @@ import AppKit
 import SwiftUI
 
 enum ModelSelectionPresentation {
+    @MainActor static func localLabel(_ model: AppModel) -> String {
+        if model.selected?.provider == "mock" { return "Тестовый режим" }
+        let selected = model.selected?.model ?? ""
+        return selected.isEmpty ? model.providerLabel : selected
+    }
+
     static func width(for label: String) -> CGFloat {
         min(220, ceil((label as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 12, weight: .medium)]).width) + 28)
     }
@@ -11,7 +17,6 @@ struct ModelSelectionMenu: View {
     @ObservedObject var model: AppModel
     let openSettings: () -> Void
     @State private var open = false
-    @State private var section = "model"
 
     private var isCodex: Bool { model.selected?.provider == "codex" }
     private var title: String {
@@ -35,60 +40,116 @@ struct ModelSelectionMenu: View {
                 .contentShape(Rectangle())
         }.buttonStyle(.nativeHover).fixedSize(horizontal: false, vertical: true).help(title).disabled(model.busy)
             .accessibilityLabel(isCodex ? "Модель \(model.codexModelLabel), усилие \(model.reasoningEffortLabel)" : "Модель \(localModelLabel)")
-            .composerPopover(isPresented: $open, width: 310, trailing: true) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Picker("Выбор модели", selection: $section) {
-                        Text("Модель").tag("model")
-                        if isCodex { Text("Глубина").tag("effort") }
-                        Text("Источник").tag("provider")
-                    }.pickerStyle(.segmented).padding(8)
-                    if section == "provider" {
-                        provider("Ollama · на этом Mac", id: "ollama")
-                        provider("Codex · подписка ChatGPT", id: "codex")
-                        provider("Mock · диагностика", id: "mock")
-                    } else if isCodex && section == "effort" {
-                        ComposerMenuRow(title: model.selectedCodexModel?.defaultEffort.map { "По умолчанию · \($0.title)" } ?? "По умолчанию",
-                                        selected: (model.selected?.reasoningEffort ?? "").isEmpty) { model.setReasoningEffort(""); open = false }
-                        ForEach(model.availableReasoningEfforts) { effort in
-                            ComposerMenuRow(title: effort.title, selected: model.selected?.reasoningEffort == effort.rawValue) {
-                                model.setReasoningEffort(effort.rawValue); open = false
-                            }
-                        }
-                    } else if isCodex {
-                        ComposerMenuRow(title: "По умолчанию для аккаунта", selected: (model.selected?.model ?? "").isEmpty) { model.setModel(""); open = false }
-                        ForEach(model.codexModels) { item in
-                            ComposerMenuRow(title: item.displayName, selected: model.selected?.model == item.id) { model.setModel(item.id); open = false }
-                        }
-                        if let selected = model.selected?.model, !selected.isEmpty, model.selectedCodexModel == nil {
-                            Text("\(selected) · недоступна").font(.caption).foregroundStyle(.secondary).padding(10)
-                        }
-                        Divider().padding(.vertical, 4)
-                        ComposerMenuRow(title: "Обновить список", icon: "arrow.clockwise") { Task { await model.refreshAccount() } }
-                            .disabled(model.connecting)
-                        ComposerMenuRow(title: "Сбросить выбор", icon: "arrow.counterclockwise") { model.resetCodexSelection(); open = false }
-                    } else {
-                        Text(localModelLabel).font(.system(size: 13)).padding(10)
-                    }
-                    Divider().padding(.vertical, 4)
-                    ComposerMenuRow(title: "Настройки модели…", icon: "slider.horizontal.3") {
-                        open = false
-                        Task { @MainActor in await Task.yield(); model.settingsSection = .models; openSettings() }
-                    }
-                }.padding(6)
+            .composerPopover(isPresented: $open, width: 326, trailing: true) {
+                ModelSelectionChoices(model: model, open: $open, openSettings: openSettings)
             }
     }
 
-    private func provider(_ title: String, id: String) -> some View {
-        ComposerMenuRow(title: title, selected: model.selected?.provider == id) {
-            model.setProvider(id); section = "model"; open = false
-        }
+    private var localModelLabel: String { ModelSelectionPresentation.localLabel(model) }
+}
+
+struct ModelSelectionChoices: View {
+    @ObservedObject var model: AppModel
+    @Binding var open: Bool
+    let openSettings: () -> Void
+    @State private var section = "model"
+    private var isCodex: Bool { model.selected?.provider == "codex" }
+    private var localModelLabel: String { ModelSelectionPresentation.localLabel(model) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(isCodex ? "ChatGPT" : model.providerLabel).font(.system(size: 14, weight: .semibold))
+                    Text("Для этого диалога").font(.system(size: 11)).foregroundStyle(.secondary)
+                }
+                Spacer()
+                if isCodex {
+                    Button { Task { await model.refreshAccount() } } label: {
+                        Image(systemName: "arrow.clockwise").frame(width: 28, height: 28)
+                    }.buttonStyle(.nativeHover).foregroundStyle(.secondary)
+                        .disabled(model.connecting).help("Обновить доступные модели")
+                }
+            }.padding(.horizontal, 8).padding(.top, 6)
+            if isCodex {
+                HStack(spacing: 4) {
+                    tab("Модель", icon: "sparkle", id: "model")
+                    tab("Усилие", icon: "slider.horizontal.3", id: "effort")
+                }.padding(4).background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 11))
+            }
+            VStack(spacing: 3) {
+                if isCodex && section == "effort" {
+                    choice("По умолчанию", subtitle: model.selectedCodexModel?.defaultEffort?.title,
+                           selected: (model.selected?.reasoningEffort ?? "").isEmpty) {
+                        model.setReasoningEffort(""); open = false
+                    }
+                    ForEach(model.availableReasoningEfforts) { effort in
+                        choice(effort.title, selected: model.selected?.reasoningEffort == effort.rawValue, effort: effort) {
+                            model.setReasoningEffort(effort.rawValue); open = false
+                        }
+                    }
+                    if let selected = model.selected?.reasoningEffort, !selected.isEmpty,
+                       !model.availableReasoningEfforts.contains(where: { $0.rawValue == selected }) {
+                        Text("Выбранное усилие сейчас недоступно").font(.caption).foregroundStyle(.secondary).padding(10)
+                    }
+                } else if isCodex {
+                    choice("Автоматически", subtitle: "По умолчанию для аккаунта", selected: (model.selected?.model ?? "").isEmpty) {
+                        model.setModel(""); open = false
+                    }
+                    ForEach(model.codexModels) { item in
+                        choice(item.displayName, selected: model.selected?.model == item.id) {
+                            model.setModel(item.id); open = false
+                        }
+                    }
+                    if let selected = model.selected?.model, !selected.isEmpty, model.selectedCodexModel == nil {
+                        Text("\(selected) · недоступна").font(.caption).foregroundStyle(.secondary).padding(10)
+                    }
+                } else {
+                    choice(localModelLabel, selected: true) { open = false }
+                }
+            }.disabled(model.busy)
+            Divider().opacity(0.5)
+            ComposerMenuRow(title: "Настройки модели", icon: "slider.horizontal.3") {
+                open = false
+                Task { @MainActor in await Task.yield(); model.settingsSection = .models; openSettings() }
+            }.foregroundStyle(.secondary)
+        }.padding(10)
     }
 
-    private var localModelLabel: String {
-        if model.selected?.provider == "mock" { return "Тестовый режим" }
-        let selected = model.selected?.model ?? ""
-        return selected.isEmpty ? model.providerLabel : selected
+    private func tab(_ title: String, icon: String, id: String) -> some View {
+        Button { section = id } label: {
+            Label(title, systemImage: icon).font(.system(size: 12, weight: .medium))
+                .frame(maxWidth: .infinity).padding(.vertical, 9)
+                .background(section == id ? NativeTheme.selection : .clear, in: RoundedRectangle(cornerRadius: 8))
+        }.buttonStyle(.plain).foregroundStyle(section == id ? .primary : .secondary)
+            .accessibilityAddTraits(section == id ? .isSelected : [])
     }
+
+    private func choice(_ title: String, subtitle: String? = nil, selected: Bool,
+                        effort: CodexReasoningEffort? = nil, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title).font(.system(size: 13, weight: selected ? .medium : .regular))
+                    if let subtitle { Text(subtitle).font(.system(size: 11)).foregroundStyle(.secondary) }
+                }
+                Spacer(minLength: 8)
+                if let effort, let rank = CodexReasoningEffort.allCases.firstIndex(of: effort) {
+                    HStack(spacing: 3) {
+                        ForEach(0..<CodexReasoningEffort.allCases.count, id: \.self) { step in
+                            Capsule().fill(.primary.opacity(step <= rank ? 0.5 : 0.1)).frame(width: 3, height: 10)
+                        }
+                    }.accessibilityHidden(true)
+                }
+                Image(systemName: "checkmark").font(.system(size: 11, weight: .semibold))
+                    .opacity(selected ? 1 : 0).frame(width: 14)
+            }.padding(.horizontal, 11).padding(.vertical, 10).frame(maxWidth: .infinity, alignment: .leading)
+                .background(selected ? NativeTheme.selection : .clear, in: RoundedRectangle(cornerRadius: 9))
+                .contentShape(RoundedRectangle(cornerRadius: 9))
+        }.buttonStyle(.nativeHover).accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+
 }
 
 struct CodexModelPicker: View {

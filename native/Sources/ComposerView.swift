@@ -4,7 +4,7 @@ import SwiftUI
 struct ComposerView: View {
     @ObservedObject var model: AppModel
     @Environment(\.desktopGlass) private var desktopGlass
-    @Environment(\.openSettings) private var openSettings
+    private func openSettings() { model.openSettings() }
     @State private var optionsOpen = false
     @State private var attachmentsOpen = false
     @State private var starterSkillsOpen = false
@@ -84,10 +84,7 @@ struct ComposerView: View {
             .background(NativeTheme.composer, in: RoundedRectangle(cornerRadius: 20))
             .overlay(RoundedRectangle(cornerRadius: 20).stroke(NativeTheme.hairline))
         }.frame(maxWidth: NativeTheme.columnWidth).frame(maxWidth: .infinity)
-            .popover(isPresented: $model.showLiveVoice, arrowEdge: .top) {
-                LiveVoiceView(app: model, voice: model.liveVoice)
-            }
-            .sheet(isPresented: $starterSkillsOpen) { StarterSkillsView(client: model.client) }
+            .workspaceSheet(isPresented: $starterSkillsOpen) { StarterSkillsView(client: model.client) }
     }
 
     private var attachmentMenu: some View {

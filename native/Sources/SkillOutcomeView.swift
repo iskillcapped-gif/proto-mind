@@ -61,7 +61,7 @@ struct SkillOutcomeView: View {
                     if value != nil { scroll.scrollTo("outcome-confirmation", anchor: .top) }
                 }
             }
-        }.frame(width: 850, height: 720).buttonStyle(.nativeHover).interactiveDismissDisabled(model.committing)
+        }.workspacePageSize(width: 850, height: 720).buttonStyle(.nativeHover).workspaceDismissDisabled(model.committing)
     }
 
     private func conditions(_ report: NativeSkillOutcomeReview) -> some View {

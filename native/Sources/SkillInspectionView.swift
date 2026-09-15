@@ -51,7 +51,7 @@ struct SkillInspectionView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }.padding(22).textSelection(.enabled)
             }
-        }.frame(width: 850, height: 720).buttonStyle(.nativeHover)
+        }.workspacePageSize(width: 850, height: 720).buttonStyle(.nativeHover)
     }
 
     private func overview(_ report: NativeSkillInspection) -> some View {

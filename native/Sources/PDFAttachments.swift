@@ -119,7 +119,7 @@ struct NativePDFPreview: Identifiable {
 
 struct PDFAttachmentPreviewView: View {
     @ObservedObject var model: AppModel
-    @Environment(\.dismiss) private var dismiss
+    @WorkspaceDismiss private var dismiss
     @State private var preview: NativePDFPreview
     @State private var selection: String
     @State private var error: String?
@@ -192,7 +192,7 @@ struct PDFAttachmentPreviewView: View {
                     }.disabled(!preview.hasText || !selectionMatches || model.loadingPDFPreview || !model.canEditMessageAttachments)
                 }
             }
-        }.padding(22).frame(width: 760, height: 650).buttonStyle(.nativeHover)
+        }.padding(22).workspacePageSize(width: 760, height: 650).buttonStyle(.nativeHover)
     }
 }
 

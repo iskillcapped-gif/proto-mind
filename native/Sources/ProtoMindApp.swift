@@ -6,23 +6,7 @@ final class NativeAppDelegate: NSObject, NSApplicationDelegate {
     weak var model: AppModel?
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        if model?.globalBusy == true {
-            let alert = NSAlert()
-            alert.messageText = "Запрос ещё выполняется"
-            alert.informativeText = "Дождитесь завершения или нажмите «Стоп» для Codex. Приложение не будет прерывать запись локального ядра."
-            alert.addButton(withTitle: "Вернуться в Proto-Mind")
-            alert.runModal()
-            return .terminateCancel
-        }
-        if model?.saveBeforeExit() == false {
-            let alert = NSAlert()
-            alert.alertStyle = .warning
-            alert.messageText = "Есть несохранённые сообщения или черновики"
-            alert.informativeText = "Сохранение истории не удалось. Вернитесь в приложение, чтобы сохранить или скопировать нужный текст. При выходе несохранённые изменения будут потеряны."
-            alert.addButton(withTitle: "Вернуться в Proto-Mind")
-            alert.addButton(withTitle: "Выйти без сохранения")
-            guard alert.runModal() == .alertSecondButtonReturn else { return .terminateCancel }
-        }
+        guard model?.canTerminateWorkspace() != false else { return .terminateCancel }
         model?.shutdown()
         return .terminateNow
     }
@@ -54,6 +38,9 @@ struct ProtoMindApp: App {
         .windowStyle(.hiddenTitleBar)
         .windowToolbarStyle(.unifiedCompact)
         .commands {
+            CommandGroup(replacing: .appSettings) {
+                Button("Настройки…") { model.openSettings() }.keyboardShortcut(",")
+            }
             CommandGroup(replacing: .newItem) {
                 Button("Новый диалог") { model.newConversation() }
                     .keyboardShortcut("n").disabled(!model.canNavigateConversations)
@@ -78,9 +65,6 @@ struct ProtoMindApp: App {
                 Button("Обновить обзор") { Task { await model.refresh() } }
                     .disabled(model.busy)
             }
-        }
-        Settings {
-            NativeSettingsView(model: model).frame(width: 800, height: 680)
         }
     }
 }

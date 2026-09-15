@@ -138,7 +138,7 @@ struct NativeAttachmentDropPreview: Identifiable {
 struct AttachmentDropPreviewView: View {
     @ObservedObject var model: AppModel
     let preview: NativeAttachmentDropPreview
-    @Environment(\.dismiss) private var dismiss
+    @WorkspaceDismiss private var dismiss
     @State private var error: String?
 
     var body: some View {
@@ -179,7 +179,7 @@ struct AttachmentDropPreviewView: View {
                     catch { self.error = error.localizedDescription }
                 }.keyboardShortcut(.defaultAction).disabled(!model.canEditMessageAttachments)
             }
-        }.padding(22).frame(width: 720, height: 570).buttonStyle(.nativeHover)
+        }.padding(22).workspacePageSize(width: 720, height: 570).buttonStyle(.nativeHover)
     }
 }
 

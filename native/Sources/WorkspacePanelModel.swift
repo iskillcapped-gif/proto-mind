@@ -149,8 +149,7 @@ extension AppModel {
                 }
             }
         }
-        if let window = NSApp.keyWindow { picker.beginSheetModal(for: window, completionHandler: completion) }
-        else { picker.begin(completionHandler: completion) }
+        presentFilePicker(picker, completion: completion)
     }
 
     func attachWorkspaceText(_ file: WorkspaceTextPreview) {

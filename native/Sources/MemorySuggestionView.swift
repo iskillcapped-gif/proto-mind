@@ -68,7 +68,7 @@ struct MemorySuggestionView: View {
             }
             Text("Открытие и закрытие окна ничего не сохраняет. Подтверждение нужно только для записи заметки.")
                 .font(.caption).foregroundStyle(.secondary)
-        }.padding(24).frame(width: 660, height: 650)
-            .interactiveDismissDisabled(model.saving)
+        }.padding(24).workspacePageSize(width: 660, height: 650)
+            .workspaceDismissDisabled(model.saving)
     }
 }

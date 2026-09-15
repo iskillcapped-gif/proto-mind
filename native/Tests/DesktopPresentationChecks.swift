@@ -104,6 +104,16 @@ extension NativeChecks {
         try check(!desktop.enabled && window.styleMask == originalStyle && window.level == .normal
                   && execution.running && app.selectedExecution === execution,
                   "Returning to the regular window restores its level and preserves execution")
+        desktop.setVoiceVisible(true, app: app)
+        let voicePanel = desktop.voicePanel!
+        let workspaceFrame = window.frame
+        voicePanel.setFrameOrigin(NSPoint(x: 320, y: 240))
+        try check(voicePanel !== window && voicePanel !== desktop.corePanel && window.frame == workspaceFrame
+                  && voicePanel.canBecomeKey && !voicePanel.canBecomeMain,
+                  "Voice has a separate movable panel and does not move or replace the workspace")
+        voicePanel.performClose(nil)
+        try check(!voicePanel.isVisible && !app.showLiveVoice && !app.liveVoice.inCall && execution.running,
+                  "Closing voice UI preserves an accepted task and does not start microphone capture")
         execution.running = false
 
         let host = NSHostingController(rootView: FloatingWorkspaceView(app: app, desktop: desktop))

@@ -30,7 +30,10 @@ extension AppModel {
         panel.title = "Выберите копию диалогов"
         panel.message = "Выберите папку копии Proto-Mind или прежний файл conversations.json."
         panel.canChooseFiles = true; panel.canChooseDirectories = true; panel.allowsMultipleSelection = false
-        if panel.runModal() == .OK, let url = panel.url { inspectHistoryBackup(url) }
+        presentFilePicker(panel) { [weak self] response in
+            guard response == .OK, let url = panel.url else { return }
+            self?.inspectHistoryBackup(url)
+        }
     }
 
     func exportHistoryBackup(to url: URL) throws {
@@ -46,9 +49,10 @@ extension AppModel {
         panel.title = "Сохранить копию диалогов"
         panel.nameFieldStringValue = "Proto-Mind Dialogs \(Date().formatted(.iso8601.year().month().day())).protomind-history"
         panel.canCreateDirectories = true
-        if panel.runModal() == .OK, let url = panel.url {
-            do { try exportHistoryBackup(to: url) }
-            catch { historyBackupError = error.localizedDescription }
+        presentFilePicker(panel) { [weak self] response in
+            guard response == .OK, let url = panel.url, let self else { return }
+            do { try self.exportHistoryBackup(to: url) }
+            catch { self.historyBackupError = error.localizedDescription }
         }
     }
 

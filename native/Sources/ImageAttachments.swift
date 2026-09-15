@@ -85,7 +85,7 @@ struct NativeImagePreview: Identifiable {
 struct ImageAttachmentPreviewView: View {
     @ObservedObject var model: AppModel
     let preview: NativeImagePreview
-    @Environment(\.dismiss) private var dismiss
+    @WorkspaceDismiss private var dismiss
     @State private var error: String?
 
     var body: some View {
@@ -118,7 +118,7 @@ struct ImageAttachmentPreviewView: View {
                     }.keyboardShortcut(.defaultAction).disabled(!model.canEditMessageAttachments)
                 }
             }
-        }.padding(22).frame(width: 740, height: 620).buttonStyle(.nativeHover)
+        }.padding(22).workspacePageSize(width: 740, height: 620).buttonStyle(.nativeHover)
     }
 }
 

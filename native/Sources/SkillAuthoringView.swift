@@ -56,9 +56,9 @@ struct SkillAuthoringView: View {
                 }
             }
         }
-        .frame(width: 850, height: 720)
+        .workspacePageSize(width: 850, height: 720)
         .buttonStyle(.nativeHover)
-        .interactiveDismissDisabled(model.committing)
+        .workspaceDismissDisabled(model.committing)
     }
 
     private var boundary: some View {

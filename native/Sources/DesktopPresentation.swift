@@ -53,11 +53,13 @@ final class DesktopPresentation: ObservableObject {
     @Published private(set) var coreHovered = false
     private(set) weak var window: NSWindow?
     private(set) var corePanel: NSPanel?
+    private(set) var voicePanel: DesktopVoicePanel?
     private weak var app: AppModel?
     private let defaults: UserDefaults
     private let presentsWindows: Bool
     private let preferenceKey: String
     private var observers: [NSObjectProtocol] = []
+    private var voiceObservers: [NSObjectProtocol] = []
     private var original: WindowAppearance?
     private var changingWindow = false
     private var transition = UUID()
@@ -99,13 +101,45 @@ final class DesktopPresentation: ObservableObject {
     }
 
     func openVoice() { app?.presentLiveVoice(openSettings: openSettings) }
-    func updateCoreHover(_ inside: Bool) { coreHovered = inside }
+    func updateCoreHover(_ inside: Bool) { if coreHovered != inside { coreHovered = inside } }
+
+    func setVoiceVisible(_ visible: Bool, app: AppModel) {
+        guard visible else { voicePanel?.orderOut(nil); return }
+        let panel: DesktopVoicePanel
+        if let existing = voicePanel { panel = existing }
+        else {
+            panel = DesktopVoicePanel(contentRect: NSRect(x: 0, y: 0, width: 410, height: 545),
+                                      styleMask: [.titled, .closable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
+            panel.title = "Голос Proto-Mind"; panel.titleVisibility = .hidden; panel.titlebarAppearsTransparent = true
+            panel.isReleasedWhenClosed = false; panel.isFloatingPanel = true; panel.hidesOnDeactivate = false
+            panel.isOpaque = false; panel.backgroundColor = .clear; panel.hasShadow = true
+            panel.level = .floating; panel.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
+            panel.minSize = NSSize(width: 350, height: 480)
+            panel.onClose = { [weak app] in app?.showLiveVoice = false }
+            panel.contentView = NSHostingView(rootView: FloatingVoiceView(app: app, voice: app.liveVoice, desktop: self))
+            let screens = NSScreen.screens.map(\.visibleFrame)
+            let screen = DesktopGeometry.screen(for: window?.frame ?? .zero, screens: screens)
+            let initial = NSRect(x: screen.maxX - 446, y: screen.midY - 272, width: 410, height: 545)
+            panel.setFrame(DesktopGeometry.fit(savedFrame("voice") ?? initial, within: screen), display: false)
+            for name in [NSWindow.didMoveNotification, NSWindow.didEndLiveResizeNotification] {
+                voiceObservers.append(NotificationCenter.default.addObserver(forName: name, object: panel, queue: .main) { [weak self, weak panel] _ in
+                    MainActor.assumeIsolated {
+                        guard let self, let panel else { return }
+                        self.defaults.set(NSStringFromRect(panel.frame), forKey: self.preferenceKey + ".voice")
+                    }
+                })
+            }
+            voicePanel = panel
+        }
+        if presentsWindows { NSApp.activate(ignoringOtherApps: true); panel.makeKeyAndOrderFront(nil) }
+    }
 
     func attach(window: NSWindow, app: AppModel, openSettings: @escaping () -> Void = {}) {
         self.openSettings = openSettings
         guard self.window !== window else { return }
         removeObservers()
         self.window = window; self.app = app
+        app.presentations.window = window
         let delegate = DesktopWindowDelegate(desktop: self, previous: window.delegate)
         windowDelegate = delegate; window.delegate = delegate
         for name in [NSWindow.didMoveNotification, NSWindow.didEndLiveResizeNotification] {
@@ -242,6 +276,8 @@ final class DesktopPresentation: ObservableObject {
     func shutdown() {
         transition = UUID()
         removeObservers(); corePanel?.orderOut(nil); corePanel?.contentView = nil; corePanel = nil
+        voiceObservers.forEach(NotificationCenter.default.removeObserver); voiceObservers.removeAll()
+        voicePanel?.orderOut(nil); voicePanel?.contentView = nil; voicePanel = nil
         if window?.delegate === windowDelegate { window?.delegate = windowDelegate?.previous }
         windowDelegate = nil
         window = nil; app = nil; openSettings = {}; coreHovered = false

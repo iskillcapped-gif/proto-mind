@@ -98,6 +98,7 @@ extension AppModel {
     func returnToConversation(_ id: UUID, messageID: UUID? = nil) {
         guard canNavigateConversations, let chat = conversations.first(where: { $0.id == id }),
               messageID == nil || chat.messages.contains(where: { $0.id == messageID }) else { return }
+        presentations.dismissAll()
         if selectedID != id { select(id) }
         else { flushDraft(); section = .chat }
         showArchived = chat.archived

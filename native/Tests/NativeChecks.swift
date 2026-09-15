@@ -87,6 +87,7 @@ struct NativeChecks {
             try githubContracts(root: root)
             try interfaceLayout(root: root)
             try desktopPresentation(root: root)
+            try await workspacePresentations(root: root)
             try chatPresentation(root: root)
             try workspacePanelContracts(root: root)
             if let fixture = LaunchConfiguration.argument("--fixture"), let python = LaunchConfiguration.argument("--python") {
@@ -204,6 +205,7 @@ struct NativeChecks {
         try githubContracts(root: root)
         try interfaceLayout(root: root)
         try desktopPresentation(root: root)
+        try await workspacePresentations(root: root)
         try chatPresentation(root: root)
         try workspacePanelContracts(root: root)
         try hoverFeedback()
@@ -234,6 +236,14 @@ struct NativeChecks {
         let narrow = menu.sizeThatFits(in: CGSize(width: 300, height: 100))
         try check(abs(narrow.width - size.width) < 1 && abs(narrow.height - size.height) < 1,
                   "Model menu highlight keeps intrinsic geometry when composer width changes")
+        app.conversations[0].provider = "codex"
+        app.models = [.object(["id": .string("fixture-model"), "name": .string("A long but readable model title for layout"),
+                              "reasoning_efforts": .array([.object(["id": .string("low")]), .object(["id": .string("max")])]),
+                              "default_reasoning_effort": .string("low"), "default": .bool(true)])]
+        let choices = NSHostingController(rootView: ModelSelectionChoices(model: app, open: .constant(true), openSettings: {}))
+        let menuSize = choices.sizeThatFits(in: CGSize(width: 310, height: 1000))
+        try check(menuSize.width <= 311 && menuSize.height < 600,
+                  "Model choices keep long catalog names, tabs and settings inside the upward menu")
         try check(!FileManager.default.fileExists(atPath: state.path), "Measuring model menu never writes state or connects a provider")
     }
 

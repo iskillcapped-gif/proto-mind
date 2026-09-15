@@ -56,10 +56,10 @@ struct HistoryBackupsView: View {
                     }
                 }
             }
-        }.padding(24).frame(width: 690, height: 640)
-            .confirmationDialog("Восстановить выбранную историю?", isPresented: $confirmRestore, titleVisibility: .visible) {
-                Button("Восстановить диалоги") { if let preview = model.historyBackupPreview { model.restoreHistoryBackup(preview) } }
-                Button("Отмена", role: .cancel) {}
+        }.padding(24).workspacePageSize(width: 690, height: 640)
+            .workspaceConfirmationDialog("Восстановить выбранную историю?", isPresented: $confirmRestore, titleVisibility: .visible) {
+                Button("Восстановить диалоги") { confirmRestore = false; if let preview = model.historyBackupPreview { model.restoreHistoryBackup(preview) } }
+                Button("Отмена", role: .cancel) { confirmRestore = false }
             } message: {
                 Text("Текущая история будет заменена после сохранения её копии. Запросы к модели не выполняются.")
             }

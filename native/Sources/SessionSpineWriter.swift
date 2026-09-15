@@ -259,7 +259,7 @@ struct NativeSessionSpineWriterReceipt: Identifiable, Equatable {
 struct SessionSpineWriterView: View {
     @ObservedObject var model: AppModel
     let preview: NativeSessionSpineWriterPreview
-    @Environment(\.dismiss) private var dismiss
+    @WorkspaceDismiss private var dismiss
     @State private var acknowledged = false
     @State private var token = ""
 
@@ -330,7 +330,7 @@ struct SessionSpineWriterView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }.padding(22).frame(maxWidth: .infinity, alignment: .leading)
             }
-        }.frame(width: 790, height: 690).background(NativeTheme.canvas)
+        }.workspacePageSize(width: 790, height: 690).workspaceBackground(NativeTheme.canvas)
             .font(NativeTheme.interfaceFont).buttonStyle(.nativeHover)
     }
 
