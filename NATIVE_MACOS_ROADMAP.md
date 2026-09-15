@@ -4,6 +4,31 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Core Hover Preview — Native 0.62.1
+
+Hovering over the folded core for 180 ms reveals the existing chat and sidebar
+without activating Proto-Mind or taking keyboard focus. The workspace remains
+visible while the cursor crosses into it; leaving both surfaces for 320 ms folds
+the temporary preview. Clicking the core pins that preview, and another click
+folds it without reopening until a new pointer entry. An intentional workspace
+click or keyboard activation also pins it. Normal click-to-open remains available
+without hovering, including through accessibility.
+
+Core dragging cancels a pending reveal and dismisses only a temporary preview.
+Sheets and inline page requests use the existing explicit reveal path, cancelling
+pending hides. Mode changes and shutdown cancel delayed transitions. Hover uses
+always-active tracking areas and cancellable one-shot delays; it adds no pointer
+polling, model turn, microphone use, permission change or persistent state schema.
+The same chat, draft, task executions and independent voice window stay mounted.
+Reduced Motion continues to disable window fades.
+
+Verification: **196 focused Native interface checks and 1,445 full Native checks
+pass**, including delayed
+entry, quick pointer passes, crossing to the workspace, pin/fold/reentry, dragging,
+sheet requests, shutdown cancellation and preservation of running work and drafts.
+Hover inputs are direct local Native events against disposable state; they are
+not a claim of a physical mouse-hover test on the user's live session.
+
 ## Portable First Installation — Native 0.62.0
 
 The separate **Proto-Mind.app** beta targets Apple Silicon and macOS 14+.

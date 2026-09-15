@@ -48,6 +48,7 @@ enum DesktopGlassAppearance {
 final class DesktopPresentation: ObservableObject {
     @Published private(set) var enabled = false
     @Published private(set) var expanded = false
+    @Published private(set) var previewing = false
     @Published private(set) var chatTransparency: Double
     @Published private(set) var sidebarTransparency: Double
     @Published private(set) var coreHovered = false
@@ -65,6 +66,11 @@ final class DesktopPresentation: ObservableObject {
     private var transition = UUID()
     private var windowDelegate: DesktopWindowDelegate?
     private var openSettings: () -> Void = {}
+    private var workspaceHovered = false
+    private var coreInteracting = false
+    private var hoverSuppressed = false
+    private var hoverTask: Task<Void, Never>?
+    private var interactionMonitor: Any?
 
     private struct WindowAppearance {
         let frame: NSRect
@@ -101,7 +107,55 @@ final class DesktopPresentation: ObservableObject {
     }
 
     func openVoice() { app?.presentLiveVoice(openSettings: openSettings) }
-    func updateCoreHover(_ inside: Bool) { if coreHovered != inside { coreHovered = inside } }
+    func updateCoreHover(_ inside: Bool) {
+        guard enabled else { return }
+        guard coreHovered != inside else { return }
+        coreHovered = inside
+        if !inside { hoverSuppressed = false }
+        scheduleHoverTransition()
+    }
+
+    func updateWorkspaceHover(_ inside: Bool) {
+        guard enabled else { return }
+        guard workspaceHovered != inside else { return }
+        workspaceHovered = inside
+        scheduleHoverTransition()
+    }
+
+    private func scheduleHoverTransition() {
+        cancelHoverTransition()
+        guard enabled, !coreInteracting else { return }
+        if !expanded, coreHovered, !hoverSuppressed {
+            hoverTask = Task { @MainActor [weak self] in
+                do { try await Task.sleep(for: .milliseconds(180)) } catch { return }
+                guard let self, self.enabled, self.coreHovered, !self.hoverSuppressed,
+                      !self.coreInteracting, !self.expanded else { return }
+                self.showWorkspace(preview: true, animated: true)
+            }
+        } else if previewing, !coreHovered, !workspaceHovered {
+            hoverTask = Task { @MainActor [weak self] in
+                // Leave time to cross the gap between the core and its workspace.
+                do { try await Task.sleep(for: .milliseconds(320)) } catch { return }
+                guard let self, self.previewing, !self.coreHovered, !self.workspaceHovered,
+                      !self.coreInteracting else { return }
+                self.collapse()
+            }
+        }
+    }
+
+    private func cancelHoverTransition() { hoverTask?.cancel(); hoverTask = nil }
+
+    func beginCoreInteraction() { coreInteracting = true; cancelHoverTransition() }
+    func endCoreInteraction() { coreInteracting = false; scheduleHoverTransition() }
+    func beginCoreDrag() {
+        if previewing { collapse(animated: false) }
+        hoverSuppressed = true
+    }
+
+    func toggleWorkspace() {
+        if expanded && !previewing { collapse() }
+        else { expand() }
+    }
 
     func setVoiceVisible(_ visible: Bool, app: AppModel) {
         guard visible else { voicePanel?.orderOut(nil); return }
@@ -154,6 +208,16 @@ final class DesktopPresentation: ObservableObject {
         observers.append(NotificationCenter.default.addObserver(forName: NSWindow.willBeginSheetNotification, object: window, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.expand(animated: false) }
         })
+        observers.append(NotificationCenter.default.addObserver(forName: NSWindow.didBecomeKeyNotification, object: window, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                if self?.previewing == true { self?.expand(animated: false) }
+            }
+        })
+        interactionMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self] event in
+            // An intentional click turns a peek into a workspace before controls run.
+            if let self, self.previewing, event.window === self.window { self.expand(animated: false) }
+            return event
+        }
         if defaults.bool(forKey: preferenceKey + ".enabled") { enable(animated: false) }
     }
 
@@ -198,14 +262,27 @@ final class DesktopPresentation: ObservableObject {
     }
 
     func expand(animated: Bool = true) {
+        cancelHoverTransition()
+        showWorkspace(preview: false, animated: animated)
+    }
+
+    private func showWorkspace(preview: Bool, animated: Bool) {
         guard enabled, let window else { return }
-        transition = UUID(); expanded = true
+        guard !preview || !window.isMiniaturized else { return }
+        let alreadyExpanded = expanded
+        transition = UUID(); previewing = preview; expanded = true
         recoverVisibleFrames()
-        window.alphaValue = animated && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 0 : 1
+        window.alphaValue = animated && !alreadyExpanded && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 0 : 1
         if presentsWindows {
-            NSApp.activate(ignoringOtherApps: true)
-            if window.isMiniaturized { window.deminiaturize(nil) }
-            window.makeKeyAndOrderFront(nil)
+            if preview {
+                // Hover is visual only: leave the active app and keyboard responder alone.
+                window.orderFrontRegardless()
+                corePanel?.orderFrontRegardless()
+            } else {
+                NSApp.activate(ignoringOtherApps: true)
+                if window.isMiniaturized { window.deminiaturize(nil) }
+                window.makeKeyAndOrderFront(nil)
+            }
         }
         if window.alphaValue < 1 {
             NSAnimationContext.runAnimationGroup { context in
@@ -219,9 +296,11 @@ final class DesktopPresentation: ObservableObject {
         guard enabled, expanded, let window, window.attachedSheet == nil else { return }
         app?.flushDraft()
         guard app?.historyPersistence.failure == nil else { return }
+        cancelHoverTransition()
         saveWorkspaceFrame()
         let token = UUID(); transition = token
-        expanded = false
+        expanded = false; previewing = false; workspaceHovered = false
+        hoverSuppressed = coreHovered
         let finish: @MainActor @Sendable () -> Void = { [weak self, weak window] in
             guard let self, self.transition == token, !self.expanded else { return }
             window?.orderOut(nil); window?.alphaValue = 1
@@ -235,10 +314,11 @@ final class DesktopPresentation: ObservableObject {
 
     func restoreWindow() {
         guard enabled, let window, let original, window.attachedSheet == nil else { return }
+        cancelHoverTransition()
         transition = UUID(); changingWindow = true
         saveWorkspaceFrame(force: true)
-        enabled = false; expanded = false
-        coreHovered = false
+        enabled = false; expanded = false; previewing = false
+        coreHovered = false; workspaceHovered = false; coreInteracting = false; hoverSuppressed = false
         corePanel?.orderOut(nil)
         window.alphaValue = 1
         for kind in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
@@ -275,16 +355,20 @@ final class DesktopPresentation: ObservableObject {
 
     func shutdown() {
         transition = UUID()
+        cancelHoverTransition()
         removeObservers(); corePanel?.orderOut(nil); corePanel?.contentView = nil; corePanel = nil
         voiceObservers.forEach(NotificationCenter.default.removeObserver); voiceObservers.removeAll()
         voicePanel?.orderOut(nil); voicePanel?.contentView = nil; voicePanel = nil
         if window?.delegate === windowDelegate { window?.delegate = windowDelegate?.previous }
         windowDelegate = nil
         window = nil; app = nil; openSettings = {}; coreHovered = false
+        previewing = false; workspaceHovered = false; coreInteracting = false; hoverSuppressed = false
     }
 
     private func removeObservers() {
         observers.forEach(NotificationCenter.default.removeObserver); observers.removeAll()
+        if let interactionMonitor { NSEvent.removeMonitor(interactionMonitor) }; interactionMonitor = nil
+        cancelHoverTransition()
     }
 
     private func savedFrame(_ name: String) -> NSRect? {
@@ -381,6 +465,7 @@ final class DesktopCoreDragView: NSView {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override func resetCursorRects() { addCursorRect(bounds, cursor: .openHand) }
     override func mouseDown(with event: NSEvent) {
+        desktop?.beginCoreInteraction()
         startPoint = window?.convertPoint(toScreen: event.locationInWindow) ?? event.locationInWindow
         startFrame = window?.frame ?? .zero; dragged = false
     }
@@ -388,6 +473,7 @@ final class DesktopCoreDragView: NSView {
         let point = window?.convertPoint(toScreen: event.locationInWindow) ?? event.locationInWindow
         let dx = point.x - startPoint.x, dy = point.y - startPoint.y
         guard dragged || hypot(dx, dy) > 4 else { return }
+        if !dragged { desktop?.beginCoreDrag() }
         dragged = true
         let proposed = startFrame.offsetBy(dx: dx, dy: dy)
         let screen = NSScreen.screens.first { $0.frame.contains(point) }?.visibleFrame
@@ -395,13 +481,15 @@ final class DesktopCoreDragView: NSView {
         window?.setFrame(DesktopGeometry.fit(proposed, within: screen), display: true)
     }
     override func mouseUp(with event: NSEvent) {
+        desktop?.endCoreInteraction()
         if dragged { desktop?.coreMoved() }
-        else if desktop?.expanded == true { desktop?.collapse() }
-        else { desktop?.expand() }
+        else { desktop?.toggleWorkspace() }
     }
     override func rightMouseDown(with event: NSEvent) {
+        desktop?.beginCoreInteraction()
+        defer { desktop?.endCoreInteraction() }
         let menu = NSMenu()
-        let toggle = NSMenuItem(title: desktop?.expanded == true ? "Свернуть в ядро" : "Открыть Proto-Mind", action: #selector(toggleWorkspace), keyEquivalent: "")
+        let toggle = NSMenuItem(title: desktop?.previewing == true ? "Оставить открытым" : desktop?.expanded == true ? "Свернуть в ядро" : "Открыть Proto-Mind", action: #selector(toggleWorkspace), keyEquivalent: "")
         toggle.target = self; menu.addItem(toggle)
         let voice = NSMenuItem(title: "Голос Proto-Mind", action: #selector(openVoice), keyEquivalent: "")
         voice.target = self; menu.addItem(voice)
@@ -409,13 +497,13 @@ final class DesktopCoreDragView: NSView {
         restore.target = self; menu.addItem(restore)
         NSMenu.popUpContextMenu(menu, with: event, for: self)
     }
-    @objc private func toggleWorkspace() { desktop?.expanded == true ? desktop?.collapse() : desktop?.expand() }
+    @objc private func toggleWorkspace() { desktop?.toggleWorkspace() }
     @objc private func restoreWorkspace() { desktop?.restoreWindow() }
     @objc private func openVoice() { desktop?.openVoice() }
     override func isAccessibilityElement() -> Bool { true }
     override func accessibilityRole() -> NSAccessibility.Role? { .button }
     override func accessibilityLabel() -> String? { "Ядро Proto-Mind" }
-    override func accessibilityHelp() -> String? { "Нажмите, чтобы раскрыть или свернуть чат и боковую панель. Перетащите в удобное место." }
+    override func accessibilityHelp() -> String? { "Наведите курсор, чтобы заглянуть в чат и боковую панель. Нажмите, чтобы оставить открытыми, ещё раз — свернуть. Перетащите в удобное место." }
     override func accessibilityPerformPress() -> Bool { toggleWorkspace(); return true }
     override func accessibilityCustomActions() -> [NSAccessibilityCustomAction]? {
         [NSAccessibilityCustomAction(name: "Голос Proto-Mind", handler: { [weak self] in

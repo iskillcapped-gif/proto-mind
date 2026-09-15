@@ -42,6 +42,7 @@ struct FloatingWorkspaceView: View {
                 .overlay(glassBorder(radius: 26))
             }
         }
+        .background(DesktopWorkspaceHoverRegion(desktop: desktop))
         .environment(\.desktopGlass, true)
         .ignoresSafeArea()
         .toolbar(.hidden, for: .windowToolbar)

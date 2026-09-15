@@ -3,7 +3,7 @@ import SwiftUI
 
 extension NativeChecks {
     @MainActor
-    static func desktopPresentation(root: URL) throws {
+    static func desktopPresentation(root: URL) async throws {
         let laptop = NSRect(x: 0, y: 40, width: 1440, height: 860)
         let leftDisplay = NSRect(x: -1920, y: 0, width: 1920, height: 1080)
         let core = NSRect(x: -100, y: 900, width: 88, height: 108)
@@ -70,9 +70,31 @@ extension NativeChecks {
                                           trackingNumber: 1, userData: nil)!
         coreHost.mouseEntered(with: hover)
         try check(desktop.coreHovered && !desktop.expanded && !app.liveVoice.inCall,
-                  "Entering the core reveals controls without opening a window or starting voice")
+                  "Entering the core reveals controls immediately, with a short delay before the workspace")
+        try await Task.sleep(for: .milliseconds(260))
+        try check(desktop.expanded && desktop.previewing && !window.isKeyWindow && !app.liveVoice.inCall,
+                  "Dwelling on the core opens a temporary preview without making it key or starting voice")
         coreHost.mouseExited(with: hover)
-        try check(!desktop.coreHovered, "Leaving the entire core hides its controls again")
+        let region = DesktopWorkspaceHoverRegion.TrackingView(frame: window.contentView!.bounds)
+        region.desktop = desktop
+        region.updateTrackingAreas()
+        try check(region.hitTest(NSPoint(x: 10, y: 10)) == nil
+                  && region.trackingAreas.contains { $0.options.contains(.activeAlways) },
+                  "Workspace hover tracking leaves chat and sidebar controls clickable while inactive")
+        try await Task.sleep(for: .milliseconds(80))
+        region.mouseEntered(with: hover)
+        try await Task.sleep(for: .milliseconds(420))
+        try check(desktop.expanded && desktop.previewing && !desktop.coreHovered,
+                  "Crossing from the core into the workspace cancels the pending hide")
+        region.mouseExited(with: hover)
+        try await Task.sleep(for: .milliseconds(420))
+        try check(!desktop.expanded && !desktop.previewing && execution.running
+                  && app.currentHistoryArchive.conversations == archive.conversations,
+                  "Leaving both surfaces hides only the preview and preserves running work and drafts")
+        coreHost.mouseEntered(with: hover)
+        coreHost.mouseExited(with: hover)
+        try await Task.sleep(for: .milliseconds(260))
+        try check(!desktop.expanded, "A quick pass over the core never flashes the workspace open")
         func dragHandle(_ view: NSView) -> DesktopCoreDragView? {
             if let handle = view as? DesktopCoreDragView { return handle }
             return view.subviews.compactMap { dragHandle($0) }.first
@@ -82,6 +104,22 @@ extension NativeChecks {
         }
         try check(handle.accessibilityCustomActions()?.map(\.name) == ["Голос Proto-Mind", "Обычное окно"],
                   "Both core actions remain accessible without pointer hovering")
+        coreHost.mouseEntered(with: hover)
+        try await Task.sleep(for: .milliseconds(260))
+        _ = handle.accessibilityPerformPress()
+        coreHost.mouseExited(with: hover)
+        try await Task.sleep(for: .milliseconds(420))
+        try check(desktop.expanded && !desktop.previewing,
+                  "Pressing the hovered core pins its preview instead of closing it")
+        coreHost.mouseEntered(with: hover)
+        _ = handle.accessibilityPerformPress()
+        try await Task.sleep(for: .milliseconds(420))
+        try check(!desktop.expanded && desktop.coreHovered,
+                  "A second press folds the pinned workspace and does not reopen under the same pointer")
+        coreHost.mouseExited(with: hover)
+        coreHost.mouseEntered(with: hover)
+        try await Task.sleep(for: .milliseconds(260))
+        try check(desktop.previewing, "Leaving and reentering the core restores hover preview after explicit folding")
         let origin = corePanel.frame.origin
         func mouse(_ type: NSEvent.EventType, _ point: NSPoint) -> NSEvent {
             NSEvent.mouseEvent(with: type, location: point, modifierFlags: [], timestamp: 1,
@@ -91,7 +129,8 @@ extension NativeChecks {
         handle.mouseDragged(with: mouse(.leftMouseDragged, NSPoint(x: 24, y: 85)))
         handle.mouseUp(with: mouse(.leftMouseUp, NSPoint(x: 44, y: 60)))
         try check(corePanel.frame.origin != origin && !desktop.expanded,
-                  "Dragging follows event coordinates, moves the core and does not turn into a click")
+                  "Dragging dismisses a temporary preview, moves the core and never pins it")
+        coreHost.mouseExited(with: hover)
         desktop.expand(animated: false)
         try check(desktop.expanded && app.currentHistoryArchive.conversations == archive.conversations
                   && !app.liveVoice.inCall && !app.cloudConsent && !app.fullAccessEnabled,
@@ -99,6 +138,14 @@ extension NativeChecks {
         window.performClose(nil)
         try check(!desktop.expanded && desktop.enabled && execution.running,
                   "Close folds a floating workspace without destroying its running task")
+        coreHost.mouseEntered(with: hover)
+        try await Task.sleep(for: .milliseconds(260))
+        coreHost.mouseExited(with: hover)
+        // Native sheets and inline presentation requests use the same explicit reveal path.
+        NotificationCenter.default.post(name: NSWindow.willBeginSheetNotification, object: window)
+        try await Task.sleep(for: .milliseconds(420))
+        try check(desktop.expanded && !desktop.previewing,
+                  "A sheet request pins a preview and cancels its pending hide")
         desktop.expand(animated: false)
         desktop.restoreWindow()
         try check(!desktop.enabled && window.styleMask == originalStyle && window.level == .normal
@@ -122,7 +169,12 @@ extension NativeChecks {
             try check(size.width <= width + 1 && size.height <= 741, "Glass workspace stays inside a \(Int(width))-point window")
         }
         desktop.enable(animated: false)
+        desktop.collapse(animated: false)
+        desktop.updateCoreHover(true)
         desktop.shutdown()
+        try await Task.sleep(for: .milliseconds(260))
+        try check(desktop.window == nil && !desktop.expanded,
+                  "Shutting down cancels a pending hover reveal")
         let restored = DesktopPresentation(stateDirectory: state, defaults: defaults, presentsWindows: false)
         try check(restored.chatTransparency == 0.72 && restored.sidebarTransparency == 0.18,
                   "Both glass backgrounds keep independent transparency across restart")

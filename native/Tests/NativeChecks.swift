@@ -96,7 +96,7 @@ struct NativeChecks {
         if CommandLine.arguments.contains("--interface-only") {
             try githubContracts(root: root)
             try interfaceLayout(root: root)
-            try desktopPresentation(root: root)
+            try await desktopPresentation(root: root)
             try await workspacePresentations(root: root)
             try chatPresentation(root: root)
             try workspacePanelContracts(root: root)
@@ -214,7 +214,7 @@ struct NativeChecks {
         try sidebarLayout(root: root)
         try githubContracts(root: root)
         try interfaceLayout(root: root)
-        try desktopPresentation(root: root)
+        try await desktopPresentation(root: root)
         try await workspacePresentations(root: root)
         try chatPresentation(root: root)
         try workspacePanelContracts(root: root)
