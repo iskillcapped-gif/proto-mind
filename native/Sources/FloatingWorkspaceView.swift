@@ -227,21 +227,21 @@ struct DesktopWindowDragArea: NSViewRepresentable {
     func makeNSView(context: Context) -> DragArea { DragArea() }
     func updateNSView(_ view: DragArea, context: Context) {}
     final class DragArea: NSView {
-        private var startPoint = NSPoint.zero
-        private var startOrigin = NSPoint.zero
         override var mouseDownCanMoveWindow: Bool { false }
         override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
         override func mouseDown(with event: NSEvent) {
-            startPoint = window?.convertPoint(toScreen: event.locationInWindow) ?? event.locationInWindow
-            startOrigin = window?.frame.origin ?? .zero
+            // WindowServer tracks the pointer and moves the parent/child group.
+            // Re-converting queued mouse events through an already moved window
+            // feeds its previous movement back into the next frame and causes jumps.
+            window?.performDrag(with: event)
         }
-        override func mouseDragged(with event: NSEvent) {
-            guard let window else { return }
-            let point = window.convertPoint(toScreen: event.locationInWindow)
-            // Move the parent once. AppKit moves its attached children atomically;
-            // do not enter a second drag loop or reposition each child afterward.
-            window.setFrameOrigin(NSPoint(x: startOrigin.x + point.x - startPoint.x,
-                                          y: startOrigin.y + point.y - startPoint.y))
-        }
+    }
+}
+
+enum DesktopPointer {
+    static func screenLocation(of event: NSEvent, in window: NSWindow?) -> NSPoint {
+        // Unlike locationInWindow, this coordinate belongs to the event itself
+        // and does not change when a previous drag/resize event moves the window.
+        event.cgEvent?.unflippedLocation ?? window?.convertPoint(toScreen: event.locationInWindow) ?? event.locationInWindow
     }
 }

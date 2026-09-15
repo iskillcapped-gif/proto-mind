@@ -68,8 +68,8 @@ extension NativeChecks {
 
         _ = NSApplication.shared
         let app = AppModel(configuration: LaunchConfiguration(projectRoot: root, python: root, stateDirectory: state), uiDefaults: defaults)
-        let desktop = DesktopPresentation(stateDirectory: state, defaults: defaults, presentsWindows: false)
-        let window = NSWindow(contentRect: NSRect(x: 100, y: 100, width: 1080, height: 720), styleMask: [.titled, .resizable, .closable], backing: .buffered, defer: false)
+        let desktop = DesktopPresentation(stateDirectory: state, defaults: defaults, presentsWindows: true)
+        let window = CompanionDragCheckWindow(contentRect: NSRect(x: 100, y: 100, width: 1080, height: 720), styleMask: [.titled, .resizable, .closable], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         defer { desktop.shutdown(); app.shutdown(); window.close() }
         desktop.attach(window: window, app: app)
@@ -87,23 +87,25 @@ extension NativeChecks {
                   && firstWindow.canBecomeKey && firstWindow.parent === window && secondWindow.parent === window,
                   "Stacked companions are interactive child windows in the main window's system movement group")
         let startMain = window.frame, startFirst = firstWindow.frame, startSecond = secondWindow.frame
-        window.setFrameOrigin(NSPoint(x: startMain.minX - 45, y: startMain.minY + 25))
-        try check(firstWindow.frame == startFirst.offsetBy(dx: -45, dy: 25)
-                  && secondWindow.frame == startSecond.offsetBy(dx: -45, dy: 25),
-                  "Moving the parent synchronously moves both children by the same delta without a follow-up layout")
+        // Repeated, reversing movements also cross the screen edge. A position
+        // notification must never clamp/reflow the group back under the pointer.
+        for delta in [NSPoint(x: -45, y: 25), NSPoint(x: -140, y: -60), .zero,
+                      NSPoint(x: 30, y: -20), NSPoint(x: -15, y: 25), .zero] {
+            window.setFrameOrigin(NSPoint(x: startMain.minX + delta.x, y: startMain.minY + delta.y))
+            NotificationCenter.default.post(name: NSWindow.didResizeNotification, object: window)
+            try await Task.sleep(for: .milliseconds(20))
+            try check(window.frame == startMain.offsetBy(dx: delta.x, dy: delta.y)
+                      && firstWindow.frame == startFirst.offsetBy(dx: delta.x, dy: delta.y)
+                      && secondWindow.frame == startSecond.offsetBy(dx: delta.x, dy: delta.y),
+                      "Repeated parent moves and delayed frame notifications preserve the exact group translation")
+        }
         let mainHandle = DesktopWindowDragArea.DragArea(frame: NSRect(x: 400, y: 600, width: 200, height: 32))
         window.contentView?.addSubview(mainHandle)
-        let dragFirst = firstWindow.frame, dragSecond = secondWindow.frame
-        func mainMouse(_ type: NSEvent.EventType, _ point: NSPoint) -> NSEvent {
-            NSEvent.mouseEvent(with: type, location: point, modifierFlags: [], timestamp: 1,
-                windowNumber: window.windowNumber, context: nil, eventNumber: 1, clickCount: 1, pressure: 1)!
-        }
-        mainHandle.mouseDown(with: mainMouse(.leftMouseDown, NSPoint(x: 450, y: 610)))
-        mainHandle.mouseDragged(with: mainMouse(.leftMouseDragged, NSPoint(x: 420, y: 590)))
-        mainHandle.mouseUp(with: mainMouse(.leftMouseUp, NSPoint(x: 420, y: 590)))
-        try check(firstWindow.frame == dragFirst.offsetBy(dx: -30, dy: -20)
-                  && secondWindow.frame == dragSecond.offsetBy(dx: -30, dy: -20),
-                  "Header drag events move the entire attached group in one step")
+        let down = NSEvent.mouseEvent(with: .leftMouseDown, location: NSPoint(x: 450, y: 610), modifierFlags: [],
+            timestamp: 1, windowNumber: window.windowNumber, context: nil, eventNumber: 71, clickCount: 1, pressure: 1)!
+        mainHandle.mouseDown(with: down)
+        try check(window.dragEvent === down && window.frame == startMain,
+                  "The header hands the original mouse-down to AppKit without running competing frame calculations")
         mainHandle.removeFromSuperview()
         companions.setTopFraction(0.6)
         let beforeResize = firstWindow.frame.height
@@ -132,13 +134,26 @@ extension NativeChecks {
         handle.mouseUp(with: mouse(.leftMouseUp, NSPoint(x: 150, y: 600)))
         try check(first.docked, "A title-bar click never detaches the window")
         let beforeDrag = firstWindow.frame
-        handle.mouseDown(with: mouse(.leftMouseDown, NSPoint(x: 150, y: 600)))
-        handle.mouseDragged(with: mouse(.leftMouseDragged, NSPoint(x: 70, y: 540)))
-        handle.mouseUp(with: mouse(.leftMouseUp, NSPoint(x: 70, y: 540)))
+        func capturedMouse(_ type: CGEventType, _ dx: CGFloat, _ dy: CGFloat) -> NSEvent {
+            let point = NSPoint(x: beforeDrag.minX + 150 + dx, y: beforeDrag.maxY - 18 + dy)
+            let screenHeight = NSScreen.screens.first!.frame.height
+            return NSEvent(cgEvent: CGEvent(mouseEventSource: nil, mouseType: type,
+                mouseCursorPosition: NSPoint(x: point.x, y: screenHeight - point.y), mouseButton: .left)!)!
+        }
+        let capturedDown = capturedMouse(.leftMouseDown, 0, 0)
+        let capturedDrags = [capturedMouse(.leftMouseDragged, -80, -30),
+                             capturedMouse(.leftMouseDragged, -100, -60),
+                             capturedMouse(.leftMouseDragged, -80, -60)]
+        let capturedUp = capturedMouse(.leftMouseUp, -80, -60)
+        handle.mouseDown(with: capturedDown)
+        for event in capturedDrags { handle.mouseDragged(with: event) }
+        try check(firstWindow.frame.origin == beforeDrag.offsetBy(dx: -80, dy: -60).origin,
+                  "Queued drag events use their captured screen coordinates, without compounding earlier movement")
+        handle.mouseUp(with: capturedUp)
         try check(!first.docked && firstWindow.frame != beforeDrag, "Native drag events detach and move the companion without depending on global cursor polling")
-        try check(firstWindow.parent == nil && secondWindow.parent === window && secondWindow.frame.height == window.frame.height,
-                  "Detachment leaves the movement group and the remaining attached window fills the height")
-        companions.toggleDocking(.first)
+        try check(firstWindow.parent == nil && secondWindow.parent === window && secondWindow.frame.height == startSecond.height,
+                  "Detachment leaves the movement group while the other window keeps its lower slot")
+        companions.restoreBase(.first)
         let browser = NativeBrowserTab()
         let browserID = first.panel.open(.browser(browser))
         let terminal = WorkspaceTerminal(directory: root)
@@ -167,20 +182,68 @@ extension NativeChecks {
         companions.toggle(.second); companions.toggle(.second)
         try check(second.window === secondWindow && second.panel.selectedID == terminalID && secondWindow.frame == free && !terminal.running,
                   "Hide and show retain the same terminal and NSWindow without launching a process")
+        // A tall free window overlaps its neighbour while being dragged to the
+        // edge. Attachment must reset the split and width, not reuse that frame.
+        companions.setTopFraction(0.7)
         companions.beginDrag(.second)
-        secondWindow.setFrameOrigin(NSPoint(x: firstWindow.frame.minX + 5, y: firstWindow.frame.minY - DesktopCompanionGeometry.gap - secondWindow.frame.height))
+        secondWindow.setFrame(NSRect(x: window.frame.maxX + DesktopCompanionGeometry.gap,
+            y: window.frame.minY, width: 700, height: window.frame.height), display: false)
         companions.endDrag(.second)
-        try check(second.docked && secondWindow.parent === window
-                  && abs(firstWindow.frame.height + secondWindow.frame.height + DesktopCompanionGeometry.gap - window.frame.height) < 0.5,
-                  "Dragging beneath the sibling snaps back into the shared-height column")
+        try await Task.sleep(for: .milliseconds(50))
+        try check(second.docked && secondWindow.parent === window && companions.topFraction == 0.5
+                  && abs(firstWindow.frame.height - secondWindow.frame.height) <= 1
+                  && abs(firstWindow.frame.minY - secondWindow.frame.maxY - DesktopCompanionGeometry.gap) < 0.5
+                  && secondWindow.frame.minY == window.frame.minY && firstWindow.frame.width == secondWindow.frame.width,
+                  "A large free window snaps into its lower half after SwiftUI layout, without overlapping its neighbour")
+        let baseFirst = firstWindow.frame, baseSecond = secondWindow.frame
+        companions.restoreBase(.second); companions.restoreBase(.second)
+        try check(firstWindow.frame == baseFirst && secondWindow.frame == baseSecond && second.docked,
+                  "Return-to-base is idempotent even when the window is already attached")
+        companions.detach(.first); companions.toggleExpansion(.first)
+        firstWindow.setFrame(large, display: false)
+        companions.toggleExpansion(.second)
+        companions.restoreBase(.first)
+        try await Task.sleep(for: .milliseconds(50))
+        try check(first.docked && !first.expanded && !second.expanded && firstWindow.frame == baseFirst
+                  && secondWindow.frame == baseSecond && first.panel.selectedID == browserID && second.panel.selectedID == terminalID,
+                  "Return-to-base clears free and covering expansions and restores both slots without recreating content")
+        companions.toggle(.first)
+        companions.restoreBase(.second)
+        try check(secondWindow.frame == baseSecond, "The lower base remains half-height even when the upper window is hidden")
+        companions.toggle(.first)
+        companions.detach(.second)
+        companions.beginDrag(.second)
+        secondWindow.setFrameOrigin(NSPoint(x: firstWindow.frame.minX + 5,
+            y: firstWindow.frame.minY - DesktopCompanionGeometry.gap - secondWindow.frame.height))
+        companions.endDrag(.second)
+        try check(second.docked && secondWindow.frame == baseSecond, "Dropping below the upper sibling uses the same canonical lower slot")
         companions.toggleExpansion(.second)
         desktop.revealMainContent()
         try check(!second.expanded && !first.expanded && desktop.expanded, "Opening main content clears covering expansions so settings and confirmations remain usable")
-        companions.toggleDocking(.second)
+        companions.detach(.second)
         desktop.collapse(animated: false)
-        try check(!desktop.expanded && first.visible && second.visible && app.selectedExecution?.running == true
-                  && app.currentHistoryArchive.conversations == archive.conversations && app.composer == "Keep the main draft",
-                  "Folding the workspace retains companion choices, the running conversation and draft")
+        try check(!desktop.expanded && first.visible && second.visible && !firstWindow.isVisible && !secondWindow.isVisible
+                  && firstWindow.parent == nil && secondWindow.parent == nil && !companions.keepDetachedVisible
+                  && app.selectedExecution?.running == true && app.currentHistoryArchive.conversations == archive.conversations
+                  && app.composer == "Keep the main draft",
+                  "Folding hides attached and detached windows by default while retaining their content and running work")
+        desktop.updateCoreHover(true)
+        try await Task.sleep(for: .milliseconds(260))
+        try check(desktop.previewing && firstWindow.parent === window && !second.docked
+                  && firstWindow.isVisible && secondWindow.isVisible && !window.isKeyWindow,
+                  "Cube hover restores attached ownership and includes the free window in the same preview")
+        desktop.updateCoreHover(false)
+        companions.updateHover(.first, inside: false); companions.updateHover(.second, inside: false)
+        try await Task.sleep(for: .milliseconds(520))
+        try check(!desktop.expanded && !firstWindow.isVisible && !secondWindow.isVisible,
+                  "Leaving the cube hides both windows, including the detached one")
+        companions.setKeepDetachedVisible(true)
+        try check(secondWindow.isVisible && !firstWindow.isVisible && !desktop.expanded,
+                  "The explicit preference keeps only detached windows visible while folded")
+        let independent = DesktopCompanionWindows(stateDirectory: state, defaults: defaults, presentsWindows: false)
+        try check(independent.keepDetachedVisible, "Independent visibility is explicitly persisted in the same UI profile")
+        companions.setKeepDetachedVisible(false)
+        try check(!secondWindow.isVisible, "Turning off independent visibility immediately hides the folded free window")
         desktop.expand(animated: false)
         companions.setTransparency(0.13, for: .first); companions.setTransparency(0.77, for: .second)
         companions.setTopFraction(0.65)
@@ -191,6 +254,7 @@ extension NativeChecks {
         let other = DesktopCompanionWindows(stateDirectory: root.appendingPathComponent("other-companions"), defaults: defaults, presentsWindows: false)
         try check(saved.surface(.first).transparency == 0.13 && saved.surface(.second).transparency == 0.77 && !saved.surface(.second).docked
                   && saved.topFraction == 0.65 && other.topFraction == 0.5
+                  && !saved.keepDetachedVisible && !other.keepDetachedVisible
                   && !other.surface(.first).visible && other.surface(.first).transparency == DesktopGlassAppearance.chatDefault,
                   "Separate transparency, docking and visibility preferences persist only in their UI profile")
         saved.setTransparency(.nan, for: .first); saved.setTransparency(9, for: .second)
@@ -201,4 +265,10 @@ extension NativeChecks {
         try check(first.window == nil && second.window == nil && first.panel.tabs.isEmpty && second.panel.tabs.isEmpty,
                   "Shutdown releases both floating windows and their owned sessions")
     }
+}
+
+@MainActor
+private final class CompanionDragCheckWindow: NSWindow {
+    var dragEvent: NSEvent?
+    override func performDrag(with event: NSEvent) { dragEvent = event }
 }

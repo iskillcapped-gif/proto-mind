@@ -4,6 +4,33 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Companion Window Behavior — Native 0.65.2
+
+The first and second companions keep their upper/lower slots even when a neighbour
+is hidden or detached. The header action next to Close always returns to the base
+slot; it no longer toggles detachment. Both that action and drag reattachment reset
+the column width and the height split to equal halves, clearing covering expansions.
+Detached compact/expanded frames and retained content remain separately owned.
+
+The main title strip delegates dragging to macOS. Position notifications update
+only the saved group origin; redundant resize notifications do not reflow the group.
+Custom companion/core drags and the shared resize strip use captured global event
+coordinates to avoid feeding previous window movement into queued events.
+Companion hosting views no longer change the window's size constraints from content.
+
+By default both free and attached windows follow cube previews, pinning and folding.
+Appearance offers an explicit per-profile option to keep free windows visible.
+No task, model access, history schema or private-state storage behavior changes.
+
+Verification: 1,638 Native checks passed, including repeated parent moves and
+queued pointer events, real-window cube hover/folding with detached windows,
+canonical reattachment after free expansion, split reset and retained tab/draft
+ownership. Disposable release UI checks covered detachment, drag reattachment,
+expanded-window reset, shared-edge resize/reset and the Appearance switch.
+The main header's native WindowServer drag handoff is covered in checks; CUA did
+not demonstrate physical dragging of the main window, so perceived smoothness
+still needs operator feedback. No live model or microphone call was made in UI QA.
+
 ## Stacked Companion Windows — Native 0.65.1
 
 The two attached companions now share one right-hand column. They divide the

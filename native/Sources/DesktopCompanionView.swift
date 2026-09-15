@@ -12,10 +12,10 @@ struct DesktopCompanionView: View {
                 Image(systemName: "rectangle").font(.system(size: 11))
                 Text(surface.id.title).font(.system(size: 11, weight: .medium))
                 CompanionDragArea(owner: owner, id: surface.id).frame(maxWidth: .infinity).frame(height: 30)
-                Button { owner.toggleDocking(surface.id) } label: {
-                    Image(systemName: surface.docked ? "link" : "link.badge.plus").frame(width: 26, height: 28)
-                }.help(surface.docked ? "Отделить окно · можно потянуть за верхнюю полосу" : "Прикрепить справа")
-                    .accessibilityLabel((surface.docked ? "Отделить · " : "Прикрепить · ") + surface.id.title)
+                Button { owner.restoreBase(surface.id) } label: {
+                    Image(systemName: "arrow.uturn.backward").frame(width: 26, height: 28)
+                }.help(surface.id == .first ? "Вернуть наверх справа · исходный размер" : "Вернуть вниз справа · исходный размер")
+                    .accessibilityLabel("Вернуть на место · " + surface.id.title)
                 Button { owner.toggle(surface.id) } label: { Image(systemName: "xmark").frame(width: 24, height: 28) }
                     .help("Скрыть окно").accessibilityLabel("Скрыть · " + surface.id.title)
             }.frame(height: 34).foregroundStyle(.secondary).buttonStyle(.nativeHover)
@@ -67,11 +67,11 @@ struct CompanionSplitHandle: NSViewRepresentable {
         override func resetCursorRects() { addCursorRect(bounds, cursor: .resizeUpDown) }
         override func mouseDown(with event: NSEvent) {
             owner?.pinPreview()
-            startY = window?.convertPoint(toScreen: event.locationInWindow).y ?? 0
+            startY = DesktopPointer.screenLocation(of: event, in: window).y
             startHeight = owner?.topHeight ?? 0
         }
         override func mouseDragged(with event: NSEvent) {
-            guard let point = window?.convertPoint(toScreen: event.locationInWindow) else { return }
+            let point = DesktopPointer.screenLocation(of: event, in: window)
             owner?.resizeStack(topHeight: startHeight + startY - point.y)
         }
     }
@@ -129,11 +129,11 @@ struct CompanionDragArea: NSViewRepresentable {
         override func resetCursorRects() { addCursorRect(bounds, cursor: .openHand) }
         override func mouseDown(with event: NSEvent) {
             owner?.pinPreview()
-            startPoint = window?.convertPoint(toScreen: event.locationInWindow) ?? event.locationInWindow
+            startPoint = DesktopPointer.screenLocation(of: event, in: window)
             startFrame = window?.frame ?? .zero; dragged = false
         }
         override func mouseDragged(with event: NSEvent) {
-            let point = window?.convertPoint(toScreen: event.locationInWindow) ?? event.locationInWindow
+            let point = DesktopPointer.screenLocation(of: event, in: window)
             let dx = point.x - startPoint.x, dy = point.y - startPoint.y
             guard dragged || hypot(dx, dy) >= 4 else { return }
             if !dragged { owner?.beginDrag(id) }

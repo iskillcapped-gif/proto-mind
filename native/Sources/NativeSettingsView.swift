@@ -383,6 +383,12 @@ struct DesktopAppearanceSettings: View {
             Text("По умолчанию справа одна панель. Вторая располагается под ней. Отдельные окна парящего режима включаются кнопками 1 и 2 слева от кубика.")
                 .font(.caption).foregroundStyle(.secondary)
         }
+        Section("Окна парящего режима") {
+            Toggle("Оставлять отлепленные окна на экране", isOn: Binding(
+                get: { companions.keepDetachedVisible }, set: companions.setKeepDetachedVisible))
+            Text("По умолчанию оба боковых окна появляются и скрываются вместе с чатом через кубик. Этот переключатель позволяет оставлять отлепленные окна видимыми.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
         Section("Прозрачность фона") {
             transparencySlider("Окно чата", value: Binding(get: { desktop.chatTransparency }, set: desktop.setChatTransparency))
             transparencySlider("Левая колонка", value: Binding(get: { desktop.sidebarTransparency }, set: desktop.setSidebarTransparency))

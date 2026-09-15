@@ -496,11 +496,11 @@ final class DesktopCoreDragView: NSView {
     override func resetCursorRects() { addCursorRect(bounds, cursor: .openHand) }
     override func mouseDown(with event: NSEvent) {
         desktop?.beginCoreInteraction()
-        startPoint = window?.convertPoint(toScreen: event.locationInWindow) ?? event.locationInWindow
+        startPoint = DesktopPointer.screenLocation(of: event, in: window)
         startFrame = window?.frame ?? .zero; dragged = false
     }
     override func mouseDragged(with event: NSEvent) {
-        let point = window?.convertPoint(toScreen: event.locationInWindow) ?? event.locationInWindow
+        let point = DesktopPointer.screenLocation(of: event, in: window)
         let dx = point.x - startPoint.x, dy = point.y - startPoint.y
         guard dragged || hypot(dx, dy) > 4 else { return }
         if !dragged { desktop?.beginCoreDrag() }

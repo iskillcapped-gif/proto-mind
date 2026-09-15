@@ -10,6 +10,7 @@ enum DesktopCompanionID: String, CaseIterable, Identifiable {
 /// Global AppKit coordinates. Attached surfaces share a vertical column beside the workspace.
 enum DesktopCompanionGeometry {
     static let gap: CGFloat = 8
+    static let defaultWidth: CGFloat = 380
     static let minimum = NSSize(width: 280, height: 320)
     static let minimumStackHeight: CGFloat = 200
 
@@ -40,16 +41,19 @@ enum DesktopCompanionGeometry {
         let mainReduction = min(excess, mainWidth - mainMinimum)
         mainWidth -= mainReduction; excess -= mainReduction
         panelWidth -= min(excess, panelWidth - panelMinimum)
+        mainWidth = mainWidth.rounded(.down)
+        panelWidth = panelWidth.rounded(.down)
         let total = mainWidth + panelWidth + gap
         let fitted = DesktopGeometry.fit(NSRect(x: workspace.minX, y: workspace.minY, width: total, height: workspace.height), within: screen)
         let main = NSRect(x: fitted.minX, y: fitted.minY, width: mainWidth, height: fitted.height)
         let column = NSRect(x: main.maxX + gap, y: main.minY, width: panelWidth, height: main.height)
-        if slots.count == 1 { return Row(workspace: main, panels: [slots[0]: column]) }
         let top = topHeight(total: main.height, fraction: topFraction)
-        return Row(workspace: main, panels: [
+        let frames: [DesktopCompanionID: NSRect] = [
             .first: NSRect(x: column.minX, y: column.maxY - top, width: panelWidth, height: top),
             .second: NSRect(x: column.minX, y: column.minY, width: panelWidth, height: max(1, main.height - gap - top))
-        ])
+        ]
+        // Each identity keeps its own slot even when its neighbour is hidden/free.
+        return Row(workspace: main, panels: frames.filter { slots.contains($0.key) })
     }
 
     static func topHeight(total: CGFloat, fraction: CGFloat) -> CGFloat {
