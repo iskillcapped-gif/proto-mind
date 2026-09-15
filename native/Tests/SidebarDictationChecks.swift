@@ -74,6 +74,39 @@ extension NativeChecks {
                   && SidebarProjectEdge.at(y: 58, height: 120, previous: .after) == .after
                   && SidebarProjectEdge.at(y: 70, height: 120, previous: .before) == .after,
                   "The insertion indicator stays stable near the midpoint and changes after crossing it")
+        var buttonDown = true
+        let drag = SidebarProjectDragSession(primaryButtonDown: { buttonDown })
+        defer { drag.finish() }
+        drag.show(group: original[1], y: 10, height: 120)
+        try check(drag.insertion == nil && !drag.isMonitoring, "An idle sidebar has no insertion line or input monitoring")
+        drag.begin(original[0])
+        drag.show(group: original[1], y: 10, height: 120)
+        drag.show(group: original[2], y: 100, height: 120)
+        drag.leave(original[1])
+        try check(drag.insertion == .init(group: original[2], edge: .after),
+                  "Crossing groups replaces the only insertion line even when old dropExited callbacks are missing or late")
+        drag.show(group: original[0], y: 10, height: 120)
+        try check(drag.insertion == nil && drag.source == original[0], "Dragging over the source group clears the hint without ending the drag")
+        drag.show(group: original[2], y: 100, height: 120)
+        drag.finish()
+        drag.show(group: original[1], y: 10, height: 120)
+        try check(drag.insertion == nil && drag.source == nil && !drag.isMonitoring,
+                  "Drop or cancellation clears every group's line and late updates cannot bring it back")
+        drag.begin(original[0])
+        drag.show(group: original[1], y: 10, height: 120)
+        buttonDown = false
+        drag.show(group: original[2], y: 100, height: 120)
+        try check(drag.insertion == nil && !drag.isMonitoring,
+                  "A delayed destination update after mouse release clears rather than recreates the insertion line")
+        buttonDown = true
+        drag.begin(original[0])
+        drag.show(group: original[2], y: 100, height: 120)
+        buttonDown = false
+        let releaseDeadline = Date().addingTimeInterval(1)
+        while drag.isMonitoring && Date() < releaseDeadline { try await Task.sleep(for: .milliseconds(20)) }
+        try check(drag.insertion == nil && drag.source == nil && !drag.isMonitoring,
+                  "Releasing outside all destinations ends tracking without relying on a drop callback")
+        try check(order.ids == before, "Hovering and cancelling a drag never change persisted project order")
         let app = AppModel(configuration: .init(projectRoot: root, python: root, stateDirectory: state), uiDefaults: defaults)
         defer { app.shutdown() }
         app.conversations = conversations; app.selectedID = a.id

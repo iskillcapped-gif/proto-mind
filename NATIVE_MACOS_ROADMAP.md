@@ -4,6 +4,24 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Project Drag Indicator Cleanup — Native 0.63.2
+
+The insertion line now belongs to one sidebar drag session rather than to each
+project row. Moving over another group replaces the current marker; delayed exit
+callbacks from older groups cannot clear or retain the wrong line. Drop, Esc,
+sidebar disappearance and native drag completion clear the session. Destination
+updates arriving after completion or mouse release cannot recreate a marker.
+A release watcher runs in the common and event-tracking run-loop modes only during
+a drag, covering drops outside a destination and older macOS versions. It removes
+itself and the local key monitor when the gesture ends; there is no idle polling.
+macOS 26 also uses the [native drag completion event](https://developer.apple.com/documentation/swiftui/view/ondragsessionupdated(_:)).
+
+Verification: **245 interface checks pass**. New regressions cover missing/late
+destination exits, source hover, completion followed by stale updates, release
+outside a destination, watcher cleanup and unchanged persisted order. Gesture
+state tests use an injected mouse-button reader; they are not a physical-drag
+UI test. Dictation and Python runtime code are unchanged.
+
 ## Dictation Pauses and Project Dragging — Native 0.63.1
 
 Dictation now uses Apple's multi-utterance recognition delegate. Completed

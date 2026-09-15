@@ -1,3 +1,4 @@
+import AppKit
 import CryptoKit
 import SwiftUI
 import UniformTypeIdentifiers
@@ -65,12 +66,13 @@ final class SidebarProjectOrder: ObservableObject {
 struct SidebarProjectsView<Row: View>: View {
     @ObservedObject var app: AppModel
     @ObservedObject var order: SidebarProjectOrder
+    @ObservedObject var drag: SidebarProjectDragSession
     let row: (Conversation) -> Row
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ForEach(order.groups(app.visibleConversations)) { group in
-            SidebarProjectSection(group: group, app: app, order: order, row: row)
+            SidebarProjectSection(group: group, app: app, order: order, drag: drag, row: row)
         }
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.22), value: order.ids)
     }
@@ -87,17 +89,96 @@ enum SidebarProjectEdge: Equatable {
     }
 }
 
+/// A drag has one insertion marker across the entire sidebar. A destination's
+/// dropExited is not guaranteed when SwiftUI moves/reuses rows after a drop.
+@MainActor
+final class SidebarProjectDragSession: ObservableObject {
+    struct Insertion: Equatable {
+        let group: String
+        let edge: SidebarProjectEdge
+    }
+    @Published private(set) var insertion: Insertion?
+    private(set) var source: String?
+    private var timer: Timer?
+    private var monitor: Any?
+    private let primaryButtonDown: () -> Bool
+    var isMonitoring: Bool { timer != nil || monitor != nil }
+
+    init(primaryButtonDown: @escaping () -> Bool = { NSEvent.pressedMouseButtons & 1 != 0 }) {
+        self.primaryButtonDown = primaryButtonDown
+    }
+
+    func begin(_ source: String) {
+        finish()
+        self.source = source
+        // Native dragging uses a tracking run loop and can consume mouse-up
+        // before ordinary event monitors. Watch release only during this drag.
+        let timer = Timer(timeInterval: 0.075, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.checkForRelease() }
+        }
+        self.timer = timer
+        RunLoop.main.add(timer, forMode: .common)
+        RunLoop.main.add(timer, forMode: .eventTracking)
+        monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            if event.keyCode == 53 { self?.finish() }
+            return event
+        }
+    }
+
+    func show(group: String, y: CGFloat, height: CGFloat) {
+        guard source != nil else { return }
+        guard primaryButtonDown() else { finish(); return }
+        guard group != source else { if insertion != nil { insertion = nil }; return }
+        let previous = insertion?.group == group ? insertion?.edge : nil
+        let next = Insertion(group: group, edge: .at(y: y, height: height, previous: previous))
+        if insertion != next { insertion = next }
+    }
+
+    func leave(_ group: String) {
+        if insertion?.group == group { insertion = nil }
+    }
+
+    func checkForRelease() {
+        if !primaryButtonDown() { finish() }
+    }
+
+    func finish() {
+        source = nil
+        if insertion != nil { insertion = nil }
+        timer?.invalidate(); timer = nil
+        if let monitor { NSEvent.removeMonitor(monitor) }; monitor = nil
+    }
+
+    deinit {
+        timer?.invalidate()
+        if let monitor { NSEvent.removeMonitor(monitor) }
+    }
+}
+
+struct SidebarProjectDragCompletion: ViewModifier {
+    let drag: SidebarProjectDragSession
+
+    @ViewBuilder func body(content: Content) -> some View {
+        if #available(macOS 26, *) {
+            content.onDragSessionUpdated { session in
+                if case .ended = session.phase { drag.finish() }
+            }
+        } else { content }
+    }
+}
+
 private struct SidebarProjectSection<Row: View>: View {
     let group: ConversationGroup
     @ObservedObject var app: AppModel
     @ObservedObject var order: SidebarProjectOrder
+    @ObservedObject var drag: SidebarProjectDragSession
     let row: (Conversation) -> Row
-    @State private var edge: SidebarProjectEdge?
     @State private var height: CGFloat = 40
+    private var edge: SidebarProjectEdge? { drag.insertion?.group == group.id ? drag.insertion?.edge : nil }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
-            SidebarProjectHeading(group: group, app: app, order: order)
+            SidebarProjectHeading(group: group, app: app, order: order, drag: drag)
             ForEach(group.conversations) { row($0) }
         }
         .padding(.vertical, 4)
@@ -117,8 +198,8 @@ private struct SidebarProjectSection<Row: View>: View {
             }
         }
         .onDrop(of: [.protoMindSidebarProject], delegate: SidebarProjectDrop(
-            app: app, order: order, target: group.id, height: height, edge: $edge))
-        .onDisappear { edge = nil }
+            app: app, order: order, drag: drag, target: group.id, height: height))
+        .onDisappear { drag.leave(group.id) }
     }
 }
 
@@ -126,9 +207,9 @@ private struct SidebarProjectSection<Row: View>: View {
 private struct SidebarProjectDrop: DropDelegate {
     let app: AppModel
     let order: SidebarProjectOrder
+    let drag: SidebarProjectDragSession
     let target: String
     let height: CGFloat
-    @Binding var edge: SidebarProjectEdge?
 
     func validateDrop(info: DropInfo) -> Bool {
         !app.operationBusy && !app.privateBackupRestartRequired
@@ -136,16 +217,17 @@ private struct SidebarProjectDrop: DropDelegate {
     }
 
     func dropEntered(info: DropInfo) { update(info) }
-    func dropExited(info: DropInfo) { edge = nil }
+    func dropExited(info: DropInfo) { drag.leave(target) }
     func dropUpdated(info: DropInfo) -> DropProposal? {
-        guard validateDrop(info: info) else { edge = nil; return DropProposal(operation: .forbidden) }
+        guard validateDrop(info: info) else { drag.leave(target); return DropProposal(operation: .forbidden) }
         update(info)
         return DropProposal(operation: .move)
     }
 
     func performDrop(info: DropInfo) -> Bool {
-        defer { edge = nil }
+        defer { drag.finish() }
         guard validateDrop(info: info), let provider = info.itemProviders(for: [.protoMindSidebarProject]).first else { return false }
+        let edge = drag.insertion?.group == target ? drag.insertion?.edge : nil
         let after = SidebarProjectEdge.at(y: info.location.y, height: height, previous: edge) == .after
         _ = provider.loadTransferable(type: SidebarProjectTransfer.self) { result in
             guard case .success(let item) = result else { return }
@@ -158,7 +240,7 @@ private struct SidebarProjectDrop: DropDelegate {
     }
 
     private func update(_ info: DropInfo) {
-        edge = SidebarProjectEdge.at(y: info.location.y, height: height, previous: edge)
+        drag.show(group: target, y: info.location.y, height: height)
     }
 }
 
@@ -166,6 +248,7 @@ private struct SidebarProjectHeading: View {
     let group: ConversationGroup
     @ObservedObject var app: AppModel
     @ObservedObject var order: SidebarProjectOrder
+    @ObservedObject var drag: SidebarProjectDragSession
     @State private var hovered = false
 
     var body: some View {
@@ -179,7 +262,14 @@ private struct SidebarProjectHeading: View {
             .background(hovered ? Color.primary.opacity(0.035) : .clear, in: RoundedRectangle(cornerRadius: 7))
             .onHover { hovered = $0 }
             .help((group.workspace ?? "Диалоги без папки проекта") + "\nПеретащите, чтобы изменить порядок проектов")
-            .draggable(SidebarProjectTransfer(id: group.id, owner: order.owner)) {
+            .onDrag {
+                let provider = NSItemProvider()
+                guard !app.operationBusy, !app.privateBackupRestartRequired else { return provider }
+                drag.begin(group.id)
+                let item = SidebarProjectTransfer(id: group.id, owner: order.owner)
+                provider.register(item)
+                return provider
+            } preview: {
                 SidebarProjectDragPreview(title: group.title, count: group.conversations.count)
             }
             .accessibilityElement(children: .combine)

@@ -13,6 +13,7 @@ struct SidebarView: View {
     @State private var toolsOpen = false
     @FocusState private var searchFocused: Bool
     @State private var searchVisible = false
+    @StateObject private var projectDrag = SidebarProjectDragSession()
 
     init(model: AppModel, libraryExpanded: Binding<Bool>, openSettings: @escaping () -> Void) {
         self.model = model
@@ -84,7 +85,7 @@ struct SidebarView: View {
                                 .accessibilityLabel(model.showArchived ? "Вернуться к диалогам" : "Архив диалогов")
                         }.foregroundStyle(.secondary).padding(.horizontal, 11).padding(.top, 24).padding(.bottom, 4)
                         LazyVStack(alignment: .leading, spacing: 3) {
-                            SidebarProjectsView(app: model, order: model.sidebarProjectOrder, row: conversationRow)
+                            SidebarProjectsView(app: model, order: model.sidebarProjectOrder, drag: projectDrag, row: conversationRow)
                             if model.visibleConversations.isEmpty {
                                 Text(model.conversationSearch.isEmpty ? "Здесь появятся ваши диалоги" : "Ничего не найдено")
                                     .font(.system(size: 12)).foregroundStyle(.secondary).padding(12)
@@ -130,6 +131,8 @@ struct SidebarView: View {
         .onReceive(model.presentations.$pages.map { $0.contains { $0.dismissalDisabled } }.removeDuplicates()) {
             presentationLocked = $0
         }
+        .onDisappear { projectDrag.finish() }
+        .modifier(SidebarProjectDragCompletion(drag: projectDrag))
     }
 
     private func conversationRow(_ chat: Conversation) -> some View {
