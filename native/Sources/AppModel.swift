@@ -108,7 +108,7 @@ final class AppModel: ObservableObject {
     @Published var historyBackupError: String?
     @Published var historyBackupNotice: String?
     @Published var showInspector = false
-    let workspacePanels = WorkspacePanels()
+    let workspacePanels: WorkspacePanels
     var workspacePanel: WorkspacePanelModel { workspacePanels.activePanel }
     let github = GitHubModel()
     let privateBackup = PrivateBackupModel()
@@ -231,6 +231,7 @@ final class AppModel: ObservableObject {
 
     init(configuration: LaunchConfiguration = .load(), historyStore: ChatStore? = nil,
          uiDefaults: UserDefaults = .standard, dictationSpeech: DictationRecognizing? = nil) {
+        workspacePanels = WorkspacePanels(stateDirectory: configuration.stateDirectory, defaults: uiDefaults)
         apiConnections = ModelAPIConnections(stateDirectory: configuration.stateDirectory, defaults: uiDefaults)
         desktop = DesktopPresentation(stateDirectory: configuration.stateDirectory, defaults: uiDefaults)
         liveVoice = LiveVoiceModel(stateDirectory: configuration.stateDirectory)
@@ -271,7 +272,7 @@ final class AppModel: ObservableObject {
         presentations.reveal = { [weak self] in
             guard let self else { return }
             self.dictation.stop()
-            if self.desktop.enabled { self.desktop.expand(animated: false) }
+            if self.desktop.enabled { self.desktop.revealMainContent() }
             else { self.desktop.window?.makeKeyAndOrderFront(nil) }
         }
         initializing = false

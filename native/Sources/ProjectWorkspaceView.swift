@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ProjectWorkspaceView: View {
     @ObservedObject var model: AppModel
+    var panel: WorkspacePanelModel? = nil
     @State private var search = ""
     private var entries: [JSONValue] {
         model.workspaceListing["entries"].items.filter {
@@ -21,7 +22,7 @@ struct ProjectWorkspaceView: View {
                 Button { Task { await model.refreshWorkspace(model.workspaceListing["directory"].text) } } label: { Image(systemName: "arrow.clockwise") }
                     .disabled(!model.canEditMessageAttachments || model.loadingWorkspace || model.selected?.workspacePath == nil).help("Обновить файлы").accessibilityLabel("Обновить файлы")
                 Menu {
-                    Button("Открыть файл…") { model.chooseWorkspaceDocument() }
+                    Button("Открыть файл…") { model.chooseWorkspaceDocument(in: panel) }
                     Button("Выбрать папку…") { model.chooseWorkspace() }.disabled(model.busy)
                 } label: { Image(systemName: "ellipsis") }
                     .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().disabled(!model.canEditMessageAttachments)
@@ -38,7 +39,7 @@ struct ProjectWorkspaceView: View {
                     Text("Выберите папку, чтобы читать документы и код.\nФайлы попадут в запрос только после прикрепления.")
                         .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
                     Button("Выбрать папку…") { model.chooseWorkspace() }.buttonStyle(.bordered).disabled(model.busy)
-                    Button("Открыть изображение или PDF…") { model.chooseWorkspaceDocument() }.disabled(!model.canEditMessageAttachments)
+                    Button("Открыть изображение или PDF…") { model.chooseWorkspaceDocument(in: panel) }.disabled(!model.canEditMessageAttachments)
                 }.padding(24).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 HStack(spacing: 9) {
@@ -57,7 +58,7 @@ struct ProjectWorkspaceView: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 2) {
                         ForEach(Array(entries.enumerated()), id: \.offset) { _, entry in
-                            Button { Task { await model.openWorkspaceEntry(entry) } } label: {
+                            Button { let target = panel ?? model.workspacePanel; Task { await model.openWorkspaceEntry(entry, in: target) } } label: {
                                 HStack(spacing: 10) {
                                     Image(systemName: symbol(entry)).foregroundStyle(.secondary).frame(width: 18)
                                     Text(entry["name"].text).lineLimit(1).truncationMode(.middle)
@@ -80,7 +81,7 @@ struct ProjectWorkspaceView: View {
         }.onChange(of: model.workspaceListing["directory"].text) { _, _ in search = "" }
             .onChange(of: model.selectedID) { _, _ in search = ""; Task { await model.refreshWorkspace() } }
             .task { if model.workspaceListing.isNull { await model.refreshWorkspace() } }
-            .frame(maxWidth: .infinity, maxHeight: .infinity).background(NativeTheme.canvas)
+            .frame(maxWidth: .infinity, maxHeight: .infinity).workspaceBackground(NativeTheme.canvas)
     }
 
     private func symbol(_ entry: JSONValue) -> String {

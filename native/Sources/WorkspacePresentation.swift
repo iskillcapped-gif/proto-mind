@@ -243,7 +243,7 @@ extension AppModel {
 
     /// OS pickers remain native, attached to the actual workspace rather than a transient menu.
     func presentFilePicker(_ panel: NSSavePanel, completion: @escaping (NSApplication.ModalResponse) -> Void) {
-        if desktop.enabled { desktop.expand(animated: false) }
+        if desktop.enabled { desktop.revealMainContent() }
         if let window = desktop.window {
             guard window.attachedSheet == nil else { return }
             window.makeKeyAndOrderFront(nil)

@@ -4,6 +4,45 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Floating Companion Windows — Native 0.65.0
+
+The internal workspace retains its existing tabs, with one full-height panel by
+default and a profile-persistent lower-panel switch under Appearance. Disabling
+the lower panel retains its content and clears any covering expansion.
+
+Floating mode adds two independent AppKit windows, controlled by buttons 1 / 2
+on the left of the cube (also available in its accessibility/context actions and
+via Command-Option-1 / 2). Their content uses the same PM conversation, WebKit,
+file/PDF/image and SwiftTerm surfaces. Attached windows form a horizontal row at
+the workspace height, with 8-point gaps and individually resizable widths. The
+row fits the active monitor; the sidebar remains available during expansion.
+
+A subtle hover glow marks the first window's lower-left and second window's
+upper-left expansion corner. Attached expansion covers the area from the sidebar
+to the row's right edge; detached expansion has its own saved frame. Dragging a
+header beyond a small threshold detaches, and dropping by the adjacent right
+edge reattaches; a link button provides the same action without dragging.
+Compact and expanded detached sizes/positions are independent. Neither docking,
+hiding, expansion nor mode changes recreate the retained panel/NSWindow. Attached
+windows hide with the workspace; detached windows remain independently visible.
+Ordinary mode hides the companions while retaining their sessions until quit.
+
+Appearance has independent background-transparency controls for both companions,
+respecting Reduce Transparency. Geometry, docking and visibility preferences are
+namespaced UI state, outside private-state backups; tab contents remain transient.
+Main settings, confirmations and file pickers reveal and raise their existing
+owner, preserving source bindings. Shutdown closes owned terminal/browser sessions.
+
+Verification: 1,604 Native checks passed, including negative-coordinate/narrow
+monitor geometry, snap boundaries, real drag-event routing, independent frames,
+profile preferences, unchanged running conversations/drafts, and session retention.
+Disposable UI checks exercised actual detachment dragging, border resizing,
+both expansion modes, browser text retained through docking/hiding/expansion,
+interactive PTY command output, and the lower-panel switch with four independent
+glass controls. A final 355-check interface pass and UI checks verified that
+docking preserves keyboard focus and main settings rise above a detached expanded
+window. No live model, API or microphone session was used for these checks.
+
 ## Parallel Workspaces and API Models — Native 0.64.0
 
 Two equivalent panels sit to the right of the main conversation, sharing its

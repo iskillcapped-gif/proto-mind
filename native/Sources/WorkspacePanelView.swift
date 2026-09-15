@@ -1,12 +1,19 @@
 import AppKit
 import SwiftUI
 
+struct WorkspacePanelControls {
+    let title: String
+    let activate: () -> Void
+    let expand: () -> Void
+}
+
 struct WorkspacePanelView: View {
     @ObservedObject var model: AppModel
     @ObservedObject var panel: WorkspacePanelModel
     @Environment(\.desktopGlass) private var desktopGlass
     var width: CGFloat = 0
     var position: WorkspacePanelPosition = .upper
+    var controls: WorkspacePanelControls? = nil
     @State private var hovered = false
     @State private var terminalToClose: UUID?
     @State private var confirmTerminalClose = false
@@ -15,7 +22,7 @@ struct WorkspacePanelView: View {
         VStack(spacing: 0) {
             HStack(spacing: 5) {
                 if panel.tabs.isEmpty {
-                    Text(position.title).font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
+                    Text(controls?.title ?? position.title).font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
                         .padding(.leading, 5)
                 }
                 ScrollViewReader { proxy in
@@ -44,7 +51,7 @@ struct WorkspacePanelView: View {
                 }
                 Menu { actions } label: { Image(systemName: "plus").frame(width: 26, height: 28) }
                     .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
-                    .help("Добавить вкладку").accessibilityLabel("Добавить вкладку · " + position.title)
+                    .help("Добавить вкладку").accessibilityLabel("Добавить вкладку · " + (controls?.title ?? position.title))
             }.padding(.horizontal, 9).frame(height: 40)
             Divider().opacity(0.5)
             if let error = panel.error {
@@ -56,7 +63,7 @@ struct WorkspacePanelView: View {
             }
             ZStack {
                 if panel.selectedID == nil {
-                    if panel.filesSelected { ProjectWorkspaceView(model: model) }
+                    if panel.filesSelected { ProjectWorkspaceView(model: model, panel: panel) }
                     else { welcome }
                 }
                 ForEach(panel.tabs) { tab in
@@ -68,8 +75,9 @@ struct WorkspacePanelView: View {
                 }
             }.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .background(desktopGlass ? NativeTheme.canvas.opacity(0.12) : NativeTheme.canvas)
+        .background(desktopGlass ? (controls == nil ? NativeTheme.canvas.opacity(0.12) : Color.clear) : NativeTheme.canvas)
         .overlay(alignment: position == .upper ? .bottomLeading : .topLeading) {
+            if controls == nil {
             Button { model.workspacePanels.toggleExpansion(position) } label: {
                 Image(systemName: "triangle.fill")
                     .font(.system(size: 12)).rotationEffect(.degrees(position == .upper ? (panel.expanded ? 45 : -135) : (panel.expanded ? 135 : -45)))
@@ -79,6 +87,7 @@ struct WorkspacePanelView: View {
                 .help(panel.expanded ? "Вернуть две панели" : "Развернуть до боковой колонки")
                 .accessibilityLabel((panel.expanded ? "Свернуть · " : "Развернуть · ") + position.title)
                 .accessibilityHidden(!hovered)
+            }
         }.onHover { hovered = $0 }
         .workspaceConfirmationDialog("Закрыть терминал?", isPresented: $confirmTerminalClose, titleVisibility: .visible) {
             Button("Закрыть терминал", role: .destructive) { confirmTerminalClose = false; if let id = terminalToClose { panel.close(id) }; terminalToClose = nil }
@@ -86,7 +95,9 @@ struct WorkspacePanelView: View {
         } message: { Text("Это завершит терминальный сеанс этой вкладки. Задачи в диалогах PM продолжат работу.") }
     }
 
-    private func activate() { model.workspacePanels.active = position }
+    private func activate() {
+        if let controls { controls.activate() } else { model.workspacePanels.active = position }
+    }
     private var directory: URL { model.selected?.workspacePath.map { URL(fileURLWithPath: $0) } ?? FileManager.default.homeDirectoryForCurrentUser }
 
     @ViewBuilder private var actions: some View {
@@ -108,10 +119,10 @@ struct WorkspacePanelView: View {
         }
         Divider()
         Button("Открыть файл…", systemImage: "doc") { activate(); model.chooseWorkspaceDocument(in: panel) }.disabled(!model.canEditMessageAttachments)
-        Button("Файлы основного проекта", systemImage: "folder") { activate(); model.showProjectFiles() }
+        Button("Файлы основного проекта", systemImage: "folder") { activate(); model.showProjectFiles(in: panel) }
         Divider()
-        Button(panel.expanded ? "Вернуть две панели" : "Развернуть панель", systemImage: "arrow.up.left.and.arrow.down.right") {
-            model.workspacePanels.toggleExpansion(position)
+        Button(panel.expanded ? "Вернуть размер" : "Развернуть панель", systemImage: "arrow.up.left.and.arrow.down.right") {
+            if let controls { controls.expand() } else { model.workspacePanels.toggleExpansion(position) }
         }
     }
 

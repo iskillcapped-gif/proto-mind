@@ -1,10 +1,11 @@
 import AppKit
+import Combine
 import CryptoKit
 import SwiftUI
 
 /// Window geometry is UI state only. It never participates in dialog or voice ownership.
 enum DesktopGeometry {
-    static let coreSize = NSSize(width: 88, height: 116)
+    static let coreSize = NSSize(width: 128, height: 116)
     static let minimumWorkspace = NSSize(width: 780, height: 520)
 
     static func sidebarWidth(total: CGFloat) -> CGFloat { min(260, max(220, total * 0.23)) }
@@ -46,6 +47,7 @@ enum DesktopGlassAppearance {
 
 @MainActor
 final class DesktopPresentation: ObservableObject {
+    let companions: DesktopCompanionWindows
     @Published private(set) var enabled = false
     @Published private(set) var expanded = false
     @Published private(set) var previewing = false
@@ -67,10 +69,12 @@ final class DesktopPresentation: ObservableObject {
     private var windowDelegate: DesktopWindowDelegate?
     private var openSettings: () -> Void = {}
     private var workspaceHovered = false
+    private var companionHovered = false
     private var coreInteracting = false
     private var hoverSuppressed = false
     private var hoverTask: Task<Void, Never>?
     private var interactionMonitor: Any?
+    private var companionSubscription: AnyCancellable?
 
     private struct WindowAppearance {
         let frame: NSRect
@@ -83,6 +87,7 @@ final class DesktopPresentation: ObservableObject {
     }
 
     init(stateDirectory: URL, defaults: UserDefaults = .standard, presentsWindows: Bool = true) {
+        companions = DesktopCompanionWindows(stateDirectory: stateDirectory, defaults: defaults, presentsWindows: presentsWindows)
         self.defaults = defaults
         self.presentsWindows = presentsWindows
         let digest = SHA256.hash(data: Data(stateDirectory.standardizedFileURL.path.utf8))
@@ -94,6 +99,7 @@ final class DesktopPresentation: ObservableObject {
         sidebarTransparency = DesktopGlassAppearance.normalized(
             defaults.object(forKey: preferenceKey + ".sidebarTransparency") as? Double ?? DesktopGlassAppearance.sidebarDefault,
             fallback: DesktopGlassAppearance.sidebarDefault)
+        companionSubscription = companions.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
     }
 
     func setChatTransparency(_ value: Double) {
@@ -122,6 +128,12 @@ final class DesktopPresentation: ObservableObject {
         scheduleHoverTransition()
     }
 
+    func updateCompanionHover(_ inside: Bool) {
+        guard companionHovered != inside else { return }
+        companionHovered = inside
+        scheduleHoverTransition()
+    }
+
     private func scheduleHoverTransition() {
         cancelHoverTransition()
         guard enabled, !coreInteracting else { return }
@@ -132,11 +144,11 @@ final class DesktopPresentation: ObservableObject {
                       !self.coreInteracting, !self.expanded else { return }
                 self.showWorkspace(preview: true, animated: true)
             }
-        } else if previewing, !coreHovered, !workspaceHovered {
+        } else if previewing, !coreHovered, !workspaceHovered, !companionHovered {
             hoverTask = Task { @MainActor [weak self] in
                 // Leave time to cross the gap between the core and its workspace.
                 do { try await Task.sleep(for: .milliseconds(320)) } catch { return }
-                guard let self, self.previewing, !self.coreHovered, !self.workspaceHovered,
+                guard let self, self.previewing, !self.coreHovered, !self.workspaceHovered, !self.companionHovered,
                       !self.coreInteracting else { return }
                 self.collapse()
             }
@@ -193,12 +205,17 @@ final class DesktopPresentation: ObservableObject {
         guard self.window !== window else { return }
         removeObservers()
         self.window = window; self.app = app
+        companions.attach(desktop: self, app: app)
         app.presentations.window = window
         let delegate = DesktopWindowDelegate(desktop: self, previous: window.delegate)
         windowDelegate = delegate; window.delegate = delegate
-        for name in [NSWindow.didMoveNotification, NSWindow.didEndLiveResizeNotification] {
+        for name in [NSWindow.didMoveNotification, NSWindow.didResizeNotification, NSWindow.didEndLiveResizeNotification] {
             observers.append(NotificationCenter.default.addObserver(forName: name, object: window, queue: .main) { [weak self] _ in
-                MainActor.assumeIsolated { self?.saveWorkspaceFrame() }
+                MainActor.assumeIsolated {
+                    guard let self, !self.changingWindow else { return }
+                    self.companions.parentChanged(resized: name == NSWindow.didResizeNotification)
+                    self.saveWorkspaceFrame()
+                }
             })
         }
         observers.append(NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
@@ -266,6 +283,12 @@ final class DesktopPresentation: ObservableObject {
         showWorkspace(preview: false, animated: animated)
     }
 
+    func revealMainContent() {
+        companions.collapseDockedExpansion()
+        expand(animated: false)
+        if presentsWindows { window?.makeKeyAndOrderFront(nil) }
+    }
+
     private func showWorkspace(preview: Bool, animated: Bool) {
         guard enabled, let window else { return }
         guard !preview || !window.isMiniaturized else { return }
@@ -290,6 +313,7 @@ final class DesktopPresentation: ObservableObject {
                 window.animator().alphaValue = 1
             }
         }
+        companions.layout()
     }
 
     func collapse(animated: Bool = true) {
@@ -300,7 +324,8 @@ final class DesktopPresentation: ObservableObject {
         cancelHoverTransition()
         saveWorkspaceFrame()
         let token = UUID(); transition = token
-        expanded = false; previewing = false; workspaceHovered = false
+        expanded = false; previewing = false; workspaceHovered = false; companionHovered = false
+        companions.layout()
         hoverSuppressed = coreHovered
         let finish: @MainActor @Sendable () -> Void = { [weak self, weak window] in
             guard let self, self.transition == token, !self.expanded else { return }
@@ -319,7 +344,8 @@ final class DesktopPresentation: ObservableObject {
         transition = UUID(); changingWindow = true
         saveWorkspaceFrame(force: true)
         enabled = false; expanded = false; previewing = false
-        coreHovered = false; workspaceHovered = false; coreInteracting = false; hoverSuppressed = false
+        companions.leaveFloatingMode()
+        coreHovered = false; workspaceHovered = false; companionHovered = false; coreInteracting = false; hoverSuppressed = false
         corePanel?.orderOut(nil)
         window.alphaValue = 1
         for kind in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
@@ -351,12 +377,14 @@ final class DesktopPresentation: ObservableObject {
             window.setFrame(DesktopGeometry.workspace(beside: corePanel.frame, size: window.frame.size, screen: screen), display: false)
             defaults.set(NSStringFromRect(window.frame), forKey: preferenceKey + ".workspace")
             changingWindow = false
+            companions.parentChanged()
         }
     }
 
     func shutdown() {
         transition = UUID()
         cancelHoverTransition()
+        companions.shutdown(); companionSubscription = nil
         removeObservers(); corePanel?.orderOut(nil); corePanel?.contentView = nil; corePanel = nil
         voiceObservers.forEach(NotificationCenter.default.removeObserver); voiceObservers.removeAll()
         voicePanel?.orderOut(nil); voicePanel?.contentView = nil; voicePanel = nil
@@ -381,7 +409,7 @@ final class DesktopPresentation: ObservableObject {
 
     private func saveWorkspaceFrame(force: Bool = false) {
         guard enabled, expanded, (!changingWindow || force), let window else { return }
-        defaults.set(NSStringFromRect(window.frame), forKey: preferenceKey + ".workspace")
+        defaults.set(NSStringFromRect(companions.preferredWorkspaceFrame ?? window.frame), forKey: preferenceKey + ".workspace")
     }
 
     private func recoverVisibleFrames() {
@@ -394,6 +422,7 @@ final class DesktopPresentation: ObservableObject {
             if surface.frame != target { surface.setFrame(target, display: true) }
         }
         changingWindow = false
+        companions.layout()
     }
 
     private func makeCore(app: AppModel) -> NSPanel {
@@ -494,6 +523,10 @@ final class DesktopCoreDragView: NSView {
         toggle.target = self; menu.addItem(toggle)
         let voice = NSMenuItem(title: "Голос Proto-Mind", action: #selector(openVoice), keyEquivalent: "")
         voice.target = self; menu.addItem(voice)
+        for (title, action) in [("Боковое окно 1", #selector(toggleFirstCompanion)), ("Боковое окно 2", #selector(toggleSecondCompanion))] {
+            let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+            item.target = self; menu.addItem(item)
+        }
         let restore = NSMenuItem(title: "Обычное окно", action: #selector(restoreWorkspace), keyEquivalent: "")
         restore.target = self; menu.addItem(restore)
         NSMenu.popUpContextMenu(menu, with: event, for: self)
@@ -501,6 +534,8 @@ final class DesktopCoreDragView: NSView {
     @objc private func toggleWorkspace() { desktop?.toggleWorkspace() }
     @objc private func restoreWorkspace() { desktop?.restoreWindow() }
     @objc private func openVoice() { desktop?.openVoice() }
+    @objc private func toggleFirstCompanion() { desktop?.companions.toggle(.first) }
+    @objc private func toggleSecondCompanion() { desktop?.companions.toggle(.second) }
     override func isAccessibilityElement() -> Bool { true }
     override func accessibilityRole() -> NSAccessibility.Role? { .button }
     override func accessibilityLabel() -> String? { "Ядро Proto-Mind" }
@@ -511,6 +546,10 @@ final class DesktopCoreDragView: NSView {
             guard let desktop = self?.desktop else { return false }; desktop.openVoice(); return true
         }), NSAccessibilityCustomAction(name: "Обычное окно", handler: { [weak self] in
             guard let desktop = self?.desktop else { return false }; desktop.restoreWindow(); return true
+        }), NSAccessibilityCustomAction(name: "Боковое окно 1", handler: { [weak self] in
+            guard let desktop = self?.desktop else { return false }; desktop.companions.toggle(.first); return true
+        }), NSAccessibilityCustomAction(name: "Боковое окно 2", handler: { [weak self] in
+            guard let desktop = self?.desktop else { return false }; desktop.companions.toggle(.second); return true
         })]
     }
 }

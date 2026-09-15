@@ -102,6 +102,23 @@ struct DesktopCoreView: View {
     private var active: Bool { working || voice.inCall }
     private var voiceLevel: Double { max(voice.inputLevel, voice.outputLevel) }
     var body: some View {
+        HStack(spacing: 4) {
+            VStack(spacing: 6) {
+                ForEach(DesktopCompanionID.allCases) { id in
+                    Button { desktop.companions.toggle(id) } label: {
+                        Text(id == .first ? "1" : "2").font(.system(size: 11, weight: .medium))
+                            .frame(width: 28, height: 28)
+                            .background(desktop.companions.surface(id).visible ? Color.teal.opacity(0.22) : .clear, in: RoundedRectangle(cornerRadius: 8))
+                    }.buttonStyle(.plain).foregroundStyle(.primary)
+                        .help("Показать или скрыть · " + id.title)
+                        .accessibilityLabel("Боковое " + id.title.lowercased())
+                        .accessibilityValue(desktop.companions.surface(id).visible ? "Показано" : "Скрыто")
+                }
+            }.padding(3).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+                .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.white.opacity(0.15)).allowsHitTesting(false))
+                .padding(.bottom, 30)
+                .opacity(desktop.coreHovered ? 1 : 0).allowsHitTesting(desktop.coreHovered)
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: desktop.coreHovered)
         VStack(spacing: 4) {
             ZStack {
                 Ellipse().fill(Color.teal.opacity(active ? 0.18 : 0.07)).frame(width: 57, height: 29).blur(radius: 10).offset(y: 27)
@@ -138,6 +155,7 @@ struct DesktopCoreView: View {
                 .opacity(desktop.coreHovered ? 1 : 0)
                 .allowsHitTesting(desktop.coreHovered)
                 .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: desktop.coreHovered)
+        }.frame(width: 88, height: DesktopGeometry.coreSize.height)
         }.frame(width: DesktopGeometry.coreSize.width, height: DesktopGeometry.coreSize.height)
             .contentShape(Rectangle())
             .help(voice.connected ? (voice.muted ? "Микрофон выключен" : "Голос включён")

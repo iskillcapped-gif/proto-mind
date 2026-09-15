@@ -125,8 +125,8 @@ final class WorkspacePanelModel: ObservableObject {
 }
 
 extension AppModel {
-    func showProjectFiles() {
-        section = .chat; workspacePanel.showFiles()
+    func showProjectFiles(in panel: WorkspacePanelModel? = nil) {
+        section = .chat; (panel ?? workspacePanel).showFiles()
         Task { await refreshWorkspace() }
     }
 

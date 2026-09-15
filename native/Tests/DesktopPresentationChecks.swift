@@ -102,8 +102,8 @@ extension NativeChecks {
         guard let handle = corePanel.contentView.flatMap({ dragHandle($0) }) else {
             throw NativeError.message("Core drag handle was not mounted")
         }
-        try check(handle.accessibilityCustomActions()?.map(\.name) == ["Голос Proto-Mind", "Обычное окно"],
-                  "Both core actions remain accessible without pointer hovering")
+        try check(handle.accessibilityCustomActions()?.map(\.name) == ["Голос Proto-Mind", "Обычное окно", "Боковое окно 1", "Боковое окно 2"],
+                  "Voice, normal mode and both companion windows remain accessible without pointer hovering")
         coreHost.mouseEntered(with: hover)
         try await Task.sleep(for: .milliseconds(260))
         _ = handle.accessibilityPerformPress()

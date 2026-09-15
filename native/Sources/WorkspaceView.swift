@@ -22,7 +22,7 @@ struct WorkspaceView: View {
             if desktop.enabled { FloatingWorkspaceView(app: model, desktop: desktop) }
             else { regularWorkspace }
         }
-        .frame(minWidth: desktop.enabled ? DesktopGeometry.minimumWorkspace.width : 940,
+        .frame(minWidth: desktop.enabled ? desktop.companions.minimumWorkspaceWidth : 940,
                minHeight: desktop.enabled ? DesktopGeometry.minimumWorkspace.height : 640)
         .background(DesktopWindowAttachment(app: model, openSettings: { openSettings() }))
         .tint(NativeTheme.accent)
@@ -170,7 +170,7 @@ struct WorkspaceSplitView: View {
     var body: some View {
         GeometryReader { geometry in
             let layout = WorkspacePanelsLayout(size: geometry.size, visible: panels.visible,
-                expanded: panels.expanded, horizontal: panels.horizontalFraction, vertical: panels.verticalFraction)
+                expanded: panels.expanded, horizontal: panels.horizontalFraction, vertical: panels.verticalFraction, lowerEnabled: panels.lowerEnabled)
             ZStack(alignment: .topLeading) {
                 mainContent
                     .frame(width: layout.main.width, height: layout.main.height)
@@ -196,7 +196,7 @@ struct WorkspaceSplitView: View {
                         .accessibilityAdjustableAction { direction in
                             panels.horizontalFraction = min(0.8, max(0.2, panels.horizontalFraction + (direction == .increment ? 0.05 : -0.05)))
                         }
-                    divider(vertical: false)
+                    if panels.lowerEnabled { divider(vertical: false)
                         .frame(width: layout.rowDivider.width, height: layout.rowDivider.height)
                         .offset(x: layout.rowDivider.minX, y: layout.rowDivider.minY)
                         .gesture(DragGesture(minimumDistance: 0).onChanged { drag in
@@ -207,13 +207,14 @@ struct WorkspaceSplitView: View {
                         .accessibilityAdjustableAction { direction in
                             panels.verticalFraction = min(0.8, max(0.2, panels.verticalFraction + (direction == .increment ? 0.05 : -0.05)))
                         }
+                    }
                 }
             }
         }
     }
 
     private func pane(_ position: WorkspacePanelPosition, frame: CGRect) -> some View {
-        let shown = panels.visible && (panels.expanded == nil || panels.expanded == position)
+        let shown = panels.visible && (position != .lower || panels.lowerEnabled) && (panels.expanded == nil || panels.expanded == position)
         return WorkspacePanelView(model: model, panel: panels.panel(position), width: frame.width, position: position)
             .frame(width: frame.width, height: frame.height).clipped()
             .offset(x: frame.minX, y: frame.minY)

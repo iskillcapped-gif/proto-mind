@@ -124,7 +124,7 @@ struct NativeSettingsView: View {
                                 .font(.callout).foregroundStyle(.secondary)
                         }
                     case .appearance:
-                        DesktopAppearanceSettings(desktop: model.desktop)
+                        DesktopAppearanceSettings(desktop: model.desktop, panels: model.workspacePanels, companions: model.desktop.companions)
                     case .persona:
                         personaSettings
                         Section("Память и навыки") {
@@ -373,12 +373,23 @@ struct NativeSettingsView: View {
 
 struct DesktopAppearanceSettings: View {
     @ObservedObject var desktop: DesktopPresentation
+    @ObservedObject var panels: WorkspacePanels
+    @ObservedObject var companions: DesktopCompanionWindows
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     var body: some View {
+        Section("Рабочие панели внутри окна") {
+            Toggle("Показывать нижнюю панель", isOn: Binding(get: { panels.lowerEnabled }, set: panels.setLowerEnabled))
+            Text("По умолчанию справа одна панель. Вторая располагается под ней. Отдельные окна парящего режима включаются кнопками 1 и 2 слева от кубика.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
         Section("Прозрачность фона") {
             transparencySlider("Окно чата", value: Binding(get: { desktop.chatTransparency }, set: desktop.setChatTransparency))
             transparencySlider("Левая колонка", value: Binding(get: { desktop.sidebarTransparency }, set: desktop.setSidebarTransparency))
+            ForEach(DesktopCompanionID.allCases) { id in
+                transparencySlider("Боковое " + id.title.lowercased(), value: Binding(
+                    get: { companions.surface(id).transparency }, set: { companions.setTransparency($0, for: id) }))
+            }
             Text("Слева — плотный фон, справа — прозрачный. Текст и кнопки остаются чёткими. Изменения видны сразу в парящем режиме и сохраняются после перезапуска.")
                 .font(.caption).foregroundStyle(.secondary)
             if reduceTransparency {
@@ -388,6 +399,7 @@ struct DesktopAppearanceSettings: View {
             Button("Вернуть исходную прозрачность") {
                 desktop.setChatTransparency(DesktopGlassAppearance.chatDefault)
                 desktop.setSidebarTransparency(DesktopGlassAppearance.sidebarDefault)
+                for id in DesktopCompanionID.allCases { companions.setTransparency(DesktopGlassAppearance.chatDefault, for: id) }
             }
         }
         if !desktop.enabled {
