@@ -72,6 +72,10 @@ struct SidebarMenuView: View {
                 open = false
                 Task { @MainActor in await Task.yield(); openSettings() }
             }
+            ComposerMenuRow(title: "Парящий режим", icon: "cube.transparent") {
+                open = false
+                Task { @MainActor in await Task.yield(); app.desktop.enable() }
+            }
             ComposerMenuRow(title: "Лимиты", icon: "gauge.with.dots.needle.50percent") {
                 open = false
                 Task { @MainActor in await Task.yield(); app.showCodexUsage = true }

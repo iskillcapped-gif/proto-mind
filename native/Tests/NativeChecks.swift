@@ -86,6 +86,7 @@ struct NativeChecks {
         if CommandLine.arguments.contains("--interface-only") {
             try githubContracts(root: root)
             try interfaceLayout(root: root)
+            try desktopPresentation(root: root)
             try chatPresentation(root: root)
             try workspacePanelContracts(root: root)
             if let fixture = LaunchConfiguration.argument("--fixture"), let python = LaunchConfiguration.argument("--python") {
@@ -202,6 +203,7 @@ struct NativeChecks {
         try sidebarLayout(root: root)
         try githubContracts(root: root)
         try interfaceLayout(root: root)
+        try desktopPresentation(root: root)
         try chatPresentation(root: root)
         try workspacePanelContracts(root: root)
         try hoverFeedback()

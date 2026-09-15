@@ -42,6 +42,7 @@ final class AppModel: ObservableObject {
     @Published var account: JSONValue = .null
     let codexUsage = CodexUsageModel()
     let liveVoice: LiveVoiceModel
+    let desktop: DesktopPresentation
     @Published var showLiveVoice = false
     @Published var showCodexUsage = false
     @Published var models: [JSONValue] = []
@@ -215,6 +216,7 @@ final class AppModel: ObservableObject {
     private var personaReadinessRequest = UUID()
 
     init(configuration: LaunchConfiguration = .load(), historyStore: ChatStore? = nil) {
+        desktop = DesktopPresentation(stateDirectory: configuration.stateDirectory)
         liveVoice = LiveVoiceModel(stateDirectory: configuration.stateDirectory)
         serviceClient = BridgeClient(configuration: configuration)
         store = historyStore ?? ChatStore(directory: configuration.stateDirectory)

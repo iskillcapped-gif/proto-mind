@@ -3,6 +3,7 @@ import SwiftUI
 
 struct ComposerView: View {
     @ObservedObject var model: AppModel
+    @Environment(\.desktopGlass) private var desktopGlass
     @Environment(\.openSettings) private var openSettings
     @State private var optionsOpen = false
     @State private var attachmentsOpen = false
@@ -49,7 +50,7 @@ struct ComposerView: View {
                     }
                     NativeComposer(text: $model.composer, revision: model.composerRevision, enabled: model.selected?.archived != true,
                                    focusOnRevision: model.transcriptDestination?.messageID == nil,
-                                   onStop: { if model.busy { Task { await model.stop() } } },
+                                   onStop: { if desktopGlass { model.desktop.collapse() } else if model.busy { Task { await model.stop() } } },
                                    canDrop: model.canReceiveAttachments, onDrop: { model.receiveAttachmentDrop($0) },
                                    onDropHover: { model.attachmentDropTargeted = $0 }, onDropError: { model.error = $0 }) { Task { await model.submit() } }
                         .frame(height: min(160, max(66, CGFloat(model.composer.components(separatedBy: "\n").count) * 23 + 30)))
@@ -176,8 +177,8 @@ struct ComposerView: View {
             Button { Task { await model.stop() } } label: {
                 Image(systemName: "stop.fill").font(.system(size: 12)).foregroundStyle(NativeTheme.canvas)
                     .frame(width: 32, height: 32).background(Color.primary, in: Circle())
-            }.buttonStyle(.nativeHover).keyboardShortcut(.cancelAction)
-                .help("Запросить остановку Codex · Esc. Локальные операции завершаются без прерывания; выполненные действия не откатываются.")
+            }.buttonStyle(.nativeHover).keyboardShortcut(desktopGlass ? nil : KeyboardShortcut.cancelAction)
+                .help("Запросить остановку Codex. Локальные операции завершаются без прерывания; выполненные действия не откатываются.")
                 .accessibilityLabel("Запросить остановку")
         } else {
             Button { Task { await model.submit() } } label: {
@@ -185,7 +186,7 @@ struct ComposerView: View {
                     .frame(width: 32, height: 32).background(NativeTheme.accent.opacity(cannotSend ? 0.28 : 1), in: Circle())
             }.buttonStyle(.nativeHover).disabled(cannotSend).accessibilityLabel(model.busy ? "Отправить уточнение" : "Отправить сообщение")
                 .help(model.historyPersistence.blocksSubmission ? "Сначала восстановите сохранение истории"
-                      : model.busy ? "Добавить к текущей задаче · Return. Остановить · Esc" : "Отправить · Return")
+                      : model.busy ? (desktopGlass ? "Добавить к текущей задаче · Return. Свернуть · Esc" : "Добавить к текущей задаче · Return. Остановить · Esc") : "Отправить · Return")
         }
     }
 

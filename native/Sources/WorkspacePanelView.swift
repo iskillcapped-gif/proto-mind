@@ -4,6 +4,7 @@ import SwiftUI
 struct WorkspacePanelView: View {
     @ObservedObject var model: AppModel
     @ObservedObject var panel: WorkspacePanelModel
+    @Environment(\.desktopGlass) private var desktopGlass
     var width: CGFloat = 0
 
     var body: some View {
@@ -76,7 +77,7 @@ struct WorkspacePanelView: View {
                     }
                 } else { ProjectWorkspaceView(model: model) }
             }.id(panel.selectedID).frame(maxWidth: .infinity, maxHeight: .infinity)
-        }.background(NativeTheme.canvas)
+        }.background(desktopGlass ? NativeTheme.canvas.opacity(0.12) : NativeTheme.canvas)
     }
 }
 

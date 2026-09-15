@@ -68,10 +68,12 @@ final class LiveVoiceCapture: @unchecked Sendable {
 final class LiveVoiceAudio {
     var onPCM: ((Data) -> Void)?
     var onFailure: ((String) -> Void)?
+    var onPlaybackLevel: ((Double) -> Void)?
     private var engine: AVAudioEngine?
     private var player: AVAudioPlayerNode?
     private var capture: LiveVoiceCapture?
     private var queuedFrames = 0
+    private var playbackLevels: [Double] = []
     private var generation = UUID()
     private var playbackGeneration = UUID()
     private var observer: NSObjectProtocol?
@@ -211,12 +213,16 @@ final class LiveVoiceAudio {
             }
         }
         queuedFrames += frames
+        playbackLevels.append(LiveVoiceSignal.level(data))
+        if playbackLevels.count == 1 { onPlaybackLevel?(playbackLevels[0]) }
         let generation = playbackGeneration
         player.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { [weak self] _ in
             Task { @MainActor in
                 guard let self, self.playbackGeneration == generation else { return }
                 self.queuedFrames -= frames
                 self.playedFrames += frames
+                if !self.playbackLevels.isEmpty { self.playbackLevels.removeFirst() }
+                self.onPlaybackLevel?(self.playbackLevels.first ?? 0)
             }
         }
     }
@@ -239,6 +245,7 @@ final class LiveVoiceAudio {
     private func clearPlayback() {
         playbackGeneration = UUID()
         player?.stop(); queuedFrames = 0
+        playbackLevels.removeAll(); onPlaybackLevel?(0)
     }
 }
 

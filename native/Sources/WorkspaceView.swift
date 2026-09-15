@@ -7,61 +7,24 @@ private let canvas = NativeTheme.canvas
 struct WorkspaceView: View {
     @ObservedObject var model: AppModel
     @ObservedObject var panel: WorkspacePanelModel
+    @ObservedObject var desktop: DesktopPresentation
     @Environment(\.openSettings) private var openSettings
     @State private var libraryExpanded = false
 
     init(model: AppModel) {
         self.model = model
         self.panel = model.workspacePanel
+        self.desktop = model.desktop
     }
 
     var body: some View {
-        NavigationSplitView {
-            SidebarView(model: model, libraryExpanded: $libraryExpanded, openSettings: { openSettings() })
-                .navigationSplitViewColumnWidth(min: 225, ideal: 280, max: 340)
-        } detail: {
-            VStack(spacing: 0) {
-                HistoryPersistenceNotice(model: model)
-                if let error = model.error, error != model.historyPersistence.failure {
-                    HStack(alignment: .top, spacing: 10) {
-                        Image(systemName: "exclamationmark.circle").foregroundStyle(.orange)
-                        Text(error).font(.callout).textSelection(.enabled)
-                        Spacer()
-                        if model.computerUsePermissionIssue {
-                            Button("Открыть Automation") { model.openAutomationSettings() }
-                                .buttonStyle(.bordered).nativeHoverSurface()
-                        }
-                        Button { model.clearError() } label: { Image(systemName: "xmark") }.buttonStyle(.nativeHover)
-                    }.padding(14).background(Color.orange.opacity(0.09))
-                }
-                WorkspaceSplitView(model: model, panel: panel)
-            }
-            .background(canvas)
-            .toolbar {
-                ToolbarItem(placement: .navigation) {
-                    HStack(spacing: 9) {
-                        Image(systemName: model.selected?.workspacePath == nil ? "bubble.left" : "folder").foregroundStyle(.secondary)
-                        Text(sectionTitle)
-                    }
-                        .font(.system(size: 14, weight: .medium)).lineLimit(1).frame(maxWidth: 440, alignment: .leading)
-                        .help(sectionTitle)
-                }
-                ToolbarItem(placement: .primaryAction) {
-                    HStack(spacing: 8) {
-                        Button { model.openWorkSessions() } label: { Image(systemName: "clock.arrow.circlepath") }
-                            .accessibilityLabel("Журнал работы")
-                            .help("Журнал работы и ручное продолжение")
-                        Button {
-                            panel.visible.toggle(); panel.expanded = false
-                            if panel.visible && panel.selectedID == nil { Task { await model.refreshWorkspace() } }
-                        } label: { Image(systemName: "sidebar.right") }
-                            .help("Файлы и браузер").accessibilityLabel("Рабочая панель")
-                    }
-                }
-            }
-            .toolbarBackground(canvas, for: .windowToolbar)
-            .toolbarBackground(.visible, for: .windowToolbar)
+        Group {
+            if desktop.enabled { FloatingWorkspaceView(app: model, desktop: desktop) }
+            else { regularWorkspace }
         }
+        .frame(minWidth: desktop.enabled ? DesktopGeometry.minimumWorkspace.width : 940,
+               minHeight: desktop.enabled ? DesktopGeometry.minimumWorkspace.height : 640)
+        .background(DesktopWindowAttachment(app: model))
         .tint(NativeTheme.accent)
         .font(NativeTheme.interfaceFont)
         .buttonStyle(.nativeHover)
@@ -118,6 +81,55 @@ struct WorkspaceView: View {
         .sheet(item: $model.attachmentDropPreview) { AttachmentDropPreviewView(model: model, preview: $0) }
     }
 
+    private var regularWorkspace: some View {
+        NavigationSplitView {
+            SidebarView(model: model, libraryExpanded: $libraryExpanded, openSettings: { openSettings() })
+                .navigationSplitViewColumnWidth(min: 225, ideal: 280, max: 340)
+        } detail: {
+            VStack(spacing: 0) {
+                HistoryPersistenceNotice(model: model)
+                if let error = model.error, error != model.historyPersistence.failure {
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: "exclamationmark.circle").foregroundStyle(.orange)
+                        Text(error).font(.callout).textSelection(.enabled)
+                        Spacer()
+                        if model.computerUsePermissionIssue {
+                            Button("Открыть Automation") { model.openAutomationSettings() }
+                                .buttonStyle(.bordered).nativeHoverSurface()
+                        }
+                        Button { model.clearError() } label: { Image(systemName: "xmark") }.buttonStyle(.nativeHover)
+                    }.padding(14).background(Color.orange.opacity(0.09))
+                }
+                WorkspaceSplitView(model: model, panel: panel)
+            }
+            .background(canvas)
+            .toolbar {
+                ToolbarItem(placement: .navigation) {
+                    HStack(spacing: 9) {
+                        Image(systemName: model.selected?.workspacePath == nil ? "bubble.left" : "folder").foregroundStyle(.secondary)
+                        Text(sectionTitle)
+                    }
+                        .font(.system(size: 14, weight: .medium)).lineLimit(1).frame(maxWidth: 440, alignment: .leading)
+                        .help(sectionTitle)
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    HStack(spacing: 8) {
+                        Button { model.openWorkSessions() } label: { Image(systemName: "clock.arrow.circlepath") }
+                            .accessibilityLabel("Журнал работы")
+                            .help("Журнал работы и ручное продолжение")
+                        Button {
+                            panel.visible.toggle(); panel.expanded = false
+                            if panel.visible && panel.selectedID == nil { Task { await model.refreshWorkspace() } }
+                        } label: { Image(systemName: "sidebar.right") }
+                            .help("Файлы и браузер").accessibilityLabel("Рабочая панель")
+                    }
+                }
+            }
+            .toolbarBackground(canvas, for: .windowToolbar)
+            .toolbarBackground(.visible, for: .windowToolbar)
+        }
+    }
+
     private var sectionTitle: String {
         switch model.section {
         case .chat: return model.selected?.title ?? "Диалог"
@@ -139,7 +151,7 @@ enum WorkspacePanelLayout {
     }
 }
 
-private struct WorkspaceSplitView: View {
+struct WorkspaceSplitView: View {
     @ObservedObject var model: AppModel
     @ObservedObject var panel: WorkspacePanelModel
     @State private var fraction: CGFloat = 0.5
@@ -222,6 +234,7 @@ enum TranscriptRenderingPolicy {
 }
 
 private struct ChatView: View {
+    @Environment(\.desktopGlass) private var desktopGlass
     @ObservedObject var model: AppModel
     @State private var nearBottom = true
     @State private var followOutput = true
@@ -247,7 +260,7 @@ private struct ChatView: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         VStack(spacing: 0) {
-                            if model.messages.isEmpty { welcome.padding(.top, 60).padding(.bottom, 24) }
+                            if model.messages.isEmpty { welcome.padding(.top, desktopGlass ? 12 : 60).padding(.bottom, 24) }
                             // Variable-height selectable rows can enter a retained layout loop
                             // in macOS SwiftUI's lazy stack after a long-lived window resumes.
                             VStack(alignment: .leading, spacing: 34) {
@@ -291,7 +304,7 @@ private struct ChatView: View {
                                     }.frame(maxWidth: .infinity, alignment: .leading)
                                 }
                             }.frame(maxWidth: NativeTheme.columnWidth)
-                                .padding(.horizontal, NativeTheme.conversationInset).padding(.vertical, 30)
+                                .padding(.horizontal, desktopGlass ? 24 : NativeTheme.conversationInset).padding(.vertical, 30)
                                 .frame(maxWidth: .infinity)
                             Color.clear.frame(height: 1).id("bottom")
                                 .background(GeometryReader { anchor in
@@ -343,7 +356,7 @@ private struct ChatView: View {
                         }
                 }
             }
-            ComposerView(model: model).padding(.horizontal, NativeTheme.conversationInset).padding(.top, 7).padding(.bottom, 8).background(canvas)
+            ComposerView(model: model).padding(.horizontal, desktopGlass ? 24 : NativeTheme.conversationInset).padding(.top, 7).padding(.bottom, desktopGlass ? 18 : 8).background(desktopGlass ? Color.clear : canvas)
         }.modifier(AttachmentDropTarget(model: model))
     }
 
@@ -393,7 +406,9 @@ private struct ChatView: View {
         }
     }
 
-    private var welcome: some View { ConversationWelcomeView(model: model) }
+    @ViewBuilder private var welcome: some View {
+        if desktopGlass { FloatingWelcomeView() } else { ConversationWelcomeView(model: model) }
+    }
 }
 
 private struct ChatBottomKey: PreferenceKey {

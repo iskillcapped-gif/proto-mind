@@ -27,6 +27,10 @@ final class NativeAppDelegate: NSObject, NSApplicationDelegate {
         return .terminateNow
     }
 
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        !(model?.desktop.reopen() ?? false)
+    }
+
     func applicationDidBecomeActive(_ notification: Notification) {
         guard let model, model.loginPending else { return }
         Task { await model.refreshAccount() }
@@ -41,7 +45,6 @@ struct ProtoMindApp: App {
     var body: some Scene {
         WindowGroup("Proto-Mind") {
             WorkspaceView(model: model)
-                .frame(minWidth: 940, minHeight: 640)
                 .task {
                     delegate.model = model
                     await model.start()
@@ -56,6 +59,9 @@ struct ProtoMindApp: App {
                     .keyboardShortcut("n").disabled(!model.canNavigateConversations)
             }
             CommandMenu("Proto-Mind") {
+                Button("Переключить парящий режим") { model.desktop.toggleMode() }
+                    .keyboardShortcut("j", modifiers: [.command, .option])
+                Divider()
                 Button("Использование Codex…") { model.showCodexUsage = true }
                 Button("Полная копия данных…") { model.showPrivateBackup = true }
                     .disabled(model.globalBusy || model.client.turnOutstanding)

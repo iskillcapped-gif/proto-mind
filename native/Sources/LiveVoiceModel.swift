@@ -21,6 +21,7 @@ final class LiveVoiceModel: ObservableObject {
     @Published private(set) var finalUsage: JSONValue = .null
     @Published private(set) var contextTitle = ""
     @Published private(set) var inputLevel = 0.0
+    @Published private(set) var outputLevel = 0.0
     let keychain: LiveVoiceKeychain
     private let transport = LiveVoiceTransport()
     private let audio = LiveVoiceAudio()
@@ -42,6 +43,7 @@ final class LiveVoiceModel: ObservableObject {
         transport.onEvent = { [weak self] in self?.receive($0) }
         transport.onFailure = { [weak self] in self?.fail($0, connectionLost: true) }
         audio.onFailure = { [weak self] in self?.fail($0) }
+        audio.onPlaybackLevel = { [weak self] level in self?.outputLevel = level }
         audio.onPCM = { [weak self] data in
             guard let self, self.phase == .active || self.phase == .connecting else { return }
             self.inputLevel = self.muted ? 0 : LiveVoiceSignal.level(data)
