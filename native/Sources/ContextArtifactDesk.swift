@@ -22,7 +22,7 @@ struct NativeInstructionPreview: Equatable {
               ["read_only", "no_execution", "no_model_call", "no_network_call", "no_store_write", "no_thread_refresh", "current_projection"]
                 .allSatisfy({ value[$0] == .bool(true) }),
               value["private_reasoning_included"] == .bool(false),
-              ["codex", "ollama", "mock"].contains(value["provider"].text),
+              ["codex", "ollama", "mock", "api"].contains(value["provider"].text),
               ["chat", "full_access", "operator"].contains(value["mode"].text),
               case .bool = value["operator"], case .bool = value["recomputed_on_send"],
               case .bool = value["read_only_retrieval_performed"],
@@ -70,8 +70,8 @@ struct NativeInstructionPreview: Equatable {
                   layers[1]["source"] == .string(value["mode"].text == "full_access" ? "full_mac_static_contract" : "chat_static_contract"),
                   layers[1]["dynamic"] == .bool(false), value["recomputed_on_send"] == .bool(true) else { throw Self.error() }
         } else {
-            guard value["provider"] == .string("ollama"), value["mode"] == .string("chat"),
-                  identifiers == ["system_instructions"], layers[0]["placement"] == .string("ollama_system_message"),
+            guard ["ollama", "api"].contains(value["provider"].text), value["mode"] == .string("chat"),
+                  identifiers == ["system_instructions"], layers[0]["placement"] == .string(value["provider"].text == "api" ? "api_system_message" : "ollama_system_message"),
                   ["legacy_cognitive_core_current_projection", "brother_persona_current_projection"].contains(layers[0]["source"].text),
                   layers[0]["dynamic"] == .bool(true), value["recomputed_on_send"] == .bool(true) else { throw Self.error() }
         }
@@ -118,8 +118,8 @@ struct NativeInstructionReceipt: Equatable {
               value["assembled_for_provider_call"] == .bool(true), value["provider_delivery_verified"] == .bool(false),
               value["provider_owned_instructions_included"] == .bool(false), value["private_reasoning_included"] == .bool(false),
               value["scope"] == .string("proto_mind_authored_instruction_metadata"),
-              ["codex", "ollama"].contains(value["provider"].text), ["chat", "full_access"].contains(value["mode"].text),
-              value["provider"].text != "ollama" || value["mode"].text == "chat",
+              ["codex", "ollama", "api"].contains(value["provider"].text), ["chat", "full_access"].contains(value["mode"].text),
+              value["provider"].text == "codex" || value["mode"].text == "chat",
               ["brother", "legacy"].contains(value["persona_state"].text),
               case .array(let memoryIDs) = value["selected_memory_ids"], memoryIDs.count <= 10,
               memoryIDs.allSatisfy({ !$0.text.isEmpty && $0.text.unicodeScalars.count <= 160 }),
@@ -145,7 +145,7 @@ struct NativeInstructionReceipt: Equatable {
                   layers[1]["source"] == .string(value["mode"].text == "full_access" ? "full_mac_static_contract" : "chat_static_contract"),
                   layers[1]["dynamic"] == .bool(false) else { throw Self.error() }
         } else {
-            guard identifiers == ["system_instructions"], layers[0]["placement"] == .string("ollama_system_message"),
+            guard identifiers == ["system_instructions"], layers[0]["placement"] == .string(value["provider"].text == "api" ? "api_system_message" : "ollama_system_message"),
                   ["legacy_cognitive_core_current_projection", "brother_persona_current_projection"].contains(layers[0]["source"].text),
                   layers[0]["dynamic"] == .bool(true) else { throw Self.error() }
         }

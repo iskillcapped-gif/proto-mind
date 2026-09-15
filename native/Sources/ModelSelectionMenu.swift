@@ -109,6 +109,9 @@ struct ModelSelectionChoices: View {
                 }
             }.disabled(model.busy)
             Divider().opacity(0.5)
+            if let id = model.selectedID {
+                ConversationProviderChoices(app: model, connections: model.apiConnections, conversationID: id) { open = false }
+            }
             ComposerMenuRow(title: "Настройки модели", icon: "slider.horizontal.3") {
                 open = false
                 Task { @MainActor in await Task.yield(); model.settingsSection = .models; openSettings() }

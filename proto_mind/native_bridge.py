@@ -151,6 +151,9 @@ class NativeMemoryStore(MemoryStore):
         super()._save_records(path, records)
 
 
+from proto_mind.native_api import APITransport, NativeAPIReasoner, validate_connection
+
+
 class NativeOllamaReasoner(OllamaReasoner):
     def __init__(self, config: ProtoMindConfig, history: list[dict], files: list[dict] | None = None,
                  criteria: list[str] | None = None, pdfs: list[SelectedPDF] | None = None,
@@ -272,6 +275,7 @@ class NativeBackend:
         self.logger = SessionOperatorLogger.from_project_root(self.root)
         self.active_request: str | None = None
         self.active_provider: str | None = None
+        self.active_api: APITransport | None = None
         self.active_steering: LiveSteering | None = None
         self.busy = threading.Lock()
         self.agent_grants = AgentGrants()
@@ -530,7 +534,7 @@ class NativeBackend:
         if description["requires_confirmation"] and params.get("confirmed_text") != text:
             raise ValueError("Confirm the exact operator command before running it.")
         provider = params.get("provider", "ollama")
-        if provider not in {"ollama", "mock", "codex"}:
+        if provider not in {"ollama", "mock", "codex", "api"}:
             raise ValueError("Unknown model provider.")
         model = params.get("model", "")
         if not isinstance(model, str) or len(model) > 160 or "\x00" in model:
@@ -538,10 +542,17 @@ class NativeBackend:
         reasoning_effort = validate_reasoning_effort(params.get("reasoning_effort", "")) if provider == "codex" and not description["operator"] else ""
         history = bounded_history(params.get("history", []))
         criteria = [] if description["operator"] else validate_criteria(params.get("criteria", []))
-        if provider == "codex" and not description["operator"] and params.get("cloud_consent") is not True:
-            raise ValueError("Select and approve cloud processing before sending messages or recalled memories to Codex.")
+        if provider in {"codex", "api"} and not description["operator"] and params.get("cloud_consent") is not True:
+            raise ValueError("Разрешите облачную обработку в настройках перед отправкой сообщений и памяти API."
+                             if provider == "api" else "Select and approve cloud processing before sending messages or recalled memories to Codex.")
         if description["operator"] and persona_enabled:
             raise ValueError("Brother Persona is not applied to operator commands. No command was executed.")
+        if provider == "api" and not description["operator"]:
+            validate_connection(params.get("api_connection"))
+            if not model:
+                raise ValueError("Выберите точный ID модели API.")
+            if persona_enabled:
+                raise ValueError("Brother Persona пока поддерживается через Codex и Ollama. API использует базовую память ядра.")
         agent_workspace = None
         mode = "chat"
         if not description["operator"]:
@@ -687,6 +698,12 @@ class NativeBackend:
                         skill_task=skill_task, before_provider_call=revalidate_knowledge,
                         auto_skill_guidance=(AUTO_SKILL_HISTORY_BOUNDARY if "auto_skills" in params else "") + (auto_skills.guidance() if auto_skills else ""),
                     )
+                elif provider == "api":
+                    self.active_api = APITransport(params["api_connection"])
+                    coordinator.reasoner = NativeAPIReasoner(self.active_api, model, history,
+                        lambda delta: emit({"event": "answer_delta", "request_id": request_id, "delta": delta}),
+                        files=files, criteria=criteria, pdfs=pdfs, project_notes=project_notes,
+                        skill_task=skill_task, before_provider_call=revalidate_knowledge)
                 elif provider == "ollama":
                     url = urlparse(config.ollama_url)
                     if url.scheme != "http" or url.hostname not in {"localhost", "127.0.0.1", "::1"}:
@@ -725,7 +742,7 @@ class NativeBackend:
             serialized = output.to_dict()
             persona_receipt = getattr(coordinator.reasoner, "last_persona_receipt", None)
             instruction_receipt = getattr(coordinator.reasoner, "last_instruction_receipt", None)
-            if (not description["operator"] and provider in {"codex", "ollama"}
+            if (not description["operator"] and provider in {"codex", "ollama", "api"}
                     and not isinstance(instruction_receipt, dict)):
                 raise ValueError("Provider instruction assembly did not produce a validated content-free receipt.")
             if persona_activation is not None:
@@ -794,6 +811,7 @@ class NativeBackend:
                     self.subscription.on_main_turn = None
                     self.active_steering = None
                 self.active_request = self.active_provider = None
+                self.active_api = None
                 self.busy.release()
 
     def _artifact_workspace(self, params: dict, record: dict) -> WorkspaceReader | None:
@@ -889,7 +907,7 @@ class NativeBackend:
             raise ValueError("Invalid draft for local context inspection.")
         text = text.strip()
         provider, mode = params.get("provider", "ollama"), params.get("access_mode", "chat")
-        if provider not in {"codex", "ollama", "mock"} or mode not in {"chat", "full_access"}:
+        if provider not in {"codex", "ollama", "mock", "api"} or mode not in {"chat", "full_access"}:
             raise ValueError("Unknown provider or access mode.")
         model = params.get("model", "")
         if not isinstance(model, str) or len(model) > 160 or "\x00" in model:
@@ -921,7 +939,7 @@ class NativeBackend:
             mode=mode,
             operator=operator,
         )
-        if not operator and provider in {"codex", "ollama"}:
+        if not operator and provider in {"codex", "ollama", "api"}:
             result["manifest"]["recall"] = "read_only_current_projection_recomputed_at_send"
             result["notes"][1] = (
                 "Core Observer, read-only memory retrieval and correction context are included in the current local instruction projection. "
@@ -1398,6 +1416,9 @@ class NativeBackend:
     def cancel(self, request_id: str) -> dict:
         if request_id != self.active_request:
             return {"cancel_requested": False, "notice": "No matching active turn."}
+        if self.active_provider == "api" and self.active_api:
+            self.active_api.cancel()
+            return {"cancel_requested": True, "notice": "Остановка API запрошена."}
         if self.active_provider != "codex":
             return {"cancel_requested": False, "notice": "This operation must finish safely; no process was killed."}
         if self.active_steering is not None: self.active_steering.stop()
@@ -1405,11 +1426,13 @@ class NativeBackend:
         return {"cancel_requested": True, "notice": "Codex stop requested."}
 
     def close(self) -> None:
+        if self.active_api: self.active_api.cancel()
         self.agent_grants.revoke()
         self.subscription.close()
 
     def disconnect(self) -> None:
         self.closing.set()
+        if self.active_api: self.active_api.cancel()
         if self.active_steering is not None: self.active_steering.stop()
         self.agent_grants.revoke()
         if self.active_provider == "codex":

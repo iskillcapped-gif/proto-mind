@@ -16,6 +16,8 @@ struct WorkspacePanelTab: Identifiable {
         case image(NativeImagePreview)
         case pdf(NativePDFPreview)
         case browser(NativeBrowserTab)
+        case conversation(UUID)
+        case terminal(WorkspaceTerminal)
     }
     let id: UUID
     var content: Content
@@ -25,6 +27,8 @@ struct WorkspacePanelTab: Identifiable {
         case .image(let image): return image.source.name
         case .pdf(let pdf): return pdf.source.name
         case .browser: return "Браузер"
+        case .conversation: return "Диалог PM"
+        case .terminal: return "Терминал"
         }
     }
     var symbol: String {
@@ -33,6 +37,8 @@ struct WorkspacePanelTab: Identifiable {
         case .image: return "photo"
         case .pdf: return "doc.richtext"
         case .browser: return "globe"
+        case .conversation: return "bubble.left.and.bubble.right"
+        case .terminal: return "terminal"
         }
     }
     var sourceKey: String? {
@@ -40,7 +46,8 @@ struct WorkspacePanelTab: Identifiable {
         case .text(let file): return "text:\(file.conversationID):\(file.root):\(file.path)"
         case .image(let image): return "image:\(image.conversationID):\(image.source.path)"
         case .pdf(let pdf): return "pdf:\(pdf.conversationID):\(pdf.workspace ?? ""):\(pdf.source.path)"
-        case .browser: return nil
+        case .conversation(let id): return "conversation:\(id)"
+        case .browser, .terminal: return nil
         }
     }
 }
@@ -54,9 +61,10 @@ final class WorkspacePanelModel: ObservableObject {
     @Published private(set) var tabs: [WorkspacePanelTab] = []
     @Published var selectedID: UUID?
     @Published var error: String?
+    @Published var filesSelected = false
     var selected: WorkspacePanelTab? { tabs.first { $0.id == selectedID } }
 
-    func showFiles() { visible = true; selectedID = nil; error = nil }
+    func showFiles() { visible = true; selectedID = nil; filesSelected = true; error = nil }
 
     @discardableResult
     func open(_ content: WorkspacePanelTab.Content) -> UUID? {
@@ -92,14 +100,19 @@ final class WorkspacePanelModel: ObservableObject {
     func close(_ id: UUID) {
         guard let index = tabs.firstIndex(where: { $0.id == id }) else { return }
         if case .browser(let browser) = tabs[index].content { browser.close() }
+        if case .terminal(let terminal) = tabs[index].content { terminal.close() }
         tabs.remove(at: index)
         if selectedID == id { selectedID = tabs.isEmpty ? nil : tabs[min(index, tabs.count - 1)].id }
         error = nil
     }
 
     func closeAll() {
-        for tab in tabs { if case .browser(let browser) = tab.content { browser.close() } }
+        for tab in tabs {
+            if case .browser(let browser) = tab.content { browser.close() }
+            if case .terminal(let terminal) = tab.content { terminal.close() }
+        }
         tabs = []; selectedID = nil; error = nil; visible = false; expanded = false
+        filesSelected = false
     }
 
     func replacePDF(_ id: UUID, expected: NativePDFPreview, with preview: NativePDFPreview) throws {
@@ -117,10 +130,11 @@ extension AppModel {
         Task { await refreshWorkspace() }
     }
 
-    func openWorkspaceLink(_ url: URL, relativeTo directory: URL? = nil) {
-        if NativeBrowserURL.isWebURL(url) { workspacePanel.openBrowser(url); return }
+    func openWorkspaceLink(_ url: URL, relativeTo directory: URL? = nil, in targetPanel: WorkspacePanelModel? = nil) {
+        let panel = targetPanel ?? workspacePanel
+        if NativeBrowserURL.isWebURL(url) { panel.openBrowser(url); return }
         guard url.isFileURL || url.scheme == nil, let root = selected?.workspacePath else {
-            workspacePanel.visible = true; workspacePanel.error = "Для просмотра файла выберите папку проекта."
+            panel.visible = true; panel.error = "Для просмотра файла выберите папку проекта."
             return
         }
         let file: URL
@@ -128,11 +142,12 @@ extension AppModel {
         else { file = (directory ?? URL(fileURLWithPath: root)).appendingPathComponent(url.path) }
         do {
             let path = try NativeAttachmentDrop.relativePath(file, workspace: root)
-            Task { await openWorkspaceEntry(.object(["path": .string(path), "directory": .bool(false)])) }
-        } catch { workspacePanel.visible = true; workspacePanel.error = error.localizedDescription }
+            Task { await openWorkspaceEntry(.object(["path": .string(path), "directory": .bool(false)]), in: panel) }
+        } catch { panel.visible = true; panel.error = error.localizedDescription }
     }
 
-    func chooseWorkspaceDocument() {
+    func chooseWorkspaceDocument(in targetPanel: WorkspacePanelModel? = nil) {
+        let panel = targetPanel ?? workspacePanel
         guard canEditMessageAttachments, let conversationID = selectedID else { return }
         let picker = NSOpenPanel()
         picker.canChooseDirectories = false; picker.allowsMultipleSelection = false; picker.resolvesAliases = false
@@ -143,28 +158,30 @@ extension AppModel {
             guard response == .OK, let url = picker.url, let self, self.selectedID == conversationID else { return }
             Task {
                 switch url.pathExtension.lowercased() {
-                case "png", "jpg", "jpeg": await self.previewImage(url.path, inWorkspacePanel: true)
-                case "pdf": await self.previewPDF(url.path, inWorkspacePanel: true)
-                default: self.openWorkspaceLink(url)
+                case "png", "jpg", "jpeg": await self.previewImage(url.path, inWorkspacePanel: true, targetPanel: panel)
+                case "pdf": await self.previewPDF(url.path, inWorkspacePanel: true, targetPanel: panel)
+                default: self.openWorkspaceLink(url, in: panel)
                 }
             }
         }
         presentFilePicker(picker, completion: completion)
     }
 
-    func attachWorkspaceText(_ file: WorkspaceTextPreview) {
+    func attachWorkspaceText(_ file: WorkspaceTextPreview, in targetPanel: WorkspacePanelModel? = nil) {
+        let panel = targetPanel ?? workspacePanel
         guard selectedID == file.conversationID, selected?.workspacePath == file.root,
               selected?.archived != true, !busy else {
-            workspacePanel.error = "Вернитесь в исходный диалог и папку, чтобы прикрепить этот файл."
+            panel.error = "Вернитесь в исходный диалог и папку, чтобы прикрепить этот файл."
             return
         }
         filePreview = file.value
         workspaceError = nil
         attachPreview()
-        workspacePanel.error = workspaceError
+        panel.error = workspaceError
     }
 
-    func refreshWorkspacePDF(_ preview: NativePDFPreview, page: Int, tabID: UUID) async {
+    func refreshWorkspacePDF(_ preview: NativePDFPreview, page: Int, tabID: UUID, in targetPanel: WorkspacePanelModel? = nil) async {
+        let panel = targetPanel ?? workspacePanel
         guard canEditMessageAttachments, !loadingPDFPreview, let conversation = selected,
               conversation.id == preview.conversationID, conversation.workspacePath == preview.workspace,
               (1...preview.source.value["page_count"].integer).contains(page) else { return }
@@ -173,7 +190,7 @@ extension AppModel {
         do {
             let next = try await readPDFPreview(preview.source.path, pages: [page], conversation: conversation,
                                                 canAttach: preview.canAttach, expectedSHA: preview.source.sha256)
-            try workspacePanel.replacePDF(tabID, expected: preview, with: next)
-        } catch { workspacePanel.error = error.localizedDescription }
+            try panel.replacePDF(tabID, expected: preview, with: next)
+        } catch { panel.error = error.localizedDescription }
     }
 }

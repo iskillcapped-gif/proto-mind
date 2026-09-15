@@ -4,6 +4,9 @@ Proto-Mind's portable edition includes unmodified Python source plus compiled
 open-source runtimes. Runtime versions, source URLs and archive SHA-256 hashes
 are recorded in `distribution-manifest.json` next to this directory.
 
+- SwiftTerm 1.20.0, MIT-licensed terminal emulator compiled into the native app.
+  Its license is included as `SwiftTerm-LICENSE.txt`; SwiftPM dependency versions
+  are pinned in the source repository's `native/Package.resolved`.
 - CPython 3.12.14, assembled by Astral's python-build-standalone (20260901).
   Python and its native dependency licenses are preserved here as `Python-LICENSE*`.
   Python's own `LICENSE.txt` and pip's vendor licenses also remain in the runtime.

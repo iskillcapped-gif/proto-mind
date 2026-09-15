@@ -15,7 +15,7 @@ func checkSkillTaskReference(_ value: JSONValue) throws {
           ["skill_id", "source_lesson_id", "provenance_id"].allSatisfy({ value[$0].text.range(of: "^[A-Za-z0-9_.:-]{1,200}$", options: .regularExpression) != nil }),
           (1...800).contains(value["skill_name"].text.unicodeScalars.count),
           ["active_verified", "active_restored_verified"].contains(value["lifecycle_state"].text),
-          ["codex", "ollama", "mock"].contains(value["provider"].text),
+          ["codex", "ollama", "mock", "api"].contains(value["provider"].text),
           ["chat", "full_access"].contains(value["access_mode"].text),
           value["access_mode"] != .string("full_access") || value["provider"] == .string("codex"),
           value["execution_path"] == .string("existing_operator_sent_provider_turn"), value["quality_verification"] == .string("not_assessed"),

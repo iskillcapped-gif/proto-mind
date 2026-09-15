@@ -102,7 +102,9 @@ struct NativeChecks {
             try await workspacePresentations(root: root)
             try chatPresentation(root: root)
             try workspacePanelContracts(root: root)
+            try await workspacePanelsContracts(root: root)
             if let fixture = LaunchConfiguration.argument("--fixture"), let python = LaunchConfiguration.argument("--python") {
+                try await workspacePanelsIntegration(fixture: URL(fileURLWithPath: fixture), python: URL(fileURLWithPath: python), root: root)
                 try await workspacePanelIntegration(fixture: URL(fileURLWithPath: fixture), python: URL(fileURLWithPath: python), root: root)
             }
             print("Native interface checks: \(passed) OK")
@@ -743,6 +745,8 @@ struct NativeChecks {
         guard fixture.resolvingSymlinksInPath().path.hasPrefix(FileManager.default.temporaryDirectory.resolvingSymlinksInPath().path + "/") else {
             throw NativeError.message("Native integration smoke accepts temporary fixture projects only.")
         }
+        try await workspacePanelsContracts(root: root)
+        try await workspacePanelsIntegration(fixture: fixture, python: python, root: root)
         try await workspacePanelIntegration(fixture: fixture, python: python, root: root)
         let app = AppModel(configuration: LaunchConfiguration(projectRoot: fixture, python: python, stateDirectory: root.appendingPathComponent("integration-state")))
         defer { app.shutdown() }

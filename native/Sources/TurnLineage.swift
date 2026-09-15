@@ -19,9 +19,9 @@ struct NativeTurnReceipt: Equatable {
               value["task_success_verified"] == .bool(false), value["provider_delivery_verified"] == .bool(false),
               value["scope"] == .string("native_turn_metadata"),
               Self.normalizedUUID(value["run_id"].text), Self.normalizedUUID(value["conversation_id"].text),
-              ["codex", "ollama"].contains(value["provider"].text),
+              ["codex", "ollama", "api"].contains(value["provider"].text),
               ["chat", "full_access"].contains(value["mode"].text),
-              value["provider"].text != "ollama" || value["mode"].text == "chat",
+              value["provider"].text == "codex" || value["mode"].text == "chat",
               Self.count(value["input_chars"]), Self.count(value["response_chars"]),
               Self.count(value["answer_preview_chars"], maximum: 1_650),
               ["input_sha256", "response_sha256", "answer_preview_sha256", "instruction_receipt_hash", "receipt_hash"]
@@ -73,9 +73,9 @@ struct NativeTurnReference: Equatable {
               value["content_free"] == .bool(true), value["input_text_stored"] == .bool(false),
               value["response_text_stored"] == .bool(false), value["scope"] == .string("native_chat_to_work_session"),
               Self.normalizedUUID(value["source_message_id"].text), Self.normalizedUUID(value["run_id"].text),
-              Self.normalizedUUID(value["conversation_id"].text), ["codex", "ollama"].contains(value["provider"].text),
+              Self.normalizedUUID(value["conversation_id"].text), ["codex", "ollama", "api"].contains(value["provider"].text),
               ["chat", "full_access"].contains(value["mode"].text),
-              value["provider"].text != "ollama" || value["mode"].text == "chat",
+              value["provider"].text == "codex" || value["mode"].text == "chat",
               Self.count(value["input_chars"]), Self.count(value["response_chars"]),
               ["input_sha256", "response_sha256", "turn_receipt_hash", "reference_hash"]
                 .allSatisfy({ NativeTurnReceipt.isHash(value[$0].text) }) else { throw Self.error() }

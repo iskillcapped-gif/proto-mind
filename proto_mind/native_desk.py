@@ -58,7 +58,7 @@ def context_manifest(*, root: Path, text: str, history: list[dict], files: list[
     validate_knowledge_metadata(knowledge_context)
     return {"schema": CONTEXT_SCHEMA, "generated_at": _stamp(), "read_only": True,
             "operator": operator, "provider": provider, "requested_model": model, "requested_effort": effort,
-            "destination": "operator_local" if operator else {"codex": "openai_cloud", "ollama": "ollama_loopback", "mock": "mock_local"}[provider],
+            "destination": "operator_local" if operator else {"codex": "openai_cloud", "ollama": "ollama_loopback", "api": "configured_api", "mock": "mock_local"}[provider],
             "input": {"characters": len(text), "sha256": _hash(text)},
             "history": {"messages": len(history), "characters": sum(len(row["content"]) for row in history),
                         "limit_messages": 12, "limit_chars_per_message": 2000},

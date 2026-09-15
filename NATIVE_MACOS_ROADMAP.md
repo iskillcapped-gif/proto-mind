@@ -4,6 +4,56 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Parallel Workspaces and API Models — Native 0.64.0
+
+Two equivalent panels sit to the right of the main conversation, sharing its
+normal/floating workspace and transparency. Each has PM conversation tabs,
+manual WebKit browser/web-app tabs, document previews and SwiftTerm 1.20.0 PTYs.
+Dividers resize the split. Hover reveals the upper panel's bottom-left triangle
+or lower panel's top-left triangle; expansion fills only the area to the right
+of the sidebar. The tab menu also exposes expansion for keyboard access.
+
+Stable mounted views retain browser state, terminal processes, drafts and
+scroll positions while switching tabs, hiding the deck or expanding a panel.
+Hidden surfaces relinquish keyboard focus. Closing a PM tab neither stops its
+execution nor deletes its conversation; closing a running terminal asks to end
+that terminal session. Quitting ends terminals, and tab layout is transient.
+Each PM surface routes sends, Stop, Codex steering and selected context through
+its existing ConversationExecution and the single AppModel history writer.
+Async document results capture their destination panel before awaiting.
+
+API connections support OpenAI Responses and OpenAI-compatible Chat Completions.
+The exact model ID and endpoint are explicit. Connection metadata is a local UI
+preference; credentials are stored separately in Keychain and bound to the
+connection/destination. They never enter dialog objects, work journals or core
+exports. API requests use core memory and selected project-note/skill/text/PDF
+context with instruction and turn receipts. This route is chat-only: Full Mac,
+automatic skill/recall selection, live steering and Brother Persona retain their
+existing provider boundaries. Keys and connection metadata are outside private
+core/dialog restores; a missing connection requires selecting it again.
+
+The transport requires HTTPS for remote servers, permits loopback HTTP, has an
+independent network-idle deadline and interrupts blocked response reads on Stop.
+Incomplete streams cannot become completed replies. There are no automatic paid
+retries, redirects, silent provider changes or hidden reuse of the voice key.
+Installed Claude Code or another chosen executable runs in a terminal with its
+own account; deeper PM integration of third-party CLIs remains a later adapter.
+
+Verification: **1,534 full Native checks and 2,322 Python tests pass**. These cover
+concurrent PM sends without selected-editor mutation, durable API connection
+references, real interactive PTY input/ANSI output, and a complete Native → stdio
+→ loopback API → receipt → history round trip. HTTP tests cover both formats,
+malformed/incomplete responses, credential exclusion, required consent, denied
+API Full Mac, and Stop during an idle stream. No live paid API call was made.
+
+Disposable UI checks exercised both layouts, a PM response, interactive terminal
+paste/execution, both expansion directions, the API connection form inside the
+workspace and a browser draft retained across tab and normal/floating switches.
+The release terminal also starts with both build-directory resource bundles
+unavailable. The packaged Python/core/bootstrap, memory save/restart/backup and
+17 Mach-O dependency paths pass portable verification, with the signature intact.
+These are local checks, not a second-Mac installation test or live API-provider certification.
+
 ## Project Drag Indicator Cleanup — Native 0.63.2
 
 The insertion line now belongs to one sidebar drag session rather than to each

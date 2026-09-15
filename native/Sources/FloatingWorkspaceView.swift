@@ -64,10 +64,7 @@ struct FloatingWorkspaceView: View {
                 .frame(maxWidth: 260, alignment: .leading)
             // Only the empty header area drags the window; buttons and text keep their own input.
             DesktopWindowDragArea().frame(height: 36).frame(maxWidth: .infinity)
-            headerButton("Файлы и браузер", icon: "sidebar.right") {
-                app.workspacePanel.visible.toggle(); app.workspacePanel.expanded = false
-                if app.workspacePanel.visible && app.workspacePanel.selectedID == nil { Task { await app.refreshWorkspace() } }
-            }
+            headerButton("Рабочие панели", icon: "rectangle.split.2x2") { app.workspacePanels.toggle() }
             headerButton("Свернуть в ядро · Esc", icon: "minus") { desktop.collapse() }
                 .accessibilityLabel("Свернуть в ядро")
         }.padding(.horizontal, 20).padding(.vertical, 14)

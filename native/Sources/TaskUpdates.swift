@@ -72,7 +72,7 @@ extension AppModel {
         selected.map { !$0.pendingFiles.isEmpty || !$0.pendingImages.isEmpty || !$0.pendingPDFs.isEmpty } ?? false
     }
     var hasComposerInput: Bool { !composer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || hasPendingMessageAttachments }
-    var composerShowsStop: Bool { busy && !hasComposerInput }
+    var composerShowsStop: Bool { busy && (!hasComposerInput || selected?.provider != "codex") }
     var canSendComposer: Bool {
         hasComposerInput && (!busy || canUpdateTask) && selected?.archived != true
             && !loadingDroppedAttachments && !loadingImagePreview && !loadingPDFPreview
@@ -85,8 +85,14 @@ extension AppModel {
     }
 
     func enqueueTaskUpdate(_ text: String) async {
-        guard canUpdateTask, let sourceID = activeTaskMessageID, let conversationID = selectedID,
+        guard let id = selectedID else { return }
+        await enqueueTaskUpdate(text, conversationID: id)
+    }
+
+    func enqueueTaskUpdate(_ text: String, conversationID: UUID) async {
+        guard let state = executions[conversationID], canUpdateTask(state), let sourceID = state.sourceMessageID,
               let index = conversations.firstIndex(where: { $0.id == conversationID }),
+              conversations[index].provider == "codex", !conversations[index].archived,
               let message = conversations[index].messages.firstIndex(where: { $0.id == sourceID }) else { return }
         guard text.unicodeScalars.count <= 20_000, !text.contains("\0"),
               (conversations[index].messages[message].taskUpdates?.count ?? 0) < 32 else {
@@ -97,13 +103,13 @@ extension AppModel {
         let update = TaskUpdate(text: text, fileContext: previous.pendingFiles, imageContext: previous.pendingImages, pdfContext: previous.pendingPDFs)
         conversations[index].messages[message].taskUpdates = (previous.messages[message].taskUpdates ?? []) + [update]
         conversations[index].pendingFiles = []; conversations[index].pendingImages = []; conversations[index].pendingPDFs = []
-        setComposer("")
+        setConversationDraft("", id: conversationID)
         guard persist() else {
             conversations[index] = previous
-            setComposer(text)
+            setConversationDraft(text, id: conversationID)
             return
         }
-        if let state = selectedExecution { await flushTaskUpdates(execution: state) }
+        await flushTaskUpdates(execution: state)
     }
 
     func enqueueVoiceTaskUpdate(_ text: String, execution state: ConversationExecution) throws -> JSONValue {
@@ -126,7 +132,7 @@ extension AppModel {
                         "update_id": .string(update.id.uuidString)])
     }
 
-    private func canUpdateTask(_ state: ConversationExecution) -> Bool {
+    func canUpdateTask(_ state: ConversationExecution) -> Bool {
         state.running && state.startedAt != nil && state.sourceMessageID != nil
             && cloudConsent && !state.updatesStopped && !historyPersistence.blocksSubmission && !store.writeBlocked
     }

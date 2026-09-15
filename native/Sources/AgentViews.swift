@@ -43,7 +43,7 @@ struct AgentAccessSheet: View {
                 Button("Оставить обычный чат") { model.pendingAgentAccess = nil }.keyboardShortcut(.cancelAction)
                 Spacer()
                 Button("Включить полный доступ") { Task { await model.confirmAgentAccess() } }
-                    .buttonStyle(.borderedProminent).nativeHoverSurface().disabled(!acknowledged || model.busy)
+                    .buttonStyle(.borderedProminent).nativeHoverSurface().disabled(!acknowledged || model.operationBusy || model.isRunning(request.conversationID))
             }
         }.padding(28).workspacePageSize(width: 600)
     }

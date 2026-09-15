@@ -25,7 +25,7 @@ def parse_task_request(params: dict) -> dict:
             or any((ord(char) < 32 and char not in "\n\t") or 0xD800 <= ord(char) <= 0xDFFF for char in goal)):
         raise ValueError("The task goal must be plain text of at most 4000 characters.")
     provider, mode = params.get("provider", "mock"), params.get("access_mode", "chat")
-    if provider not in {"codex", "ollama", "mock"} or mode not in {"chat", "full_access"} or mode == "full_access" and provider != "codex":
+    if provider not in {"codex", "ollama", "mock", "api"} or mode not in {"chat", "full_access"} or mode == "full_access" and provider != "codex":
         raise ValueError("Skill guidance cannot change the existing provider/access boundaries.")
     return {**scope, "goal": goal, "criteria": validate_criteria(params.get("criteria", [])), "provider": provider, "access_mode": mode}
 

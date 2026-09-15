@@ -150,6 +150,7 @@ def package(root: Path, binaries: Path, output: Path, cache: Path, identity: str
         resources.mkdir()
         for name in ("ProtoMindNative", "ProtoMindPDF"):
             shutil.copy2(binaries / name, executables / name)
+        shutil.copytree(binaries / "SwiftTerm_SwiftTerm.bundle", resources / "SwiftTerm_SwiftTerm.bundle")
         plist = plistlib.loads((root / "native/Info.plist").read_bytes())
         plist.update(CFBundleName="Proto-Mind", CFBundleDisplayName="Proto-Mind", CFBundleIdentifier="local.proto-mind.desktop")
         (app / "Contents/Info.plist").write_bytes(plistlib.dumps(plist))
@@ -165,6 +166,7 @@ def package(root: Path, binaries: Path, output: Path, cache: Path, identity: str
         licenses = resources / "Licenses"
         licenses.mkdir()
         shutil.copy2(root / "LICENSE", licenses / "Proto-Mind-LICENSE.txt")
+        shutil.copy2(root / "native/Distribution/SwiftTerm-LICENSE.txt", licenses / "SwiftTerm-LICENSE.txt")
         shutil.copy2(archives["codex_license"], licenses / "Codex-LICENSE.txt")
         shutil.copy2(archives["codex_notice"], licenses / "Codex-NOTICE.txt")
         for name in ("zsh_license", "ripgrep_license", "ripgrep_mit", "ripgrep_unlicense", "pcre2_license"):

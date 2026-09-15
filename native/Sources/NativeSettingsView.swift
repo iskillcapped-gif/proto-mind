@@ -134,6 +134,7 @@ struct NativeSettingsView: View {
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                     case .services:
+                        ModelAPIConnectionSettings(app: model, connections: model.apiConnections)
                         Section { GitHubConnectionView(app: model, github: model.github) }
                             .task { await model.github.refresh(app: model) }
                     case .data: dataSettings
@@ -164,9 +165,14 @@ struct NativeSettingsView: View {
             Picker("Источник модели", selection: Binding(get: { model.selected?.provider ?? "ollama" }, set: model.setProvider)) {
                 Text("ChatGPT · по подписке").tag("codex")
                 Text("Ollama · на этом Mac").tag("ollama")
+                Text("Модель через API").tag("api")
                 Text("Тестовый режим · без модели").tag("mock")
             }.disabled(model.globalBusy)
-            if model.selected?.provider == "ollama" {
+            if model.selected?.provider == "api" {
+                APIConnectionPicker(app: model, connections: model.apiConnections, conversationID: model.selectedID)
+                Toggle("Разрешить облачную обработку", isOn: $model.cloudConsent).disabled(model.globalBusy)
+                Button("Настроить API-подключения") { model.settingsSection = .services }
+            } else if model.selected?.provider == "ollama" {
                 TextField("Модель Ollama", text: Binding(get: { model.selected?.model ?? "" }, set: model.setModel), prompt: Text(model.bootstrap["ollama_model"].text))
                     .disabled(model.globalBusy)
                 Text("Сообщения обрабатываются локально. Для работы запустите Ollama на этом Mac.")

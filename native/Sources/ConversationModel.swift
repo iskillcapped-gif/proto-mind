@@ -88,7 +88,7 @@ extension AppModel {
     }
 
     func setProvider(_ value: String) {
-        guard !busy, ["ollama", "codex", "mock"].contains(value), selected?.provider != value,
+        guard !busy, ["ollama", "codex", "mock", "api"].contains(value), selected?.provider != value,
               let index = conversations.firstIndex(where: { $0.id == selectedID }) else { return }
         discardAgentGrants(for: selectedID)
         invalidateSessionSpinePilot()

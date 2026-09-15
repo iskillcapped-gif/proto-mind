@@ -133,9 +133,14 @@ final class NativeBrowserTab: NSObject, ObservableObject, WKNavigationDelegate, 
 }
 
 private struct NativeWebSurface: NSViewRepresentable {
+    @Environment(\.isEnabled) private var enabled
     let browser: NativeBrowserTab
     func makeNSView(context: Context) -> WKWebView { browser.webView }
-    func updateNSView(_ view: WKWebView, context: Context) {}
+    func updateNSView(_ view: WKWebView, context: Context) {
+        // Hidden tabs retain their process/page but must give up keyboard input.
+        if !enabled, let responder = view.window?.firstResponder as? NSView,
+           responder === view || responder.isDescendant(of: view) { view.window?.makeFirstResponder(nil) }
+    }
 }
 
 struct BrowserView: View {

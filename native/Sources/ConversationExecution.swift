@@ -70,6 +70,7 @@ extension AppModel {
     }
 
     func shutdown() {
+        workspacePanels.closeAll()
         dictation.shutdown()
         presentations.shutdown()
         desktop.shutdown()

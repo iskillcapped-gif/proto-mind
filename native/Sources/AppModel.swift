@@ -44,6 +44,7 @@ final class AppModel: ObservableObject {
     @Published var bootstrap: JSONValue = .null
     @Published var account: JSONValue = .null
     let codexUsage = CodexUsageModel()
+    let apiConnections: ModelAPIConnections
     let liveVoice: LiveVoiceModel
     let dictation: DictationModel
     let sidebarProjectOrder: SidebarProjectOrder
@@ -107,7 +108,8 @@ final class AppModel: ObservableObject {
     @Published var historyBackupError: String?
     @Published var historyBackupNotice: String?
     @Published var showInspector = false
-    let workspacePanel = WorkspacePanelModel()
+    let workspacePanels = WorkspacePanels()
+    var workspacePanel: WorkspacePanelModel { workspacePanels.activePanel }
     let github = GitHubModel()
     let privateBackup = PrivateBackupModel()
     @Published var showPrivateBackup = false
@@ -229,6 +231,7 @@ final class AppModel: ObservableObject {
 
     init(configuration: LaunchConfiguration = .load(), historyStore: ChatStore? = nil,
          uiDefaults: UserDefaults = .standard, dictationSpeech: DictationRecognizing? = nil) {
+        apiConnections = ModelAPIConnections(stateDirectory: configuration.stateDirectory, defaults: uiDefaults)
         desktop = DesktopPresentation(stateDirectory: configuration.stateDirectory, defaults: uiDefaults)
         liveVoice = LiveVoiceModel(stateDirectory: configuration.stateDirectory)
         dictation = DictationModel(stateDirectory: configuration.stateDirectory, defaults: uiDefaults, speech: dictationSpeech)
@@ -313,7 +316,7 @@ final class AppModel: ObservableObject {
             "auto_skills": .bool(conversation.provider == "codex" && conversation.autoSkillsEnabled),
             "auto_project_recall": .bool(conversation.provider == "codex" && conversation.autoProjectRecallEnabled),
             "project_recall_algorithm": .string("local_content_terms_v3"),
-            "persona_enabled": .bool(personaEnabled),
+            "persona_enabled": .bool(personaEnabled && conversation.provider != "api"),
             "cloud_consent": .bool(cloudConsent), "access_mode": .string(fullAccessEnabled ? "full_access" : "chat")
         ]
         if let path = conversation.workspacePath { params["workspace_root"] = .string(path) }
@@ -564,7 +567,7 @@ final class AppModel: ObservableObject {
         return params
     }
     var providerLabel: String {
-        switch selected?.provider { case "codex": return "Codex · облако"; case "mock": return "Mock · локальный тест"; default: return "Ollama · локально" }
+        switch selected?.provider { case "api": return "Модель через API"; case "codex": return "Codex · облако"; case "mock": return "Mock · локальный тест"; default: return "Ollama · локально" }
     }
     var computerUseAvailable: Bool { bootstrap["agent"]["computer_use"]["available"].flag }
     var computerUseVersion: String { bootstrap["agent"]["computer_use"]["version"].text }
@@ -574,17 +577,19 @@ final class AppModel: ObservableObject {
         return hasAgentAccessSelection(conversation)
     }
 
-    func requestAgentAccess() {
-        guard !busy, selected?.archived != true, selected?.provider == "codex", cloudConsent,
-              let id = selectedID else {
+    func requestAgentAccess(conversationID: UUID? = nil) {
+        guard let id = conversationID ?? selectedID,
+              let conversation = conversations.first(where: { $0.id == id }),
+              !operationBusy, !isRunning(id), !conversation.archived, conversation.provider == "codex", cloudConsent else {
             report(NativeError.message("Сначала выберите Codex и разрешите облачную обработку.")); return
         }
-        pendingAgentAccess = PendingAgentAccess(conversationID: id, workspace: selected?.workspacePath)
+        pendingAgentAccess = PendingAgentAccess(conversationID: id, workspace: conversation.workspacePath)
     }
 
     func confirmAgentAccess() async {
-        guard !busy, let request = pendingAgentAccess, request.conversationID == selectedID,
-              request.workspace == selected?.workspacePath, cloudConsent, selected?.provider == "codex" else {
+        guard !operationBusy, let request = pendingAgentAccess, !isRunning(request.conversationID),
+              let conversation = conversations.first(where: { $0.id == request.conversationID }), !conversation.archived,
+              request.workspace == conversation.workspacePath, cloudConsent, conversation.provider == "codex" else {
             pendingAgentAccess = nil; return
         }
         pendingAgentAccess = nil; busy = true
@@ -594,11 +599,11 @@ final class AppModel: ObservableObject {
                 "mode": .string("full_access"), "cloud_consent": .bool(cloudConsent),
                 "confirmation": .string("ALLOW FULL MAC ACCESS")]
             if let workspace = request.workspace { params["workspace_root"] = .string(workspace) }
-            let result = try await turnClient.request("agent_access", params)
+            let result = try await execution(for: request.conversationID).client.request("agent_access", params)
             guard result["mode"].text == "full_access", !result["token"].text.isEmpty,
                   result["workspace_root"] == (request.workspace.map(JSONValue.string) ?? .null),
-                  request.conversationID == selectedID, request.workspace == selected?.workspacePath,
-                  cloudConsent, selected?.provider == "codex" else { throw NativeError.message("Не удалось проверить разрешение агента.") }
+                  let current = conversations.first(where: { $0.id == request.conversationID }), request.workspace == current.workspacePath,
+                  cloudConsent, current.provider == "codex", !current.archived else { throw NativeError.message("Не удалось проверить разрешение агента.") }
             invalidateSessionSpinePilot()
             agentGrants[request.conversationID] = AgentAccessGrant(token: result["token"].text, workspace: request.workspace,
                 bridgeGeneration: execution(for: request.conversationID).client.connectionGeneration)
@@ -620,8 +625,8 @@ final class AppModel: ObservableObject {
         } catch { report(error) }
     }
 
-    func disableAgentAccess() async {
-        guard !busy, let id = selectedID else { return }
+    func disableAgentAccess(conversationID: UUID? = nil) async {
+        guard let id = conversationID ?? selectedID, !operationBusy, !isRunning(id) else { return }
         let previous = rememberedAgentAccess
         rememberedAgentAccess.removeAll { $0.conversationID == id }
         do { try savePreferences() }
@@ -633,7 +638,7 @@ final class AppModel: ObservableObject {
         busy = true
         defer { busy = false }
         do {
-            _ = try await turnClient.request("agent_access", ["conversation_id": .string(id.uuidString), "mode": .string("chat")])
+            _ = try await execution(for: id).client.request("agent_access", ["conversation_id": .string(id.uuidString), "mode": .string("chat")])
             error = nil
             status = "Обычный чат · инструменты выключены"
         } catch { report(error) }
@@ -797,7 +802,8 @@ final class AppModel: ObservableObject {
         } catch { workspaceError = error.localizedDescription }
     }
 
-    func openWorkspaceEntry(_ entry: JSONValue) async {
+    func openWorkspaceEntry(_ entry: JSONValue, in targetPanel: WorkspacePanelModel? = nil) async {
+        let panel = targetPanel ?? workspacePanel
         if entry["directory"].flag { await refreshWorkspace(entry["path"].text); return }
         guard canEditMessageAttachments, !loadingWorkspace, let root = selected?.workspacePath, let id = selectedID else { return }
         let suffix = URL(fileURLWithPath: entry["path"].text).pathExtension.lowercased()
@@ -805,11 +811,11 @@ final class AppModel: ObservableObject {
             do {
                 let url = try NativeAttachmentDrop.localURL(URL(fileURLWithPath: root).appendingPathComponent(entry["path"].text))
                 _ = try NativeAttachmentDrop.relativePath(url, workspace: root)
-                if suffix == "pdf" { await previewPDF(url.path, inWorkspacePanel: true) }
-                else { await previewImage(url.path, inWorkspacePanel: true) }
+                if suffix == "pdf" { await previewPDF(url.path, inWorkspacePanel: true, targetPanel: panel) }
+                else { await previewImage(url.path, inWorkspacePanel: true, targetPanel: panel) }
             } catch {
                 workspaceError = error.localizedDescription
-                workspacePanel.visible = true; workspacePanel.error = error.localizedDescription
+                panel.visible = true; panel.error = error.localizedDescription
             }
             return
         }
@@ -822,11 +828,11 @@ final class AppModel: ObservableObject {
                 throw NativeError.message("Просмотр относится к другому файлу.")
             }
             filePreview = preview
-            workspacePanel.open(.text(WorkspaceTextPreview(conversationID: id, root: root, value: preview)))
+            panel.open(.text(WorkspaceTextPreview(conversationID: id, root: root, value: preview)))
         } catch {
             guard selectedID == id, selected?.workspacePath == root else { return }
             workspaceError = error.localizedDescription
-            workspacePanel.visible = true; workspacePanel.error = error.localizedDescription
+            panel.visible = true; panel.error = error.localizedDescription
         }
     }
 
@@ -879,7 +885,8 @@ final class AppModel: ObservableObject {
         presentFilePicker(panel, completion: completion)
     }
 
-    func previewImage(_ path: String, expectedSHA: String? = nil, canAttach: Bool = true, inWorkspacePanel: Bool = false) async {
+    func previewImage(_ path: String, expectedSHA: String? = nil, canAttach: Bool = true, inWorkspacePanel: Bool = false, targetPanel: WorkspacePanelModel? = nil) async {
+        let panel = targetPanel ?? workspacePanel
         guard canEditMessageAttachments, !loadingImagePreview, !loadingDroppedAttachments, !loadingPDFPreview,
               pdfPreview == nil, attachmentDropPreview == nil,
               let conversationID = selectedID else { return }
@@ -896,7 +903,7 @@ final class AppModel: ObservableObject {
             }
             if imageThumbnails.count >= 12 { imageThumbnails.removeAll() }
             imageThumbnails[preview.source.sha256] = preview.thumbnail
-            if inWorkspacePanel { workspacePanel.open(.image(preview)) }
+            if inWorkspacePanel { panel.open(.image(preview)) }
             else { imagePreview = preview }
         } catch { report(error) }
     }
@@ -1066,7 +1073,8 @@ final class AppModel: ObservableObject {
         return preview
     }
 
-    func previewPDF(_ path: String, expected: JSONValue? = nil, canAttach: Bool = true, inWorkspacePanel: Bool = false) async {
+    func previewPDF(_ path: String, expected: JSONValue? = nil, canAttach: Bool = true, inWorkspacePanel: Bool = false, targetPanel: WorkspacePanelModel? = nil) async {
+        let panel = targetPanel ?? workspacePanel
         guard canReceiveAttachments, let conversation = selected else { return }
         loadingPDFPreview = true
         defer { loadingPDFPreview = false }
@@ -1077,7 +1085,7 @@ final class AppModel: ObservableObject {
             guard expected == nil || preview.source.value == expected else {
                 throw NativeError.message("Текст выбранных страниц изменился. Уберите PDF и выберите его заново.")
             }
-            if inWorkspacePanel { workspacePanel.open(.pdf(preview)) }
+            if inWorkspacePanel { panel.open(.pdf(preview)) }
             else { pdfPreview = preview }
         } catch { if selectedID == conversation.id { report(error) } }
     }

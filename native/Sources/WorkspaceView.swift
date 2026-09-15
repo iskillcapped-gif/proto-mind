@@ -124,10 +124,9 @@ struct WorkspaceView: View {
                             .accessibilityLabel("Журнал работы")
                             .help("Журнал работы и ручное продолжение")
                         Button {
-                            panel.visible.toggle(); panel.expanded = false
-                            if panel.visible && panel.selectedID == nil { Task { await model.refreshWorkspace() } }
+                            model.workspacePanels.toggle()
                         } label: { Image(systemName: "sidebar.right") }
-                            .help("Файлы и браузер").accessibilityLabel("Рабочая панель")
+                            .help("Две рабочие панели").accessibilityLabel("Рабочие панели")
                     }
                 }
             }
@@ -159,44 +158,76 @@ enum WorkspacePanelLayout {
 
 struct WorkspaceSplitView: View {
     @ObservedObject var model: AppModel
-    @ObservedObject var panel: WorkspacePanelModel
-    @State private var fraction: CGFloat = 0.5
-    @State private var dragStart: CGFloat?
+    @ObservedObject var panels: WorkspacePanels
+    @State private var columnStart: CGFloat?
+    @State private var rowStart: CGFloat?
+
+    init(model: AppModel, panel: WorkspacePanelModel) {
+        self.model = model
+        self.panels = model.workspacePanels
+    }
 
     var body: some View {
         GeometryReader { geometry in
-            let width = WorkspacePanelLayout.width(total: geometry.size.width, fraction: fraction)
-            HStack(spacing: 0) {
-                if !panel.visible || !panel.expanded {
-                    mainContent.frame(width: panel.visible ? max(0, geometry.size.width - width - WorkspacePanelLayout.divider) : geometry.size.width)
-                        .frame(maxHeight: .infinity)
-                }
-                if panel.visible {
-                    if !panel.expanded {
-                        Rectangle().fill(NativeTheme.hairline).frame(width: 1)
-                            .frame(width: WorkspacePanelLayout.divider, height: geometry.size.height)
-                            .contentShape(Rectangle())
-                            .onHover { inside in if inside { NSCursor.resizeLeftRight.set() } else { NSCursor.arrow.set() } }
-                            .gesture(DragGesture(minimumDistance: 0).onChanged { drag in
-                                if dragStart == nil { dragStart = fraction }
-                                let available = max(1, geometry.size.width - WorkspacePanelLayout.divider)
-                                fraction = WorkspacePanelLayout.width(total: geometry.size.width,
-                                    fraction: (dragStart ?? 0.5) - drag.translation.width / available) / available
-                            }.onEnded { _ in dragStart = nil })
-                            .accessibilityLabel("Ширина рабочей панели")
-                            .accessibilityValue("\(Int(fraction * 100)) процентов")
-                            .accessibilityAdjustableAction { direction in
-                                let available = max(1, geometry.size.width - WorkspacePanelLayout.divider)
-                                let next = fraction + (direction == .increment ? 0.05 : -0.05)
-                                fraction = WorkspacePanelLayout.width(total: geometry.size.width, fraction: next) / available
-                            }
-                    }
-                    WorkspacePanelView(model: model, panel: panel, width: panel.expanded ? geometry.size.width : width)
-                        .frame(width: panel.expanded ? geometry.size.width : width)
-                        .frame(maxHeight: .infinity)
+            let layout = WorkspacePanelsLayout(size: geometry.size, visible: panels.visible,
+                expanded: panels.expanded, horizontal: panels.horizontalFraction, vertical: panels.verticalFraction)
+            ZStack(alignment: .topLeading) {
+                mainContent
+                    .frame(width: layout.main.width, height: layout.main.height)
+                    .clipped()
+                    .opacity(panels.expanded == nil ? 1 : 0)
+                    .allowsHitTesting(panels.expanded == nil)
+                    .disabled(panels.expanded != nil)
+                    .accessibilityHidden(panels.expanded != nil)
+                // Stable siblings: expansion resizes the surfaces without replacing their views.
+                pane(.upper, frame: layout.upper)
+                pane(.lower, frame: layout.lower)
+                if panels.visible && panels.expanded == nil {
+                    divider(vertical: true)
+                        .frame(width: layout.columnDivider.width, height: layout.columnDivider.height)
+                        .offset(x: layout.columnDivider.minX)
+                        .gesture(DragGesture(minimumDistance: 0).onChanged { drag in
+                            if columnStart == nil { columnStart = panels.horizontalFraction }
+                            let available = max(1, geometry.size.width - WorkspacePanelLayout.divider)
+                            panels.horizontalFraction = WorkspacePanelLayout.width(total: geometry.size.width,
+                                fraction: (columnStart ?? 0.48) - drag.translation.width / available) / available
+                        }.onEnded { _ in columnStart = nil })
+                        .accessibilityLabel("Ширина рабочих панелей")
+                        .accessibilityAdjustableAction { direction in
+                            panels.horizontalFraction = min(0.8, max(0.2, panels.horizontalFraction + (direction == .increment ? 0.05 : -0.05)))
+                        }
+                    divider(vertical: false)
+                        .frame(width: layout.rowDivider.width, height: layout.rowDivider.height)
+                        .offset(x: layout.rowDivider.minX, y: layout.rowDivider.minY)
+                        .gesture(DragGesture(minimumDistance: 0).onChanged { drag in
+                            if rowStart == nil { rowStart = panels.verticalFraction }
+                            panels.verticalFraction = min(0.8, max(0.2, (rowStart ?? 0.5) + drag.translation.height / max(1, geometry.size.height)))
+                        }.onEnded { _ in rowStart = nil })
+                        .accessibilityLabel("Высота рабочих панелей")
+                        .accessibilityAdjustableAction { direction in
+                            panels.verticalFraction = min(0.8, max(0.2, panels.verticalFraction + (direction == .increment ? 0.05 : -0.05)))
+                        }
                 }
             }
         }
+    }
+
+    private func pane(_ position: WorkspacePanelPosition, frame: CGRect) -> some View {
+        let shown = panels.visible && (panels.expanded == nil || panels.expanded == position)
+        return WorkspacePanelView(model: model, panel: panels.panel(position), width: frame.width, position: position)
+            .frame(width: frame.width, height: frame.height).clipped()
+            .offset(x: frame.minX, y: frame.minY)
+            .opacity(shown ? 1 : 0).allowsHitTesting(shown).disabled(!shown).accessibilityHidden(!shown)
+    }
+
+    private func divider(vertical: Bool) -> some View {
+        Rectangle().fill(NativeTheme.hairline)
+            .frame(width: vertical ? 1 : nil, height: vertical ? nil : 1)
+            .frame(maxWidth: .infinity, maxHeight: .infinity).contentShape(Rectangle())
+            .onHover { inside in
+                if inside { (vertical ? NSCursor.resizeLeftRight : NSCursor.resizeUpDown).set() }
+                else { NSCursor.arrow.set() }
+            }
     }
 
     @ViewBuilder private var mainContent: some View {
@@ -422,7 +453,7 @@ private struct ChatBottomKey: PreferenceKey {
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
 }
 
-private struct ChatScrollIntent: ViewModifier {
+struct ChatScrollIntent: ViewModifier {
     @Binding var followOutput: Bool
 
     func body(content: Content) -> some View {
@@ -438,9 +469,11 @@ private struct ChatScrollIntent: ViewModifier {
     }
 }
 
-private struct MessageView: View {
+struct MessageView: View {
     let message: ChatMessage
     @ObservedObject var model: AppModel
+    var conversationID: UUID? = nil
+    var targetPanel: WorkspacePanelModel? = nil
     @State private var showRaw = false
     @State private var showLegacyActions = false
 
@@ -472,7 +505,7 @@ private struct MessageView: View {
                     Text(message.text).font(NativeTheme.codeFont).textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
-                    MessageMarkdownView(text: message.text, copy: model.copy, openLink: { model.openWorkspaceLink($0) })
+                    MessageMarkdownView(text: message.text, copy: model.copy, openLink: { openLink($0) })
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 if message.agentRun?["computer_use_cleanup"]["status"].text == "unconfirmed" {
@@ -482,12 +515,14 @@ private struct MessageView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 attachments
-                if let (report, text) = model.memorySuggestions(for: message) { MemorySuggestionCard(app: model, report: report, text: text) }
-                if let receipt = message.agentRun { CompletedFileChangesView(receipt: receipt, openLink: { model.openWorkspaceLink($0) }) }
+                if conversationID == nil || conversationID == model.selectedID, let (report, text) = model.memorySuggestions(for: message) { MemorySuggestionCard(app: model, report: report, text: text) }
+                if let receipt = message.agentRun { CompletedFileChangesView(receipt: receipt, openLink: { openLink($0) }) }
                 HStack(spacing: 17) {
                     Button { model.copy(message.text) } label: { Image(systemName: "doc.on.doc") }
                         .help("Копировать ответ").accessibilityLabel("Копировать ответ")
-                    if message.hasResponseDetails || message.turnReference != nil {
+                    if let conversationID, conversationID != model.selectedID {
+                        Button("Подробнее") { model.select(conversationID); model.showMessage(message) }
+                    } else if message.hasResponseDetails || message.turnReference != nil {
                         Menu {
                             if message.hasResponseDetails {
                                 Button("Об ответе", systemImage: "info.circle") { model.showMessage(message) }
@@ -514,6 +549,13 @@ private struct MessageView: View {
         }
     }
 
+    private func openLink(_ url: URL) {
+        if let targetPanel, let conversationID {
+            if NativeBrowserURL.isWebURL(url) { targetPanel.openBrowser(url) }
+            else { model.openPanelFile(url, conversationID: conversationID, panel: targetPanel) }
+        } else { model.openWorkspaceLink(url) }
+    }
+
     private var attachments: some View {
         Group {
         ForEach(Array((message.fileContext ?? []).enumerated()), id: \.offset) { _, file in
@@ -523,6 +565,7 @@ private struct MessageView: View {
             }
             ForEach(Array((message.imageContext ?? []).enumerated()), id: \.offset) { _, image in
                 Button {
+                    if let conversationID, conversationID != model.selectedID { model.select(conversationID) }
                     Task { await model.previewImage(image["path"].text, expectedSHA: image["sha256"].text, canAttach: false, inWorkspacePanel: true) }
                 } label: {
                     Label("\(image["name"].text) · \(image["width"].integer) × \(image["height"].integer)", systemImage: "photo")
@@ -531,7 +574,7 @@ private struct MessageView: View {
                     .help("Локальный просмотр исходного файла с проверкой SHA-256. Изображение не отправляется повторно.")
             }
             ForEach(Array((message.pdfContext ?? []).enumerated()), id: \.offset) { _, pdf in
-                Button { Task { await model.previewPDF(pdf["path"].text, expected: pdf, canAttach: false, inWorkspacePanel: true) } } label: {
+                Button { if let conversationID, conversationID != model.selectedID { model.select(conversationID) }; Task { await model.previewPDF(pdf["path"].text, expected: pdf, canAttach: false, inWorkspacePanel: true) } } label: {
                     Label("\(pdf["name"].text) · стр. \(pdf["pages"].items.map { String($0["number"].integer) }.joined(separator: ", "))", systemImage: "doc.richtext")
                         .font(.caption).foregroundStyle(.secondary)
                 }.buttonStyle(.nativeHover).disabled(!model.canReceiveAttachments)
@@ -542,6 +585,7 @@ private struct MessageView: View {
 }
 
 struct NativeComposer: NSViewRepresentable {
+    @Environment(\.isEnabled) private var surfaceEnabled
     @Binding var text: String
     var revision: Int
     var enabled: Bool
@@ -666,15 +710,16 @@ struct NativeComposer: NSViewRepresentable {
     func updateNSView(_ scroll: NSScrollView, context: Context) {
         context.coordinator.parent = self
         guard let editor = scroll.documentView as? Editor else { return }
-        editor.isEditable = enabled
-        if !focusOnRevision { editor.pendingProgrammaticFocus = false }
+        editor.isEditable = enabled && surfaceEnabled
+        if !focusOnRevision || !surfaceEnabled { editor.pendingProgrammaticFocus = false }
+        if !surfaceEnabled, editor.window?.firstResponder === editor { editor.window?.makeFirstResponder(nil) }
         // SwiftUI may render an older binding while NSTextView is handling rapid keystrokes.
         // Only an explicit programmatic revision may replace the editor's live text.
         if context.coordinator.appliedRevision != revision {
             editor.string = text
             editor.setSelectedRange(NSRange(location: (text as NSString).length, length: 0))
             context.coordinator.appliedRevision = revision
-            if revision > 0, focusOnRevision { editor.requestProgrammaticFocus() }
+            if revision > 0, focusOnRevision && surfaceEnabled { editor.requestProgrammaticFocus() }
         }
         editor.onSend = onSend
         editor.onStop = onStop

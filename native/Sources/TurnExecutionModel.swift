@@ -5,22 +5,29 @@ import Foundation
 extension AppModel {
     func submit(_ supplied: String? = nil) async {
         if supplied == nil { dictation.stop() }
-        let draftText = (supplied ?? composer).trimmingCharacters(in: .whitespacesAndNewlines)
-        let text = draftText.isEmpty && hasPendingMessageAttachments
-            ? (busy ? "Учти вложения в текущей задаче." : "Посмотри вложения.") : draftText
-        if busy {
-            if canSendComposer || (supplied != nil && !text.isEmpty && canUpdateTask && !loadingDroppedAttachments
-                && !loadingImagePreview && !loadingPDFPreview && imagePreview == nil && pdfPreview == nil && attachmentDropPreview == nil) {
-                await enqueueTaskUpdate(text)
+        guard let conversationID = selectedID else { return }
+        await submit(conversationID: conversationID, supplied: supplied)
+    }
+
+    func submit(conversationID: UUID, supplied: String? = nil) async {
+        guard let conversation = conversations.first(where: { $0.id == conversationID }) else { return }
+        let hasAttachments = !conversation.pendingFiles.isEmpty || !conversation.pendingImages.isEmpty || !conversation.pendingPDFs.isEmpty
+        let draftText = (supplied ?? conversation.draft).trimmingCharacters(in: .whitespacesAndNewlines)
+        let text = draftText.isEmpty && hasAttachments
+            ? (isRunning(conversationID) ? "Учти вложения в текущей задаче." : "Посмотри вложения.") : draftText
+        if isRunning(conversationID) {
+            if !text.isEmpty && !loadingDroppedAttachments && !loadingImagePreview && !loadingPDFPreview
+                && imagePreview == nil && pdfPreview == nil && attachmentDropPreview == nil {
+                await enqueueTaskUpdate(text, conversationID: conversationID)
             }
             return
         }
-        guard !text.isEmpty, !busy, !loadingDroppedAttachments, !loadingImagePreview, !loadingPDFPreview,
+        guard !text.isEmpty, !operationBusy, !loadingDroppedAttachments, !loadingImagePreview, !loadingPDFPreview,
               imagePreview == nil, pdfPreview == nil, attachmentDropPreview == nil,
-              selected?.archived != true, let conversationID = selectedID else { return }
+              !conversation.archived else { return }
         guard !historyPersistence.blocksSubmission, !store.writeBlocked else {
-            if composer.isEmpty { setComposer(text, preservingContinuation: true) }
-            status = "Сначала восстановите сохранение истории"
+            if selectedID == conversationID && composer.isEmpty { setComposer(text, preservingContinuation: true) }
+            execution(for: conversationID).status = "Сначала восстановите сохранение истории"
             return
         }
         let state = execution(for: conversationID)
@@ -65,7 +72,7 @@ extension AppModel {
         if operatorInput { operationBusy = true }
         defer { if operatorInput { operationBusy = false } }
         let providerClient = state.client
-        let usePersona = !operatorInput && personaEnabled
+        let usePersona = !operatorInput && personaEnabled && conversations[index].provider != "api"
         invalidateSessionSpinePilot()
         let conversation = conversations[index]
         let history = conversation.history
@@ -128,6 +135,7 @@ extension AppModel {
                 "cloud_consent": .bool(cloudConsent), "history": .array(history),
                 "persona_enabled": .bool(usePersona),
             ]
+            if conversation.provider == "api" && !operatorInput { params["api_connection"] = try apiConnections.parameters(for: conversation) }
             if confirmed { params["confirmed_text"] = .string(text) }
             if let requestedRunID {
                 params["run_id"] = .string(requestedRunID.uuidString)
@@ -207,7 +215,7 @@ extension AppModel {
                 throw NativeError.message("Результат не подтвердил выбранные страницы PDF. Запрос не повторялся; проверьте журнал работы.")
             }
             var turnReference: JSONValue?
-            if !operatorInput && ["codex", "ollama"].contains(conversation.provider) {
+            if !operatorInput && ["codex", "ollama", "api"].contains(conversation.provider) {
                 let run = try NativeWorkSession(result["work_session"])
                 guard run.id == requestedRunID?.uuidString.lowercased(), let receipt = run.turnReceipt else {
                     throw NativeError.message("Завершённый ответ не содержит проверяемую квитанцию связи с запуском. Запрос не повторялся.")
@@ -253,18 +261,17 @@ extension AppModel {
             if useDraft, let current = conversations.firstIndex(where: { $0.id == conversationID }),
                conversations[current].pendingFiles.isEmpty, conversations[current].pendingImages.isEmpty,
                conversations[current].pendingPDFs.isEmpty,
-               selectedID != conversationID || composer.isEmpty || composer == conversation.draft {
+               conversations[current].draft.isEmpty || conversations[current].draft == conversation.draft {
                 // Restore the failed request's selection without adding its files
                 // to a different message the user has started drafting meanwhile.
                 conversations[current].pendingFiles = files
                 conversations[current].pendingImages = images
                 conversations[current].pendingPDFs = pdfs
             }
-            if useDraft && selectedID == conversationID && composer.isEmpty {
-                if let current = conversations.firstIndex(where: { $0.id == conversationID }) {
-                    conversations[current].draftContinuation = continuation
-                }
-                setComposer(text, preservingContinuation: true)
+            if useDraft, let current = conversations.firstIndex(where: { $0.id == conversationID }), conversations[current].draft.isEmpty {
+                conversations[current].draftContinuation = continuation
+                if selectedID == conversationID { setComposer(text, preservingContinuation: true) }
+                else { conversations[current].draft = text }
             }
             state.status = "Запрос не завершён"
         }
