@@ -23,12 +23,12 @@ final class BridgeClient: ObservableObject {
     }
 
     func start() throws {
-        guard !shuttingDown else { throw NativeError.message("Мост завершает работу. Перезапустите приложение; запросы не повторялись автоматически.") }
+        guard !shuttingDown else { throw NativeError.message(L10n.text("Мост завершает работу. Перезапустите приложение; запросы не повторялись автоматически.")) }
         if process?.isRunning == true { return }
         if process != nil {
             output?.readabilityHandler = nil
             try? input?.close()
-            failAll("Предыдущее соединение завершилось. Запросы не повторялись автоматически.")
+            failAll(L10n.text("Предыдущее соединение завершилось. Запросы не повторялись автоматически."))
         }
         generation = UUID()
         let generation = generation
@@ -36,11 +36,11 @@ final class BridgeClient: ObservableObject {
         guard FileManager.default.isExecutableFile(atPath: configuration.python.path),
               FileManager.default.fileExists(atPath: configuration.codeRoot.appendingPathComponent("proto_mind/main.py").path) else {
             throw NativeError.message(configuration.isPortable
-                ? "Не найдено встроенное ядро. Установите полную копию Proto-Mind.app заново; личные данные хранятся отдельно."
-                : "Не найден Python 3.11+ или проект Proto-Mind. Пересобери native launcher.")
+                ? L10n.text("Не найдено встроенное ядро. Установите полную копию Proto-Mind.app заново; личные данные хранятся отдельно.")
+                : L10n.text("Не найден Python 3.11+ или проект Proto-Mind. Пересобери native launcher."))
         }
         if let codex = configuration.codexExecutable, !FileManager.default.isExecutableFile(atPath: codex.path) {
-            throw NativeError.message("Не найден встроенный Codex. Установите полную копию Proto-Mind.app заново.")
+            throw NativeError.message(L10n.text("Не найден встроенный Codex. Установите полную копию Proto-Mind.app заново."))
         }
         if configuration.isPortable {
             // Some core logs inherit their parent permissions. Protect both owned
@@ -50,7 +50,7 @@ final class BridgeClient: ObservableObject {
                                                         attributes: [.posixPermissions: 0o700])
                 let attributes = try FileManager.default.attributesOfItem(atPath: directory.path)
                 guard attributes[.type] as? FileAttributeType == .typeDirectory else {
-                    throw NativeError.message("Папка профиля должна быть обычным каталогом, а не ссылкой.")
+                    throw NativeError.message(L10n.text("Папка профиля должна быть обычным каталогом, а не ссылкой."))
                 }
                 try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
             }
@@ -92,7 +92,7 @@ final class BridgeClient: ObservableObject {
         process.terminationHandler = { [weak self] _ in
             Task { @MainActor in
                 guard let self, self.generation == generation else { return }
-                self.failAll("Локальное ядро остановлено. Автоматический повтор запросов отключён.")
+                self.failAll(L10n.text("Локальное ядро остановлено. Автоматический повтор запросов отключён."))
             }
         }
         try process.run()
@@ -105,12 +105,12 @@ final class BridgeClient: ObservableObject {
     func request(_ method: String, _ params: [String: JSONValue] = [:], onID: ((String) -> Void)? = nil) async throws -> JSONValue {
         try start()
         if method == "process" && turnOutstanding {
-            throw NativeError.message("Предыдущий запрос ещё не завершился в ядре. Повтор отключён во избежание двойной записи.")
+            throw NativeError.message(L10n.text("Предыдущий запрос ещё не завершился в ядре. Повтор отключён во избежание двойной записи."))
         }
         let id = UUID().uuidString
         let message = JSONValue.object(["id": .string(id), "method": .string(method), "params": .object(params)])
         var data = try JSONEncoder().encode(message)
-        guard data.count <= 512 * 1024 else { throw NativeError.message("Запрос превышает локальный лимит.") }
+        guard data.count <= 512 * 1024 else { throw NativeError.message(L10n.text("Запрос превышает локальный лимит.")) }
         data.append(10)
         return try await withCheckedThrowingContinuation { continuation in
             pending[id] = continuation
@@ -127,7 +127,7 @@ final class BridgeClient: ObservableObject {
             if method != "process" && !["private_backup_create", "private_backup_restore", "private_backup_resume", "private_backup_rollback"].contains(method) {
                 Task { [weak self] in
                     try? await Task.sleep(nanoseconds: 120_000_000_000)
-                    self?.pending.removeValue(forKey: id)?.resume(throwing: NativeError.message("Ядро не ответило вовремя. Запрос не был повторён автоматически."))
+                    self?.pending.removeValue(forKey: id)?.resume(throwing: NativeError.message(L10n.text("Ядро не ответило вовремя. Запрос не был повторён автоматически.")))
                 }
             }
         }
@@ -136,7 +136,7 @@ final class BridgeClient: ObservableObject {
     private func receive(_ data: Data) {
         guard !data.isEmpty else { return }
         buffer.append(data)
-        guard buffer.count <= 8 * 1024 * 1024 else { failAll("Ответ ядра превышает лимит."); shutdown(); return }
+        guard buffer.count <= 8 * 1024 * 1024 else { failAll(L10n.text("Ответ ядра превышает лимит.")); shutdown(); return }
         while let newline = buffer.firstIndex(of: 10) {
             let line = buffer.prefix(upTo: newline)
             buffer.removeSubrange(...newline)
@@ -148,7 +148,7 @@ final class BridgeClient: ObservableObject {
                 if !message["error"].isNull {
                     continuation.resume(throwing: NativeError.message(message["error"]["message"].text))
                 } else { continuation.resume(returning: message["result"]) }
-            } catch { failAll("Неверный ответ локального протокола. Автоматический повтор отключён.") }
+            } catch { failAll(L10n.text("Неверный ответ локального протокола. Автоматический повтор отключён.")) }
         }
     }
 
@@ -167,6 +167,6 @@ final class BridgeClient: ObservableObject {
         input = nil
         // EOF interrupts model turns, lets core writes finish, and closes Codex.
         // Killing the bridge here would orphan that child or interrupt a store write.
-        failAll("Соединение закрыто.")
+        failAll(L10n.text("Соединение закрыто."))
     }
 }

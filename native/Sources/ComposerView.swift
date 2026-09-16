@@ -131,7 +131,7 @@ struct ComposerView: View {
                         option(L10n.text("Контекст запроса"), detail: L10n.text("Что увидит модель перед отправкой"), icon: "doc.text.magnifyingglass")
                     }
                     Button { openOption { model.showTaskCriteria = true } } label: {
-                        option(L10n.text("Критерии результата"), detail: model.selected?.pendingCriteria.isEmpty != false ? L10n.text("Как проверить, что задача решена") : "Задано: \(model.selected?.pendingCriteria.count ?? 0)", icon: "checklist")
+                        option(L10n.text("Критерии результата"), detail: model.selected?.pendingCriteria.isEmpty != false ? L10n.text("Как проверить, что задача решена") : L10n.format("Задано: \(model.selected?.pendingCriteria.count ?? 0)"), icon: "checklist")
                     }
                     if model.selected?.provider == "codex" {
                         Divider()

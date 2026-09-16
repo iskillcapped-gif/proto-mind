@@ -97,7 +97,7 @@ extension ChatStore {
 
     func exportBackup(_ archive: ChatArchive, to destination: URL) throws {
         guard !FileManager.default.fileExists(atPath: destination.path) else {
-            throw NativeError.message("По этому пути уже есть файл или папка. Выберите новое имя копии.")
+            throw NativeError.message(L10n.text("По этому пути уже есть файл или папка. Выберите новое имя копии."))
         }
         // Do not depend on cached disk objects: this also preserves unsaved replies
         // when the live store is corrupt or has been changed by another process.
@@ -125,12 +125,12 @@ extension ChatStore {
         try ChatHistoryFiles.withLock(in: directory, write: true) {
             let current = try ChatHistoryFiles.read(url, limit: ChatHistoryFormat.legacyLimit)
             guard current.map(ChatHistoryFormat.hash) == preview.targetHash else {
-                throw NativeError.message("После проверки история изменилась. Откройте копию заново; восстановление не выполнялось.")
+                throw NativeError.message(L10n.text("После проверки история изменилась. Откройте копию заново; восстановление не выполнялось."))
             }
             let (source, archive) = try backupData(at: preview.source)
             guard ChatHistoryFormat.hash(source) == preview.sourceHash,
                   archive.conversations == preview.archive.conversations, archive.selectedID == preview.archive.selectedID else {
-                throw NativeError.message("Резервная копия изменилась после проверки. Восстановление не выполнялось.")
+                throw NativeError.message(L10n.text("Резервная копия изменилась после проверки. Восстановление не выполнялось."))
             }
             let isolated = ChatStore(directory: directory)
             let (manifest, objects) = try isolated.prepare(archive)

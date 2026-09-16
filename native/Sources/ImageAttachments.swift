@@ -29,17 +29,17 @@ struct NativeImageAttachment: Equatable {
               value["height"] == .number(Double(value["height"].integer)),
               (1...16_384).contains(value["width"].integer), (1...16_384).contains(value["height"].integer),
               value["width"].integer * value["height"].integer <= 24_000_000 else {
-            throw NativeError.message("Описание изображения не прошло проверку. Ничего не прикреплено.")
+            throw NativeError.message(L10n.text("Описание изображения не прошло проверку. Ничего не прикреплено."))
         }
         self.value = value
     }
 
     static func validate(_ values: [JSONValue]) throws {
-        guard values.count <= maximumCount else { throw NativeError.message("Можно выбрать до трёх изображений.") }
+        guard values.count <= maximumCount else { throw NativeError.message(L10n.text("Можно выбрать до трёх изображений.")) }
         let images = try values.map(Self.init)
         guard Set(images.map(\.path)).count == images.count,
               images.reduce(0, { $0 + $1.value["size_bytes"].integer }) <= maximumTotalBytes else {
-            throw NativeError.message("Повторяющиеся изображения или превышен общий лимит 8 МиБ.")
+            throw NativeError.message(L10n.text("Повторяющиеся изображения или превышен общий лимит 8 МиБ."))
         }
     }
 }
@@ -54,7 +54,7 @@ struct NativeImagePreview: Identifiable {
     init(_ value: JSONValue, conversationID: UUID, canAttach: Bool) throws {
         guard value["schema"].text == "proto_mind.native_image_preview.v1",
               value["read_only"] == .bool(true), value["no_execution"] == .bool(true) else {
-            throw NativeError.message("Предпросмотр изображения не прошёл проверку.")
+            throw NativeError.message(L10n.text("Предпросмотр изображения не прошёл проверку."))
         }
         let source = try NativeImageAttachment(value["image"])
         let encoded = value["data_base64"].text
@@ -73,7 +73,7 @@ struct NativeImagePreview: Identifiable {
                 kCGImageSourceThumbnailMaxPixelSize: 1440,
                 kCGImageSourceShouldCacheImmediately: true
               ] as CFDictionary) else {
-            throw NativeError.message("Изображение не декодируется или его SHA-256/размер изменился. Ничего не отправлено.")
+            throw NativeError.message(L10n.text("Изображение не декодируется или его SHA-256/размер изменился. Ничего не отправлено."))
         }
         self.source = source
         self.thumbnail = NSImage(cgImage: thumbnail, size: .zero)
@@ -93,26 +93,26 @@ struct ImageAttachmentPreviewView: View {
             HStack {
                 Label(preview.source.name, systemImage: "photo").font(.headline).lineLimit(1)
                 Spacer()
-                Text("Локальный просмотр").font(.caption).foregroundStyle(.secondary)
+                Text(L10n.text("Локальный просмотр")).font(.caption).foregroundStyle(.secondary)
             }
             Image(nsImage: preview.thumbnail).resizable().scaledToFit()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
-                .accessibilityLabel("Локальный предпросмотр \(preview.source.name)")
+                .accessibilityLabel(L10n.format("Локальный предпросмотр \(preview.source.name)"))
             Text("\(preview.source.value["width"].integer) × \(preview.source.value["height"].integer) · \(ByteCountFormatter.string(fromByteCount: Int64(preview.source.value["size_bytes"].integer), countStyle: .binary)) · SHA \(preview.source.sha256.prefix(12))")
                 .font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
             Text(preview.source.path).font(.caption).foregroundStyle(.secondary).textSelection(.enabled).lineLimit(2)
-            Text(preview.canAttach ? model.imageDestinationNotice : "Исходный файл проверен по сохранённому SHA-256. Этот просмотр ничего не отправляет и не прикрепляет повторно.")
+            Text(preview.canAttach ? model.imageDestinationNotice : L10n.text("Исходный файл проверен по сохранённому SHA-256. Этот просмотр ничего не отправляет и не прикрепляет повторно."))
                 .font(.callout).foregroundStyle(.secondary)
-            Text("Превью уменьшено для экрана; при отправке передаётся исходный файл, включая встроенные метаданные. Автоматического скрытия личных данных нет.")
+            Text(L10n.text("Превью уменьшено для экрана; при отправке передаётся исходный файл, включая встроенные метаданные. Автоматического скрытия личных данных нет."))
                 .font(.caption).foregroundStyle(.secondary)
             if let error { Text(error).font(.callout).foregroundStyle(.orange) }
             HStack {
-                Text("PNG / JPEG · до 4 МиБ каждый · до 3 файлов / 8 МиБ всего").font(.caption).foregroundStyle(.tertiary)
+                Text(L10n.text("PNG / JPEG · до 4 МиБ каждый · до 3 файлов / 8 МиБ всего")).font(.caption).foregroundStyle(.tertiary)
                 Spacer()
-                Button(preview.canAttach ? "Отмена" : "Готово") { dismiss() }.keyboardShortcut(.cancelAction)
+                Button(preview.canAttach ? L10n.text("Отмена") : L10n.text("Готово")) { dismiss() }.keyboardShortcut(.cancelAction)
                 if preview.canAttach {
-                    Button("Прикрепить к сообщению") {
+                    Button(L10n.text("Прикрепить к сообщению")) {
                         do { try model.attachImage(preview); dismiss() }
                         catch { self.error = error.localizedDescription }
                     }.keyboardShortcut(.defaultAction).disabled(!model.canEditMessageAttachments)
@@ -141,9 +141,9 @@ struct PendingImageAttachmentsView: View {
                                         Text("\(image["width"].integer) × \(image["height"].integer)").foregroundStyle(.secondary)
                                     }.font(.caption)
                                 }
-                            }.help("Просмотреть локально; файл будет проверен по SHA-256")
+                            }.help(L10n.text("Просмотреть локально; файл будет проверен по SHA-256"))
                             Button { model.removePendingImage(image["path"].text) } label: { Image(systemName: "xmark") }
-                                .help("Убрать изображение из сообщения").accessibilityLabel("Убрать изображение \(image["name"].text)")
+                                .help(L10n.text("Убрать изображение из сообщения")).accessibilityLabel(L10n.format("Убрать изображение \(image["name"].text)"))
                         }.padding(5).background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 10))
                     }
                 }

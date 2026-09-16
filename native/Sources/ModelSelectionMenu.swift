@@ -107,7 +107,7 @@ struct ModelSelectionChoices: View {
                         }
                     }
                     if let selected = model.selected?.model, !selected.isEmpty, model.selectedCodexModel == nil {
-                        Text("\(selected) · недоступна").font(.caption).foregroundStyle(.secondary).padding(10)
+                        Text(L10n.format("\(selected) · недоступна")).font(.caption).foregroundStyle(.secondary).padding(10)
                     }
                 } else {
                     choice(localModelLabel, selected: true) { open = false }
@@ -168,7 +168,7 @@ struct CodexModelPicker: View {
             Text(L10n.text("По умолчанию для аккаунта")).tag("")
             ForEach(model.codexModels) { item in Text(item.displayName).tag(item.id) }
             if let selected = model.selected?.model, !selected.isEmpty, model.selectedCodexModel == nil {
-                Text("\(selected) · недоступна").tag(selected)
+                Text(L10n.format("\(selected) · недоступна")).tag(selected)
             }
         }.pickerStyle(.inline)
     }
@@ -179,11 +179,11 @@ struct CodexEffortPicker: View {
 
     var body: some View {
         Picker(L10n.text("Усилие рассуждения"), selection: Binding(get: { model.selected?.reasoningEffort ?? "" }, set: model.setReasoningEffort)) {
-            Text(model.selectedCodexModel?.defaultEffort.map { "По умолчанию · \($0.title)" } ?? L10n.text("По умолчанию")).tag("")
+            Text(model.selectedCodexModel?.defaultEffort.map { L10n.format("По умолчанию · \($0.title)") } ?? L10n.text("По умолчанию")).tag("")
             ForEach(model.availableReasoningEfforts) { effort in Text(effort.title).tag(effort.rawValue) }
             if let selected = model.selected?.reasoningEffort, !selected.isEmpty,
                !model.availableReasoningEfforts.contains(where: { $0.rawValue == selected }) {
-                Text("\(selected) · недоступно").tag(selected)
+                Text(L10n.format("\(selected) · недоступно")).tag(selected)
             }
         }.pickerStyle(.inline)
     }

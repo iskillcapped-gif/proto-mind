@@ -25,11 +25,11 @@ struct TaskUpdate: Codable, Identifiable, Equatable {
 
     func label(active: Bool) -> String {
         switch state {
-        case .queued: return active ? "Ожидает начала работы" : "Не отправлено"
-        case .sending: return active ? "Отправляется…" : "Доставка не подтверждена"
-        case .accepted: return "Добавлено к задаче"
-        case .rejected: return reason ?? "Не отправлено · задача уже завершилась или не приняла уточнение"
-        case .unknown: return "Доставка не подтверждена · автоповтора не было"
+        case .queued: return active ? L10n.text("Ожидает начала работы") : L10n.text("Не отправлено")
+        case .sending: return active ? L10n.text("Отправляется…") : L10n.text("Доставка не подтверждена")
+        case .accepted: return L10n.text("Добавлено к задаче")
+        case .rejected: return reason ?? L10n.text("Не отправлено · задача уже завершилась или не приняла уточнение")
+        case .unknown: return L10n.text("Доставка не подтверждена · автоповтора не было")
         }
     }
 
@@ -40,7 +40,7 @@ struct TaskUpdate: Codable, Identifiable, Equatable {
                   Set(updates.map(\.id)).count == updates.count,
                   updates.allSatisfy({ !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                       && $0.text.unicodeScalars.count <= 20_000 && !$0.text.contains("\0") }) else {
-                throw NativeError.message("Не удалось проверить сохранённые уточнения задачи.")
+                throw NativeError.message(L10n.text("Не удалось проверить сохранённые уточнения задачи."))
             }
             for update in updates {
                 try NativeImageAttachment.validate(update.imageContext ?? [])
@@ -59,7 +59,7 @@ struct TaskUpdate: Codable, Identifiable, Equatable {
                               && file["included_chars"] == .number(Double(file["included_chars"].integer))
                               && [.bool(true), .bool(false)].contains(file["truncated"])
                       }), (update.reason?.count ?? 0) <= 600 else {
-                    throw NativeError.message("Не удалось проверить вложения уточнения.")
+                    throw NativeError.message(L10n.text("Не удалось проверить вложения уточнения."))
                 }
             }
         }
@@ -96,7 +96,7 @@ extension AppModel {
               let message = conversations[index].messages.firstIndex(where: { $0.id == sourceID }) else { return }
         guard text.unicodeScalars.count <= 20_000, !text.contains("\0"),
               (conversations[index].messages[message].taskUpdates?.count ?? 0) < 32 else {
-            error = "Можно отправить до 32 уточнений по 20 000 символов в одной задаче."
+            error = L10n.text("Можно отправить до 32 уточнений по 20 000 символов в одной задаче.")
             return
         }
         let previous = conversations[index]
@@ -118,14 +118,14 @@ extension AppModel {
               let message = conversations[index].messages.firstIndex(where: { $0.id == sourceID }),
               text.unicodeScalars.count <= 20_000, !text.contains("\0"),
               (conversations[index].messages[message].taskUpdates?.count ?? 0) < 32 else {
-            throw NativeError.message("Задача пока не готова принять уточнение или очередь заполнена. Сообщение не отправлено.")
+            throw NativeError.message(L10n.text("Задача пока не готова принять уточнение или очередь заполнена. Сообщение не отправлено."))
         }
         let previous = conversations[index]
         let update = TaskUpdate(text: text)
         conversations[index].messages[message].taskUpdates = (previous.messages[message].taskUpdates ?? []) + [update]
         guard persist() else {
             conversations[index] = previous
-            throw NativeError.message("Не удалось сохранить уточнение. Оно не отправлено.")
+            throw NativeError.message(L10n.text("Не удалось сохранить уточнение. Оно не отправлено."))
         }
         Task { await flushTaskUpdates(execution: state) }
         return .object(["status": .string("queued"), "conversation_id": .string(state.conversationID.uuidString),
@@ -236,7 +236,7 @@ struct TaskUpdatesView: View {
                         Text(update.label(active: active)).lineLimit(2)
                         Spacer(minLength: 0)
                         Button { copy(update.text) } label: { Image(systemName: "doc.on.doc") }
-                            .buttonStyle(.nativeHover).accessibilityLabel("Копировать уточнение")
+                            .buttonStyle(.nativeHover).accessibilityLabel(L10n.text("Копировать уточнение"))
                     }.font(.system(size: 10.5)).foregroundStyle(.secondary)
                 }.padding(.horizontal, 18).padding(.vertical, 13)
                     .background(NativeTheme.bubble, in: RoundedRectangle(cornerRadius: 20))

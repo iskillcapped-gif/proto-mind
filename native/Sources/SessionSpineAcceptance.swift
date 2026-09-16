@@ -115,7 +115,7 @@ struct NativeSessionSpineAcceptanceGrant: Equatable {
 
     init(rehearsal: NativeSessionSpineAcceptanceRehearsal) throws {
         guard rehearsal.canAccept else {
-            throw NativeError.message("Session Spine rehearsal не готов к локальной приёмке. Writer остался выключен.")
+            throw NativeError.message(L10n.text("Session Spine rehearsal не готов к локальной приёмке. Writer остался выключен."))
         }
         rehearsalHash = rehearsal.rehearsalHash
         candidateHash = rehearsal.source["candidate_hash"].text
@@ -158,7 +158,7 @@ struct NativeSessionSpineAcceptanceRehearsal: Identifiable, Equatable {
               readiness.value["gate"]["armed_for_exact_candidate"] == .bool(true),
               NativeTurnReceipt.isHash(readiness.candidateHash),
               NativeTurnReceipt.isHash(readiness.value["report_hash"].text) else {
-            throw NativeError.message("P2k требует свежий ARMED-кандидат P2j. Ничего не принято и не записано.")
+            throw NativeError.message(L10n.text("P2k требует свежий ARMED-кандидат P2j. Ничего не принято и не записано."))
         }
 
         let root = stateDirectory.standardizedFileURL
@@ -167,7 +167,7 @@ struct NativeSessionSpineAcceptanceRehearsal: Identifiable, Equatable {
             .appendingPathComponent("installation.json")
             .path
         guard readiness.identityPath == expectedIdentityPath else {
-            throw NativeError.message("P2k identity path не принадлежит текущему private state scope. Ничего не принято.")
+            throw NativeError.message(L10n.text("P2k identity path не принадлежит текущему private state scope. Ничего не принято."))
         }
         let paths = [
             NativeSessionSpinePathObservation.stateRoot(root),
@@ -263,7 +263,7 @@ struct NativeSessionSpineAcceptanceRehearsal: Identifiable, Equatable {
                     : "explicitly_accept_this_exact_rehearsal_until_relaunch"),
         ])
         guard case .object(var fields) = material else {
-            throw NativeError.message("Session Spine acceptance report имеет неверную форму.")
+            throw NativeError.message(L10n.text("Session Spine acceptance report имеет неверную форму."))
         }
         fields["report_hash"] = .string(try hash(material))
         return NativeSessionSpineAcceptanceRehearsal(
@@ -286,7 +286,7 @@ struct NativeSessionSpineAcceptanceRehearsal: Identifiable, Equatable {
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         let data = try encoder.encode(value)
         guard let text = String(data: data, encoding: .utf8) else {
-            throw NativeError.message("Session Spine acceptance report не удалось канонизировать.")
+            throw NativeError.message(L10n.text("Session Spine acceptance report не удалось канонизировать."))
         }
         return NativeTurnReceipt.hash(text)
     }
@@ -311,7 +311,7 @@ struct SessionSpineAcceptanceView: View {
                 Text(current.state).font(.caption2.weight(.semibold)).padding(.horizontal, 8).padding(.vertical, 4)
                     .background(statusColor.opacity(0.13), in: Capsule()).foregroundStyle(statusColor)
                 Spacer()
-                Button("Закрыть") { dismiss() }.keyboardShortcut(.cancelAction)
+                Button(L10n.text("Закрыть")) { dismiss() }.keyboardShortcut(.cancelAction)
             }.padding(20)
             Divider()
             ScrollView {
@@ -321,19 +321,19 @@ struct SessionSpineAcceptanceView: View {
                         Text(summary).foregroundStyle(.secondary)
                     }
                     HStack(spacing: 10) {
-                        badge("writer выключен", icon: "pencil.slash")
+                        badge(L10n.text("writer выключен"), icon: "pencil.slash")
                         badge("exact-linked turn", icon: "link")
-                        badge("не сохраняется", icon: "memorychip")
+                        badge(L10n.text("не сохраняется"), icon: "memorychip")
                     }
                     VStack(alignment: .leading, spacing: 6) {
-                        metadata("Запуск", current.source["run_id"].text)
-                        metadata("Кандидат P2j", current.source["candidate_hash"].text)
+                        metadata(L10n.text("Запуск"), current.source["run_id"].text)
+                        metadata(L10n.text("Кандидат P2j"), current.source["candidate_hash"].text)
                         metadata("Rehearsal", current.rehearsalHash)
                         metadata("Report", current.value["report_hash"].text)
                     }.padding(14).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
 
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("Явные private paths").font(.headline)
+                        Text(L10n.text("Явные private paths")).font(.headline)
                         ForEach(current.paths) { path in
                             VStack(alignment: .leading, spacing: 4) {
                                 HStack {
@@ -343,7 +343,7 @@ struct SessionSpineAcceptanceView: View {
                                     Text(path.state).font(.caption2.monospaced()).foregroundStyle(.secondary)
                                 }
                                 Text(path.path).font(NativeTheme.codeFont).foregroundStyle(.secondary).textSelection(.enabled)
-                                Text("ожидается \(path.expectedKind) · mode \(path.expectedMode) · scope \(path.scopeHash.prefix(12))")
+                                Text(L10n.format("ожидается \(path.expectedKind) · mode \(path.expectedMode) · scope \(path.scopeHash.prefix(12))"))
                                     .font(.caption2).foregroundStyle(.tertiary)
                             }.padding(12).background(NativeTheme.bubble.opacity(0.55), in: RoundedRectangle(cornerRadius: 10))
                         }
@@ -367,9 +367,9 @@ struct SessionSpineAcceptanceView: View {
 
                     if current.recoveryRequired {
                         VStack(alignment: .leading, spacing: 10) {
-                            Label("Обнаружены существующие path-evidence. Только точный P2l intent может быть показан как recovery; неизвестные байты останутся заблокированы.", systemImage: "exclamationmark.triangle")
+                            Label(L10n.text("Обнаружены существующие path-evidence. Только точный P2l intent может быть показан как recovery; неизвестные байты останутся заблокированы."), systemImage: "exclamationmark.triangle")
                                 .foregroundStyle(.orange)
-                            Button(model.loadingSessionSpineWriter ? "Проверяем evidence…" : "Проверить P2l evidence без записи") {
+                            Button(model.loadingSessionSpineWriter ? L10n.text("Проверяем evidence…") : L10n.text("Проверить P2l evidence без записи")) {
                                 Task { await model.openSessionSpineWriter(current) }
                             }
                             .buttonStyle(.bordered).nativeHoverSurface()
@@ -377,22 +377,22 @@ struct SessionSpineAcceptanceView: View {
                         }.padding(14).background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
                     } else if current.accepted {
                         VStack(alignment: .leading, spacing: 10) {
-                            Label("Этот точный rehearsal принят до перезапуска", systemImage: "checkmark.circle")
+                            Label(L10n.text("Этот точный rehearsal принят до перезапуска"), systemImage: "checkmark.circle")
                                 .foregroundStyle(.green)
-                            Text("Это подтверждает только понятность будущей последовательности. Writer, identity и stores не созданы, следующий milestone не авторизован.")
+                            Text(L10n.text("Это подтверждает только понятность будущей последовательности. Writer, identity и stores не созданы, следующий milestone не авторизован."))
                                 .font(.callout).foregroundStyle(.secondary)
-                            Button(model.loadingSessionSpineWriter ? "Проверяем exact sources…" : "Открыть P2l writer gate…") {
+                            Button(model.loadingSessionSpineWriter ? L10n.text("Проверяем exact sources…") : L10n.text("Открыть P2l writer gate…")) {
                                 Task { await model.openSessionSpineWriter(current) }
                             }
                             .buttonStyle(.borderedProminent).nativeHoverSurface()
                             .disabled(model.loadingSessionSpineWriter)
-                            Button("Снять acceptance") { model.revokeSessionSpineAcceptance() }
+                            Button(L10n.text("Снять acceptance")) { model.revokeSessionSpineAcceptance() }
                         }.padding(14).background(Color.green.opacity(0.07), in: RoundedRectangle(cornerRadius: 12))
                     } else {
                         VStack(alignment: .leading, spacing: 11) {
-                            Toggle("Понимаю: принимаю только rehearsal этого exact turn, без writer и записи", isOn: $acknowledged)
+                            Toggle(L10n.text("Понимаю: принимаю только rehearsal этого exact turn, без writer и записи"), isOn: $acknowledged)
                                 .toggleStyle(.checkbox)
-                            Button("Принять personal rehearsal") {
+                            Button(L10n.text("Принять personal rehearsal")) {
                                 model.acceptSessionSpineRehearsal(rehearsalHash: current.rehearsalHash)
                                 acknowledged = false
                             }
@@ -401,7 +401,7 @@ struct SessionSpineAcceptanceView: View {
                         }.padding(14).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
                     }
 
-                    Text("P2k выполняет только локальное чтение метаданных путей и process-memory acceptance. Он не вызывает loadOrCreate, saveAndReadBack, intent prepare/apply, Session Spine writer, модель, команды или инструменты; не меняет историю, Work Session, разрешения и Context Injection. Снимок путей не заменяет повторную проверку непосредственно перед любой будущей записью.")
+                    Text(L10n.text("P2k выполняет только локальное чтение метаданных путей и process-memory acceptance. Он не вызывает loadOrCreate, saveAndReadBack, intent prepare/apply, Session Spine writer, модель, команды или инструменты; не меняет историю, Work Session, разрешения и Context Injection. Снимок путей не заменяет повторную проверку непосредственно перед любой будущей записью."))
                         .font(.caption).foregroundStyle(.secondary)
                 }.padding(22).frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -417,15 +417,15 @@ struct SessionSpineAcceptanceView: View {
     }
 
     private var title: String {
-        current.recoveryRequired ? "Rehearsal заблокирован существующим evidence"
-            : current.accepted ? "Личный exact-linked ход принят для проектирования"
-            : "Последняя проверка перед решением о writer"
+        current.recoveryRequired ? L10n.text("Rehearsal заблокирован существующим evidence")
+            : current.accepted ? L10n.text("Личный exact-linked ход принят для проектирования")
+            : L10n.text("Последняя проверка перед решением о writer")
     }
 
     private var summary: String {
         current.recoveryRequired
-            ? "Read-only осмотр не может доказать чистое стартовое состояние. Ничего не исправлялось."
-            : "Пути и recovery-ветви привязаны к одному ARMED-кандидату P2j. Ни одна ветвь не выполняется."
+            ? L10n.text("Read-only осмотр не может доказать чистое стартовое состояние. Ничего не исправлялось.")
+            : L10n.text("Пути и recovery-ветви привязаны к одному ARMED-кандидату P2j. Ни одна ветвь не выполняется.")
     }
 
     private func badge(_ text: String, icon: String) -> some View {
@@ -442,22 +442,22 @@ struct SessionSpineAcceptanceView: View {
 
     private func recoveryLabel(_ value: String) -> String {
         switch value {
-        case "before_any_write": return "До первой записи"
-        case "identity_only": return "Identity уже durable, intent отсутствует"
-        case "intent_prepared_spine_absent": return "Intent prepared, Spine ещё отсутствует"
-        case "spine_committed_marker_missing": return "Spine committed, marker ответа потерян"
-        case "unknown_or_torn_tail": return "UNKNOWN или torn tail"
+        case "before_any_write": return L10n.text("До первой записи")
+        case "identity_only": return L10n.text("Identity уже durable, intent отсутствует")
+        case "intent_prepared_spine_absent": return L10n.text("Intent prepared, Spine ещё отсутствует")
+        case "spine_committed_marker_missing": return L10n.text("Spine committed, marker ответа потерян")
+        case "unknown_or_torn_tail": return L10n.text("UNKNOWN или torn tail")
         default: return value
         }
     }
 
     private func responseLabel(_ value: String) -> String {
         switch value {
-        case "history_save_and_exact_readback_first": return "Сначала сохранить историю и получить точный readback."
-        case "prepare_exact_durable_intent_or_stop": return "Подготовить только exact intent либо остановиться."
-        case "revalidate_sources_then_single_cas_apply": return "Повторно сверить источники перед одним CAS apply."
-        case "no_write_replay_then_commit_marker": return "Сначала no-write replay, затем только missing marker."
-        case "manual_inspection_no_retry_or_repair": return "Остановиться: только ручная проверка, без retry/repair."
+        case "history_save_and_exact_readback_first": return L10n.text("Сначала сохранить историю и получить точный readback.")
+        case "prepare_exact_durable_intent_or_stop": return L10n.text("Подготовить только exact intent либо остановиться.")
+        case "revalidate_sources_then_single_cas_apply": return L10n.text("Повторно сверить источники перед одним CAS apply.")
+        case "no_write_replay_then_commit_marker": return L10n.text("Сначала no-write replay, затем только missing marker.")
+        case "manual_inspection_no_retry_or_repair": return L10n.text("Остановиться: только ручная проверка, без retry/repair.")
         default: return value
         }
     }

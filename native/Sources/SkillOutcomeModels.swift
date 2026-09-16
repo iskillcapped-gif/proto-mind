@@ -82,7 +82,7 @@ struct NativeSkillOutcomeReview: Decodable {
               report.captureAvailable == (report.status == "READY"),
               !report.captureAvailable || (report.sourceEligible && report.pilotState == "consented" && report.contextInjectionDisabled &&
                 report.eventCount + 4 <= report.eventLimit && report.receiptCount < 16 && report.reasons.isEmpty && report.issues.isEmpty) else {
-            throw NativeError.message("Не удалось проверить условия ручной записи результата.")
+            throw NativeError.message(L10n.text("Не удалось проверить условия ручной записи результата."))
         }
         return report
     }
@@ -115,12 +115,12 @@ struct NativeSkillOutcomePreview: Decodable {
               preview.outcome == selection.outcome, preview.evidencePreview.count <= 160, (0...800).contains(preview.evidenceInputChars),
               preview.futureMutation == "process_memory_four_events_one_receipt", preview.operatorReported,
               preview.requiresManualAcknowledgement, preview.processMemoryOnly, preview.restartExpiring, outcomeStores(preview.storeHashes),
-              preview.ready || preview.confirmationToken.isEmpty else { throw NativeError.message("Область подтверждения результата изменилась.") }
+              preview.ready || preview.confirmationToken.isEmpty else { throw NativeError.message(L10n.text("Область подтверждения результата изменилась.")) }
         if preview.ready {
             guard outcomeID(preview.sessionId), outcomeHash(preview.blueprintHash), outcomeHash(preview.evidenceFingerprint),
                   preview.evidenceInputChars > 0, !preview.evidencePreview.isEmpty, preview.storeHashes.count == 3,
                   preview.confirmationToken == "CONFIRM-SKILL-OUTCOME-\(preview.blueprintHash.prefix(12).uppercased())" else {
-                throw NativeError.message("Не удалось проверить точное подтверждение результата.")
+                throw NativeError.message(L10n.text("Не удалось проверить точное подтверждение результата."))
             }
         }
         return preview
@@ -141,7 +141,7 @@ struct NativeSkillOutcomeResult: Decodable {
               result.receipt.valid(skill: selection.scope.skillID, session: preview.sessionId),
               result.receipt.blueprintHash == preview.blueprintHash, result.receipt.outcome == selection.outcome,
               result.receipt.evidenceFingerprint == preview.evidenceFingerprint else {
-            throw NativeError.message("Квитанция не соответствует подтверждённой записи. Автоповтора нет; обновите список результатов.")
+            throw NativeError.message(L10n.text("Квитанция не соответствует подтверждённой записи. Автоповтора нет; обновите список результатов."))
         }
         return result
     }
@@ -159,10 +159,10 @@ private func decodeOutcome<T: Decodable>(_ value: JSONValue, scope: NativeSkillI
           falseFlags.allSatisfy({ value[$0] == .bool(false) }),
           let conversation = scope.conversationID, UUID(uuidString: value["conversation_id"].text) == conversation,
           value["skill_id"] == .string(scope.skillID), scope.matchesWorkspace(value["workspace_path"].text) else {
-        throw NativeError.message("Контракт ручного результата изменился. Никаких дополнительных действий не разрешено.")
+        throw NativeError.message(L10n.text("Контракт ручного результата изменился. Никаких дополнительных действий не разрешено."))
     }
     let bytes = try JSONEncoder().encode(value)
-    guard bytes.count <= 256_000 else { throw NativeError.message("Результат превышает предел просмотра.") }
+    guard bytes.count <= 256_000 else { throw NativeError.message(L10n.text("Результат превышает предел просмотра.")) }
     let decoder = JSONDecoder(); decoder.keyDecodingStrategy = .convertFromSnakeCase
     return try decoder.decode(T.self, from: bytes)
 }

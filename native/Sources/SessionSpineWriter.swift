@@ -6,7 +6,7 @@ private func sessionSpineWriterHash(_ value: JSONValue) throws -> String {
     encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
     let data = try encoder.encode(value)
     guard let text = String(data: data, encoding: .utf8) else {
-        throw NativeError.message("Session Spine writer evidence не удалось канонизировать.")
+        throw NativeError.message(L10n.text("Session Spine writer evidence не удалось канонизировать."))
     }
     return NativeTurnReceipt.hash(text)
 }
@@ -187,7 +187,7 @@ struct NativeSessionSpineWriterPreview: Identifiable, Equatable {
     }
 
     private static func error(_ stage: String = "contract") -> NativeError {
-        .message("Session Spine writer preview не прошёл точную локальную проверку (\(stage)). Ничего не записано.")
+        .message(L10n.format("Session Spine writer preview не прошёл точную локальную проверку (\(stage)). Ничего не записано."))
     }
 }
 
@@ -252,7 +252,7 @@ struct NativeSessionSpineWriterReceipt: Identifiable, Equatable {
     }
 
     private static func error() -> NativeError {
-        .message("Session Spine writer receipt не прошёл проверку. Не повторяйте запись; проверьте recovery evidence.")
+        .message(L10n.text("Session Spine writer receipt не прошёл проверку. Не повторяйте запись; проверьте recovery evidence."))
     }
 }
 
@@ -278,7 +278,7 @@ struct SessionSpineWriterView: View {
                     .padding(.horizontal, 8).padding(.vertical, 4)
                     .background(statusColor.opacity(0.13), in: Capsule()).foregroundStyle(statusColor)
                 Spacer()
-                Button("Закрыть") { dismiss() }.keyboardShortcut(.cancelAction)
+                Button(L10n.text("Закрыть")) { dismiss() }.keyboardShortcut(.cancelAction)
             }.padding(20)
             Divider()
             ScrollView {
@@ -286,8 +286,8 @@ struct SessionSpineWriterView: View {
                     Text(title).font(.title2.weight(.medium))
                     Text(summary).foregroundStyle(.secondary)
                     VStack(alignment: .leading, spacing: 6) {
-                        detail("Диалог", preview.source["conversation_id"].text)
-                        detail("Запуск", preview.source["run_id"].text)
+                        detail(L10n.text("Диалог"), preview.source["conversation_id"].text)
+                        detail(L10n.text("Запуск"), preview.source["run_id"].text)
                         detail("History SHA-256", preview.source["history_sha256"].text)
                         detail("Candidate", preview.candidateHash)
                         if !preview.value["intent_id"].isNull { detail("Durable intent", preview.value["intent_id"].text) }
@@ -295,38 +295,38 @@ struct SessionSpineWriterView: View {
 
                     if let receipt {
                         VStack(alignment: .leading, spacing: 9) {
-                            Label("Один точный ход закрыт проверяемой квитанцией", systemImage: "checkmark.seal")
+                            Label(L10n.text("Один точный ход закрыт проверяемой квитанцией"), systemImage: "checkmark.seal")
                                 .font(.headline).foregroundStyle(.green)
-                            detail("Результат", receipt.result)
+                            detail(L10n.text("Результат"), receipt.result)
                             detail("Intent", receipt.value["intent_id"].text)
                             detail("Receipt SHA-256", receipt.value["receipt_hash"].text)
-                            Text("Повторная кнопка отсутствует. Новый ход не будет записан автоматически.")
+                            Text(L10n.text("Повторная кнопка отсутствует. Новый ход не будет записан автоматически."))
                                 .font(.callout).foregroundStyle(.secondary)
                         }.padding(14).background(Color.green.opacity(0.07), in: RoundedRectangle(cornerRadius: 12))
                     } else if preview.canApply {
                         VStack(alignment: .leading, spacing: 12) {
-                            Label(preview.recoveryReady ? "Восстановление exact intent" : "Первая личная запись Session Spine",
+                            Label(preview.recoveryReady ? L10n.text("Восстановление exact intent") : L10n.text("Первая личная запись Session Spine"),
                                   systemImage: "exclamationmark.shield")
                                 .font(.headline).foregroundStyle(.orange)
-                            Text("После финальной проверки могут быть затронуты только conversations.json и три private namespace: identity, intent и Session Spine. Каждый этап проверяется receipt/recovery-контрактом; Work Session останется read-only.")
+                            Text(L10n.text("После финальной проверки могут быть затронуты только conversations.json и три private namespace: identity, intent и Session Spine. Каждый этап проверяется receipt/recovery-контрактом; Work Session останется read-only."))
                                 .font(.callout).foregroundStyle(.secondary)
-                            Toggle("Понимаю область записи и подтверждаю только этот exact-linked ход", isOn: $acknowledged)
+                            Toggle(L10n.text("Понимаю область записи и подтверждаю только этот exact-linked ход"), isOn: $acknowledged)
                                 .toggleStyle(.checkbox)
                             Text(preview.confirmationToken).font(NativeTheme.codeFont).textSelection(.enabled)
-                            TextField("Введите точную фразу", text: $token).textFieldStyle(.roundedBorder)
-                            Button(model.applyingSessionSpineWriter ? "Проверяем и записываем…" : "Записать один точный ход") {
+                            TextField(L10n.text("Введите точную фразу"), text: $token).textFieldStyle(.roundedBorder)
+                            Button(model.applyingSessionSpineWriter ? L10n.text("Проверяем и записываем…") : L10n.text("Записать один точный ход")) {
                                 Task { await model.applySessionSpineWriter(preview, token: token, acknowledgement: acknowledged) }
                             }
                             .buttonStyle(.borderedProminent).nativeHoverSurface()
                             .disabled(model.applyingSessionSpineWriter || !preview.accepts(token: token, acknowledgement: acknowledged))
                         }.padding(14).background(Color.orange.opacity(0.07), in: RoundedRectangle(cornerRadius: 12))
                     } else {
-                        Label(preview.closed ? "Этот exact-linked ход уже закрыт; повторная запись запрещена."
-                              : "Evidence не допускает writer. Нужна ручная проверка без очистки и retry.",
+                        Label(preview.closed ? L10n.text("Этот exact-linked ход уже закрыт; повторная запись запрещена.")
+                              : L10n.text("Evidence не допускает writer. Нужна ручная проверка без очистки и retry."),
                               systemImage: preview.closed ? "checkmark.seal" : "hand.raised")
                             .padding(14).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
                     }
-                    Text("P2l не вызывает модель, провайдера, команды или инструменты; не делает legacy backfill, repair или automatic retry; не меняет разрешения и Context Injection. Потерянный ответ восстанавливается только из точного durable intent и повторной ручной проверки.")
+                    Text(L10n.text("P2l не вызывает модель, провайдера, команды или инструменты; не делает legacy backfill, repair или automatic retry; не меняет разрешения и Context Injection. Потерянный ответ восстанавливается только из точного durable intent и повторной ручной проверки."))
                         .font(.caption).foregroundStyle(.secondary)
                 }.padding(22).frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -335,11 +335,11 @@ struct SessionSpineWriterView: View {
     }
 
     private var statusColor: Color { receipt != nil || preview.closed ? .green : preview.canApply ? .orange : .red }
-    private var title: String { receipt != nil ? "Проверяемая запись завершена" : preview.closed ? "Ход уже записан"
-        : preview.recoveryReady ? "Продолжить только подтверждённый durable intent" : preview.canApply ? "Последний gate перед writer" : "Writer заблокирован" }
+    private var title: String { receipt != nil ? L10n.text("Проверяемая запись завершена") : preview.closed ? L10n.text("Ход уже записан")
+        : preview.recoveryReady ? L10n.text("Продолжить только подтверждённый durable intent") : preview.canApply ? L10n.text("Последний gate перед writer") : L10n.text("Writer заблокирован") }
     private var summary: String { preview.recoveryReady
-        ? "Существующий prepared intent точно совпал с этим turn; новый токен разрешает только его завершение."
-        : "Источник, история, Work Session, private paths и P2j/P2k evidence связаны одним self-hashed preview." }
+        ? L10n.text("Существующий prepared intent точно совпал с этим turn; новый токен разрешает только его завершение.")
+        : L10n.text("Источник, история, Work Session, private paths и P2j/P2k evidence связаны одним self-hashed preview.") }
 
     private func detail(_ label: String, _ value: String) -> some View {
         HStack(alignment: .firstTextBaseline) {

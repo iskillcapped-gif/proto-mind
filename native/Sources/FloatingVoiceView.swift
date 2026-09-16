@@ -21,5 +21,6 @@ struct FloatingVoiceView: View {
             .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(.white.opacity(0.12)).allowsHitTesting(false))
             .ignoresSafeArea()
             .buttonStyle(.nativeHover).tint(NativeTheme.accent)
+            .environment(\.locale, L10n.locale)
     }
 }

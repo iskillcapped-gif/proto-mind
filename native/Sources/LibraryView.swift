@@ -12,34 +12,34 @@ struct LibraryView: View {
                 VStack(alignment: .leading, spacing: 5) {
                     Text(collection.title).font(.system(size: 24, weight: .semibold))
                     Text(collection.subtitle).font(.callout).foregroundStyle(.secondary)
-                    Label("Локально · только просмотр", systemImage: "lock.shield").font(.caption).foregroundStyle(.secondary)
+                    Label(L10n.text("Локально · только просмотр"), systemImage: "lock.shield").font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 12)
                 if collection == .memory {
                     Button { Task { await model.openProjectMemory() } } label: {
-                        Label("Память проекта…", systemImage: "folder.badge.person.crop")
+                        Label(L10n.text("Память проекта…"), systemImage: "folder.badge.person.crop")
                     }.buttonStyle(.nativeHover).disabled(model.busy || model.selected?.workspacePath == nil)
-                        .help("Явные заметки выбранной папки; старые общие записи не переносятся")
+                        .help(L10n.text("Явные заметки выбранной папки; старые общие записи не переносятся"))
                     Button { model.openMemoryWorkshop() } label: {
-                        Label("Кандидаты опыта", systemImage: "sparkles.rectangle.stack")
+                        Label(L10n.text("Кандидаты опыта"), systemImage: "sparkles.rectangle.stack")
                     }
                     .buttonStyle(.nativeHover)
-                    .help("Показать уже собранные process-memory кандидаты без запуска и записи")
+                    .help(L10n.text("Показать уже собранные process-memory кандидаты без запуска и записи"))
                     .disabled(model.busy)
                 }
                 Button { Task { await model.loadLibraryPage() } } label: { Image(systemName: "arrow.clockwise") }
-                    .help("Перечитать исходные хранилища без изменений")
+                    .help(L10n.text("Перечитать исходные хранилища без изменений"))
                     .disabled(model.busy || model.loadingLibrary)
             }.padding(24)
 
             HStack(spacing: 12) {
                 HStack(spacing: 7) {
                     Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                    TextField("Поиск по тексту, тегам или ID", text: $model.libraryQuery)
+                    TextField(L10n.text("Поиск по тексту, тегам или ID"), text: $model.libraryQuery)
                         .textFieldStyle(.plain).onSubmit { Task { await model.loadLibraryPage() } }
-                    Button("Найти") { Task { await model.loadLibraryPage() } }.disabled(model.loadingLibrary)
+                    Button(L10n.text("Найти")) { Task { await model.loadLibraryPage() } }.disabled(model.loadingLibrary)
                 }.padding(9).background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 8))
-                Picker("Записи", selection: Binding(get: { model.libraryFilter }, set: { filter in
+                Picker(L10n.text("Записи"), selection: Binding(get: { model.libraryFilter }, set: { filter in
                     model.libraryFilter = filter
                     Task { await model.loadLibraryPage() }
                 })) {
@@ -49,11 +49,11 @@ struct LibraryView: View {
 
             if let page = model.libraryPage, page.collection == collection {
                 HStack(spacing: 12) {
-                    Text("Всего \(page.totalRecords) · текущих \(page.currentRecords) · найдено \(page.matchingRecords)")
-                    if page.omittedRecords > 0 { Text("Не показано: \(page.omittedRecords)").foregroundStyle(.orange) }
+                    Text(L10n.format("Всего \(page.totalRecords) · текущих \(page.currentRecords) · найдено \(page.matchingRecords)"))
+                    if page.omittedRecords > 0 { Text(L10n.format("Не показано: \(page.omittedRecords)")).foregroundStyle(.orange) }
                     Spacer()
                     Button { showSources.toggle() } label: {
-                        Label(page.warnings.isEmpty ? "Источники" : "Проверить источники: \(page.warnings.count)",
+                        Label(page.warnings.isEmpty ? L10n.text("Источники") : L10n.format("Проверить источники: \(page.warnings.count)"),
                               systemImage: page.warnings.isEmpty ? "doc.text.magnifyingglass" : "exclamationmark.triangle")
                     }.buttonStyle(.nativeHover)
                 }.font(.caption).foregroundStyle(.secondary).padding(.horizontal, 24).padding(.bottom, 13)
@@ -61,7 +61,7 @@ struct LibraryView: View {
             }
             Divider()
             if let error = model.libraryError {
-                placeholder("Не удалось открыть библиотеку", detail: error, symbol: "exclamationmark.triangle")
+                placeholder(L10n.text("Не удалось открыть библиотеку"), detail: error, symbol: "exclamationmark.triangle")
             } else if let page = model.libraryPage, page.collection == collection {
                 HStack(spacing: 0) {
                     VStack(spacing: 0) {
@@ -73,7 +73,7 @@ struct LibraryView: View {
                                     }.buttonStyle(.nativeHover).disabled(model.busy || model.loadingLibrary)
                                 }
                                 if page.items.isEmpty {
-                                    Text(page.sources.contains { $0.health == "ERROR" } ? "Источник прочитан не полностью. Откройте диагностику выше." : "В этой выборке записей нет. Попробуйте другой фильтр или запрос.")
+                                    Text(page.sources.contains { $0.health == "ERROR" } ? L10n.text("Источник прочитан не полностью. Откройте диагностику выше.") : L10n.text("В этой выборке записей нет. Попробуйте другой фильтр или запрос."))
                                         .font(.callout).foregroundStyle(.secondary).padding(16)
                                 }
                             }.padding(10)
@@ -83,7 +83,7 @@ struct LibraryView: View {
                             Button { Task { await model.loadLibraryPage(offset: max(0, page.offset - page.limit)) } } label: { Image(systemName: "chevron.left") }
                                 .disabled(page.offset == 0 || model.loadingLibrary || model.busy)
                             Spacer()
-                            Text(page.matchingRecords == 0 ? "0 записей" : "\(page.offset + 1)–\(page.offset + page.items.count) из \(page.matchingRecords)")
+                            Text(page.matchingRecords == 0 ? L10n.text("0 записей") : L10n.format("\(page.offset + 1)–\(page.offset + page.items.count) из \(page.matchingRecords)"))
                                 .font(.caption).foregroundStyle(.secondary)
                             Spacer()
                             Button { Task { await model.loadLibraryPage(offset: page.offset + page.limit) } } label: { Image(systemName: "chevron.right") }
@@ -97,10 +97,10 @@ struct LibraryView: View {
                 }
             } else {
                 if model.loadingLibrary {
-                    VStack { ProgressView(); Text("Читаем локальные записи").font(.caption).foregroundStyle(.secondary) }
+                    VStack { ProgressView(); Text(L10n.text("Читаем локальные записи")).font(.caption).foregroundStyle(.secondary) }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
-                    placeholder("Библиотека ещё не загружена", detail: "Обновите список. Просмотр не создаёт отсутствующие файлы.", symbol: collection.symbol)
+                    placeholder(L10n.text("Библиотека ещё не загружена"), detail: L10n.text("Обновите список. Просмотр не создаёт отсутствующие файлы."), symbol: collection.symbol)
                 }
             }
         }.frame(maxWidth: .infinity, maxHeight: .infinity).clipped()
@@ -109,8 +109,8 @@ struct LibraryView: View {
     private func row(_ item: LibraryItem) -> some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(alignment: .top, spacing: 6) {
-                if item.focused { Image(systemName: "scope").foregroundStyle(.orange).help("Сохранённый фокус цели") }
-                Text(item.title.isEmpty ? "Без текста" : item.title).font(.system(size: 13, weight: .medium)).lineLimit(3)
+                if item.focused { Image(systemName: "scope").foregroundStyle(.orange).help(L10n.text("Сохранённый фокус цели")) }
+                Text(item.title.isEmpty ? L10n.text("Без текста") : item.title).font(.system(size: 13, weight: .medium)).lineLimit(3)
             }
             HStack(spacing: 6) {
                 Text(item.stateLabel)
@@ -128,43 +128,43 @@ struct LibraryView: View {
         if model.loadingLibraryDetail {
             ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if let error = model.libraryDetailError {
-            placeholder("Карточка недоступна", detail: error, symbol: "exclamationmark.triangle")
+            placeholder(L10n.text("Карточка недоступна"), detail: error, symbol: "exclamationmark.triangle")
         } else if let detail = model.libraryDetail {
             if let item = detail.item {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 21) {
                         VStack(alignment: .leading, spacing: 8) {
-                            Text(item.title.isEmpty ? "Без текста" : item.title).font(.title3.weight(.semibold))
+                            Text(item.title.isEmpty ? L10n.text("Без текста") : item.title).font(.title3.weight(.semibold))
                             Text("\(item.stateLabel) · \(LibrarySource.title(item.store))").font(.caption).foregroundStyle(.secondary)
                             if !item.priority.isEmpty {
-                                Text("Приоритет: \(item.priorityLabel)\(item.focused ? " · В фокусе" : "")").font(.callout)
+                                Text(L10n.format("Приоритет: \(item.priorityLabel)\(item.focused ? L10n.text(" · В фокусе") : "")")).font(.callout)
                             }
                             if !item.tags.isEmpty { Text(item.tags.joined(separator: " · ")).font(.caption).foregroundStyle(.secondary) }
                             if item.store == "skills" {
                                 Button { Task { await model.openSkillTask(skillID: item.recordId) } } label: {
-                                    Label("Подготовить задачу с навыком…", systemImage: "list.bullet.clipboard")
+                                    Label(L10n.text("Подготовить задачу с навыком…"), systemImage: "list.bullet.clipboard")
                                 }.buttonStyle(.bordered).nativeHoverSurface()
                                     .disabled(model.busy || model.client.turnOutstanding || model.selected?.archived != false)
-                                    .help("Проверить процедуру, задать цель и критерии. Только подготовка, без выполнения")
+                                    .help(L10n.text("Проверить процедуру, задать цель и критерии. Только подготовка, без выполнения"))
                                 Button { Task { await model.openSkillInspection(item) } } label: {
-                                    Label("Результаты и жизненный цикл…", systemImage: "clock.arrow.circlepath")
+                                    Label(L10n.text("Результаты и жизненный цикл…"), systemImage: "clock.arrow.circlepath")
                                 }.buttonStyle(.bordered).nativeHoverSurface()
                                     .disabled(model.busy || model.client.turnOutstanding)
-                                    .help("Проверить происхождение, ручные результаты и сохранённые переходы без действий")
+                                    .help(L10n.text("Проверить происхождение, ручные результаты и сохранённые переходы без действий"))
                                 Button { Task { await model.openSkillOutcome(item) } } label: {
-                                    Label("Отметить ручной результат…", systemImage: "square.and.pencil")
+                                    Label(L10n.text("Отметить ручной результат…"), systemImage: "square.and.pencil")
                                 }.buttonStyle(.bordered).nativeHoverSurface()
                                     .disabled(model.busy || model.client.turnOutstanding || model.selected == nil || model.selected?.archived == true)
-                                    .help("Отдельная форма оператора: после точного подтверждения только запись опыта до перезапуска ядра")
+                                    .help(L10n.text("Отдельная форма оператора: после точного подтверждения только запись опыта до перезапуска ядра"))
                             }
                         }
-                        if detail.changedSinceList { Label("Источник изменился. Ниже свежая версия записи.", systemImage: "arrow.clockwise").font(.callout).foregroundStyle(.orange) }
+                        if detail.changedSinceList { Label(L10n.text("Источник изменился. Ниже свежая версия записи."), systemImage: "arrow.clockwise").font(.callout).foregroundStyle(.orange) }
                         ForEach(detail.blocks) { block in
                             VStack(alignment: .leading, spacing: 9) {
                                 Text(block.title).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                                Text(block.text.isEmpty ? "Не заполнено" : block.text).font(.system(size: 13))
+                                Text(block.text.isEmpty ? L10n.text("Не заполнено") : block.text).font(.system(size: 13))
                                     .textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading).fixedSize(horizontal: false, vertical: true)
-                                if block.truncated { Text("Показаны первые 24 000 символов. Исходник не изменён.").font(.caption).foregroundStyle(.orange) }
+                                if block.truncated { Text(L10n.text("Показаны первые 24 000 символов. Исходник не изменён.")).font(.caption).foregroundStyle(.orange) }
                             }
                         }
                         if let evidence = detail.memoryEvidence {
@@ -172,22 +172,22 @@ struct LibraryView: View {
                             if item.store == "persistent", evidence.memoryType == "lesson", evidence.verified {
                                 Button {
                                     Task { await model.openSkillAuthoring(lessonID: item.recordId) }
-                                } label: { Label("Создать навык из урока…", systemImage: "books.vertical") }
+                                } label: { Label(L10n.text("Создать навык из урока…"), systemImage: "books.vertical") }
                                 .buttonStyle(.bordered).nativeHoverSurface()
                                 .disabled(model.busy || model.selected?.archived != false)
-                                .help("Открыть локальную форму. Сам просмотр ничего не сохраняет и не выполняет.")
+                                .help(L10n.text("Открыть локальную форму. Сам просмотр ничего не сохраняет и не выполняет."))
                             }
                         }
                         if let evidence = detail.skillEvidence {
                             VStack(alignment: .leading, spacing: 10) {
-                                Label("Происхождение навыка · \(evidence.status)", systemImage: evidence.status == "VERIFIED" ? "checkmark.seal" : "doc.text.magnifyingglass")
+                                Label(L10n.format("Происхождение навыка · \(evidence.status)"), systemImage: evidence.status == "VERIFIED" ? "checkmark.seal" : "doc.text.magnifyingglass")
                                     .font(.callout.weight(.semibold))
-                                Text("Проверяются сохранённый контракт, SHA и исходный урок. Это не запуск процедуры и не доказательство её эффективности.")
+                                Text(L10n.text("Проверяются сохранённый контракт, SHA и исходный урок. Это не запуск процедуры и не доказательство её эффективности."))
                                     .font(.caption).foregroundStyle(.secondary)
                                 if !evidence.provenanceId.isEmpty { evidenceLine("Provenance", evidence.provenanceId) }
                                 if !evidence.sourceLessonId.isEmpty {
-                                    evidenceLine("Исходный урок", "\(evidence.sourceLessonId) · \(evidence.sourceStatus)")
-                                    Button("Открыть исходный урок") {
+                                    evidenceLine(L10n.text("Исходный урок"), "\(evidence.sourceLessonId) · \(evidence.sourceStatus)")
+                                    Button(L10n.text("Открыть исходный урок")) {
                                         Task { await model.openMemoryEvidence(recordID: evidence.sourceLessonId) }
                                     }.disabled(model.busy)
                                 }
@@ -198,11 +198,11 @@ struct LibraryView: View {
                         }
                         Divider()
                         VStack(alignment: .leading, spacing: 11) {
-                            Text("Сохранённые метаданные").font(.callout.weight(.semibold))
+                            Text(L10n.text("Сохранённые метаданные")).font(.callout.weight(.semibold))
                             ForEach(detail.fields) { field in
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(field.title).font(.caption).foregroundStyle(.secondary)
-                                    Text(field.value.isEmpty ? "Не указано" : field.value).font(.system(size: 11, design: .monospaced)).textSelection(.enabled)
+                                    Text(field.value.isEmpty ? L10n.text("Не указано") : field.value).font(.system(size: 11, design: .monospaced)).textSelection(.enabled)
                                         .frame(maxWidth: .infinity, alignment: .leading).fixedSize(horizontal: false, vertical: true)
                                 }
                             }
@@ -213,28 +213,28 @@ struct LibraryView: View {
                         }
                         if !detail.warnings.isEmpty {
                             VStack(alignment: .leading, spacing: 7) {
-                                Label("Ограничения данных", systemImage: "info.circle").font(.callout.weight(.medium))
+                                Label(L10n.text("Ограничения данных"), systemImage: "info.circle").font(.callout.weight(.medium))
                                 ForEach(Array(detail.warnings.enumerated()), id: \.offset) { _, warning in Text(warning).font(.caption).foregroundStyle(.secondary) }
                             }
                         }
                         Text(collection == .memory
-                             ? "Проверка происхождения читает embedded provenance и пересчитывает его hash, но не доказывает истинность обычной legacy-записи. Просмотр не меняет запись или usage telemetry. Диагностика: \(collection.manualDoctor)"
-                             : "Просмотр не меняет записи, счётчики использования или фокус. Метаданные не являются новой проверкой достоверности. Диагностика вручную: \(collection.manualDoctor)")
+                             ? L10n.format("Проверка происхождения читает embedded provenance и пересчитывает его hash, но не доказывает истинность обычной legacy-записи. Просмотр не меняет запись или usage telemetry. Диагностика: \(collection.manualDoctor)")
+                             : L10n.format("Просмотр не меняет записи, счётчики использования или фокус. Метаданные не являются новой проверкой достоверности. Диагностика вручную: \(collection.manualDoctor)"))
                             .font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
                     }.padding(25).frame(maxWidth: .infinity, alignment: .leading)
                 }.id(item.id)
             } else {
-                placeholder("Запись недоступна", detail: detail.message, symbol: "doc.questionmark")
+                placeholder(L10n.text("Запись недоступна"), detail: detail.message, symbol: "doc.questionmark")
             }
         } else {
-            placeholder("Выберите запись", detail: "Содержание, источник и сохранённые метаданные появятся здесь. Ничего не отправляется модели.", symbol: collection.symbol)
+            placeholder(L10n.text("Выберите запись"), detail: L10n.text("Содержание, источник и сохранённые метаданные появятся здесь. Ничего не отправляется модели."), symbol: collection.symbol)
         }
     }
 
     private func memoryEvidence(_ evidence: NativeMemoryEvidence) -> some View {
         VStack(alignment: .leading, spacing: 11) {
             HStack {
-                Label("Почему Proto-Mind это знает", systemImage: evidence.verified ? "checkmark.seal" : "questionmark.diamond")
+                Label(L10n.text("Почему Proto-Mind это знает"), systemImage: evidence.verified ? "checkmark.seal" : "questionmark.diamond")
                     .font(.callout.weight(.semibold))
                 Spacer()
                 Text(evidence.status)
@@ -242,20 +242,20 @@ struct LibraryView: View {
                     .foregroundStyle(evidence.verified ? .green : evidence.status == "ERROR" ? .red : .orange)
             }
             Text(evidence.explanation).font(.callout).foregroundStyle(.secondary)
-            evidenceLine("Тип / источник", "\(evidence.memoryType) · \(evidence.recordSource)")
+            evidenceLine(L10n.text("Тип / источник"), "\(evidence.memoryType) · \(evidence.recordSource)")
             if !evidence.provenanceId.isEmpty { evidenceLine("Provenance ID", evidence.provenanceId) }
             if !evidence.provenanceHash.isEmpty { evidenceLine("Hash", evidence.provenanceHash) }
-            if !evidence.evidenceEventIds.isEmpty { evidenceLine("События", evidence.evidenceEventIds.joined(separator: " · ")) }
-            if !evidence.sourceKinds.isEmpty { evidenceLine("Виды доказательств", evidence.sourceKinds.joined(separator: " · ")) }
+            if !evidence.evidenceEventIds.isEmpty { evidenceLine(L10n.text("События"), evidence.evidenceEventIds.joined(separator: " · ")) }
+            if !evidence.sourceKinds.isEmpty { evidenceLine(L10n.text("Виды доказательств"), evidence.sourceKinds.joined(separator: " · ")) }
             if !evidence.selectedScopeHash.isEmpty { evidenceLine("Scope hash", evidence.selectedScopeHash) }
             if evidence.operatorConfirmationRecorded {
-                Label("Сохранено через точное подтверждение оператора · automatic promotion: false", systemImage: "hand.raised")
+                Label(L10n.text("Сохранено через точное подтверждение оператора · automatic promotion: false"), systemImage: "hand.raised")
                     .font(.caption).foregroundStyle(.secondary)
             }
             ForEach(Array((evidence.issues + evidence.warnings).enumerated()), id: \.offset) { _, finding in
                 Text(finding).font(.caption).foregroundStyle(evidence.status == "ERROR" ? .red : .orange)
             }
-            Text("Read-only: без retrieval, model/network call и записи в store.")
+            Text(L10n.text("Read-only: без retrieval, model/network call и записи в store."))
                 .font(.caption).foregroundStyle(.tertiary)
         }
         .padding(14)
@@ -275,9 +275,9 @@ struct LibraryView: View {
             VStack(alignment: .leading, spacing: 12) {
                 ForEach(page.sources) { source in
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("\(source.title) · \(source.health) · \(source.recordCount) записей").font(.caption.weight(.medium))
+                        Text(L10n.format("\(source.title) · \(source.health) · \(source.recordCount) записей")).font(.caption.weight(.medium))
                         Text(source.path).font(.caption2).textSelection(.enabled)
-                        if !source.modifiedAt.isEmpty { Text("Изменён: \(source.modifiedAt)").font(.caption2) }
+                        if !source.modifiedAt.isEmpty { Text(L10n.format("Изменён: \(source.modifiedAt)")).font(.caption2) }
                         if !source.message.isEmpty { Text(source.message).font(.caption).foregroundStyle(.orange) }
                     }
                 }

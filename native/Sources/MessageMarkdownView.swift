@@ -165,9 +165,9 @@ struct MessageMarkdownView: View {
                 case .code(let language):
                     VStack(alignment: .leading, spacing: 0) {
                         HStack {
-                            Text(language.isEmpty ? "Код" : language)
+                            Text(language.isEmpty ? L10n.text("Код") : language)
                             Spacer()
-                            Button { copy(block.content) } label: { Label("Копировать", systemImage: "doc.on.doc") }.buttonStyle(.nativeHover)
+                            Button { copy(block.content) } label: { Label(L10n.text("Копировать"), systemImage: "doc.on.doc") }.buttonStyle(.nativeHover)
                         }.font(.system(size: 10)).foregroundStyle(.secondary).padding(11)
                         Divider()
                         ScrollView(.horizontal) {

@@ -32,7 +32,8 @@ final class NativeBrowserTab: NSObject, ObservableObject, WKNavigationDelegate, 
     let webView: WKWebView
     let messenger: MessengerService?
     @Published var address = ""
-    @Published private(set) var title = L10n.text("Новая страница")
+    @Published private var pageTitle: String?
+    var title: String { pageTitle ?? L10n.text("Новая страница") }
     @Published private(set) var currentURL: URL?
     @Published private(set) var loading = false
     @Published private(set) var canGoBack = false
@@ -75,7 +76,7 @@ final class NativeBrowserTab: NSObject, ObservableObject, WKNavigationDelegate, 
                 self.currentURL = nextURL
                 self.address = nextURL?.absoluteString ?? ""
             }
-            self.title = self.webView.title?.isEmpty == false ? self.webView.title! : nextURL?.host ?? L10n.text("Новая страница")
+            self.pageTitle = self.webView.title?.isEmpty == false ? self.webView.title! : nextURL?.host
             self.loading = self.webView.isLoading
             self.canGoBack = self.webView.canGoBack
             self.canGoForward = self.webView.canGoForward

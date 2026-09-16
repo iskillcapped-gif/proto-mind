@@ -94,7 +94,7 @@ final class ProjectMemoryModel: ObservableObject, Identifiable {
                 notice = replaced.isEmpty ? L10n.text("Заметка сохранена в памяти проекта.") : L10n.text("Изменения сохранены. Прежняя версия осталась в истории.")
                 app.status = L10n.text("Заметка проекта сохранена; модели не отправлялась")
             }
-        } catch { if current { self.error = "\(error.localizedDescription) Проверьте список перед повтором." } }
+        } catch { if current { self.error = L10n.format("\(error.localizedDescription) Проверьте список перед повтором.") } }
         app.busy = false; saving = false
         let failure = error
         if current { await refresh(); error = failure }
@@ -144,7 +144,7 @@ final class ProjectMemoryModel: ObservableObject, Identifiable {
                 app.invalidateContextPreview()
                 notice = saved.archived ? L10n.text("Заметка убрана из памяти проекта. Вернуть её можно в истории.") : L10n.text("Заметка снова доступна в памяти проекта.")
             }
-        } catch { if current { self.error = "\(error.localizedDescription) Проверьте список перед повтором." } }
+        } catch { if current { self.error = L10n.format("\(error.localizedDescription) Проверьте список перед повтором.") } }
         app.busy = false; saving = false
         let failure = error
         if current { await refresh(recall: !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty); error = failure }

@@ -67,11 +67,11 @@ final class SkillLifecycleApplyModel: ObservableObject, Identifiable {
             if current {
                 self.result = result
                 app.status = result.receipt.verificationStatus == "VERIFIED" && result.receipt.evidenceState == "CURRENT"
-                    ? (result.decision == .archive ? "Один навык архивирован; причина и состояние проверены" : "Навык оставлен без изменений; проверка записана до перезапуска")
-                    : "Применение завершилось; проверьте актуальное состояние навыка и квитанцию"
+                    ? (result.decision == .archive ? L10n.text("Один навык архивирован; причина и состояние проверены") : L10n.text("Навык оставлен без изменений; проверка записана до перезапуска"))
+                    : L10n.text("Применение завершилось; проверьте актуальное состояние навыка и квитанцию")
             }
         } catch {
-            if current { self.error = "\(error.localizedDescription) Не повторяйте применение автоматически. Откройте навык и проверьте квитанцию." }
+            if current { self.error = L10n.format("\(error.localizedDescription) Не повторяйте применение автоматически. Откройте навык и проверьте квитанцию.") }
         }
         app.busy = false; committing = false
         if current { await refresh(clearError: false) }

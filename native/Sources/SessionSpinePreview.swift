@@ -65,7 +65,7 @@ struct NativeSessionSpineEvent: Identifiable, Equatable {
     }
 
     private static func error() -> NativeError {
-        .message("Карта события Session Spine не прошла локальную проверку. Ничего не открыто и не сохранено.")
+        .message(L10n.text("Карта события Session Spine не прошла локальную проверку. Ничего не открыто и не сохранено."))
     }
 }
 
@@ -228,7 +228,7 @@ struct NativeSessionSpinePreview: Identifiable, Equatable {
     }
 
     private static func error() -> NativeError {
-        .message("Live Session Spine Preview не прошёл точную проверку источника. Ничего не записано и не выполнено.")
+        .message(L10n.text("Live Session Spine Preview не прошёл точную проверку источника. Ничего не записано и не выполнено."))
     }
 }
 
@@ -242,33 +242,33 @@ struct SessionSpinePreviewView: View {
             HStack(spacing: 12) {
                 Label("Live Session Spine", systemImage: "point.3.connected.trianglepath.dotted")
                     .font(.title3.weight(.semibold))
-                Text("ТОЛЬКО ЧТЕНИЕ").font(.caption2.weight(.semibold)).padding(.horizontal, 8).padding(.vertical, 4)
+                Text(L10n.text("ТОЛЬКО ЧТЕНИЕ")).font(.caption2.weight(.semibold)).padding(.horizontal, 8).padding(.vertical, 4)
                     .background(Color.green.opacity(0.12), in: Capsule()).foregroundStyle(.green)
                 Spacer()
-                Button("Закрыть") { dismiss() }.keyboardShortcut(.cancelAction)
+                Button(L10n.text("Закрыть")) { dismiss() }.keyboardShortcut(.cancelAction)
             }.padding(20)
             Divider()
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     VStack(alignment: .leading, spacing: 7) {
-                        Text("Точная проекция одного хода").font(.title2.weight(.medium))
-                        Text("Сообщение, исходный ответ и сохранённый запуск повторно сверены через Turn Lineage. Ниже временная карта существующего P1-контракта, а не новая история.")
+                        Text(L10n.text("Точная проекция одного хода")).font(.title2.weight(.medium))
+                        Text(L10n.text("Сообщение, исходный ответ и сохранённый запуск повторно сверены через Turn Lineage. Ниже временная карта существующего P1-контракта, а не новая история."))
                             .foregroundStyle(.secondary)
                     }
                     HStack(spacing: 10) {
-                        badge("\(preview.events.count) событий", icon: "list.number")
-                        badge("\(preview.projection["spine"]["surface_nodes"].items.count) на поверхности", icon: "rectangle.stack")
-                        badge("\(preview.projection["tools"]["count"].integer) инструментов", icon: "wrench.and.screwdriver")
+                        badge(L10n.format("\(preview.events.count) событий"), icon: "list.number")
+                        badge(L10n.format("\(preview.projection["spine"]["surface_nodes"].items.count) на поверхности"), icon: "rectangle.stack")
+                        badge(L10n.format("\(preview.projection["tools"]["count"].integer) инструментов"), icon: "wrench.and.screwdriver")
                     }
                     VStack(alignment: .leading, spacing: 6) {
-                        metadata("Запуск", preview.source["run_id"].text)
-                        metadata("Провайдер и режим", "\(preview.source["provider"].text) · \(preview.source["mode"].text)")
+                        metadata(L10n.text("Запуск"), preview.source["run_id"].text)
+                        metadata(L10n.text("Провайдер и режим"), "\(preview.source["provider"].text) · \(preview.source["mode"].text)")
                         metadata("Turn receipt", preview.source["turn_receipt_hash"].text)
                         metadata("Surface fingerprint", preview.projection["spine"]["fingerprint"].text)
                         metadata("Preview SHA-256", preview.value["preview_hash"].text)
                     }.padding(14).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("Карта событий").font(.headline)
+                        Text(L10n.text("Карта событий")).font(.headline)
                         ForEach(preview.events) { event in
                             HStack(alignment: .top, spacing: 12) {
                                 Image(systemName: icon(event.type)).frame(width: 18).foregroundStyle(event.surfaceVisible ? .primary : .secondary)
@@ -282,19 +282,19 @@ struct SessionSpinePreviewView: View {
                             }
                         }
                     }
-                    Label("Текст сообщения и ответа не возвращался вторым payload-ом; в preview есть только размеры, SHA-256, типы и provenance событий.", systemImage: "checkmark.shield")
+                    Label(L10n.text("Текст сообщения и ответа не возвращался вторым payload-ом; в preview есть только размеры, SHA-256, типы и provenance событий."), systemImage: "checkmark.shield")
                         .font(.callout).foregroundStyle(.secondary)
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Следующий безопасный рубеж").font(.headline)
-                            Text("Проверить opt-in и recovery-состояние для этого точного хода, не включая writer.")
+                            Text(L10n.text("Следующий безопасный рубеж")).font(.headline)
+                            Text(L10n.text("Проверить opt-in и recovery-состояние для этого точного хода, не включая writer."))
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer()
-                        Button("Проверить readiness…") { model.openSessionSpineReadiness(preview) }
+                        Button(L10n.text("Проверить readiness…")) { model.openSessionSpineReadiness(preview) }
                             .buttonStyle(.bordered).nativeHoverSurface()
                     }.padding(14).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
-                    Text("Открытие и закрытие этого окна не пишет Session Spine, не экспортирует данные, не вызывает модель или команды, не повторяет инструменты и не меняет разрешения либо Context Injection. Проекция не доказывает выполнение задачи или доставку ответа провайдером.")
+                    Text(L10n.text("Открытие и закрытие этого окна не пишет Session Spine, не экспортирует данные, не вызывает модель или команды, не повторяет инструменты и не меняет разрешения либо Context Injection. Проекция не доказывает выполнение задачи или доставку ответа провайдером."))
                         .font(.caption).foregroundStyle(.secondary)
                 }.padding(22).frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -319,13 +319,13 @@ struct SessionSpinePreviewView: View {
 
     private func label(_ type: String) -> String {
         switch type {
-        case "turn/start": return "начало хода"
-        case "user/chunk": return "фрагмент пользователя"
-        case "user/message": return "сообщение пользователя"
-        case "tool/result": return "результат инструмента"
-        case "assistant/chunk": return "фрагмент ответа"
-        case "assistant/message": return "ответ ассистента"
-        case "turn/end": return "завершение хода"
+        case "turn/start": return L10n.text("начало хода")
+        case "user/chunk": return L10n.text("фрагмент пользователя")
+        case "user/message": return L10n.text("сообщение пользователя")
+        case "tool/result": return L10n.text("результат инструмента")
+        case "assistant/chunk": return L10n.text("фрагмент ответа")
+        case "assistant/message": return L10n.text("ответ ассистента")
+        case "turn/end": return L10n.text("завершение хода")
         default: return type
         }
     }
@@ -342,15 +342,15 @@ struct SessionSpinePreviewView: View {
 
     private func detail(_ event: NativeSessionSpineEvent) -> String {
         if event.type.hasSuffix("/chunk") {
-            return "\(event.value["stream"].text) · часть \(event.value["part"].integer + 1)/\(event.value["parts"].integer) · \(event.value["characters"].integer) символов · SHA \(event.value["sha256"].text.prefix(12))"
+            return L10n.format("\(event.value["stream"].text) · часть \(event.value["part"].integer + 1)/\(event.value["parts"].integer) · \(event.value["characters"].integer) символов · SHA \(event.value["sha256"].text.prefix(12))")
         }
         if ["user/message", "assistant/message"].contains(event.type) {
-            return "\(event.value["characters"].integer) символов · SHA \(event.value["sha256"].text.prefix(12)) · источники \(event.value["source_event_seqs"].items.count)"
+            return L10n.format("\(event.value["characters"].integer) символов · SHA \(event.value["sha256"].text.prefix(12)) · источники \(event.value["source_event_seqs"].items.count)")
         }
         if event.type == "tool/result" {
-            return "\(event.value["tool_kind"].text) · \(event.value["tool_status"].text) · evidence-only, повтор запрещён"
+            return L10n.format("\(event.value["tool_kind"].text) · \(event.value["tool_status"].text) · evidence-only, повтор запрещён")
         }
-        if event.type == "turn/start" { return "Сохранённый источник имеет состояние completed" }
-        return "response_recorded · успех задачи отдельно не выводится"
+        if event.type == "turn/start" { return L10n.text("Сохранённый источник имеет состояние completed") }
+        return L10n.text("response_recorded · успех задачи отдельно не выводится")
     }
 }

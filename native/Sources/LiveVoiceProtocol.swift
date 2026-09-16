@@ -119,21 +119,21 @@ struct LiveVoiceCall: Equatable {
     init(_ item: JSONValue) throws {
         guard item["type"].text == "function_call", !item["call_id"].text.isEmpty,
               item["call_id"].text.count <= 256, item["arguments"].text.utf8.count <= 32_000,
-              let data = item["arguments"].text.data(using: .utf8) else { throw NativeError.message("Неполная голосовая команда.") }
+              let data = item["arguments"].text.data(using: .utf8) else { throw NativeError.message(L10n.text("Неполная голосовая команда.")) }
         id = item["call_id"].text; name = item["name"].text
         arguments = try JSONDecoder().decode(JSONValue.self, from: data)
         guard case .object(let fields) = arguments,
               let definition = LiveVoiceProtocol.tools.first(where: { $0["name"].text == name }),
               Set(fields.keys) == Set(definition["parameters"]["required"].items.map(\.text)) else {
-            throw NativeError.message("Неизвестная голосовая команда или её параметры.")
+            throw NativeError.message(L10n.text("Неизвестная голосовая команда или её параметры."))
         }
         for (key, value) in fields {
             if key == "project_path" && value.isNull { continue }
             guard case .string(let text) = value, !text.contains("\0"), text.count <= 20_000 else {
-                throw NativeError.message("Не удалось проверить параметры голосовой команды.")
+                throw NativeError.message(L10n.text("Не удалось проверить параметры голосовой команды."))
             }
         }
-        if let value = fields["conversation_id"], UUID(uuidString: value.text) == nil { throw NativeError.message("Не указан точный диалог.") }
+        if let value = fields["conversation_id"], UUID(uuidString: value.text) == nil { throw NativeError.message(L10n.text("Не указан точный диалог.")) }
     }
 }
 
@@ -151,26 +151,26 @@ struct LiveVoiceDelegations {
     mutating func receive(_ envelope: JSONValue) throws -> [LiveVoiceCall]? {
         guard envelope["type"].text == "response.event" else { return nil }
         let delegation = envelope["delegation_id"].text, event = envelope["event"]
-        guard !delegation.isEmpty else { throw NativeError.message("Ответ голоса не связан с запросом.") }
+        guard !delegation.isEmpty else { throw NativeError.message(L10n.text("Ответ голоса не связан с запросом.")) }
         switch event["type"].text {
         case "response.created":
             let id = event["response"]["id"].text
             guard !id.isEmpty, pending[delegation] == nil, !completedResponses.contains(id), pending.count < 16 else {
-                throw NativeError.message("Нарушена последовательность голосовых команд.")
+                throw NativeError.message(L10n.text("Нарушена последовательность голосовых команд."))
             }
             pending[delegation] = Response(id: id)
         case "response.output_item.done":
             guard event["item"]["type"].text == "function_call" else { return nil }
-            guard pending[delegation] != nil else { throw NativeError.message("Команда не связана с ответом.") }
+            guard pending[delegation] != nil else { throw NativeError.message(L10n.text("Команда не связана с ответом.")) }
             let call = try LiveVoiceCall(event["item"])
             guard !seenCalls.contains(call.id), (pending[delegation]?.calls.count ?? 0) < 16 else {
-                throw NativeError.message("Повторная голосовая команда заблокирована.")
+                throw NativeError.message(L10n.text("Повторная голосовая команда заблокирована."))
             }
             seenCalls.insert(call.id)
             pending[delegation]?.calls.append(call)
         case "response.completed":
             guard let response = pending.removeValue(forKey: delegation), response.id == event["response"]["id"].text else {
-                throw NativeError.message("Не удалось связать завершение голосовой команды.")
+                throw NativeError.message(L10n.text("Не удалось связать завершение голосовой команды."))
             }
             completedResponses.insert(response.id)
             return response.calls

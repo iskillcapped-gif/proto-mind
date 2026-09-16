@@ -22,16 +22,16 @@ struct WorkspaceExitView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
-            Text(prompt == .busy ? "Запрос ещё выполняется" : "Есть несохранённые сообщения или черновики")
+            Text(prompt == .busy ? L10n.text("Запрос ещё выполняется") : L10n.text("Есть несохранённые сообщения или черновики"))
                 .font(.title2.weight(.semibold))
             Text(prompt == .busy
-                 ? "Дождитесь завершения или нажмите «Стоп» для Codex. Приложение не будет прерывать запись локального ядра."
-                 : "Сохранение истории не удалось. Вернитесь в приложение, чтобы сохранить или скопировать нужный текст. При выходе несохранённые изменения будут потеряны.")
+                 ? L10n.text("Дождитесь завершения или нажмите «Стоп» для Codex. Приложение не будет прерывать запись локального ядра.")
+                 : L10n.text("Сохранение истории не удалось. Вернитесь в приложение, чтобы сохранить или скопировать нужный текст. При выходе несохранённые изменения будут потеряны."))
                 .foregroundStyle(.secondary)
             HStack(spacing: 12) {
-                Button("Вернуться в Proto-Mind") { app.exitPrompt = nil }.keyboardShortcut(.cancelAction)
+                Button(L10n.text("Вернуться в Proto-Mind")) { app.exitPrompt = nil }.keyboardShortcut(.cancelAction)
                 if prompt == .unsaved {
-                    Button("Выйти без сохранения", role: .destructive) {
+                    Button(L10n.text("Выйти без сохранения"), role: .destructive) {
                         app.exitPrompt = nil
                         app.discardUnsavedOnExit = true
                         NSApp.terminate(nil)

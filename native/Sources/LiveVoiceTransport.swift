@@ -41,13 +41,13 @@ final class LiveVoiceTransport {
                     case .string(let text): data = Data(text.utf8)
                     @unknown default: continue
                     }
-                    guard data.count <= LiveVoiceProtocol.maxMessageBytes else { throw NativeError.message("Ответ голоса слишком велик.") }
+                    guard data.count <= LiveVoiceProtocol.maxMessageBytes else { throw NativeError.message(L10n.text("Ответ голоса слишком велик.")) }
                     let event = try JSONDecoder().decode(JSONValue.self, from: data)
                     self.onEvent?(event)
                 }
             } catch {
                 guard let self, self.generation == generation, !Task.isCancelled else { return }
-                self.fail("Голосовое соединение прервано. \(error.localizedDescription)")
+                self.fail(L10n.format("Голосовое соединение прервано. \(error.localizedDescription)"))
             }
         }
         send(start)
@@ -59,7 +59,7 @@ final class LiveVoiceTransport {
             let data = try JSONEncoder().encode(event)
             // Backpressure is bounded by bytes, not a lifetime/action cutoff.
             guard data.count <= LiveVoiceProtocol.maxMessageBytes, queuedBytes + data.count <= 256_000 else {
-                throw NativeError.message("Сеть не успевает передавать звук. Разговор остановлен; задачи продолжают работать.")
+                throw NativeError.message(L10n.text("Сеть не успевает передавать звук. Разговор остановлен; задачи продолжают работать."))
             }
             queued.append((data, event["type"].text == "session.input_audio.append")); queuedBytes += data.count
             drain()
@@ -78,7 +78,7 @@ final class LiveVoiceTransport {
                 }
                 if self.generation == generation { self.sender = nil }
             } catch {
-                if self.generation == generation, !Task.isCancelled { self.fail("Не удалось отправить звук или команду. \(error.localizedDescription)") }
+                if self.generation == generation, !Task.isCancelled { self.fail(L10n.format("Не удалось отправить звук или команду. \(error.localizedDescription)")) }
             }
         }
     }
@@ -92,7 +92,7 @@ final class LiveVoiceTransport {
         closingTimer = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 15_000_000_000)
             guard let self, !Task.isCancelled, self.generation == generation else { return }
-            self.fail("Разговор отключён. Сервер не прислал итог использования; повторного подключения не было.")
+            self.fail(L10n.text("Разговор отключён. Сервер не прислал итог использования; повторного подключения не было."))
         }
     }
 
@@ -107,6 +107,6 @@ final class LiveVoiceTransport {
 
     private func fail(_ message: String) {
         abort()
-        onFailure?(String(message.replacingOccurrences(of: "sk-[A-Za-z0-9_-]+", with: "[ключ скрыт]", options: .regularExpression).prefix(600)))
+        onFailure?(String(message.replacingOccurrences(of: "sk-[A-Za-z0-9_-]+", with: L10n.text("[ключ скрыт]"), options: .regularExpression).prefix(600)))
     }
 }

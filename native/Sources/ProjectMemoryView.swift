@@ -28,11 +28,11 @@ struct ProjectMemoryView: View {
                         Toggle(L10n.text("История"), isOn: $model.includeHistory).toggleStyle(.checkbox)
                             .onChange(of: model.includeHistory) { Task { await model.refresh(recall: searching) } }
                     }.disabled(model.locked)
-                    Text("В проекте: \(model.total) · показано: \(model.notes.count)").font(.caption).foregroundStyle(.secondary)
+                    Text(L10n.format("В проекте: \(model.total) · показано: \(model.notes.count)")).font(.caption).foregroundStyle(.secondary)
                     if !model.recalling && model.matching > 40 {
                         HStack {
                             Button(L10n.text("Предыдущие")) { Task { await model.refresh(offset: max(0, model.offset - 40)) } }.disabled(model.locked || model.offset == 0)
-                            Text("\(model.offset + 1)–\(model.offset + model.notes.count) из \(model.matching)").font(.caption)
+                            Text(L10n.format("\(model.offset + 1)–\(model.offset + model.notes.count) из \(model.matching)")).font(.caption)
                             Button(L10n.text("Следующие")) { Task { await model.refresh(offset: model.offset + 40) } }.disabled(model.locked || model.offset + model.notes.count >= model.matching)
                         }
                     }
@@ -49,7 +49,7 @@ struct ProjectMemoryView: View {
                         VStack(alignment: .leading, spacing: 10) {
                             Text(note.statusTitle).font(.headline)
                             Text(note.content).textSelection(.enabled)
-                            Text("Основание: \(note.basis)").font(.callout).foregroundStyle(.secondary).textSelection(.enabled)
+                            Text(L10n.format("Основание: \(note.basis)")).font(.callout).foregroundStyle(.secondary).textSelection(.enabled)
                             Text(L10n.text("Это сохранённое утверждение пользователя. Содержимое записи проверено; достоверность факта отдельно не оценивалась.")).font(.caption).foregroundStyle(.secondary)
                             HStack {
                                 Button(L10n.text("К следующему сообщению")) { model.attach() }.disabled(model.locked || !note.active || !model.issues.isEmpty || model.app.selected?.archived == true)

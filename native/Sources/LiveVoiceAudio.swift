@@ -15,7 +15,7 @@ final class LiveVoiceCapture: @unchecked Sendable {
 
     init(input: AVAudioFormat, onPCM: @escaping (Data) -> Void, onFailure: @escaping () -> Void) throws {
         guard let format = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 24_000, channels: 1, interleaved: true),
-              let converter = AVAudioConverter(from: input, to: format) else { throw NativeError.message("Не удалось настроить формат микрофона.") }
+              let converter = AVAudioConverter(from: input, to: format) else { throw NativeError.message(L10n.text("Не удалось настроить формат микрофона.")) }
         // Voice Processing I/O on macOS can expose a multichannel client format
         // without a standard channel layout. The default converter map may then
         // select no source for mono and silently produce zeros. The processed
@@ -113,7 +113,7 @@ final class LiveVoiceAudio {
             }
             try Task.checkCancellation()
             guard captureSession == session else { throw CancellationError() }
-            guard enabled, capturedFrames > 0 else { throw NativeError.message("Микрофон не передаёт звук. Проверьте выбранное устройство в настройках macOS.") }
+            guard enabled, capturedFrames > 0 else { throw NativeError.message(L10n.text("Микрофон не передаёт звук. Проверьте выбранное устройство в настройках macOS.")) }
         } catch { if captureSession == session { stop() }; throw error }
     }
 
@@ -124,7 +124,7 @@ final class LiveVoiceAudio {
         try input.setVoiceProcessingEnabled(true)
         let format = input.outputFormat(forBus: 0)
         logger.info("Preparing voice audio: \(format.channelCount) input channels at \(format.sampleRate) Hz")
-        guard format.sampleRate > 0, format.channelCount > 0 else { throw NativeError.message("Микрофон недоступен.") }
+        guard format.sampleRate > 0, format.channelCount > 0 else { throw NativeError.message(L10n.text("Микрофон недоступен.")) }
         let capture = try LiveVoiceCapture(input: format, onPCM: { [weak self] bytes in
             Task { @MainActor in
                 guard let self, self.generation == generation else { return }
@@ -134,7 +134,7 @@ final class LiveVoiceAudio {
         }, onFailure: { [weak self] in
             Task { @MainActor in
                 guard let self, self.generation == generation else { return }
-                self.onFailure?("Не удалось обработать звук микрофона. Попробуйте снова подключить аудиоустройство.")
+                self.onFailure?(L10n.text("Не удалось обработать звук микрофона. Попробуйте снова подключить аудиоустройство."))
             }
         })
         let mutedInput = AVAudioMixerNode()
@@ -172,7 +172,7 @@ final class LiveVoiceAudio {
             if self.engine?.isRunning == true { return }
             self.recoveryTimes.removeAll { Date().timeIntervalSince($0) > 5 }
             guard self.recoveryTimes.count < 3 else {
-                self.onFailure?("Не удалось стабилизировать аудиоустройство. Проверьте микрофон и наушники в настройках macOS."); return
+                self.onFailure?(L10n.text("Не удалось стабилизировать аудиоустройство. Проверьте микрофон и наушники в настройках macOS.")); return
             }
             self.recoveryTimes.append(Date()); self.recovering = true
             do {
@@ -189,7 +189,7 @@ final class LiveVoiceAudio {
                     self.releaseEngine(); try self.startEngine()
                 }
             }
-            catch { self.onFailure?("Не удалось переподключить аудиоустройство: \(error.localizedDescription)") }
+            catch { self.onFailure?(L10n.format("Не удалось переподключить аудиоустройство: \(error.localizedDescription)")) }
             self.recovering = false
         }
     }
@@ -200,11 +200,11 @@ final class LiveVoiceAudio {
 
     func play(_ data: Data) throws {
         guard let player, !data.isEmpty else { return }
-        guard data.count % 2 == 0, data.count <= 192_000 else { throw NativeError.message("Неверный формат звука GPT Live.") }
+        guard data.count % 2 == 0, data.count <= 192_000 else { throw NativeError.message(L10n.text("Неверный формат звука GPT Live.")) }
         let frames = data.count / 2
-        guard queuedFrames + frames <= 24_000 * 5 else { throw NativeError.message("Воспроизведение отстаёт. Голос остановлен, чтобы не проигрывать устаревшие ответы.") }
+        guard queuedFrames + frames <= 24_000 * 5 else { throw NativeError.message(L10n.text("Воспроизведение отстаёт. Голос остановлен, чтобы не проигрывать устаревшие ответы.")) }
         guard let buffer = AVAudioPCMBuffer(pcmFormat: playbackFormat, frameCapacity: AVAudioFrameCount(frames)),
-              let samples = buffer.floatChannelData?[0] else { throw NativeError.message("Не удалось подготовить звук.") }
+              let samples = buffer.floatChannelData?[0] else { throw NativeError.message(L10n.text("Не удалось подготовить звук.")) }
         buffer.frameLength = AVAudioFrameCount(frames)
         data.withUnsafeBytes { bytes in
             for index in 0..<frames {

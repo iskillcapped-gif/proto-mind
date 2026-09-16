@@ -90,6 +90,7 @@ struct WorkspaceView: View {
         .workspaceSheet(item: $model.pdfPreview) { PDFAttachmentPreviewView(model: model, preview: $0) }
         .workspaceSheet(item: $model.attachmentDropPreview) { AttachmentDropPreviewView(model: model, preview: $0) }
         .environment(\.workspacePresentations, model.presentations)
+        .environment(\.locale, L10n.locale)
     }
 
     private var regularWorkspace: some View {
@@ -315,7 +316,7 @@ private struct ChatView: View {
                                         loadEarlier(using: proxy)
                                     } label: {
                                         Label(
-                                            "Показать предыдущие \(min(TranscriptRenderingPolicy.pageSize, hiddenMessageCount)) · скрыто \(hiddenMessageCount)",
+                                            L10n.format("Показать предыдущие \(min(TranscriptRenderingPolicy.pageSize, hiddenMessageCount)) · скрыто \(hiddenMessageCount)"),
                                             systemImage: "arrow.up.to.line"
                                         )
                                         .font(.system(size: 12))
@@ -596,7 +597,7 @@ struct MessageView: View {
         ForEach(Array((message.fileContext ?? []).enumerated()), id: \.offset) { _, file in
             Label(URL(fileURLWithPath: file["path"].text).lastPathComponent, systemImage: "doc.text")
                 .font(.system(size: 11)).foregroundStyle(.secondary).textSelection(.enabled)
-                .help("\(file["path"].text) · \(file["included_chars"].integer) символов · SHA \(file["sha256"].text.prefix(8))")
+                .help(L10n.format("\(file["path"].text) · \(file["included_chars"].integer) символов · SHA \(file["sha256"].text.prefix(8))"))
             }
             ForEach(Array((message.imageContext ?? []).enumerated()), id: \.offset) { _, image in
                 Button {
@@ -610,7 +611,7 @@ struct MessageView: View {
             }
             ForEach(Array((message.pdfContext ?? []).enumerated()), id: \.offset) { _, pdf in
                 Button { if let conversationID, conversationID != model.selectedID { model.select(conversationID) }; Task { await model.previewPDF(pdf["path"].text, expected: pdf, canAttach: false, inWorkspacePanel: true, targetPanel: targetPanel) } } label: {
-                    Label("\(pdf["name"].text) · стр. \(pdf["pages"].items.map { String($0["number"].integer) }.joined(separator: ", "))", systemImage: "doc.richtext")
+                    Label(L10n.format("\(pdf["name"].text) · стр. \(pdf["pages"].items.map { String($0["number"].integer) }.joined(separator: ", "))"), systemImage: "doc.richtext")
                         .font(.caption).foregroundStyle(.secondary)
                 }.buttonStyle(.nativeHover).disabled(!model.canReceiveAttachments)
                     .help(L10n.text("Локально прочитать выбранные страницы с проверкой SHA-256; без повторной отправки"))
@@ -745,6 +746,7 @@ struct NativeComposer: NSViewRepresentable {
     func updateNSView(_ scroll: NSScrollView, context: Context) {
         context.coordinator.parent = self
         guard let editor = scroll.documentView as? Editor else { return }
+        editor.setAccessibilityLabel(L10n.text("Сообщение Proto-Mind"))
         editor.isEditable = enabled && surfaceEnabled
         if !focusOnRevision || !surfaceEnabled { editor.pendingProgrammaticFocus = false }
         if !surfaceEnabled, editor.window?.firstResponder === editor { editor.window?.makeFirstResponder(nil) }

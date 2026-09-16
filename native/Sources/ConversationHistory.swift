@@ -4,7 +4,7 @@ enum ConversationHistoryScope: String, CaseIterable, Identifiable {
     case all, active, archived
     var id: String { rawValue }
     var title: String {
-        switch self { case .all: return L10n.text("Все"); case .active: return L10n.text("Диалоги"); case .archived: return "Архив" }
+        switch self { case .all: return L10n.text("Все"); case .active: return L10n.text("Диалоги"); case .archived: return L10n.text("Архив") }
     }
     func includes(_ chat: Conversation) -> Bool {
         self == .all || (self == .archived) == chat.archived

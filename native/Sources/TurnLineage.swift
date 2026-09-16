@@ -54,7 +54,7 @@ struct NativeTurnReceipt: Equatable {
     fileprivate static func textCount(_ text: String) -> Int { text.unicodeScalars.count }
 
     private static func error() -> NativeError {
-        .message("Квитанция связи хода не прошла проверку. История и журнал не изменены.")
+        .message(L10n.text("Квитанция связи хода не прошла проверку. История и журнал не изменены."))
     }
 }
 
@@ -152,7 +152,7 @@ struct NativeTurnReference: Equatable {
     private static func normalizedUUID(_ value: String) -> Bool { NativeTurnReceipt.normalizedUUID(value) }
 
     private static func error() -> NativeError {
-        .message("Ответ не удалось связать с точным сохранённым запуском. Ничего не открыто и не повторено.")
+        .message(L10n.text("Ответ не удалось связать с точным сохранённым запуском. Ничего не открыто и не повторено."))
     }
 }
 
@@ -167,7 +167,7 @@ func validateTurnLineageHistory(_ messages: [ChatMessage], conversation: UUID) t
               messages[index - 1].id == sourceID,
               !sourceIDs.contains(sourceID), !runIDs.contains(reference.value["run_id"].text),
               reference.matches(source: messages[index - 1], assistant: message, conversation: conversation) else {
-            throw NativeError.message("История содержит непроверяемую связь ответа с запуском. Файл не изменён.")
+            throw NativeError.message(L10n.text("История содержит непроверяемую связь ответа с запуском. Файл не изменён."))
         }
         sourceIDs.insert(sourceID)
         runIDs.insert(reference.value["run_id"].text)

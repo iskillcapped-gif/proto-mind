@@ -20,7 +20,7 @@ struct StarterSkillsSnapshot: Equatable {
               Set(skills.map { $0["id"].text }) == Self.ids,
               value["hash_material"].text.utf8.count <= 40_000,
               try value["sha256"] == .string(verifyCanonicalMaterial(value["hash_material"], expected: pack)) else {
-            throw NativeError.message("Не удалось проверить встроенный набор навыков. Ничего не запускалось.")
+            throw NativeError.message(L10n.text("Не удалось проверить встроенный набор навыков. Ничего не запускалось."))
         }
         let decoder = JSONDecoder(); decoder.keyDecodingStrategy = .convertFromSnakeCase
         for skill in skills {
@@ -33,10 +33,10 @@ struct StarterSkillsSnapshot: Equatable {
 
     static func title(_ id: String) -> String {
         switch id {
-        case "builtin.project_orientation": return "Разобраться в проекте"
-        case "builtin.verified_change": return "Внести изменение и проверить"
-        case "builtin.failure_diagnosis": return "Исследовать ошибку"
-        case "builtin.work_handoff": return "Подготовить продолжение работы"
+        case "builtin.project_orientation": return L10n.text("Разобраться в проекте")
+        case "builtin.verified_change": return L10n.text("Внести изменение и проверить")
+        case "builtin.failure_diagnosis": return L10n.text("Исследовать ошибку")
+        case "builtin.work_handoff": return L10n.text("Подготовить продолжение работы")
         default: return id
         }
     }
@@ -51,14 +51,14 @@ struct StarterSkillsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack {
-                Label("Встроенные навыки", systemImage: "square.stack.3d.up").font(.title3.weight(.semibold))
+                Label(L10n.text("Встроенные навыки"), systemImage: "square.stack.3d.up").font(.title3.weight(.semibold))
                 Spacer()
-                Button("Закрыть") { dismiss() }.keyboardShortcut(.cancelAction)
+                Button(L10n.text("Закрыть")) { dismiss() }.keyboardShortcut(.cancelAction)
             }
-            Text("Готовые процедуры приложения, не воспоминания и не выученные уроки. Auto подбирает их по вашей задаче; они не запускаются сами и не расширяют доступ.")
+            Text(L10n.text("Готовые процедуры приложения, не воспоминания и не выученные уроки. Auto подбирает их по вашей задаче; они не запускаются сами и не расширяют доступ."))
                 .foregroundStyle(.secondary)
             if let snapshot {
-                Text("Набор v\(snapshot.pack["version"].text) · 4 навыка · SHA \(snapshot.value["sha256"].text.prefix(12))")
+                Text(L10n.format("Набор v\(snapshot.pack["version"].text) · 4 навыка · SHA \(snapshot.value["sha256"].text.prefix(12))"))
                     .font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
@@ -66,12 +66,12 @@ struct StarterSkillsView: View {
                             DisclosureGroup {
                                 VStack(alignment: .leading, spacing: 10) {
                                     Text(skill["contract"]["summary"].text).textSelection(.enabled)
-                                    Text("Когда подходит: " + skill["contract"]["trigger"].text).textSelection(.enabled)
-                                    group("Предусловия", skill["contract"]["preconditions"])
-                                    group("Порядок работы", skill["contract"]["steps"])
-                                    group("Разрешения", skill["contract"]["permissions"])
-                                    group("Проверка результата", skill["contract"]["verification"])
-                                    group("Ограничения", skill["contract"]["known_failure_modes"])
+                                    Text(L10n.text("Когда подходит: ") + skill["contract"]["trigger"].text).textSelection(.enabled)
+                                    group(L10n.text("Предусловия"), skill["contract"]["preconditions"])
+                                    group(L10n.text("Порядок работы"), skill["contract"]["steps"])
+                                    group(L10n.text("Разрешения"), skill["contract"]["permissions"])
+                                    group(L10n.text("Проверка результата"), skill["contract"]["verification"])
+                                    group(L10n.text("Ограничения"), skill["contract"]["known_failure_modes"])
                                 }.font(.system(size: 13)).foregroundStyle(.secondary).padding(.top, 8)
                             } label: { Text(StarterSkillsSnapshot.title(skill["id"].text)).font(.body.weight(.medium)) }
                             Divider()
@@ -81,8 +81,8 @@ struct StarterSkillsView: View {
             } else if !error.isEmpty {
                 Text(error).foregroundStyle(.orange).textSelection(.enabled)
                 Spacer()
-            } else { ProgressView("Читаю локальный набор…"); Spacer() }
-            Text("Только просмотр. Личная библиотека, память и настройки не меняются. Отправка задачи остаётся отдельным действием.")
+            } else { ProgressView(L10n.text("Читаю локальный набор…")); Spacer() }
+            Text(L10n.text("Только просмотр. Личная библиотека, память и настройки не меняются. Отправка задачи остаётся отдельным действием."))
                 .font(.caption).foregroundStyle(.secondary)
         }.padding(24).workspacePageSize(width: 740, height: 620)
             .task {

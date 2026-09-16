@@ -62,8 +62,8 @@ final class SkillHistoryModel: ObservableObject, Identifiable {
             try checkSkillHistory(raw, selection: selection, kind: "saved")
             let entry = try SkillHistoryEntry(raw["record"])
             guard entry.id == preview["preview_fingerprint"].text else { throw historyError() }
-            if current { app.status = "История навыка сохранена локально; разрешения не восстановлены" }
-        } catch { if current { self.error = "\(error.localizedDescription) Проверьте список перед новым сохранением." } }
+            if current { app.status = L10n.text("История навыка сохранена локально; разрешения не восстановлены") }
+        } catch { if current { self.error = L10n.format("\(error.localizedDescription) Проверьте список перед новым сохранением.") } }
         app.busy = false; saving = false
         let failure = error
         if current { await refresh(); error = failure }

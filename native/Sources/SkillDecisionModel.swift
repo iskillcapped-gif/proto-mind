@@ -70,10 +70,10 @@ final class SkillDecisionModel: ObservableObject, Identifiable {
             let result = try NativeSkillDecisionResult.decode(raw, selection: selected, preview: preview)
             if current, selection == selected {
                 self.result = result
-                app.status = "Решение записано до перезапуска ядра; навык не изменён"
+                app.status = L10n.text("Решение записано до перезапуска ядра; навык не изменён")
             }
         } catch {
-            if current { self.error = "\(error.localizedDescription) Автоповтора нет. Обновите квитанцию перед следующей попыткой." }
+            if current { self.error = L10n.format("\(error.localizedDescription) Автоповтора нет. Обновите квитанцию перед следующей попыткой.") }
         }
         app.busy = false; committing = false
         if current { await refresh(clearError: false) }

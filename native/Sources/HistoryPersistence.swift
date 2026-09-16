@@ -15,22 +15,22 @@ struct HistoryPersistenceNotice: View {
     var body: some View {
         if let failure = model.historyPersistence.failure {
             VStack(alignment: .leading, spacing: 8) {
-                Label(model.historyPersistence.requiresRecovery ? "История требует восстановления" : "История не сохранена",
+                Label(model.historyPersistence.requiresRecovery ? L10n.text("История требует восстановления") : L10n.text("История не сохранена"),
                       systemImage: "externaldrive.badge.exclamationmark")
                     .font(.callout.weight(.semibold))
                 Text(failure).font(.callout).textSelection(.enabled)
                 Text(model.historyPersistence.requiresRecovery
-                     ? "Исходные файлы защищены от перезаписи. Выберите проверенную резервную копию для восстановления."
-                     : "Сообщения и черновики остаются в этом окне. Повторите сохранение перед отправкой следующего запроса.")
+                     ? L10n.text("Исходные файлы защищены от перезаписи. Выберите проверенную резервную копию для восстановления.")
+                     : L10n.text("Сообщения и черновики остаются в этом окне. Повторите сохранение перед отправкой следующего запроса."))
                     .font(.caption).foregroundStyle(.secondary)
                 HStack {
                     if !model.historyPersistence.requiresRecovery {
-                        Button("Повторить сохранение") { model.retryHistorySave() }
+                        Button(L10n.text("Повторить сохранение")) { model.retryHistorySave() }
                             .disabled(model.globalBusy || model.client.turnOutstanding)
                     }
-                    Button("Копии и восстановление…") { model.openHistoryBackups() }
+                    Button(L10n.text("Копии и восстановление…")) { model.openHistoryBackups() }
                         .disabled(model.globalBusy || model.client.turnOutstanding)
-                    Button("Показать файл истории") {
+                    Button(L10n.text("Показать файл истории")) {
                         NSWorkspace.shared.activateFileViewerSelecting([model.store.url])
                     }
                 }.buttonStyle(.bordered)

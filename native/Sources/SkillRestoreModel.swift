@@ -59,10 +59,10 @@ final class SkillRestoreModel: ObservableObject, Identifiable {
             let receipt = try decodeSkillRestoreResult(raw, selection: selection, preview: preview)
             if current {
                 result = receipt
-                app.status = receipt.verification == "VERIFIED" && receipt.current ? "Навык восстановлен; переход проверен, процедура не запускалась" : "Проверьте состояние навыка и квитанцию восстановления"
+                app.status = receipt.verification == "VERIFIED" && receipt.current ? L10n.text("Навык восстановлен; переход проверен, процедура не запускалась") : L10n.text("Проверьте состояние навыка и квитанцию восстановления")
             }
         } catch {
-            if current { self.error = "\(error.localizedDescription) Не повторяйте автоматически; проверьте текущую запись." }
+            if current { self.error = L10n.format("\(error.localizedDescription) Не повторяйте автоматически; проверьте текущую запись.") }
         }
         app.busy = false; committing = false
         if current { await refresh(clearError: false) }

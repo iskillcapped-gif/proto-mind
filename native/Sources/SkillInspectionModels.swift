@@ -29,14 +29,14 @@ enum NativeSkillLifecycleState: String, Decodable {
 
     var title: String {
         switch self {
-        case .activeVerified: return "Активен · происхождение проверено"
-        case .activeHistorical: return "Активен · источник исторический"
-        case .activeRestoredVerified: return "Восстановлен · переход проверен"
-        case .archivedVerified: return "В архиве · причина подтверждена"
-        case .archivedAmbiguous: return "В архиве · причина неизвестна"
-        case .drifted: return "Описание изменилось после подтверждения"
-        case .legacyUnprovenanced, .unprovenanced: return "Историческая запись · без цепочки доказательств"
-        case .invalid: return "Состояние не прошло проверку"
+        case .activeVerified: return L10n.text("Активен · происхождение проверено")
+        case .activeHistorical: return L10n.text("Активен · источник исторический")
+        case .activeRestoredVerified: return L10n.text("Восстановлен · переход проверен")
+        case .archivedVerified: return L10n.text("В архиве · причина подтверждена")
+        case .archivedAmbiguous: return L10n.text("В архиве · причина неизвестна")
+        case .drifted: return L10n.text("Описание изменилось после подтверждения")
+        case .legacyUnprovenanced, .unprovenanced: return L10n.text("Историческая запись · без цепочки доказательств")
+        case .invalid: return L10n.text("Состояние не прошло проверку")
         }
     }
 
@@ -63,7 +63,7 @@ struct NativeSkillLifecycle: Decodable {
     let warnings: [String]
 
     var storedStatusTitle: String {
-        switch status { case "active": return "Активен"; case "archived": return "В архиве"; default: return "Неизвестен / некорректен" }
+        switch status { case "active": return L10n.text("Активен"); case "archived": return L10n.text("В архиве"); default: return L10n.text("Неизвестен / некорректен") }
     }
 
     func valid(skill: String) -> Bool {
@@ -85,7 +85,7 @@ struct NativeSkillTransition: Decodable, Identifiable {
     let evidenceCount: Int
 
     var title: String {
-        switch kind { case "apply": return "Сохранён из подтверждённого урока"; case "archive": return "Архивирован оператором"; default: return "Восстановлен оператором" }
+        switch kind { case "apply": return L10n.text("Сохранён из подтверждённого урока"); case "archive": return L10n.text("Архивирован оператором"); default: return L10n.text("Восстановлен оператором") }
     }
     var valid: Bool {
         ["apply", "archive", "restore"].contains(kind) && inspectionID(id) && inspectionHash(hash) &&
@@ -129,13 +129,13 @@ struct NativeSkillOutcome: Decodable {
 
     var title: String {
         switch status {
-        case "SUCCESS_CANDIDATE", "POST_RESTORE_SUCCESS_CANDIDATE": return "Есть подтверждённый оператором успех"
-        case "FAILURE_CANDIDATE", "POST_RESTORE_FAILURE_CANDIDATE": return "Есть ошибка или исправление оператора"
-        case "MIXED_EVIDENCE", "POST_RESTORE_MIXED_EVIDENCE": return "Результаты противоречивы"
-        case "NEEDS_POST_RESTORE_EVIDENCE": return "Нужен новый опыт после восстановления"
-        case "NEEDS_MORE_EVIDENCE": return "Доказательств результата пока недостаточно"
-        case "ERROR": return "Доказательства результата не прошли проверку"
-        default: return "Результат использования неизвестен"
+        case "SUCCESS_CANDIDATE", "POST_RESTORE_SUCCESS_CANDIDATE": return L10n.text("Есть подтверждённый оператором успех")
+        case "FAILURE_CANDIDATE", "POST_RESTORE_FAILURE_CANDIDATE": return L10n.text("Есть ошибка или исправление оператора")
+        case "MIXED_EVIDENCE", "POST_RESTORE_MIXED_EVIDENCE": return L10n.text("Результаты противоречивы")
+        case "NEEDS_POST_RESTORE_EVIDENCE": return L10n.text("Нужен новый опыт после восстановления")
+        case "NEEDS_MORE_EVIDENCE": return L10n.text("Доказательств результата пока недостаточно")
+        case "ERROR": return L10n.text("Доказательства результата не прошли проверку")
+        default: return L10n.text("Результат использования неизвестен")
         }
     }
     var valid: Bool {
@@ -206,14 +206,14 @@ struct NativeSkillInspection: Decodable {
             "restore", "outcome", "issues", "warnings", "history_complete"]
         guard case .object(let root) = value, Set(root.keys) == fields.union(falseFlags),
               value["no_execution"] == .bool(true), falseFlags.allSatisfy({ value[$0] == .bool(false) }) else {
-            throw NativeError.message("Контракт просмотра навыка изменился. Никаких действий не выполнено.")
+            throw NativeError.message(L10n.text("Контракт просмотра навыка изменился. Никаких действий не выполнено."))
         }
         let bytes = try JSONEncoder().encode(value)
-        guard bytes.count <= 512_000 else { throw NativeError.message("Ответ превышает предел просмотра навыка.") }
+        guard bytes.count <= 512_000 else { throw NativeError.message(L10n.text("Ответ превышает предел просмотра навыка.")) }
         let decoder = JSONDecoder(); decoder.keyDecodingStrategy = .convertFromSnakeCase
         let report = try decoder.decode(Self.self, from: bytes)
         let conversationMatches = selection.conversationID.map { UUID(uuidString: report.conversationId) == $0 } ?? report.conversationId.isEmpty
-        let invalid = NativeError.message("Не удалось проверить карточку результата и жизненного цикла. Источники не изменены.")
+        let invalid = NativeError.message(L10n.text("Не удалось проверить карточку результата и жизненного цикла. Источники не изменены."))
         guard report.schema == "proto_mind.native_skill_inspection.v1", report.readOnly, conversationMatches,
               report.skillId == selection.skillID, selection.matchesWorkspace(report.workspacePath),
               ["OK", "WARN", "ERROR", "NOT_FOUND", "UNAVAILABLE"].contains(report.status),
@@ -241,12 +241,12 @@ struct NativeSkillInspection: Decodable {
     }
 
     var nextAdvice: String {
-        if status == "ERROR" { return "Сначала проверьте отмеченные несоответствия в исходных данных. Автоматического исправления нет." }
-        if status == "NOT_FOUND" { return "Обновите список навыков: выбранная запись отсутствует. Ничего не восстановлено автоматически." }
-        if lifecycle?.state == .activeRestoredVerified { return "Оценивайте навык заново после восстановления. Старые результаты исключены; запись нового опыта после восстановления остаётся отдельным этапом разработки." }
-        if lifecycle?.state == .archivedVerified || lifecycle?.state == .archivedAmbiguous { return "Сначала изучите сохранённую причину архивации. Просмотр не восстанавливает навык и не запускает его." }
-        if lifecycle?.restartSafe == false { return "Сохраните историческую запись как есть или отдельно запланируйте проверку происхождения. Этот экран ничего не дописывает." }
-        return "Сопоставьте описание навыка с ручным результатом. Наличие сигнала не изменяет навык: любое решение о его жизненном цикле принимается отдельно." }
+        if status == "ERROR" { return L10n.text("Сначала проверьте отмеченные несоответствия в исходных данных. Автоматического исправления нет.") }
+        if status == "NOT_FOUND" { return L10n.text("Обновите список навыков: выбранная запись отсутствует. Ничего не восстановлено автоматически.") }
+        if lifecycle?.state == .activeRestoredVerified { return L10n.text("Оценивайте навык заново после восстановления. Старые результаты исключены; запись нового опыта после восстановления остаётся отдельным этапом разработки.") }
+        if lifecycle?.state == .archivedVerified || lifecycle?.state == .archivedAmbiguous { return L10n.text("Сначала изучите сохранённую причину архивации. Просмотр не восстанавливает навык и не запускает его.") }
+        if lifecycle?.restartSafe == false { return L10n.text("Сохраните историческую запись как есть или отдельно запланируйте проверку происхождения. Этот экран ничего не дописывает.") }
+        return L10n.text("Сопоставьте описание навыка с ручным результатом. Наличие сигнала не изменяет навык: любое решение о его жизненном цикле принимается отдельно.") }
 }
 
 private func inspectionID(_ value: String) -> Bool { value.range(of: "^[A-Za-z0-9_.:-]{1,200}$", options: .regularExpression) != nil }

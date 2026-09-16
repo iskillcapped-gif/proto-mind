@@ -8,13 +8,13 @@ struct SkillInspectionView: View {
             HStack(spacing: 12) {
                 Image(systemName: "books.vertical").font(.title2)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Результаты и жизненный цикл").font(.title2.weight(.semibold))
-                    Text("Сохранённые факты и доступные доказательства · без действий").font(.caption).foregroundStyle(.secondary)
+                    Text(L10n.text("Результаты и жизненный цикл")).font(.title2.weight(.semibold))
+                    Text(L10n.text("Сохранённые факты и доступные доказательства · без действий")).font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
                 if model.loading { ProgressView().controlSize(.small) }
                 Button { Task { await model.refresh() } } label: { Image(systemName: "arrow.clockwise") }
-                    .disabled(model.locked).help("Перечитать доказательства без записи и выполнения")
+                    .disabled(model.locked).help(L10n.text("Перечитать доказательства без записи и выполнения"))
                 Button { model.close() } label: { Image(systemName: "xmark") }.keyboardShortcut(.cancelAction)
             }.padding(22)
             Divider()
@@ -23,31 +23,31 @@ struct SkillInspectionView: View {
                     if let error = model.error { Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.orange).inspectionCard() }
                     if let report = model.report {
                         overview(report)
-                        Button("История обучения…") { Task { await model.openHistory() } }
+                        Button(L10n.text("История обучения…")) { Task { await model.openHistory() } }
                             .buttonStyle(.bordered).nativeHoverSurface().disabled(model.locked || model.selection.conversationID == nil)
                         if let outcome = report.outcome { outcomes(outcome, uses: report.usesDisplay) }
                         transitions(report)
                         if let restore = report.restore { restoreEvidence(restore) }
                         VStack(alignment: .leading, spacing: 8) {
-                            Label("Что дальше", systemImage: "arrow.right.circle").font(.headline)
+                            Label(L10n.text("Что дальше"), systemImage: "arrow.right.circle").font(.headline)
                             Text(report.nextAdvice).font(.callout).foregroundStyle(.secondary)
-                            Button("Подготовить задачу с навыком…") { Task { await model.openTask() } }
+                            Button(L10n.text("Подготовить задачу с навыком…")) { Task { await model.openTask() } }
                                 .buttonStyle(.bordered).nativeHoverSurface().disabled(!model.canOpenDecision)
-                            Button("Решение по результатам…") { Task { await model.openDecision() } }
+                            Button(L10n.text("Решение по результатам…")) { Task { await model.openDecision() } }
                                 .buttonStyle(.bordered).nativeHoverSurface().disabled(!model.canOpenDecision)
-                            Text("Откроется отдельный разбор. Просмотр не записывает решение и не меняет навык.")
+                            Text(L10n.text("Откроется отдельный разбор. Просмотр не записывает решение и не меняет навык."))
                                 .font(.caption).foregroundStyle(.secondary)
                             if report.lifecycle?.status == "archived" {
-                                Button("Восстановление из архива…") { Task { await model.openRestore() } }
+                                Button(L10n.text("Восстановление из архива…")) { Task { await model.openRestore() } }
                                     .buttonStyle(.bordered).nativeHoverSurface().disabled(!model.canOpenRestore)
-                                Text("Отдельная проверка и новое подтверждение. Простое открытие не возвращает навык в активные.").font(.caption).foregroundStyle(.secondary)
+                                Text(L10n.text("Отдельная проверка и новое подтверждение. Простое открытие не возвращает навык в активные.")).font(.caption).foregroundStyle(.secondary)
                             }
                         }.inspectionCard()
                         sources(report)
                     } else if model.loading {
-                        Text("Проверяем текущие записи навыка и исходного урока…").foregroundStyle(.secondary)
+                        Text(L10n.text("Проверяем текущие записи навыка и исходного урока…")).foregroundStyle(.secondary)
                     }
-                    Text("Только локальный просмотр. Без LLM, запуска навыка, сбора опыта, записи, архивации и восстановления. Разрешения и Context Injection не меняются.")
+                    Text(L10n.text("Только локальный просмотр. Без LLM, запуска навыка, сбора опыта, записи, архивации и восстановления. Разрешения и Context Injection не меняются."))
                         .font(.caption).foregroundStyle(.secondary)
                 }.padding(22).textSelection(.enabled)
             }
@@ -57,30 +57,30 @@ struct SkillInspectionView: View {
     private func overview(_ report: NativeSkillInspection) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top) {
-                Text(report.name.isEmpty ? "Навык недоступен" : report.name).font(.title3.weight(.semibold))
+                Text(report.name.isEmpty ? L10n.text("Навык недоступен") : report.name).font(.title3.weight(.semibold))
                 Spacer()
                 Text(report.status).font(.caption.weight(.semibold)).foregroundStyle(report.status == "ERROR" ? .red : .secondary)
                     .padding(.horizontal, 9).padding(.vertical, 4).background(Color.primary.opacity(0.06), in: Capsule())
             }
             if let lifecycle = report.lifecycle {
                 Label(lifecycle.state.title, systemImage: lifecycle.restartSafe ? "checkmark.seal" : "doc.text.magnifyingglass").font(.headline)
-                Text("Сохранённый статус: \(lifecycle.storedStatusTitle)").font(.caption).foregroundStyle(.secondary)
-                Text("Проверяется согласованность записи и её происхождения, не эффективность навыка.")
+                Text(L10n.format("Сохранённый статус: \(lifecycle.storedStatusTitle)")).font(.caption).foregroundStyle(.secondary)
+                Text(L10n.text("Проверяется согласованность записи и её происхождения, не эффективность навыка."))
                     .font(.callout).foregroundStyle(.secondary)
                 if !lifecycle.sourceLessonId.isEmpty {
-                    line("Исходный урок · \(lifecycle.sourceStatus)", lifecycle.sourceLessonId)
-                    Button("Открыть исходный урок") { Task { await model.openSource() } }
+                    line(L10n.format("Исходный урок · \(lifecycle.sourceStatus)"), lifecycle.sourceLessonId)
+                    Button(L10n.text("Открыть исходный урок")) { Task { await model.openSource() } }
                         .buttonStyle(.bordered).nativeHoverSurface().disabled(model.locked)
                 }
             }
             line("Skill ID", report.skillId)
-            Text("Навыки и уроки остаются общей библиотекой проектов. Изоляция по рабочей папке не подразумевается.")
+            Text(L10n.text("Навыки и уроки остаются общей библиотекой проектов. Изоляция по рабочей папке не подразумевается."))
                 .font(.caption).foregroundStyle(.secondary)
             if report.changedSinceSelection {
-                Label("Источник изменился после выбора. Показана свежая версия.", systemImage: "arrow.clockwise").font(.callout).foregroundStyle(.orange)
+                Label(L10n.text("Источник изменился после выбора. Показана свежая версия."), systemImage: "arrow.clockwise").font(.callout).foregroundStyle(.orange)
             }
             if !report.issues.isEmpty || !report.warnings.isEmpty {
-                Label("Ошибок: \(report.issues.count) · Ограничений: \(report.warnings.count)", systemImage: "exclamationmark.triangle")
+                Label(L10n.format("Ошибок: \(report.issues.count) · Ограничений: \(report.warnings.count)"), systemImage: "exclamationmark.triangle")
                     .font(.caption).foregroundStyle(.orange)
             }
         }.inspectionCard()
@@ -88,53 +88,53 @@ struct SkillInspectionView: View {
 
     private func outcomes(_ outcome: NativeSkillOutcome, uses: String) -> some View {
         VStack(alignment: .leading, spacing: 11) {
-            Label("Результаты ручного использования", systemImage: "checklist").font(.headline)
+            Label(L10n.text("Результаты ручного использования"), systemImage: "checklist").font(.headline)
             Text(outcome.title).font(.callout.weight(.semibold))
-            Text("Только уже собранный опыт выбранного диалога в текущем ядре. После перезапуска эти события могут быть недоступны; чужие диалоги и тексты чата не подмешиваются.")
+            Text(L10n.text("Только уже собранный опыт выбранного диалога в текущем ядре. После перезапуска эти события могут быть недоступны; чужие диалоги и тексты чата не подмешиваются."))
                 .font(.caption).foregroundStyle(.secondary)
             HStack(spacing: 20) {
-                metric("Событий в диалоге", outcome.eventCount)
-                metric("Точных использований", outcome.manualUseCount)
-                metric("Сигналов результата", outcome.signalCount)
+                metric(L10n.text("Событий в диалоге"), outcome.eventCount)
+                metric(L10n.text("Точных использований"), outcome.manualUseCount)
+                metric(L10n.text("Сигналов результата"), outcome.signalCount)
             }.padding(.vertical, 4)
-            Text("Сохранённый uses: \(uses). Этот счётчик не доказывает успех и не увеличивается при просмотре.")
+            Text(L10n.format("Сохранённый uses: \(uses). Этот счётчик не доказывает успех и не увеличивается при просмотре."))
                 .font(.caption).foregroundStyle(.secondary)
             if outcome.postRestore {
-                Text("Исключено: до восстановления \(outcome.preRestoreUseCount); без точной привязки к восстановлению \(outcome.unboundPostRestoreUseCount). Старый успех нельзя повторно использовать как новый.")
+                Text(L10n.format("Исключено: до восстановления \(outcome.preRestoreUseCount); без точной привязки к восстановлению \(outcome.unboundPostRestoreUseCount). Старый успех нельзя повторно использовать как новый."))
                     .font(.caption).foregroundStyle(.orange)
             }
             if outcome.signals.isEmpty {
-                Text("Нет подтверждённых сигналов в доступной выборке. Это не означает, что навык не работает или никогда не использовался.")
+                Text(L10n.text("Нет подтверждённых сигналов в доступной выборке. Это не означает, что навык не работает или никогда не использовался."))
                     .font(.callout).foregroundStyle(.secondary)
             }
             ForEach(outcome.signals) { signal in
                 VStack(alignment: .leading, spacing: 6) {
-                    Label(signal.successful ? "Успех, отмеченный оператором" : "Ошибка / исправление оператора",
+                    Label(signal.successful ? L10n.text("Успех, отмеченный оператором") : L10n.text("Ошибка / исправление оператора"),
                           systemImage: signal.successful ? "checkmark.circle" : "exclamationmark.bubble")
                         .font(.callout.weight(.medium))
                     Text(signal.createdAt).font(.caption).foregroundStyle(.secondary)
-                    DisclosureGroup("Основание и точные ссылки") {
+                    DisclosureGroup(L10n.text("Основание и точные ссылки")) {
                         VStack(alignment: .leading, spacing: 7) {
                             Text(signal.reason).font(.caption)
-                            line("Событие", signal.eventId)
-                            line("Ручное использование", signal.useEventId)
+                            line(L10n.text("Событие"), signal.eventId)
+                            line(L10n.text("Ручное использование"), signal.useEventId)
                         }.padding(.top, 7)
                     }
                 }.padding(12).frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 9))
             }
-            Text("Даже подтверждённый оператором результат является кандидатом для разбора, не автоматическим обучением и не независимым тестом процедуры.")
+            Text(L10n.text("Даже подтверждённый оператором результат является кандидатом для разбора, не автоматическим обучением и не независимым тестом процедуры."))
                 .font(.caption).foregroundStyle(.secondary)
         }.inspectionCard()
     }
 
     private func transitions(_ report: NativeSkillInspection) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("Сохранённые переходы", systemImage: "clock.arrow.circlepath").font(.headline)
-            Text("Это только проверенные следы в текущей записи, не полная история. Недостающие события и причины не достраиваются.")
+            Label(L10n.text("Сохранённые переходы"), systemImage: "clock.arrow.circlepath").font(.headline)
+            Text(L10n.text("Это только проверенные следы в текущей записи, не полная история. Недостающие события и причины не достраиваются."))
                 .font(.caption).foregroundStyle(.secondary)
             if report.transitions.isEmpty {
-                Text("Проверяемая цепочка переходов недоступна. Исходная запись сохранена без изменений.")
+                Text(L10n.text("Проверяемая цепочка переходов недоступна. Исходная запись сохранена без изменений."))
                     .font(.callout).foregroundStyle(.secondary)
             }
             ForEach(report.transitions) { transition in
@@ -142,12 +142,12 @@ struct SkillInspectionView: View {
                     Label(transition.title, systemImage: transition.kind == "apply" ? "plus.circle" : transition.kind == "archive" ? "archivebox" : "arrow.uturn.backward.circle")
                         .font(.callout.weight(.semibold))
                     Text(transition.occurredAt).font(.caption).foregroundStyle(.secondary)
-                    DisclosureGroup("Сохранённое основание") {
+                    DisclosureGroup(L10n.text("Сохранённое основание")) {
                         VStack(alignment: .leading, spacing: 7) {
                             Text(transition.reason).font(.caption)
                             line("Metadata ID", transition.id)
                             line("SHA-256", transition.hash)
-                            if transition.evidenceCount > 0 { Text("Ссылок на события: \(transition.evidenceCount). Ссылка не восстанавливает исходное событие.").font(.caption) }
+                            if transition.evidenceCount > 0 { Text(L10n.format("Ссылок на события: \(transition.evidenceCount). Ссылка не восстанавливает исходное событие.")).font(.caption) }
                         }.padding(.top, 7)
                     }
                 }.padding(.vertical, 6)
@@ -157,22 +157,22 @@ struct SkillInspectionView: View {
 
     private func restoreEvidence(_ restore: NativeSkillRestoreEvidence) -> some View {
         VStack(alignment: .leading, spacing: 9) {
-            Label("Проверка восстановления · \(restore.status)", systemImage: "checkmark.shield").font(.headline)
-            Text("Сохранённые метаданные проверяются после перезапуска. Это не восстановленная полная квитанция исходной операции.")
+            Label(L10n.format("Проверка восстановления · \(restore.status)"), systemImage: "checkmark.shield").font(.headline)
+            Text(L10n.text("Сохранённые метаданные проверяются после перезапуска. Это не восстановленная полная квитанция исходной операции."))
                 .font(.caption).foregroundStyle(.secondary)
             line("Evidence SHA-256", restore.evidenceHash)
-            Text(restore.processReceiptStatus == "NOT_AVAILABLE" ? "Квитанция операции в текущем процессе недоступна. Она не выдумывается по метаданным." : "Квитанция текущего процесса: \(restore.processReceiptStatus)")
+            Text(restore.processReceiptStatus == "NOT_AVAILABLE" ? L10n.text("Квитанция операции в текущем процессе недоступна. Она не выдумывается по метаданным.") : L10n.format("Квитанция текущего процесса: \(restore.processReceiptStatus)"))
                 .font(.callout).foregroundStyle(.secondary)
         }.inspectionCard()
     }
 
     private func sources(_ report: NativeSkillInspection) -> some View {
-        DisclosureGroup("Источники, проверки и ограничения") {
+        DisclosureGroup(L10n.text("Источники, проверки и ограничения")) {
             VStack(alignment: .leading, spacing: 12) {
                 ForEach(report.storeHashes.keys.sorted(), id: \.self) { key in line(key, report.storeHashes[key] ?? "") }
                 if let lifecycle = report.lifecycle {
                     line("Lifecycle", lifecycle.state.rawValue)
-                    line("Provenance", lifecycle.provenanceId.isEmpty ? "Недоступно" : lifecycle.provenanceId)
+                    line("Provenance", lifecycle.provenanceId.isEmpty ? L10n.text("Недоступно") : lifecycle.provenanceId)
                 }
                 if let outcome = report.outcome {
                     line("Outcome", outcome.status)

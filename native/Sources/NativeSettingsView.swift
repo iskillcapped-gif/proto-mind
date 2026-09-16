@@ -124,7 +124,7 @@ struct NativeSettingsView: View {
                                 .font(.callout).foregroundStyle(.secondary)
                         }
                     case .appearance:
-                        Section(L10n.text("Language / Язык")) {
+                        Section(L10n.text("Язык")) {
                             InterfaceLanguagePicker(configuration: model.serviceClient.configuration)
                         }
                         DesktopAppearanceSettings(desktop: model.desktop, panels: model.workspacePanels, companions: model.desktop.companions)
@@ -150,9 +150,9 @@ struct NativeSettingsView: View {
                         Section(L10n.text("О приложении")) {
                             LabeledContent(L10n.text("Версия"), value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? L10n.text("Локальная сборка"))
                             DisclosureGroup(L10n.text("Технические сведения")) {
-                                Text("Python: \(model.client.configuration.python.path)\nПроект: \(model.client.configuration.projectRoot.path)")
+                                Text(L10n.format("Python: \(model.client.configuration.python.path)\nПроект: \(model.client.configuration.projectRoot.path)"))
                                     .font(.caption.monospaced()).textSelection(.enabled)
-                                Text("Управление экраном: \(model.computerUseAvailable ? model.computerUseVersion : "недоступно")")
+                                Text(L10n.format("Управление экраном: \(model.computerUseAvailable ? model.computerUseVersion : L10n.text("недоступно"))"))
                                     .font(.caption).foregroundStyle(.secondary)
                             }
                         }
@@ -200,14 +200,14 @@ struct NativeSettingsView: View {
                     Text(L10n.text("По умолчанию для аккаунта")).tag("")
                     ForEach(model.codexModels) { item in Text(item.displayName).tag(item.id) }
                     if let selected = model.selected?.model, !selected.isEmpty, model.selectedCodexModel == nil {
-                        Text("\(selected) · недоступна").tag(selected)
+                        Text(L10n.format("\(selected) · недоступна")).tag(selected)
                     }
                 }.disabled(model.globalBusy)
                 Picker(L10n.text("Глубина рассуждения"), selection: Binding(get: { model.selected?.reasoningEffort ?? "" }, set: model.setReasoningEffort)) {
-                    Text(model.selectedCodexModel?.defaultEffort.map { "По умолчанию · \($0.title)" } ?? L10n.text("По умолчанию")).tag("")
+                    Text(model.selectedCodexModel?.defaultEffort.map { L10n.format("По умолчанию · \($0.title)") } ?? L10n.text("По умолчанию")).tag("")
                     ForEach(model.availableReasoningEfforts) { effort in Text(effort.title).tag(effort.rawValue) }
                     if let selected = model.selected?.reasoningEffort, !selected.isEmpty, !model.availableReasoningEfforts.contains(where: { $0.rawValue == selected }) {
-                        Text("\(selected) · недоступно").tag(selected)
+                        Text(L10n.format("\(selected) · недоступно")).tag(selected)
                     }
                 }.disabled(model.globalBusy)
                 HStack {
@@ -246,11 +246,11 @@ struct NativeSettingsView: View {
                 .font(.caption).foregroundStyle(.secondary)
             DisclosureGroup(L10n.text("Сведения о проверке")) {
                 if let readiness = model.personaReadiness {
-                    Text("Состояние: \(readiness.status)\nПроверка: \(readiness.value["activation_fingerprint"].text)")
+                    Text(L10n.format("Состояние: \(readiness.status)\nПроверка: \(readiness.value["activation_fingerprint"].text)"))
                         .font(.caption.monospaced()).textSelection(.enabled)
                 } else { Text(L10n.text("Проверка ещё не выполнялась.")).font(.caption).foregroundStyle(.secondary) }
                 if let receipt = model.lastPersonaTurnReceipt {
-                    Text("Последний ответ: \(receipt.snapshotHash)\nЗаписей памяти: \(receipt.selectedMemoryCount)\nКвитанция: \(receipt.receiptHash)")
+                    Text(L10n.format("Последний ответ: \(receipt.snapshotHash)\nЗаписей памяти: \(receipt.selectedMemoryCount)\nКвитанция: \(receipt.receiptHash)"))
                         .font(.caption.monospaced()).textSelection(.enabled)
                 }
                 Text(L10n.text("Persona не меняет Context Injection, не создаёт скрытых записей и проверяет совместимость перед каждым ответом."))
@@ -320,7 +320,7 @@ struct NativeSettingsView: View {
             DisclosureGroup(L10n.text("Технические сведения о сессии")) {
                 Text(L10n.text("Для чата и полного доступа создаются разные сессии Codex. Следующие сообщения продолжают соответствующую сессию. Обновление инструкций может начать новую сессию, сохраняя прежнюю историю."))
                     .font(.caption).foregroundStyle(.secondary)
-                Text("Последний режим: \(model.codexThreadStatus["last_mode"].text)\nМодель: \(model.codexThreadStatus["last_model"].text)\nДоступные режимы: \(model.codexThreadStatus["available_modes"].items.map(\.text).joined(separator: ", "))")
+                Text(L10n.format("Последний режим: \(model.codexThreadStatus["last_mode"].text)\nМодель: \(model.codexThreadStatus["last_model"].text)\nДоступные режимы: \(model.codexThreadStatus["available_modes"].items.map(\.text).joined(separator: ", "))"))
                     .font(.caption.monospaced()).textSelection(.enabled)
                 if model.codexThreadStatus["legacy_binding"].flag { Text(L10n.text("Старая сессия сохранена, но не возобновляется автоматически.")).font(.caption).foregroundStyle(.orange) }
             }
@@ -335,7 +335,7 @@ struct NativeSettingsView: View {
                 Text(L10n.text("Экспериментальная связь ответа с сохранёнными данными о его выполнении. Открывается из меню «Подробнее» под связанным ответом."))
                     .font(.caption).foregroundStyle(.secondary)
                 if let readiness = model.sessionSpineReadiness {
-                    Text("Состояние: \(readiness.state)\nIdentity: \(readiness.identityState)\nКандидат: \(readiness.candidateHash)")
+                    Text(L10n.format("Состояние: \(readiness.state)\nIdentity: \(readiness.identityState)\nКандидат: \(readiness.candidateHash)"))
                         .font(.caption.monospaced()).foregroundStyle(readiness.recoveryRequired ? .orange : .secondary).textSelection(.enabled)
                 }
                 if model.sessionSpinePilotArmed {
@@ -400,7 +400,7 @@ struct DesktopAppearanceSettings: View {
                     .monospacedDigit().foregroundStyle(.secondary)
             }
             Slider(value: value, in: 0...1, step: 0.01) { Text(title) }
-                .labelsHidden().accessibilityValue("\(Int((value.wrappedValue * 100).rounded())) процентов")
+                .labelsHidden().accessibilityValue(L10n.format("\(Int((value.wrappedValue * 100).rounded())) процентов"))
         }.padding(.vertical, 6)
     }
 }

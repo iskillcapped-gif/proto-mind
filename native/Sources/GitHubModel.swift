@@ -53,7 +53,7 @@ final class GitHubModel: ObservableObject {
         defer { loading = false }
         do {
             let value = try await app.client.request("github_repositories", ["page": .number(Double(more ? nextPage! : 1))])
-            guard value["login"].text == status["login"].text else { throw NativeError.message("Аккаунт GitHub изменился. Проверьте подключение.") }
+            guard value["login"].text == status["login"].text else { throw NativeError.message(L10n.text("Аккаунт GitHub изменился. Проверьте подключение.")) }
             let previous = more ? repositories : []
             let names = Set(previous.map { $0["name"].text })
             repositories = previous + value["items"].items.filter { !names.contains($0["name"].text) }
@@ -75,7 +75,7 @@ final class GitHubModel: ObservableObject {
 
     func discuss(_ text: String, app: AppModel) {
         guard !app.busy, !app.client.turnOutstanding, let id = app.selectedID, app.selected?.archived == false else {
-            error = "Откройте активный диалог перед подготовкой сообщения."; return
+            error = L10n.text("Откройте активный диалог перед подготовкой сообщения."); return
         }
         let draft = app.composer
         app.setComposer(draft.isEmpty ? text : draft + "\n\n" + text, preservingContinuation: true)
@@ -95,8 +95,8 @@ final class GitHubModel: ObservableObject {
             try Data(command.utf8).write(to: file, options: .withoutOverwriting)
             try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: file.path)
             NSWorkspace.shared.open([file], withApplicationAt: URL(fileURLWithPath: "/System/Applications/Utilities/Terminal.app"), configuration: NSWorkspace.OpenConfiguration()) { _, failure in
-                if failure != nil { Task { @MainActor in self.error = "Не удалось открыть вход. Выполните gh auth login в Терминале." } }
+                if failure != nil { Task { @MainActor in self.error = L10n.text("Не удалось открыть вход. Выполните gh auth login в Терминале.") } }
             }
-        } catch { self.error = "Не удалось открыть вход GitHub." }
+        } catch { self.error = L10n.text("Не удалось открыть вход GitHub.") }
     }
 }

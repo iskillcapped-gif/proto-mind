@@ -22,7 +22,7 @@ struct MemoryWorkshopView: View {
                 Image(systemName: "sparkles.rectangle.stack").font(.title2)
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Memory Workshop").font(.title2.weight(.semibold))
-                    Text("Наблюдаемый опыт → кандидат → ручное решение")
+                    Text(L10n.text("Наблюдаемый опыт → кандидат → ручное решение"))
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -36,15 +36,15 @@ struct MemoryWorkshopView: View {
             if model.loadingMemoryWorkshop && model.memoryWorkshop == nil {
                 VStack(spacing: 12) {
                     ProgressView()
-                    Text("Читаем только текущее process-memory состояние")
+                    Text(L10n.text("Читаем только текущее process-memory состояние"))
                         .font(.caption).foregroundStyle(.secondary)
                 }.frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let error = model.memoryWorkshopError {
-                empty("Workshop недоступен", error, icon: "exclamationmark.triangle")
+                empty(L10n.text("Workshop недоступен"), error, icon: "exclamationmark.triangle")
             } else if let report = model.memoryWorkshop {
                 reportView(report)
             } else {
-                empty("Нет отчёта", "Обновите Workshop. Это не создаст pilot или consent.", icon: "tray")
+                empty(L10n.text("Нет отчёта"), L10n.text("Обновите Workshop. Это не создаст pilot или consent."), icon: "tray")
             }
         }
     }
@@ -53,54 +53,54 @@ struct MemoryWorkshopView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 HStack(spacing: 12) {
-                    stat("Состояние", report.status)
-                    stat("Эпизоды", "\(report.episodeCount)")
-                    stat("Кандидаты", "\(report.candidateCount)")
+                    stat(L10n.text("Состояние"), report.status)
+                    stat(L10n.text("Эпизоды"), "\(report.episodeCount)")
+                    stat(L10n.text("Кандидаты"), "\(report.candidateCount)")
                     stat("Pilot", report.pilotState)
                 }
 
                 VStack(alignment: .leading, spacing: 9) {
-                    Label("Граница доверия", systemImage: "lock.shield").font(.headline)
+                    Label(L10n.text("Граница доверия"), systemImage: "lock.shield").font(.headline)
                     Text(report.notice).foregroundStyle(.secondary)
-                    Label("Никакого автоматического promotion/apply", systemImage: "hand.raised")
+                    Label(L10n.text("Никакого автоматического promotion/apply"), systemImage: "hand.raised")
                         .font(.callout.weight(.medium))
-                    Text("Просмотр не меняет память. Сохранение урока доступно только в отдельном разборе с явным подтверждением каждого шага.")
+                    Text(L10n.text("Просмотр не меняет память. Сохранение урока доступно только в отдельном разборе с явным подтверждением каждого шага."))
                         .font(.caption).foregroundStyle(.secondary)
                 }.card()
 
                 VStack(alignment: .leading, spacing: 9) {
-                    Label("Область памяти", systemImage: "folder.badge.questionmark").font(.headline)
+                    Label(L10n.text("Область памяти"), systemImage: "folder.badge.questionmark").font(.headline)
                     Text(report.scope.explanation).foregroundStyle(.secondary)
                     if report.scope.workspaceSelected {
-                        value("Текущая рабочая папка", report.scope.workspacePath)
+                        value(L10n.text("Текущая рабочая папка"), report.scope.workspacePath)
                         value("Workspace identity", report.scope.workspaceIdentityHash)
                     } else {
-                        Text("Рабочая папка не выбрана для этого диалога.").font(.callout).foregroundStyle(.secondary)
+                        Text(L10n.text("Рабочая папка не выбрана для этого диалога.")).font(.callout).foregroundStyle(.secondary)
                     }
-                    Label("Project isolation: пока не обеспечена", systemImage: "exclamationmark.triangle")
+                    Label(L10n.text("Project isolation: пока не обеспечена"), systemImage: "exclamationmark.triangle")
                         .font(.callout.weight(.medium)).foregroundStyle(.orange)
                 }.card()
 
                 if report.candidates.isEmpty {
                     VStack(alignment: .leading, spacing: 11) {
-                        Text(report.pilotPresent ? "Кандидатов пока нет" : "Supervised capture ещё не запускался")
+                        Text(report.pilotPresent ? L10n.text("Кандидатов пока нет") : L10n.text("Supervised capture ещё не запускался"))
                             .font(.headline)
                         Text(report.pilotPresent
-                             ? "Чистый turn не превращается в урок автоматически. Кандидаты появляются только из correction/reflection/grounding evidence."
-                             : "Сначала можно вручную запросить одноразовую consent-фразу. Workshop сам её не создаёт и ничего не включает.")
+                             ? L10n.text("Чистый turn не превращается в урок автоматически. Кандидаты появляются только из correction/reflection/grounding evidence.")
+                             : L10n.text("Сначала можно вручную запросить одноразовую consent-фразу. Workshop сам её не создаёт и ничего не включает."))
                             .foregroundStyle(.secondary)
-                        Button("Подготовить /experience preview") {
+                        Button(L10n.text("Подготовить /experience preview")) {
                             model.prepareMemoryWorkshopCommand(report.commands.startPreview)
                         }.buttonStyle(.borderedProminent).nativeHoverSurface()
                     }.card()
                 } else {
-                    Text("КАНДИДАТЫ ДЛЯ РУЧНОГО REVIEW").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                    Text(L10n.text("КАНДИДАТЫ ДЛЯ РУЧНОГО REVIEW")).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                     ForEach(report.candidates) { candidate in candidateCard(candidate) }
                 }
 
                 if !report.issues.isEmpty || !report.warnings.isEmpty {
                     VStack(alignment: .leading, spacing: 7) {
-                        Label("Диагностика", systemImage: "stethoscope").font(.headline)
+                        Label(L10n.text("Диагностика"), systemImage: "stethoscope").font(.headline)
                         ForEach(Array((report.issues + report.warnings).enumerated()), id: \.offset) { _, finding in
                             Text(finding).font(.caption).foregroundStyle(report.issues.isEmpty ? .orange : .red)
                         }
@@ -108,10 +108,10 @@ struct MemoryWorkshopView: View {
                 }
 
                 HStack {
-                    Button("Подготовить status") { model.prepareMemoryWorkshopCommand(report.commands.status) }
-                    Button("Подготовить learning doctor") { model.prepareMemoryWorkshopCommand(report.commands.learningDoctor) }
+                    Button(L10n.text("Подготовить status")) { model.prepareMemoryWorkshopCommand(report.commands.status) }
+                    Button(L10n.text("Подготовить learning doctor")) { model.prepareMemoryWorkshopCommand(report.commands.learningDoctor) }
                     Spacer()
-                    Text("Команда только помещается в поле ввода.").font(.caption).foregroundStyle(.tertiary)
+                    Text(L10n.text("Команда только помещается в поле ввода.")).font(.caption).foregroundStyle(.tertiary)
                 }
             }.padding(22)
         }
@@ -130,10 +130,10 @@ struct MemoryWorkshopView: View {
             value("Evidence", candidate.evidenceEventIds.joined(separator: " · "))
             value("Sources", candidate.sourceKinds.joined(separator: " · "))
             HStack {
-                Button("Разобрать урок") {
+                Button(L10n.text("Разобрать урок")) {
                     Task { await model.openLearningReview(candidateID: candidate.id) }
                 }.buttonStyle(.borderedProminent).nativeHoverSurface()
-                Button("Подготовить evidence preview") {
+                Button(L10n.text("Подготовить evidence preview")) {
                     model.prepareMemoryWorkshopCommand(candidate.previewCommand)
                 }
                 Spacer()
@@ -153,7 +153,7 @@ struct MemoryWorkshopView: View {
     private func value(_ label: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(label).font(.caption).foregroundStyle(.secondary)
-            Text(value.isEmpty ? "не указано" : value).font(.system(size: 10, design: .monospaced))
+            Text(value.isEmpty ? L10n.text("не указано") : value).font(.system(size: 10, design: .monospaced))
                 .textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
         }
     }

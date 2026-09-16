@@ -151,6 +151,8 @@ def package(root: Path, binaries: Path, output: Path, cache: Path, identity: str
         for name in ("ProtoMindNative", "ProtoMindPDF"):
             shutil.copy2(binaries / name, executables / name)
         shutil.copytree(binaries / "SwiftTerm_SwiftTerm.bundle", resources / "SwiftTerm_SwiftTerm.bundle")
+        for localization in sorted((root / "native/Resources").glob("*.lproj")):
+            shutil.copytree(localization, resources / localization.name)
         plist = plistlib.loads((root / "native/Info.plist").read_bytes())
         plist.update(CFBundleName="Proto-Mind", CFBundleDisplayName="Proto-Mind", CFBundleIdentifier="local.proto-mind.desktop")
         (app / "Contents/Info.plist").write_bytes(plistlib.dumps(plist))

@@ -49,14 +49,14 @@ final class SkillTaskModel: ObservableObject, Identifiable {
         guard ready, acknowledgement, let preview else { return }
         do {
             guard app.composer == initialDraft, app.selected?.pendingCriteria == initialCriteria else {
-                throw NativeError.message("Основной черновик изменился, пока форма была открыта. Закройте и откройте подготовку заново; чужой текст не заменён.")
+                throw NativeError.message(L10n.text("Основной черновик изменился, пока форма была открыта. Закройте и откройте подготовку заново; чужой текст не заменён."))
             }
             let task = try PreparedSkillTask(preview)
             try app.setPendingCriteria(task.criteria, conversationID: scope.conversationID)
             app.setComposer(task.goal)
             app.preparedSkillTasks[scope.conversationID] = task
             app.invalidateContextPreview(); app.section = .chat
-            app.status = "Навык и критерии подготовлены. Отправьте задачу вручную"
+            app.status = L10n.text("Навык и критерии подготовлены. Отправьте задачу вручную")
             close()
         } catch { self.error = error.localizedDescription }
     }
@@ -71,7 +71,7 @@ extension AppModel {
     }
     func openSkillTask(skillID: String) async {
         guard !busy, !client.turnOutstanding, let selected, !selected.archived, let workspace = selected.workspacePath else {
-            error = "Сначала выберите обычный диалог и его рабочую папку."; return
+            error = L10n.text("Сначала выберите обычный диалог и его рабочую папку."); return
         }
         let panel = SkillTaskModel(app: self, scope: ProjectMemoryScope(conversationID: selected.id, workspace: workspace), skillID: skillID)
         skillTask = panel; await panel.refresh()

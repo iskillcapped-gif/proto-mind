@@ -5,7 +5,7 @@ enum NativeTaskCriteria {
         let result = items.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
         guard result.count <= 8, result.allSatisfy({ !$0.isEmpty && $0.unicodeScalars.count <= 300 && $0.rangeOfCharacter(from: .controlCharacters) == nil }),
               Set(result.map { $0.lowercased().split(whereSeparator: \.isWhitespace).joined(separator: " ") }).count == result.count else {
-            throw NativeError.message("До 8 разных критериев, каждый в одну строку и не длиннее 300 символов.")
+            throw NativeError.message(L10n.text("До 8 разных критериев, каждый в одну строку и не длиннее 300 символов."))
         }
         return result
     }
@@ -27,16 +27,16 @@ enum NativeManualReview {
     static func unavailableReason(_ run: NativeWorkSession) -> String? {
         switch run.state {
         case "running", "preparing":
-            return "Запрос ещё выполняется. Приёмка появится после получения завершённого ответа."
+            return L10n.text("Запрос ещё выполняется. Приёмка появится после получения завершённого ответа.")
         case "not_started":
-            return "Запрос не был отправлен, поэтому принимать пока нечего. Можно скрыть уведомление, не меняя запись запуска."
+            return L10n.text("Запрос не был отправлен, поэтому принимать пока нечего. Можно скрыть уведомление, не меняя запись запуска.")
         case "unknown":
-            return "Завершённый ответ не подтверждён: запрос прервался или завершился ошибкой. Приёмка недоступна, потому что это ошибочно обозначило бы проверенный результат. Скрытие уведомления ниже не принимает результат и не повторяет запрос."
+            return L10n.text("Завершённый ответ не подтверждён: запрос прервался или завершился ошибкой. Приёмка недоступна, потому что это ошибочно обозначило бы проверенный результат. Скрытие уведомления ниже не принимает результат и не повторяет запрос.")
         default:
             if run.value["status"].text != "completed" || (!run.value["agent_status"].isNull && run.value["agent_status"].text != "completed") {
-                return "Состояние запуска не подтверждает завершённый ответ. Обновите журнал перед ручной оценкой."
+                return L10n.text("Состояние запуска не подтверждает завершённый ответ. Обновите журнал перед ручной оценкой.")
             }
-            return run.value["operator_reviews"].items.count >= 12 ? "Достигнут лимит 12 ручных оценок. Их история сохранена; новые оценки не перезаписывают прежние." : nil
+            return run.value["operator_reviews"].items.count >= 12 ? L10n.text("Достигнут лимит 12 ручных оценок. Их история сохранена; новые оценки не перезаписывают прежние.") : nil
         }
     }
 
@@ -46,9 +46,9 @@ enum NativeManualReview {
 
     static func label(_ value: String) -> String {
         switch value {
-        case "operator_accepted": return "Принято оператором"
-        case "operator_needs_work": return "Отмечено оператором: нужна доработка"
-        default: return "Операторская приёмка не записана"
+        case "operator_accepted": return L10n.text("Принято оператором")
+        case "operator_needs_work": return L10n.text("Отмечено оператором: нужна доработка")
+        default: return L10n.text("Операторская приёмка не записана")
         }
     }
 
@@ -85,7 +85,7 @@ struct NativeManualReviewPreview: Identifiable {
               case .array(let codes) = value["reason_codes"], codes.count == reasons.count,
               reasons.allSatisfy({ !$0.text.isEmpty }), codes.allSatisfy({ !$0.text.isEmpty }),
               value["ready"] == .bool(reasons.isEmpty) else {
-            throw NativeError.message("Состав ручной оценки изменился или не прошёл проверку. Ничего не записано.")
+            throw NativeError.message(L10n.text("Состав ручной оценки изменился или не прошёл проверку. Ничего не записано."))
         }
         self.value = value
     }
@@ -93,14 +93,14 @@ struct NativeManualReviewPreview: Identifiable {
     var reasons: [String] {
         value["reason_codes"].items.map {
             switch $0.text {
-            case "incomplete_run": return "Приёмка доступна только для завершённого ответа. Неизвестный или прерванный исход не превращается в успех."
-            case "history_limit": return "Достигнут лимит 12 ручных оценок. Старые записи не удаляются и не перезаписываются."
-            case "no_criteria": return "До этого запуска критерии не задавались. Укажите их для новой задачи: мы не дописываем условия задним числом."
-            case "unchecked_criteria": return "Для принятия лично отметьте каждый критерий как выполненный."
-            case "workspace_changed": return "Исходная рабочая папка недоступна или изменилась. Сначала перепроверьте привязку."
-            case "artifacts_changed": return "Файлы изменились, недоступны или не имеют сохранённого SHA. Проверьте результаты; приёмка не записана."
-            case "explain_rework": return "Опишите, что осталось доработать, либо отметьте невыполненный или непроверенный критерий."
-            default: return "Нужна повторная проверка ручной оценки; запись не выполнена."
+            case "incomplete_run": return L10n.text("Приёмка доступна только для завершённого ответа. Неизвестный или прерванный исход не превращается в успех.")
+            case "history_limit": return L10n.text("Достигнут лимит 12 ручных оценок. Старые записи не удаляются и не перезаписываются.")
+            case "no_criteria": return L10n.text("До этого запуска критерии не задавались. Укажите их для новой задачи: мы не дописываем условия задним числом.")
+            case "unchecked_criteria": return L10n.text("Для принятия лично отметьте каждый критерий как выполненный.")
+            case "workspace_changed": return L10n.text("Исходная рабочая папка недоступна или изменилась. Сначала перепроверьте привязку.")
+            case "artifacts_changed": return L10n.text("Файлы изменились, недоступны или не имеют сохранённого SHA. Проверьте результаты; приёмка не записана.")
+            case "explain_rework": return L10n.text("Опишите, что осталось доработать, либо отметьте невыполненный или непроверенный критерий.")
+            default: return L10n.text("Нужна повторная проверка ручной оценки; запись не выполнена.")
             }
         }
     }
@@ -119,21 +119,21 @@ struct TaskCriteriaView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Label("Готово, когда…", systemImage: "checklist").font(.title2.weight(.semibold))
-            Text("Как понять, что задача решена? До 8 пунктов, по одному на строку.")
+            Label(L10n.text("Готово, когда…"), systemImage: "checklist").font(.title2.weight(.semibold))
+            Text(L10n.text("Как понять, что задача решена? До 8 пунктов, по одному на строку."))
                 .foregroundStyle(.secondary)
             TextEditor(text: $draft).font(NativeTheme.interfaceFont).padding(10)
                 .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 10))
-                .frame(minHeight: 170).accessibilityLabel("Критерии следующей задачи")
+                .frame(minHeight: 170).accessibilityLabel(L10n.text("Критерии следующей задачи"))
             if let error { Text(error).foregroundStyle(.orange) }
-            Text("Критерии сохранятся в черновике и попадут в следующий запрос. Оценить результат можно будет в журнале работы.")
+            Text(L10n.text("Критерии сохранятся в черновике и попадут в следующий запрос. Оценить результат можно будет в журнале работы."))
                 .font(.callout).foregroundStyle(.secondary)
             HStack {
-                Button("Отмена") { model.showTaskCriteria = false }.keyboardShortcut(.cancelAction)
+                Button(L10n.text("Отмена")) { model.showTaskCriteria = false }.keyboardShortcut(.cancelAction)
                 Spacer()
-                Button("Сохранить критерии") {
+                Button(L10n.text("Сохранить критерии")) {
                     do {
-                        guard let conversationID else { throw NativeError.message("Откройте диалог.") }
+                        guard let conversationID else { throw NativeError.message(L10n.text("Откройте диалог.")) }
                         try model.setPendingCriteria(NativeTaskCriteria.parse(draft), conversationID: conversationID)
                         model.showTaskCriteria = false
                     } catch { self.error = error.localizedDescription }
@@ -169,22 +169,22 @@ struct TaskReviewView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                Label("Ручная приёмка", systemImage: "person.crop.circle.badge.checkmark").font(.title3.weight(.semibold))
+                Label(L10n.text("Ручная приёмка"), systemImage: "person.crop.circle.badge.checkmark").font(.title3.weight(.semibold))
                 Text(NativeManualReview.label(run.value["acceptance"].text)).font(.headline)
-                Text("\(run.title). Автоматическая проверка достижения цели не выполнялась. Оценка ниже принадлежит оператору, а не модели.")
+                Text(L10n.format("\(run.title). Автоматическая проверка достижения цели не выполнялась. Оценка ниже принадлежит оператору, а не модели."))
                     .foregroundStyle(.secondary)
                 Text(run.value["input_preview"].text).textSelection(.enabled)
                 if !reviews.isEmpty { reviewHistory }
                 if let reason = NativeManualReview.unavailableReason(run) {
                     VStack(alignment: .leading, spacing: 12) {
-                        Label("Почему приёмка недоступна", systemImage: "info.circle").font(.headline)
+                        Label(L10n.text("Почему приёмка недоступна"), systemImage: "info.circle").font(.headline)
                         Text(reason).textSelection(.enabled)
                         WorkSessionNoticeControls(model: model, run: run)
                     }.padding(16).background(Color.orange.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
                 } else if editing { editor }
                 else if reviews.count < 12 {
-                    Button("Пересмотреть вручную…") { editing = true }
-                        .help("Предыдущая оценка сохранится в истории; новый запрос модели не запускается")
+                    Button(L10n.text("Пересмотреть вручную…")) { editing = true }
+                        .help(L10n.text("Предыдущая оценка сохранится в истории; новый запрос модели не запускается"))
                 }
                 if let error { Text(error).foregroundStyle(.orange).textSelection(.enabled) }
                 if let lastPreview, !lastPreview.ready {
@@ -192,9 +192,9 @@ struct TaskReviewView: View {
                         Label(reason, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
                     }
                 }
-                Button("Обновить журнал") { Task { await model.refreshWorkSessions() } }.disabled(model.busy || loading)
-                Button("Вернуться в диалог") { model.showWorkSessions = false; model.section = .chat }
-                Text("При сохранении перечитываются запись запуска и наблюдаемые файлы. Изменившийся результат нельзя принять как прежний. Записывается только ручная оценка в личном журнале; команды не выполняются, файлы проекта и память не меняются.")
+                Button(L10n.text("Обновить журнал")) { Task { await model.refreshWorkSessions() } }.disabled(model.busy || loading)
+                Button(L10n.text("Вернуться в диалог")) { model.showWorkSessions = false; model.section = .chat }
+                Text(L10n.text("При сохранении перечитываются запись запуска и наблюдаемые файлы. Изменившийся результат нельзя принять как прежний. Записывается только ручная оценка в личном журнале; команды не выполняются, файлы проекта и память не меняются."))
                     .font(.caption).foregroundStyle(.secondary)
             }.padding(22).frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -206,31 +206,31 @@ struct TaskReviewView: View {
 
     private var editor: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Критерии, заданные до отправки").font(.headline)
+            Text(L10n.text("Критерии, заданные до отправки")).font(.headline)
             if criteria.isEmpty {
-                Text("Критерии не задавались. Можно записать необходимость доработки с пояснением, но не выдумывать выполненные условия задним числом.").foregroundStyle(.secondary)
+                Text(L10n.text("Критерии не задавались. Можно записать необходимость доработки с пояснением, но не выдумывать выполненные условия задним числом.")).foregroundStyle(.secondary)
             }
             ForEach(Array(criteria.enumerated()), id: \.offset) { index, item in
                 VStack(alignment: .leading, spacing: 8) {
                     Text("\(index + 1). \(item["text"].text)").textSelection(.enabled)
-                    Picker("Критерий \(index + 1)", selection: $checks[index]) {
-                        Text("Не проверено").tag("not_checked")
-                        Text("Выполнено").tag("met")
-                        Text("Не выполнено").tag("not_met")
+                    Picker(L10n.format("Критерий \(index + 1)"), selection: $checks[index]) {
+                        Text(L10n.text("Не проверено")).tag("not_checked")
+                        Text(L10n.text("Выполнено")).tag("met")
+                        Text(L10n.text("Не выполнено")).tag("not_met")
                     }.pickerStyle(.segmented).labelsHidden()
                 }.padding(12).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 10))
             }
             if !criteria.isEmpty {
-                Picker("Моё решение", selection: $decision) {
-                    Text("Принять результат").tag("accepted")
-                    Text("Нужна доработка").tag("needs_work")
+                Picker(L10n.text("Моё решение"), selection: $decision) {
+                    Text(L10n.text("Принять результат")).tag("accepted")
+                    Text(L10n.text("Нужна доработка")).tag("needs_work")
                 }.pickerStyle(.segmented)
             } else {
-                Label("Нужна доработка: опишите её в комментарии", systemImage: "square.and.pencil")
+                Label(L10n.text("Нужна доработка: опишите её в комментарии"), systemImage: "square.and.pencil")
             }
-            Text("Комментарий · до 1 000 символов").font(.caption).foregroundStyle(.secondary)
+            Text(L10n.text("Комментарий · до 1 000 символов")).font(.caption).foregroundStyle(.secondary)
             TextEditor(text: $note).frame(height: 75).font(NativeTheme.interfaceFont)
-                .accessibilityLabel("Комментарий к ручной приёмке")
+                .accessibilityLabel(L10n.text("Комментарий к ручной приёмке"))
             Button {
                 Task {
                     loading = true; error = nil; lastPreview = nil
@@ -243,47 +243,47 @@ struct TaskReviewView: View {
                         if preview.ready { confirmation = preview }
                     } catch { self.error = error.localizedDescription }
                 }
-            } label: { Label(loading ? "Проверяю запись и файлы…" : "Проверить перед записью…", systemImage: "checkmark.shield") }
+            } label: { Label(loading ? L10n.text("Проверяю запись и файлы…") : L10n.text("Проверить перед записью…"), systemImage: "checkmark.shield") }
         }.disabled(model.busy || loading || run.state != "completed" || reviews.count >= 12)
     }
 
     private var reviewHistory: some View {
-        DisclosureGroup("История ручных оценок · \(reviews.count)/12") {
+        DisclosureGroup(L10n.format("История ручных оценок · \(reviews.count)/12")) {
             ForEach(Array(reviews.enumerated().reversed()), id: \.offset) { _, item in
                 VStack(alignment: .leading, spacing: 7) {
-                    Text(item["selection"]["decision"].text == "accepted" ? "Принято оператором" : "Нужна доработка").fontWeight(.medium)
+                    Text(item["selection"]["decision"].text == "accepted" ? L10n.text("Принято оператором") : L10n.text("Нужна доработка")).fontWeight(.medium)
                     Text(item["reviewed_at"].text).font(.caption).foregroundStyle(.secondary)
                     if !item["selection"]["note"].text.isEmpty { Text(item["selection"]["note"].text).textSelection(.enabled) }
-                    Text("\(item["selection"]["checks"].items.filter { $0.text == "met" }.count)/\(criteria.count) отмечено выполненными · receipt \(item["receipt_hash"].text.prefix(12))")
+                    Text(L10n.format("\(item["selection"]["checks"].items.filter { $0.text == "met" }.count)/\(criteria.count) отмечено выполненными · receipt \(item["receipt_hash"].text.prefix(12))"))
                         .font(.caption.monospaced()).foregroundStyle(.secondary)
                     if !criteria.isEmpty {
-                        DisclosureGroup("Оценка по пунктам") {
+                        DisclosureGroup(L10n.text("Оценка по пунктам")) {
                             ForEach(Array(criteria.enumerated()), id: \.offset) { index, criterion in
                                 let check = item["selection"]["checks"].items[index].text
-                                Text("\(index + 1). \(criterion["text"].text) · \(check == "met" ? "Выполнено" : check == "not_met" ? "Не выполнено" : "Не проверено")")
+                                Text("\(index + 1). \(criterion["text"].text) · \(check == "met" ? L10n.text("Выполнено") : check == "not_met" ? L10n.text("Не выполнено") : L10n.text("Не проверено"))")
                                     .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 3).textSelection(.enabled)
                             }
                         }.font(.callout)
                     }
                 }.padding(.vertical, 8)
             }
-            Text("Это историческая оценка на момент записи, не обещание, что файлы с тех пор не менялись. Хеши не являются подписью личности оператора.")
+            Text(L10n.text("Это историческая оценка на момент записи, не обещание, что файлы с тех пор не менялись. Хеши не являются подписью личности оператора."))
                 .font(.caption).foregroundStyle(.secondary)
         }
     }
 
     private func confirmationSheet(_ preview: NativeManualReviewPreview) -> some View {
         VStack(alignment: .leading, spacing: 18) {
-            Label("Записать вашу оценку?", systemImage: "hand.raised").font(.title2.weight(.semibold))
-            Text(preview.selection["decision"].text == "accepted" ? "Вы лично принимаете результат по заданным критериям." : "Вы отмечаете, что результат требует доработки.")
-            Text("Отмечено выполненными: \(preview.selection["checks"].items.filter { $0.text == "met" }.count)/\(criteria.count). Наблюдаемых файлов: \(preview.value["observations"].items.count).")
+            Label(L10n.text("Записать вашу оценку?"), systemImage: "hand.raised").font(.title2.weight(.semibold))
+            Text(preview.selection["decision"].text == "accepted" ? L10n.text("Вы лично принимаете результат по заданным критериям.") : L10n.text("Вы отмечаете, что результат требует доработки."))
+            Text(L10n.format("Отмечено выполненными: \(preview.selection["checks"].items.filter { $0.text == "met" }.count)/\(criteria.count). Наблюдаемых файлов: \(preview.value["observations"].items.count)."))
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
                     ForEach(Array(criteria.enumerated()), id: \.offset) { index, item in
                         let check = preview.selection["checks"].items[index].text
                         VStack(alignment: .leading, spacing: 4) {
                             Text("\(index + 1). \(item["text"].text)")
-                            Label(check == "met" ? "Выполнено" : check == "not_met" ? "Не выполнено" : "Не проверено",
+                            Label(check == "met" ? L10n.text("Выполнено") : check == "not_met" ? L10n.text("Не выполнено") : L10n.text("Не проверено"),
                                   systemImage: check == "met" ? "checkmark.circle" : "questionmark.circle")
                                 .font(.caption).foregroundStyle(.secondary)
                         }
@@ -294,18 +294,18 @@ struct TaskReviewView: View {
                     }
                 }.frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled)
             }.frame(maxHeight: 220)
-            Text("Только запись в личном журнале. Ни запуска, ни исправления файлов, ни новой памяти или разрешений. Предыдущие оценки сохраняются.")
+            Text(L10n.text("Только запись в личном журнале. Ни запуска, ни исправления файлов, ни новой памяти или разрешений. Предыдущие оценки сохраняются."))
                 .foregroundStyle(.secondary)
             HStack {
-                Button("Отмена") { confirmation = nil }.keyboardShortcut(.cancelAction)
+                Button(L10n.text("Отмена")) { confirmation = nil }.keyboardShortcut(.cancelAction)
                 Spacer()
-                Button("Записать мою оценку") {
+                Button(L10n.text("Записать мою оценку")) {
                     Task {
                         loading = true
                         defer { loading = false; confirmation = nil }
                         do { _ = try await model.saveManualReview(run, preview: preview) }
                         catch {
-                            self.error = "Не удалось подтвердить запись оценки. Обновите журнал перед повтором: при ошибке связи оценка могла сохраниться.\n\n" + error.localizedDescription
+                            self.error = L10n.text("Не удалось подтвердить запись оценки. Обновите журнал перед повтором: при ошибке связи оценка могла сохраниться.\n\n") + error.localizedDescription
                         }
                     }
                 }.disabled(model.busy || loading)

@@ -4,7 +4,7 @@ import Foundation
 enum PrivateStateAccess {
     static func requireAvailable(_ directory: URL) throws {
         if try ChatHistoryFiles.read(directory.appendingPathComponent(".private-restore.json"), limit: 8192) != nil {
-            throw NativeError.message("Восстановление данных не завершено. Откройте «Полная копия», чтобы продолжить или вернуть прежние данные.")
+            throw NativeError.message(L10n.text("Восстановление данных не завершено. Откройте «Полная копия», чтобы продолжить или вернуть прежние данные."))
         }
     }
     static func generation(_ directory: URL) throws -> Data? {
@@ -58,7 +58,7 @@ final class PrivateBackupModel: ObservableObject {
     func chooseExport(app: AppModel) {
         guard !app.globalBusy, !working, !app.client.turnOutstanding else { return }
         let panel = NSSavePanel()
-        panel.title = "Сохранить полную копию данных Proto-Mind"
+        panel.title = L10n.text("Сохранить полную копию данных Proto-Mind")
         panel.nameFieldStringValue = "Proto-Mind \(Date().formatted(.iso8601.year().month().day())).protomind-backup"
         panel.canCreateDirectories = true
         app.presentFilePicker(panel) { [weak self, weak app] response in
@@ -70,8 +70,8 @@ final class PrivateBackupModel: ObservableObject {
     func chooseSource(app: AppModel) {
         guard !app.globalBusy, !working, !app.client.turnOutstanding else { return }
         let panel = NSOpenPanel()
-        panel.title = "Выберите полную копию Proto-Mind"
-        panel.message = "Выберите папку с расширением .protomind-backup."
+        panel.title = L10n.text("Выберите полную копию Proto-Mind")
+        panel.message = L10n.text("Выберите папку с расширением .protomind-backup.")
         panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.allowsMultipleSelection = false
         app.presentFilePicker(panel) { [weak self, weak app] response in
             guard response == .OK, let url = panel.url, let self, let app else { return }
@@ -86,7 +86,7 @@ final class PrivateBackupModel: ObservableObject {
         do {
             try app.saveHistory()
             let value = try await app.client.request("private_backup_create", ["path": .string(url.path)])
-            notice = "Копия сохранена и проверена: \(value["files"].integer) файлов."
+            notice = L10n.format("Копия сохранена и проверена: \(value["files"].integer) файлов.")
             result = value
         } catch { self.error = error.localizedDescription }
     }
@@ -136,7 +136,7 @@ final class PrivateBackupModel: ObservableObject {
             previous = try PrivateStateAccess.generation(app.client.configuration.stateDirectory)
             started = true
             result = try await operation()
-            guard result["completed"].flag, result["restart_required"].flag else { throw NativeError.message("Ядро не подтвердило завершение восстановления.") }
+            guard result["completed"].flag, result["restart_required"].flag else { throw NativeError.message(L10n.text("Ядро не подтвердило завершение восстановления.")) }
             finish(app: app)
         } catch {
             // A bridge disconnect after the durable commit must not let the old

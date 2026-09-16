@@ -56,7 +56,7 @@ struct DesktopCompanionView: View {
                 CompanionSplitHandle(owner: owner).frame(height: 7).padding(.horizontal, 38)
                     .help(L10n.text("Изменить высоту боковых окон"))
                     .accessibilityElement().accessibilityLabel(L10n.text("Высота боковых окон"))
-                    .accessibilityValue("Верхнее окно \(Int(owner.topFraction * 100)) процентов")
+                    .accessibilityValue(L10n.format("Верхнее окно \(Int(owner.topFraction * 100)) процентов"))
                     .accessibilityAdjustableAction { direction in
                         owner.setTopFraction(owner.topFraction + (direction == .increment ? 0.05 : -0.05))
                     }
@@ -66,6 +66,7 @@ struct DesktopCompanionView: View {
         .environment(\.desktopGlass, true)
         .environment(\.workspaceChrome, chrome)
         .environment(\.workspacePresentations, presentations)
+        .environment(\.locale, L10n.locale)
         .environment(\.workspaceChromeVisible, surface.expanded || chrome.visible || voiceOver || !presentations.pages.isEmpty)
         .onExitCommand {
             if !presentations.pages.isEmpty { presentations.dismissTop() }

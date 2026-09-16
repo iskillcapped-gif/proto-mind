@@ -14,7 +14,7 @@ extension AppModel {
         let hasAttachments = !conversation.pendingFiles.isEmpty || !conversation.pendingImages.isEmpty || !conversation.pendingPDFs.isEmpty
         let draftText = (supplied ?? conversation.draft).trimmingCharacters(in: .whitespacesAndNewlines)
         let text = draftText.isEmpty && hasAttachments
-            ? (isRunning(conversationID) ? "Учти вложения в текущей задаче." : "Посмотри вложения.") : draftText
+            ? (isRunning(conversationID) ? L10n.text("Учти вложения в текущей задаче.") : L10n.text("Посмотри вложения.")) : draftText
         if isRunning(conversationID) {
             if !text.isEmpty && !loadingDroppedAttachments && !loadingImagePreview && !loadingPDFPreview
                 && imagePreview == nil && pdfPreview == nil && attachmentDropPreview == nil {
@@ -38,10 +38,10 @@ extension AppModel {
             let description = try await state.client.request("describe", ["text": .string(text)])
             guard !description["blocked"].flag else { throw NativeError.message(description["notice"].text) }
             if description["operator"].flag && executions.values.contains(where: { $0 !== state && $0.running }) {
-                throw NativeError.message("Дождитесь завершения задач перед выполнением команды ядра.")
+                throw NativeError.message(L10n.text("Дождитесь завершения задач перед выполнением команды ядра."))
             }
             if description["requires_confirmation"].flag {
-                let summary = description["steps"].items.map { "\($0["command"].text)\nИзменяет: \($0["mutates"].text) · риск: \($0["risk"].text)" }.joined(separator: "\n\n")
+                let summary = description["steps"].items.map { L10n.format("\($0["command"].text)\nИзменяет: \($0["mutates"].text) · риск: \($0["risk"].text)") }.joined(separator: "\n\n")
                 pendingAction = PendingOperatorAction(text: text, conversationID: conversationID, summary: summary)
                 state.running = false
                 return
@@ -168,7 +168,7 @@ extension AppModel {
             if usePersona {
                 state.personaReceipt = try NativePersonaTurnReceipt(result["persona_activation"])
             } else if !result["persona_activation"].isNull {
-                throw NativeError.message("Ядро вернуло Persona receipt без активированного opt-in.")
+                throw NativeError.message(L10n.text("Ядро вернуло Persona receipt без активированного opt-in."))
             }
             let evidence = result["cognitive_turn"]
             try checkKnowledgeMetadata(result["knowledge_context"])
@@ -194,7 +194,7 @@ extension AppModel {
                 state.autoSkillsReport = report
             } else if !result["auto_skills"].isNull { throw NativeAutoSkillsReport.error() }
             let raw = result["text"].text
-            let body = result["exit_requested"].flag ? "Сессия ядра завершена. История диалога сохранена локально." : evidence.isNull ? raw : evidence["response"].text
+            let body = result["exit_requested"].flag ? L10n.text("Сессия ядра завершена. История диалога сохранена локально.") : evidence.isNull ? raw : evidence["response"].text
             var notices = result["notices"].items.map(\.text)
             var suggestions: JSONValue?
             if !result["memory_suggestions"].isNull {
@@ -203,30 +203,30 @@ extension AppModel {
                     let report = try MemorySuggestionsReport(result["memory_suggestions"], text: text, run: result["work_session"])
                     guard UUID(uuidString: report.source["conversation_id"].text) == conversationID,
                           ProjectMemoryScope(conversationID: conversationID, workspace: conversation.workspacePath ?? "").matches(report.source["workspace"]) else { throw memorySuggestionError() }
-                    if report.value["state"] == .string("unavailable") { notices.append("Предложения памяти недоступны: проверьте папку, настройки и заметки. Ответ сохранён; автоматической записи памяти не было.") }
+                    if report.value["state"] == .string("unavailable") { notices.append(L10n.text("Предложения памяти недоступны: проверьте папку, настройки и заметки. Ответ сохранён; автоматической записи памяти не было.")) }
                     if !report.items.isEmpty { suggestions = report.value }
-                } catch { notices.append("Предложения памяти не прошли проверку источника. Ответ сохранён без карточек; ничего не записано в заметки проекта.") }
+                } catch { notices.append(L10n.text("Предложения памяти не прошли проверку источника. Ответ сохранён без карточек; ничего не записано в заметки проекта.")) }
             }
             if !result["envelope_warning"].text.isEmpty { notices.append(result["envelope_warning"].text) }
             try NativeImageAttachment.validate(result["image_context"].items)
             guard images.isEmpty || result["image_context"] == .array(images) else {
-                throw NativeError.message("Результат не подтвердил выбранные изображения. Запрос не повторялся; проверьте журнал работы.")
+                throw NativeError.message(L10n.text("Результат не подтвердил выбранные изображения. Запрос не повторялся; проверьте журнал работы."))
             }
             try NativePDFAttachment.validate(result["pdf_context"].items)
             guard pdfs.isEmpty || result["pdf_context"] == .array(pdfs) else {
-                throw NativeError.message("Результат не подтвердил выбранные страницы PDF. Запрос не повторялся; проверьте журнал работы.")
+                throw NativeError.message(L10n.text("Результат не подтвердил выбранные страницы PDF. Запрос не повторялся; проверьте журнал работы."))
             }
             var turnReference: JSONValue?
             if !operatorInput && ["codex", "ollama", "api"].contains(conversation.provider) {
                 let run = try NativeWorkSession(result["work_session"])
                 guard run.id == requestedRunID?.uuidString.lowercased(), let receipt = run.turnReceipt else {
-                    throw NativeError.message("Завершённый ответ не содержит проверяемую квитанцию связи с запуском. Запрос не повторялся.")
+                    throw NativeError.message(L10n.text("Завершённый ответ не содержит проверяемую квитанцию связи с запуском. Запрос не повторялся."))
                 }
                 turnReference = try NativeTurnReference.make(
                     receipt: receipt.value, source: userMessage, conversation: conversationID, response: raw
                 )
             } else if !result["work_session"]["turn_receipt"].isNull {
-                throw NativeError.message("Квитанция связи появилась на неподдерживаемом маршруте. Ответ не сохранён и запрос не повторялся.")
+                throw NativeError.message(L10n.text("Квитанция связи появилась на неподдерживаемом маршруте. Ответ не сохранён и запрос не повторялся."))
             }
             let message = ChatMessage(role: result["operator"].flag ? "report" : "assistant", text: body,
                                       raw: raw, evidence: evidence, notices: notices,
@@ -255,7 +255,7 @@ extension AppModel {
                let failed = conversations[current].messages.firstIndex(where: { $0.id == userMessage.id }) {
                 conversations[current].messages[failed].isError = true
             }
-            let caution = grant == nil ? "" : "\nДействия могли уже изменить файлы. Проверьте журнал и результат перед повтором; автоматического отката нет."
+            let caution = grant == nil ? "" : L10n.text("\nДействия могли уже изменить файлы. Проверьте журнал и результат перед повтором; автоматического отката нет.")
             append(ChatMessage(role: "report", text: error.localizedDescription + caution, isError: true,
                                agentRun: state.agentReceipt.isNull ? nil : state.agentReceipt,
                                workLog: state.workLog.isNull ? nil : state.workLog, autoSkills: state.autoSkillsReport?.value), to: conversationID)

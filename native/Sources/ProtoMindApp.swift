@@ -33,8 +33,10 @@ struct ProtoMindApp: App {
     }
 
     var body: some Scene {
+        let locale = L10n.locale
         WindowGroup("Proto-Mind") {
             WorkspaceView(model: model)
+                .environment(\.locale, locale)
                 .task {
                     delegate.model = model
                     await model.start()

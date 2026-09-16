@@ -3,7 +3,7 @@ import AppKit
 enum DesktopCompanionID: String, CaseIterable, Identifiable {
     case first, second
     var id: String { rawValue }
-    var title: String { self == .first ? "Окно 1" : "Окно 2" }
+    var title: String { self == .first ? L10n.text("Окно 1") : L10n.text("Окно 2") }
     var position: WorkspacePanelPosition { self == .first ? .upper : .lower }
 }
 

@@ -36,7 +36,7 @@ struct NativePDFAttachment: Equatable {
               Self.number(value["size_bytes"], in: 1...Self.maximumBytes),
               Self.number(value["page_count"], in: 1...Self.maximumPages),
               case .array(let pages) = value["pages"], (1...Self.maximumSelection).contains(pages.count) else {
-            throw NativeError.message("Описание PDF не прошло проверку. Ничего не прикреплено.")
+            throw NativeError.message(L10n.text("Описание PDF не прошло проверку. Ничего не прикреплено."))
         }
         var previous = 0
         for page in pages {
@@ -46,7 +46,7 @@ struct NativePDFAttachment: Equatable {
                   page["included_chars"] == .number(Double(min(page["characters"].integer, Self.pageCharacters))),
                   page["truncated"] == .bool(page["characters"].integer > Self.pageCharacters),
                   Self.isHash(page["text_sha256"]) else {
-                throw NativeError.message("Метаданные страниц PDF не прошли проверку.")
+                throw NativeError.message(L10n.text("Метаданные страниц PDF не прошли проверку."))
             }
             previous = page["number"].integer
         }
@@ -54,7 +54,7 @@ struct NativePDFAttachment: Equatable {
     }
 
     static func validate(_ values: [JSONValue]) throws {
-        guard values.count <= 1 else { throw NativeError.message("Можно прикрепить один PDF. Сначала уберите предыдущий.") }
+        guard values.count <= 1 else { throw NativeError.message(L10n.text("Можно прикрепить один PDF. Сначала уберите предыдущий.")) }
         for value in values { _ = try Self(value) }
     }
 }
@@ -62,7 +62,7 @@ struct NativePDFAttachment: Equatable {
 enum NativePDFPageSelection {
     static func parse(_ text: String, total: Int) throws -> [Int] {
         guard text.utf8.count <= 100, (1...NativePDFAttachment.maximumPages).contains(total) else {
-            throw NativeError.message("Укажите до 8 страниц, например: 1-3, 7.")
+            throw NativeError.message(L10n.text("Укажите до 8 страниц, например: 1-3, 7."))
         }
         var pages = Set<Int>()
         for group in text.split(separator: ",", omittingEmptySubsequences: false) {
@@ -74,12 +74,12 @@ enum NativePDFPageSelection {
             guard (1...2).contains(parts.count), numbers.count == parts.count,
                   numbers.allSatisfy({ (1...total).contains($0) }), let first = numbers.first, let last = numbers.last,
                   last >= first, last - first < NativePDFAttachment.maximumSelection else {
-                throw NativeError.message("Выберите существующие страницы PDF, до 8 за раз: 1-3, 7.")
+                throw NativeError.message(L10n.text("Выберите существующие страницы PDF, до 8 за раз: 1-3, 7."))
             }
             pages.formUnion(first...last)
-            guard pages.count <= NativePDFAttachment.maximumSelection else { throw NativeError.message("Можно выбрать до 8 страниц PDF.") }
+            guard pages.count <= NativePDFAttachment.maximumSelection else { throw NativeError.message(L10n.text("Можно выбрать до 8 страниц PDF.")) }
         }
-        guard !pages.isEmpty else { throw NativeError.message("Укажите хотя бы одну страницу.") }
+        guard !pages.isEmpty else { throw NativeError.message(L10n.text("Укажите хотя бы одну страницу.")) }
         return pages.sorted()
     }
 }
@@ -96,11 +96,11 @@ struct NativePDFPreview: Identifiable {
     init(_ value: JSONValue, conversationID: UUID, workspace: String?, canAttach: Bool) throws {
         guard value["schema"] == .string("proto_mind.native_pdf_preview.v1"),
               value["read_only"] == .bool(true), value["no_execution"] == .bool(true) else {
-            throw NativeError.message("Предпросмотр PDF не прошёл проверку.")
+            throw NativeError.message(L10n.text("Предпросмотр PDF не прошёл проверку."))
         }
         let source = try NativePDFAttachment(value["pdf"])
         guard case .array(let pages) = value["pages"], pages.count == source.pages.count else {
-            throw NativeError.message("Предпросмотр не содержит выбранных страниц PDF.")
+            throw NativeError.message(L10n.text("Предпросмотр не содержит выбранных страниц PDF."))
         }
         for (page, metadata) in zip(pages, source.value["pages"].items) {
             guard case .object(let fields) = page, Set(fields.keys) == NativePDFAttachment.pageFields.union(["text"]),
@@ -108,12 +108,12 @@ struct NativePDFPreview: Identifiable {
                   NativePDFAttachment.pageFields.allSatisfy({ page[$0] == metadata[$0] }),
                   !text.unicodeScalars.contains(where: { $0.value < 32 && $0 != "\n" && $0 != "\t" || $0.value == 127 }),
                   SHA256.hash(data: Data(text.utf8)).map({ String(format: "%02x", $0) }).joined() == metadata["text_sha256"].text else {
-                throw NativeError.message("Текст PDF не совпадает с метаданными и SHA-256 выбранных страниц.")
+                throw NativeError.message(L10n.text("Текст PDF не совпадает с метаданными и SHA-256 выбранных страниц."))
             }
         }
         self.source = source; self.pages = pages; self.conversationID = conversationID
         self.workspace = workspace; self.canAttach = canAttach
-        guard value["has_text"] == .bool(hasText) else { throw NativeError.message("Не удалось проверить текстовый слой PDF.") }
+        guard value["has_text"] == .bool(hasText) else { throw NativeError.message(L10n.text("Не удалось проверить текстовый слой PDF.")) }
     }
 }
 
@@ -139,16 +139,16 @@ struct PDFAttachmentPreviewView: View {
             HStack {
                 Label(preview.source.name, systemImage: "doc.richtext").font(.headline).lineLimit(1)
                 Spacer()
-                Text("PDF · только текст").font(.caption).foregroundStyle(.secondary)
+                Text(L10n.text("PDF · только текст")).font(.caption).foregroundStyle(.secondary)
             }
-            Text("\(preview.source.value["page_count"].integer) стр. · \(ByteCountFormatter.string(fromByteCount: Int64(preview.source.value["size_bytes"].integer), countStyle: .binary)) · SHA \(preview.source.sha256.prefix(12))")
+            Text(L10n.format("\(preview.source.value["page_count"].integer) стр. · \(ByteCountFormatter.string(fromByteCount: Int64(preview.source.value["size_bytes"].integer), countStyle: .binary)) · SHA \(preview.source.sha256.prefix(12))"))
                 .font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
             if preview.canAttach {
                 HStack {
-                    Text("Страницы:")
+                    Text(L10n.text("Страницы:"))
                     TextField("1-3, 7", text: $selection).textFieldStyle(.roundedBorder).frame(width: 190)
-                        .accessibilityLabel("Страницы PDF").disabled(model.loadingPDFPreview)
-                    Button("Прочитать страницы") {
+                        .accessibilityLabel(L10n.text("Страницы PDF")).disabled(model.loadingPDFPreview)
+                    Button(L10n.text("Прочитать страницы")) {
                         Task {
                             do {
                                 let pages = try NativePDFPageSelection.parse(selection, total: preview.source.value["page_count"].integer)
@@ -160,33 +160,33 @@ struct PDFAttachmentPreviewView: View {
                     if model.loadingPDFPreview { ProgressView().controlSize(.small) }
                 }
             }
-            Text("Ниже именно текст, который будет добавлен к сообщению. До 8 страниц, до 3 000 символов на страницу. Картинки, сканы и вёрстка не передаются; OCR пока нет.")
+            Text(L10n.text("Ниже именно текст, который будет добавлен к сообщению. До 8 страниц, до 3 000 символов на страницу. Картинки, сканы и вёрстка не передаются; OCR пока нет."))
                 .font(.callout).foregroundStyle(.secondary)
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     ForEach(Array(preview.pages.enumerated()), id: \.offset) { _, page in
                         VStack(alignment: .leading, spacing: 7) {
-                            Text("Страница \(page["number"].integer) · \(page["included_chars"].integer) символов").font(.headline)
+                            Text(L10n.format("Страница \(page["number"].integer) · \(page["included_chars"].integer) символов")).font(.headline)
                             if page["text"].text.isEmpty {
-                                Text("Текстовый слой отсутствует. Возможно, это скан или пустая страница.").foregroundStyle(.orange)
+                                Text(L10n.text("Текстовый слой отсутствует. Возможно, это скан или пустая страница.")).foregroundStyle(.orange)
                             } else { Text(page["text"].text).font(NativeTheme.interfaceFont).textSelection(.enabled) }
-                            if page["truncated"].flag { Text("Текст страницы обрезан до 3 000 символов. Остальное не отправится.").font(.caption).foregroundStyle(.orange) }
+                            if page["truncated"].flag { Text(L10n.text("Текст страницы обрезан до 3 000 символов. Остальное не отправится.")).font(.caption).foregroundStyle(.orange) }
                         }.frame(maxWidth: .infinity, alignment: .leading).padding(14)
                             .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
                     }
                 }.frame(maxWidth: .infinity, alignment: .leading)
             }.frame(maxHeight: .infinity)
             Text(preview.source.path).font(.caption).foregroundStyle(.secondary).textSelection(.enabled).lineLimit(2)
-            Text(preview.canAttach ? model.pdfDestinationNotice : "Локальное повторное чтение выбранных страниц с проверкой SHA-256. PDF не прикрепляется и не отправляется повторно.")
+            Text(preview.canAttach ? model.pdfDestinationNotice : L10n.text("Локальное повторное чтение выбранных страниц с проверкой SHA-256. PDF не прикрепляется и не отправляется повторно."))
                 .font(.caption).foregroundStyle(.secondary)
-            if !preview.hasText { Text("В выбранных страницах нет текста для модели. Выберите другие страницы; сканы пока не поддерживаются.").font(.callout).foregroundStyle(.orange) }
+            if !preview.hasText { Text(L10n.text("В выбранных страницах нет текста для модели. Выберите другие страницы; сканы пока не поддерживаются.")).font(.callout).foregroundStyle(.orange) }
             if let error { Text(error).font(.callout).foregroundStyle(.orange).lineLimit(3) }
-            if !selectionMatches { Text("Нажмите «Прочитать страницы», чтобы проверить новый выбор.").font(.caption).foregroundStyle(.orange) }
+            if !selectionMatches { Text(L10n.text("Нажмите «Прочитать страницы», чтобы проверить новый выбор.")).font(.caption).foregroundStyle(.orange) }
             HStack {
-                Button(preview.canAttach ? "Отмена" : "Готово") { dismiss() }.keyboardShortcut(.cancelAction)
+                Button(preview.canAttach ? L10n.text("Отмена") : L10n.text("Готово")) { dismiss() }.keyboardShortcut(.cancelAction)
                 Spacer()
                 if preview.canAttach {
-                    Button("Прикрепить выбранный текст") {
+                    Button(L10n.text("Прикрепить выбранный текст")) {
                         do { try model.attachPDF(preview); dismiss() }
                         catch { self.error = error.localizedDescription }
                     }.disabled(!preview.hasText || !selectionMatches || model.loadingPDFPreview || !model.canEditMessageAttachments)
@@ -202,12 +202,12 @@ struct PendingPDFAttachmentsView: View {
         ForEach(Array((model.selected?.pendingPDFs ?? []).enumerated()), id: \.offset) { _, pdf in
             HStack(spacing: 8) {
                 Button { Task { await model.previewPDF(pdf["path"].text, expected: pdf, canAttach: false) } } label: {
-                    Label("\(pdf["name"].text) · стр. \(pdf["pages"].items.map { String($0["number"].integer) }.joined(separator: ", "))", systemImage: "doc.richtext")
+                    Label(L10n.format("\(pdf["name"].text) · стр. \(pdf["pages"].items.map { String($0["number"].integer) }.joined(separator: ", "))"), systemImage: "doc.richtext")
                         .lineLimit(1)
-                }.help("Проверить локальный текст выбранных страниц PDF")
+                }.help(L10n.text("Проверить локальный текст выбранных страниц PDF"))
                 Spacer(minLength: 4)
                 Button { model.removePendingPDF() } label: { Image(systemName: "xmark") }
-                    .help("Убрать PDF из сообщения").accessibilityLabel("Убрать PDF из сообщения")
+                    .help(L10n.text("Убрать PDF из сообщения")).accessibilityLabel(L10n.text("Убрать PDF из сообщения"))
             }.font(.caption).padding(10).frame(height: 42)
                 .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 10))
                 .padding(.horizontal, 12).padding(.top, 10)

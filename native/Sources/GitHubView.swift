@@ -10,7 +10,7 @@ struct GitHubConnectionView: View {
                 Image(systemName: "point.3.connected.trianglepath.dotted").font(.system(size: 24)).foregroundStyle(.secondary)
                 VStack(alignment: .leading, spacing: 4) {
                     Text("GitHub").font(.system(size: 17, weight: .semibold))
-                    Text(github.connected ? "Подключён · @\(github.status["login"].text)" : "Репозитории, pull requests и задачи")
+                    Text(github.connected ? L10n.format("Подключён · @\(github.status["login"].text)") : L10n.text("Репозитории, pull requests и задачи"))
                         .font(.system(size: 12)).foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -18,21 +18,21 @@ struct GitHubConnectionView: View {
             }
             HStack(spacing: 12) {
                 if github.connected {
-                    Button("Отключить") { Task { await github.disconnect(app: app) } }
+                    Button(L10n.text("Отключить")) { Task { await github.disconnect(app: app) } }
                 } else if !github.status["available_login"].text.isEmpty {
-                    Button("Подключить @\(github.status["available_login"].text)") { Task { await github.connect(app: app) } }.buttonStyle(.borderedProminent)
+                    Button(L10n.format("Подключить @\(github.status["available_login"].text)")) { Task { await github.connect(app: app) } }.buttonStyle(.borderedProminent)
                 } else if !github.status.isNull {
-                    Button(github.status["installed"].flag ? "Войти в GitHub…" : "Установить GitHub CLI…") { github.openLogin() }
+                    Button(github.status["installed"].flag ? L10n.text("Войти в GitHub…") : L10n.text("Установить GitHub CLI…")) { github.openLogin() }
                 }
-                Button("Проверить") { Task { await github.refresh(app: app) } }
+                Button(L10n.text("Проверить")) { Task { await github.refresh(app: app) } }
                 if github.status["enabled"].flag && !github.connected {
-                    Button("Отключить") { Task { await github.disconnect(app: app) } }
+                    Button(L10n.text("Отключить")) { Task { await github.disconnect(app: app) } }
                 }
             }.disabled(github.loading || app.busy)
             if !github.status["notice"].text.isEmpty {
                 Text(github.status["notice"].text).font(.system(size: 12)).foregroundStyle(.secondary)
             }
-            Text("Используется вход GitHub CLI на этом Mac. Для работы помощника с GitHub включите «Доступ к Mac» в диалоге.")
+            Text(L10n.text("Используется вход GitHub CLI на этом Mac. Для работы помощника с GitHub включите «Доступ к Mac» в диалоге."))
                 .font(.system(size: 12)).foregroundStyle(.secondary)
             if let error = github.error { Text(error).font(.system(size: 12)).foregroundStyle(.orange).textSelection(.enabled) }
         }.padding(.vertical, 8)
@@ -49,7 +49,7 @@ struct GitHubView: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("GitHub").font(.system(size: 28, weight: .semibold))
-                        Text("Ваши проекты и текущая работа").foregroundStyle(.secondary)
+                        Text(L10n.text("Ваши проекты и текущая работа")).foregroundStyle(.secondary)
                     }
                     Spacer()
                     if github.loading { ProgressView().controlSize(.small) }
@@ -78,11 +78,11 @@ struct GitHubView: View {
     private var repositories: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                TextField("Найти среди загруженных репозиториев", text: $github.query).textFieldStyle(.roundedBorder)
+                TextField(L10n.text("Найти среди загруженных репозиториев"), text: $github.query).textFieldStyle(.roundedBorder)
                 Button { Task { await github.loadRepositories(app: app) } } label: { Image(systemName: "arrow.clockwise") }
-                    .help("Обновить репозитории").accessibilityLabel("Обновить репозитории").disabled(github.loading || app.busy)
+                    .help(L10n.text("Обновить репозитории")).accessibilityLabel(L10n.text("Обновить репозитории")).disabled(github.loading || app.busy)
             }
-            Text("@\(github.status["login"].text) · сначала недавно обновлённые").font(.caption).foregroundStyle(.secondary)
+            Text(L10n.format("@\(github.status["login"].text) · сначала недавно обновлённые")).font(.caption).foregroundStyle(.secondary)
             LazyVStack(spacing: 6) {
                 ForEach(Array(github.filteredRepositories.enumerated()), id: \.offset) { _, item in
                     Button { Task { await github.inspect(item["name"].text, app: app) } } label: {
@@ -100,44 +100,44 @@ struct GitHubView: View {
                 }
             }
             if github.filteredRepositories.isEmpty && !github.loading {
-                Text(github.query.isEmpty ? "Репозитории пока не найдены." : "Среди загруженных репозиториев совпадений нет.")
+                Text(github.query.isEmpty ? L10n.text("Репозитории пока не найдены.") : L10n.text("Среди загруженных репозиториев совпадений нет."))
                     .foregroundStyle(.secondary).padding(.vertical, 20)
             }
             if github.nextPage != nil {
-                Button("Показать ещё") { Task { await github.loadRepositories(app: app, more: true) } }.disabled(github.loading || app.busy)
+                Button(L10n.text("Показать ещё")) { Task { await github.loadRepositories(app: app, more: true) } }.disabled(github.loading || app.busy)
             }
         }
     }
 
     private var repositoryDetail: some View {
         VStack(alignment: .leading, spacing: 24) {
-            Button { github.back() } label: { Label("Репозитории", systemImage: "chevron.left") }
+            Button { github.back() } label: { Label(L10n.text("Репозитории"), systemImage: "chevron.left") }
             VStack(alignment: .leading, spacing: 12) {
                 Text(github.repository["name"].text).font(.system(size: 22, weight: .semibold)).textSelection(.enabled)
                 HStack(spacing: 16) {
-                    if let url = URL(string: github.repository["url"].text) { Link("Открыть на GitHub", destination: url) }
-                    Button("Обсудить репозиторий") { github.discuss("Посмотри репозиторий \(github.repository["url"].text)", app: app) }.disabled(app.busy)
+                    if let url = URL(string: github.repository["url"].text) { Link(L10n.text("Открыть на GitHub"), destination: url) }
+                    Button(L10n.text("Обсудить репозиторий")) { github.discuss(L10n.format("Посмотри репозиторий \(github.repository["url"].text)"), app: app) }.disabled(app.busy)
                 }
             }
             ForEach(["pr", "issue"], id: \.self) { kind in
                 VStack(alignment: .leading, spacing: 12) {
-                    Text(kind == "pr" ? "Открытые pull requests" : "Открытые задачи").font(.system(size: 17, weight: .semibold))
+                    Text(kind == "pr" ? L10n.text("Открытые pull requests") : L10n.text("Открытые задачи")).font(.system(size: 17, weight: .semibold))
                     ForEach(Array(github.repository[kind].items.enumerated()), id: \.offset) { _, item in
                         HStack(alignment: .top, spacing: 12) {
                             Text("#\(item["number"].integer)").foregroundStyle(.secondary).monospacedDigit()
                             VStack(alignment: .leading, spacing: 8) {
                                 Text(item["title"].text).lineLimit(3)
                                 HStack(spacing: 16) {
-                                    if let url = URL(string: item["url"].text) { Link("Открыть", destination: url) }
-                                    Button("Обсудить") { github.discuss("Посмотри \(kind == "pr" ? "pull request" : "задачу") \(item["url"].text)", app: app) }.disabled(app.busy)
+                                    if let url = URL(string: item["url"].text) { Link(L10n.text("Открыть"), destination: url) }
+                                    Button(L10n.text("Обсудить")) { github.discuss(L10n.format("Посмотри \(kind == "pr" ? "pull request" : L10n.text("задачу")) \(item["url"].text)"), app: app) }.disabled(app.busy)
                                 }.font(.caption)
                             }
                             Spacer(minLength: 0)
                         }.padding(14).frame(maxWidth: .infinity, alignment: .leading)
                             .background(NativeTheme.composer, in: RoundedRectangle(cornerRadius: 10))
                     }
-                    if github.repository[kind].items.isEmpty { Text("Открытых \(kind == "pr" ? "pull requests" : "задач") нет.").foregroundStyle(.secondary) }
-                    if github.repository[kind].items.count == 20 { Text("Показаны первые 20. Остальные доступны на GitHub.").font(.caption).foregroundStyle(.secondary) }
+                    if github.repository[kind].items.isEmpty { Text(L10n.format("Открытых \(kind == "pr" ? "pull requests" : L10n.text("задач")) нет.")).foregroundStyle(.secondary) }
+                    if github.repository[kind].items.count == 20 { Text(L10n.text("Показаны первые 20. Остальные доступны на GitHub.")).font(.caption).foregroundStyle(.secondary) }
                 }
             }
         }

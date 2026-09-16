@@ -300,7 +300,7 @@ final class AppModel: ObservableObject {
     }
 
     func savePreferences() throws {
-        guard !privateBackupRestartRequired else { throw NativeError.message("Перезапустите Proto-Mind после восстановления данных.") }
+        guard !privateBackupRestartRequired else { throw NativeError.message(L10n.text("Перезапустите Proto-Mind после восстановления данных.")) }
         try preferences.save(NativePreferences(
             cloudProcessingAllowed: cloudConsent,
             personaEnabled: personaEnabled,
@@ -324,7 +324,7 @@ final class AppModel: ObservableObject {
         messages.first { $0.id == inspectedMessageID } ?? messages.last { $0.role != "user" && !$0.isError }
     }
     var contextLabel: String {
-        bootstrap["context_injection"].isNull ? "Context: неизвестно" : bootstrap["context_injection"].flag ? "Context: включён" : "Context: выключен"
+        bootstrap["context_injection"].isNull ? L10n.text("Context: неизвестно") : bootstrap["context_injection"].flag ? L10n.text("Context: включён") : L10n.text("Context: выключен")
     }
 
     var contextRequestParameters: [String: JSONValue]? {
@@ -381,7 +381,7 @@ final class AppModel: ObservableObject {
             let value = try await turnClient.request("context_preview", params)
             guard contextPreviewRequest == request, selectedID == conversationID else { return }
             guard params == contextRequestParameters else {
-                throw NativeError.message("Состав запроса изменился. Обновите локальный просмотр.")
+                throw NativeError.message(L10n.text("Состав запроса изменился. Обновите локальный просмотр."))
             }
             let preview = try NativeContextPreview(value)
             if !preview.manifest["knowledge_context"]["project_recall"].isNull {
@@ -407,7 +407,7 @@ final class AppModel: ObservableObject {
             let value = try await turnClient.request("persona_preview", params)
             guard personaPreviewRequest == request, selectedID == conversationID else { return }
             guard params == personaRequestParameters else {
-                throw NativeError.message("Провайдер, модель или доступ изменились. Обновите PersonaSnapshot.")
+                throw NativeError.message(L10n.text("Провайдер, модель или доступ изменились. Обновите PersonaSnapshot."))
             }
             personaPreview = try NativePersonaPreview(value)
         } catch {
@@ -428,7 +428,7 @@ final class AppModel: ObservableObject {
             let value = try await turnClient.request("persona_readiness", params)
             guard personaReadinessRequest == request, selectedID == conversationID else { return }
             guard params == personaRequestParameters else {
-                throw NativeError.message("Провайдер, модель или доступ изменились. Обновите readiness evidence.")
+                throw NativeError.message(L10n.text("Провайдер, модель или доступ изменились. Обновите readiness evidence."))
             }
             personaReadiness = try NativePersonaReadiness(value)
         } catch {
@@ -448,11 +448,11 @@ final class AppModel: ObservableObject {
         guard !globalBusy, !personaEnabled, let conversation = selected,
               ["codex", "ollama"].contains(conversation.provider),
               let params = personaRequestParameters else {
-            report(NativeError.message("Brother Persona доступна только для выбранного Codex или Ollama диалога."))
+            report(NativeError.message(L10n.text("Brother Persona доступна только для выбранного Codex или Ollama диалога.")))
             return false
         }
         if conversation.provider == "codex" && conversation.model.isEmpty {
-            report(NativeError.message("Сначала явно выберите модель Codex; значение аккаунта по умолчанию не создаёт проверяемый self-model."))
+            report(NativeError.message(L10n.text("Сначала явно выберите модель Codex; значение аккаунта по умолчанию не создаёт проверяемый self-model.")))
             return false
         }
         let conversationID = conversation.id
@@ -461,11 +461,11 @@ final class AppModel: ObservableObject {
         do {
             let readiness = try NativePersonaReadiness(await turnClient.request("persona_readiness", params))
             guard selectedID == conversationID, params == personaRequestParameters else {
-                throw NativeError.message("Провайдер, модель или доступ изменились. Проверьте readiness заново.")
+                throw NativeError.message(L10n.text("Провайдер, модель или доступ изменились. Проверьте readiness заново."))
             }
             guard readiness.status == "READY", readiness.value["selected_adapter_ready"] == .bool(true) else {
-                let reason = readiness.blockers.first?.text ?? "выбранный adapter не готов"
-                throw NativeError.message("Brother Persona не готова к включению: \(reason)")
+                let reason = readiness.blockers.first?.text ?? L10n.text("выбранный adapter не готов")
+                throw NativeError.message(L10n.format("Brother Persona не готова к включению: \(reason)"))
             }
             personaReadiness = readiness
             personaReadinessError = nil
@@ -495,7 +495,7 @@ final class AppModel: ObservableObject {
               pending.workspaceRoot == conversation.workspacePath,
               let params = personaRequestParameters else {
             pendingPersonaActivation = nil
-            report(NativeError.message("Условия Persona activation изменились. Начните проверку заново."))
+            report(NativeError.message(L10n.text("Условия Persona activation изменились. Начните проверку заново.")))
             return
         }
         loadingPersonaReadiness = true
@@ -505,7 +505,7 @@ final class AppModel: ObservableObject {
             guard selectedID == pending.conversationID, params == personaRequestParameters,
                   readiness.status == "READY", readiness.value["selected_adapter_ready"] == .bool(true),
                   readiness.value["activation_fingerprint"].text == pending.readinessHash else {
-                throw NativeError.message("Readiness evidence изменилось. Ничего не включено; проверьте заново.")
+                throw NativeError.message(L10n.text("Readiness evidence изменилось. Ничего не включено; проверьте заново."))
             }
             pendingPersonaActivation = nil
             personaReadiness = readiness
@@ -544,7 +544,7 @@ final class AppModel: ObservableObject {
     func setPendingCriteria(_ values: [String], conversationID: UUID) throws {
         guard !busy, selectedID == conversationID, selected?.archived != true,
               let index = conversations.firstIndex(where: { $0.id == conversationID }) else {
-            throw NativeError.message("Диалог изменился или занят. Критерии не сохранены.")
+            throw NativeError.message(L10n.text("Диалог изменился или занят. Критерии не сохранены."))
         }
         let items = try NativeTaskCriteria.validate(values)
         let previous = conversations[index].pendingCriteria
@@ -565,7 +565,7 @@ final class AppModel: ObservableObject {
 
     func saveManualReview(_ run: NativeWorkSession, preview: NativeManualReviewPreview) async throws -> NativeWorkSession {
         guard preview.ready, preview.value["run_id"].text == run.id, preview.value["run_fingerprint"] == run.value["fingerprint"] else {
-            throw NativeError.message("Сначала проверьте точную ручную оценку. Ничего не записано.")
+            throw NativeError.message(L10n.text("Сначала проверьте точную ручную оценку. Ничего не записано."))
         }
         var params = try artifactParameters(run)
         params["review"] = preview.selection
@@ -576,7 +576,7 @@ final class AppModel: ObservableObject {
         let value = try await client.request("review_save", params)
         guard value["schema"].text == "proto_mind.native_review_saved.v1", value["no_execution"] == .bool(true),
               value["mutation"].text == "private_run_review_only", value["run"]["id"].text == run.id else {
-            throw NativeError.message("Ответ записи не прошёл проверку. Обновите журнал перед повтором: оценка могла сохраниться.")
+            throw NativeError.message(L10n.text("Ответ записи не прошёл проверку. Обновите журнал перед повтором: оценка могла сохраниться."))
         }
         let updated = try NativeWorkSession(value["run"])
         if let index = workSessions.firstIndex(where: { $0.id == updated.id }) { workSessions[index] = updated }
@@ -585,18 +585,18 @@ final class AppModel: ObservableObject {
 
     private func artifactParameters(_ run: NativeWorkSession) throws -> [String: JSONValue] {
         guard !busy, let selected, UUID(uuidString: run.value["conversation_id"].text) == selected.id else {
-            throw NativeError.message("Дождитесь завершения запроса и откройте журнал выбранного диалога.")
+            throw NativeError.message(L10n.text("Дождитесь завершения запроса и откройте журнал выбранного диалога."))
         }
         var params: [String: JSONValue] = ["conversation_id": .string(selected.id.uuidString), "run": run.reference]
         if let path = selected.workspacePath { params["workspace_root"] = .string(path) }
         return params
     }
     var providerLabel: String {
-        switch selected?.provider { case "api": return "Модель через API"; case "codex": return "Codex · облако"; case "mock": return "Mock · локальный тест"; default: return "Ollama · локально" }
+        switch selected?.provider { case "api": return L10n.text("Модель через API"); case "codex": return L10n.text("Codex · облако"); case "mock": return L10n.text("Mock · локальный тест"); default: return L10n.text("Ollama · локально") }
     }
     var computerUseAvailable: Bool { bootstrap["agent"]["computer_use"]["available"].flag }
     var computerUseVersion: String { bootstrap["agent"]["computer_use"]["version"].text }
-    var fullAccessLabel: String { computerUseAvailable ? "Полный доступ + экран" : "Полный доступ + интернет" }
+    var fullAccessLabel: String { computerUseAvailable ? L10n.text("Полный доступ + экран") : L10n.text("Полный доступ + интернет") }
     var fullAccessEnabled: Bool {
         guard let conversation = selected else { return false }
         return hasAgentAccessSelection(conversation)
@@ -606,7 +606,7 @@ final class AppModel: ObservableObject {
         guard let id = conversationID ?? selectedID,
               let conversation = conversations.first(where: { $0.id == id }),
               !operationBusy, !isRunning(id), !conversation.archived, conversation.provider == "codex", cloudConsent else {
-            report(NativeError.message("Сначала выберите Codex и разрешите облачную обработку.")); return
+            report(NativeError.message(L10n.text("Сначала выберите Codex и разрешите облачную обработку."))); return
         }
         let request = PendingAgentAccess(conversationID: id, workspace: conversation.workspacePath)
         presentations.prepare(request.id, in: source ?? presentations.currentDestination)
@@ -630,7 +630,7 @@ final class AppModel: ObservableObject {
             guard result["mode"].text == "full_access", !result["token"].text.isEmpty,
                   result["workspace_root"] == (request.workspace.map(JSONValue.string) ?? .null),
                   let current = conversations.first(where: { $0.id == request.conversationID }), request.workspace == current.workspacePath,
-                  cloudConsent, current.provider == "codex", !current.archived else { throw NativeError.message("Не удалось проверить разрешение агента.") }
+                  cloudConsent, current.provider == "codex", !current.archived else { throw NativeError.message(L10n.text("Не удалось проверить разрешение агента.")) }
             invalidateSessionSpinePilot()
             agentGrants[request.conversationID] = AgentAccessGrant(token: result["token"].text, workspace: request.workspace,
                 bridgeGeneration: execution(for: request.conversationID).client.connectionGeneration)
@@ -647,8 +647,8 @@ final class AppModel: ObservableObject {
             invalidateContextPreview()
             error = nil
             status = computerUseAvailable
-                ? "Полный доступ, интернет и Computer Use включены для этого диалога"
-                : "Полный доступ и интернет включены; Computer Use недоступен"
+                ? L10n.text("Полный доступ, интернет и Computer Use включены для этого диалога")
+                : L10n.text("Полный доступ и интернет включены; Computer Use недоступен")
         } catch { report(error) }
     }
 
@@ -673,7 +673,7 @@ final class AppModel: ObservableObject {
 
     func openAutomationSettings() {
         guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation") else {
-            report(NativeError.message("Не удалось открыть настройки Automation.")); return
+            report(NativeError.message(L10n.text("Не удалось открыть настройки Automation."))); return
         }
         NSWorkspace.shared.open(url)
     }
@@ -814,7 +814,7 @@ final class AppModel: ObservableObject {
             let preview = try await client.request("workspace_read", ["workspace_root": .string(root), "path": entry["path"]])
             guard selectedID == id, selected?.workspacePath == root else { return }
             guard preview["read_only"].flag, preview["path"] == entry["path"] else {
-                throw NativeError.message("Просмотр относится к другому файлу.")
+                throw NativeError.message(L10n.text("Просмотр относится к другому файлу."))
             }
             filePreview = preview
             panel.open(.text(WorkspaceTextPreview(conversationID: id, root: root, value: preview)))
@@ -830,7 +830,7 @@ final class AppModel: ObservableObject {
         let path = filePreview["path"].text
         let existing = conversations[index].pendingFiles.firstIndex { $0["path"].text == path }
         guard existing != nil || conversations[index].pendingFiles.count < 3 else {
-            workspaceError = "К одному сообщению можно выбрать до трёх файлов."; return
+            workspaceError = L10n.text("К одному сообщению можно выбрать до трёх файлов."); return
         }
         let count = min(6000, filePreview["characters"].integer)
         let item: JSONValue = .object(["path": .string(path), "sha256": filePreview["sha256"],
@@ -848,16 +848,16 @@ final class AppModel: ObservableObject {
 
     var imageDestinationNotice: String {
         guard selected?.provider == "codex" else {
-            return "Изображения пока поддерживаются только через Codex. Выбор локальный; Ollama/Mock не получат эти файлы. Провайдер не меняется автоматически."
+            return L10n.text("Изображения пока поддерживаются только через Codex. Выбор локальный; Ollama/Mock не получат эти файлы. Провайдер не меняется автоматически.")
         }
         guard cloudConsent else {
-            return "Сейчас всё остаётся на Mac. Для отправки изображений в OpenAI разрешите облачную обработку; выбор файла сам по себе её не включает."
+            return L10n.text("Сейчас всё остаётся на Mac. Для отправки изображений в OpenAI разрешите облачную обработку; выбор файла сам по себе её не включает.")
         }
         let selectedModel = models.first { selected?.model.isEmpty == false ? $0["id"].text == selected?.model : $0["default"].flag }
         guard selectedModel?["input_modalities"].items.contains(.string("image")) == true else {
-            return "Каталог пока не подтверждает изображения для выбранной модели. Обновите модели или выберите совместимую; Send повторно проверит поддержку."
+            return L10n.text("Каталог пока не подтверждает изображения для выбранной модели. Обновите модели или выберите совместимую; Send повторно проверит поддержку.")
         }
-        return "После «Отправить» выбранные изображения уйдут в OpenAI вместе с сообщением. До этого просмотр локальный. В следующих запросах они не пересылаются автоматически."
+        return L10n.text("После «Отправить» выбранные изображения уйдут в OpenAI вместе с сообщением. До этого просмотр локальный. В следующих запросах они не пересылаются автоматически.")
     }
 
     func chooseImage() {
@@ -865,8 +865,8 @@ final class AppModel: ObservableObject {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = false; panel.canChooseFiles = true; panel.allowsMultipleSelection = false
         panel.allowedContentTypes = [.png, .jpeg]; panel.resolvesAliases = false
-        panel.prompt = "Просмотреть локально"
-        panel.message = "Выберите PNG/JPEG до 4 МиБ. Этот шаг ничего не отправляет в модель."
+        panel.prompt = L10n.text("Просмотреть локально")
+        panel.message = L10n.text("Выберите PNG/JPEG до 4 МиБ. Этот шаг ничего не отправляет в модель.")
         let completion: (NSApplication.ModalResponse) -> Void = { [weak self] response in
             guard response == .OK, let url = panel.url, let self, self.selectedID == conversationID else { return }
             Task { await self.previewImage(url.path) }
@@ -888,7 +888,7 @@ final class AppModel: ObservableObject {
             guard selectedID == conversationID, canEditMessageAttachments else { return }
             let preview = try NativeImagePreview(result, conversationID: conversationID, canAttach: canAttach)
             guard preview.source.path == path, expectedSHA == nil || preview.source.sha256 == expectedSHA else {
-                throw NativeError.message("Предпросмотр относится к другому изображению. Ничего не прикреплено.")
+                throw NativeError.message(L10n.text("Предпросмотр относится к другому изображению. Ничего не прикреплено."))
             }
             if imageThumbnails.count >= 12 { imageThumbnails.removeAll() }
             imageThumbnails[preview.source.sha256] = preview.thumbnail
@@ -900,7 +900,7 @@ final class AppModel: ObservableObject {
     func attachImage(_ preview: NativeImagePreview) throws {
         guard preview.canAttach, canEditMessageAttachments, selectedID == preview.conversationID, selected?.archived != true,
               let index = conversations.firstIndex(where: { $0.id == preview.conversationID }) else {
-            throw NativeError.message("Диалог изменился или занят. Изображение не прикреплено.")
+            throw NativeError.message(L10n.text("Диалог изменился или занят. Изображение не прикреплено."))
         }
         var next = conversations[index].pendingImages.filter { $0["path"].text != preview.source.path }
         next.append(preview.source.value)
@@ -937,7 +937,7 @@ final class AppModel: ObservableObject {
         guard canReceiveAttachments, let conversation = selected else { return false }
         guard (1...NativeAttachmentDrop.maximumItems).contains(providers.count),
               providers.allSatisfy({ $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) }) else {
-            error = "Перетащите до 6 локальных файлов. Черновик не изменён."; return false
+            error = L10n.text("Перетащите до 6 локальных файлов. Черновик не изменён."); return false
         }
         loadingDroppedAttachments = true
         Task {
@@ -968,13 +968,13 @@ final class AppModel: ObservableObject {
         do {
             let urls = try NativeAttachmentDrop.selection(await load())
             if urls.contains(where: NativeAttachmentDrop.isPDF) {
-                guard urls.count == 1 else { throw NativeError.message("Перетащите один PDF отдельно, чтобы выбрать страницы. Остальные файлы добавьте следующим действием; черновик не изменён.") }
+                guard urls.count == 1 else { throw NativeError.message(L10n.text("Перетащите один PDF отдельно, чтобы выбрать страницы. Остальные файлы добавьте следующим действием; черновик не изменён.")) }
                 pdfPreview = try await readPDFPreview(urls[0].path, pages: [1], conversation: conversation, canAttach: true)
                 return
             }
             guard urls.filter(NativeAttachmentDrop.isImage).count <= 3,
                   urls.filter({ !NativeAttachmentDrop.isImage($0) }).count <= 3 else {
-                throw NativeError.message("Допускается до 3 изображений и 3 текстовых файлов. Черновик не изменён.")
+                throw NativeError.message(L10n.text("Допускается до 3 изображений и 3 текстовых файлов. Черновик не изменён."))
             }
             var images: [NativeImagePreview] = [], files: [NativeDroppedFile] = []
             for url in urls {
@@ -982,7 +982,7 @@ final class AppModel: ObservableObject {
                 if NativeAttachmentDrop.isImage(url) {
                     let value = try await client.request("image_preview", ["path": .string(url.path)])
                     let preview = try NativeImagePreview(value, conversationID: conversation.id, canAttach: true)
-                    guard preview.source.path == url.path else { throw NativeError.message("Предпросмотр относится к другому изображению.") }
+                    guard preview.source.path == url.path else { throw NativeError.message(L10n.text("Предпросмотр относится к другому изображению.")) }
                     images.append(preview)
                 } else {
                     let path = try NativeAttachmentDrop.relativePath(url, workspace: conversation.workspacePath)
@@ -1002,7 +1002,7 @@ final class AppModel: ObservableObject {
     func attachDrop(_ preview: NativeAttachmentDropPreview) throws {
         guard canEditMessageAttachments, !loadingDroppedAttachments, selectedID == preview.conversationID,
               let index = conversations.firstIndex(where: { $0.id == preview.conversationID }) else {
-            throw NativeError.message("Диалог изменился или занят. Файлы не прикреплены.")
+            throw NativeError.message(L10n.text("Диалог изменился или занят. Файлы не прикреплены."))
         }
         let previous = conversations[index]
         let next = try preview.merged(with: previous)
@@ -1022,12 +1022,12 @@ final class AppModel: ObservableObject {
     var pdfDestinationNotice: String {
         if selected?.provider == "codex" {
             return cloudConsent
-                ? "Только после «Отправить» выбранный текст страниц уйдёт в OpenAI. Оригинал PDF не пересылается и не копируется. В истории сохраняются лишь метаданные вложения."
-                : "Просмотр локальный. Для отправки текста PDF в Codex нужно облачное разрешение. Выбор PDF его не включает и ничего не отправляет."
+                ? L10n.text("Только после «Отправить» выбранный текст страниц уйдёт в OpenAI. Оригинал PDF не пересылается и не копируется. В истории сохраняются лишь метаданные вложения.")
+                : L10n.text("Просмотр локальный. Для отправки текста PDF в Codex нужно облачное разрешение. Выбор PDF его не включает и ничего не отправляет.")
         }
         return selected?.provider == "mock"
-            ? "Mock проверяет интерфейс, но не анализирует PDF. Оригинал и текст остаются локально; провайдер не меняется автоматически."
-            : "После «Отправить» выбранный текст страниц получит локальная Ollama. Оригинал PDF не пересылается и не копируется."
+            ? L10n.text("Mock проверяет интерфейс, но не анализирует PDF. Оригинал и текст остаются локально; провайдер не меняется автоматически.")
+            : L10n.text("После «Отправить» выбранный текст страниц получит локальная Ollama. Оригинал PDF не пересылается и не копируется.")
     }
 
     func choosePDF() {
@@ -1035,8 +1035,8 @@ final class AppModel: ObservableObject {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = false; panel.canChooseFiles = true; panel.allowsMultipleSelection = false
         panel.allowedContentTypes = [.pdf]; panel.resolvesAliases = false
-        panel.prompt = "Выбрать страницы"
-        panel.message = "PDF с текстовым слоем до 8 МиБ. Локальный просмотр, без отправки."
+        panel.prompt = L10n.text("Выбрать страницы")
+        panel.message = L10n.text("PDF с текстовым слоем до 8 МиБ. Локальный просмотр, без отправки.")
         let completion: (NSApplication.ModalResponse) -> Void = { [weak self] response in
             guard response == .OK, let url = panel.url, let self, self.selectedID == conversationID else { return }
             Task { await self.previewPDF(url.path) }
@@ -1052,12 +1052,12 @@ final class AppModel: ObservableObject {
         let result = try await client.request("pdf_preview", params)
         guard canEditMessageAttachments, selectedID == conversation.id,
               selected?.workspacePath == conversation.workspacePath, selected?.archived != true else {
-            throw NativeError.message("Диалог изменился или занят. PDF не прикреплён и не отправлен.")
+            throw NativeError.message(L10n.text("Диалог изменился или занят. PDF не прикреплён и не отправлен."))
         }
         let preview = try NativePDFPreview(result, conversationID: conversation.id, workspace: conversation.workspacePath, canAttach: canAttach)
         guard preview.source.path == path, preview.source.pages == pages,
               expectedSHA == nil || preview.source.sha256 == expectedSHA else {
-            throw NativeError.message("Предпросмотр не соответствует выбранному PDF или страницам.")
+            throw NativeError.message(L10n.text("Предпросмотр не соответствует выбранному PDF или страницам."))
         }
         return preview
     }
@@ -1072,7 +1072,7 @@ final class AppModel: ObservableObject {
             let preview = try await readPDFPreview(path, pages: source?.pages ?? [1], conversation: conversation,
                                                    canAttach: canAttach, expectedSHA: source?.sha256)
             guard expected == nil || preview.source.value == expected else {
-                throw NativeError.message("Текст выбранных страниц изменился. Уберите PDF и выберите его заново.")
+                throw NativeError.message(L10n.text("Текст выбранных страниц изменился. Уберите PDF и выберите его заново."))
             }
             if inWorkspacePanel { panel.open(.pdf(preview)) }
             else { pdfPreview = preview }
@@ -1083,7 +1083,7 @@ final class AppModel: ObservableObject {
         guard canEditMessageAttachments, !loadingPDFPreview, preview.canAttach, let conversation = selected,
               conversation.id == preview.conversationID, conversation.workspacePath == preview.workspace,
               pdfPreview?.source.path == preview.source.path else {
-            throw NativeError.message("Выбор PDF изменился или занят. Ничего не отправлено.")
+            throw NativeError.message(L10n.text("Выбор PDF изменился или занят. Ничего не отправлено."))
         }
         loadingPDFPreview = true
         defer { loadingPDFPreview = false }
@@ -1096,7 +1096,7 @@ final class AppModel: ObservableObject {
               !loadingDroppedAttachments, selectedID == preview.conversationID,
               selected?.workspacePath == preview.workspace, selected?.archived != true,
               let index = conversations.firstIndex(where: { $0.id == preview.conversationID }) else {
-            throw NativeError.message("PDF не готов, диалог изменился или занят. Ничего не прикреплено.")
+            throw NativeError.message(L10n.text("PDF не готов, диалог изменился или занят. Ничего не прикреплено."))
         }
         let next = conversations[index].pendingPDFs.filter { $0["path"].text != preview.source.path } + [preview.source.value]
         try updatePendingPDFs(next, index: index)
@@ -1182,8 +1182,8 @@ final class AppModel: ObservableObject {
         let exact = page.items.filter { $0.recordId == recordID }
         guard exact.count == 1 else {
             libraryError = exact.isEmpty
-                ? "Запись \(recordID) больше не найдена в локальной памяти."
-                : "ID \(recordID) неоднозначен между слоями памяти; выберите запись вручную."
+                ? L10n.format("Запись \(recordID) больше не найдена в локальной памяти.")
+                : L10n.format("ID \(recordID) неоднозначен между слоями памяти; выберите запись вручную.")
             return
         }
         await inspectLibrary(exact[0])
@@ -1332,7 +1332,7 @@ final class AppModel: ObservableObject {
             }
         } catch {
             if learningSelection == selection {
-                learningReviewError = "\(error.localizedDescription) Автоповтора нет. Проверьте текущую карточку и receipt перед новым действием."
+                learningReviewError = L10n.format("\(error.localizedDescription) Автоповтора нет. Проверьте текущую карточку и receipt перед новым действием.")
             }
         }
         busy = false; committingLearningReview = false

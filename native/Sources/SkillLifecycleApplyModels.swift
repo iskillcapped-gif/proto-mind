@@ -193,5 +193,5 @@ private func decodeLifecycle<T: Decodable>(_ value: JSONValue, selection: Native
 }
 
 private func lifecycleContractError() -> NativeError {
-    .message("Не удалось проверить точный контракт применения. Автоповтора нет; проверьте состояние навыка и квитанцию.")
+    .message(L10n.text("Не удалось проверить точный контракт применения. Автоповтора нет; проверьте состояние навыка и квитанцию."))
 }

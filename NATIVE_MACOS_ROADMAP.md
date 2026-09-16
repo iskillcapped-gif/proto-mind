@@ -4,6 +4,32 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Live Interface Language — Native 0.70.0
+
+Settings → Appearance switches English/Russian immediately across the existing
+workspace, cube, companions and voice controls. Profile-specific preferences
+retain the choice after restart. Shared observation updates labels and locale;
+native titles receive a language notification and transient popups dismiss to
+avoid stale sizing. No workspace identity, task, tab, draft or history is replaced.
+
+The additional English catalog covers memory/skill inspectors, journal and
+recovery screens, attachments, account/voice/dictation errors and accessibility
+labels. Literal templates support interpolation without translating inserted
+user text, paths, provider IDs or exact confirmation tokens. Running task status
+and empty browser/terminal titles resolve in the current language. Bundles include
+RU/EN permission explanations; macOS-owned controls still follow system language,
+and raw core/provider evidence retains its source text.
+
+Verification: 1891 full Native checks passed, followed by 570 interface checks
+after the final label/observer adjustments; 5 portable-runtime Python tests passed.
+The localization checks cover live observation, profile isolation, idempotent
+selection, exact draft/message/attachment preservation, in-flight status, retained
+browser/terminal instances and all additional template placeholders. Isolated UI
+QA exercised RU→EN→RU, normal and cube settings, a companion draft, the originating
+file picker and attachment menu, and English persistence on relaunch. No model or
+voice call was made. Python cognition and private-state formats are unchanged;
+portable distribution remains 0.66.1.
+
 ## Menus Within Their Workspace — Native 0.69.1
 
 Panel plus buttons use a contained list. Conversation, messenger and CLI choices

@@ -12,7 +12,7 @@ enum ChatHistoryFiles {
         let fd = Darwin.open(url.path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
         if fd < 0 {
             if errno == ENOENT { return nil }
-            throw failure("Не удалось открыть файл истории")
+            throw failure(L10n.text("Не удалось открыть файл истории"))
         }
         defer { Darwin.close(fd) }
         var info = stat()
@@ -37,9 +37,9 @@ enum ChatHistoryFiles {
 
     static func syncDirectory(_ url: URL) throws {
         let fd = Darwin.open(url.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
-        guard fd >= 0 else { throw failure("Не удалось проверить папку истории") }
+        guard fd >= 0 else { throw failure(L10n.text("Не удалось проверить папку истории")) }
         defer { Darwin.close(fd) }
-        guard fsync(fd) == 0 else { throw failure("Не удалось подтвердить сохранение истории") }
+        guard fsync(fd) == 0 else { throw failure(L10n.text("Не удалось подтвердить сохранение истории")) }
     }
 
     static func write(_ data: Data, to url: URL, replace: Bool) throws {
@@ -47,14 +47,14 @@ enum ChatHistoryFiles {
         try directory(parent, create: true)
         let temporary = parent.appendingPathComponent(".pending-" + UUID().uuidString)
         let fd = Darwin.open(temporary.path, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)
-        guard fd >= 0 else { throw failure("Не удалось создать файл истории") }
+        guard fd >= 0 else { throw failure(L10n.text("Не удалось создать файл истории")) }
         defer { Darwin.close(fd); _ = unlink(temporary.path) }
         try FileHandle(fileDescriptor: fd, closeOnDealloc: false).write(contentsOf: data)
-        guard fsync(fd) == 0 else { throw failure("Не удалось сохранить файл истории") }
+        guard fsync(fd) == 0 else { throw failure(L10n.text("Не удалось сохранить файл истории")) }
         if replace {
             // Refuse a symlink or a non-file at the commit point.
             _ = try read(url, limit: ChatHistoryFormat.legacyLimit)
-            guard rename(temporary.path, url.path) == 0 else { throw failure("Не удалось обновить историю") }
+            guard rename(temporary.path, url.path) == 0 else { throw failure(L10n.text("Не удалось обновить историю")) }
         } else if link(temporary.path, url.path) != 0 {
             guard errno == EEXIST, try read(url, limit: max(ChatHistoryFormat.fileLimit, data.count + 1)) == data else { throw ChatHistoryFormat.invalid() }
         }
@@ -69,13 +69,13 @@ enum ChatHistoryFiles {
         let fd = Darwin.open(url.path, flags, 0o600)
         if fd < 0 {
             if !write && errno == ENOENT { return try body() }
-            throw failure("Не удалось проверить доступ к истории")
+            throw failure(L10n.text("Не удалось проверить доступ к истории"))
         }
         defer { Darwin.close(fd) }
         var info = stat()
         guard fstat(fd, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG else { throw ChatHistoryFormat.invalid() }
         guard flock(fd, (write ? LOCK_EX : LOCK_SH) | LOCK_NB) == 0 else {
-            throw NativeError.message("История сейчас сохраняется в другой копии Proto-Mind. Повторите после завершения записи.")
+            throw NativeError.message(L10n.text("История сейчас сохраняется в другой копии Proto-Mind. Повторите после завершения записи."))
         }
         defer { flock(fd, LOCK_UN) }
         try PrivateStateAccess.requireAvailable(directory)

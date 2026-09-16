@@ -71,10 +71,10 @@ final class SkillOutcomeModel: ObservableObject, Identifiable {
             let result = try NativeSkillOutcomeResult.decode(raw, selection: selected, preview: preview)
             if current, selection == selected {
                 self.result = result
-                app.status = "Ручной результат записан до перезапуска ядра; навык не запускался"
+                app.status = L10n.text("Ручной результат записан до перезапуска ядра; навык не запускался")
             }
         } catch {
-            if current { self.error = "\(error.localizedDescription) Автоповтора нет. Обновите квитанции перед следующей попыткой." }
+            if current { self.error = L10n.format("\(error.localizedDescription) Автоповтора нет. Обновите квитанции перед следующей попыткой.") }
         }
         app.busy = false; committing = false
         if current { await refresh(clearError: false) }

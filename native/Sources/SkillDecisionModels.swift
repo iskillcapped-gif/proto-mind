@@ -4,20 +4,20 @@ enum NativeSkillDecision: String, CaseIterable, Decodable {
     case keep, revise, archive
 
     var title: String {
-        switch self { case .keep: return "Оставить без изменений"; case .revise: return "Нужна доработка"; case .archive: return "Рекомендовать архивирование" }
+        switch self { case .keep: return L10n.text("Оставить без изменений"); case .revise: return L10n.text("Нужна доработка"); case .archive: return L10n.text("Рекомендовать архивирование") }
     }
     var explanation: String {
         switch self {
-        case .keep: return "Зафиксировать решение сохранить текущий навык. Это не разрешение на его автоматический запуск."
-        case .revise: return "Зафиксировать необходимость отдельной версии или исправления. Текст навыка сейчас не редактируется."
-        case .archive: return "Зафиксировать выбор в пользу архива. Статус остаётся прежним: само архивирование требует отдельного подтверждения."
+        case .keep: return L10n.text("Зафиксировать решение сохранить текущий навык. Это не разрешение на его автоматический запуск.")
+        case .revise: return L10n.text("Зафиксировать необходимость отдельной версии или исправления. Текст навыка сейчас не редактируется.")
+        case .archive: return L10n.text("Зафиксировать выбор в пользу архива. Статус остаётся прежним: само архивирование требует отдельного подтверждения.")
         }
     }
     var nextStep: String {
         switch self {
-        case .keep: return "Навык остаётся как есть. Новые ручные результаты могут изменить актуальность этого решения."
-        case .revise: return "Отдельно подготовьте исправленный вариант и проверку результата. Это решение не создаёт новую версию."
-        case .archive: return "Перед реальной архивацией потребуется отдельно проверить текущие данные и подтвердить точный переход. Этот экран ничего не архивирует."
+        case .keep: return L10n.text("Навык остаётся как есть. Новые ручные результаты могут изменить актуальность этого решения.")
+        case .revise: return L10n.text("Отдельно подготовьте исправленный вариант и проверку результата. Это решение не создаёт новую версию.")
+        case .archive: return L10n.text("Перед реальной архивацией потребуется отдельно проверить текущие данные и подтвердить точный переход. Этот экран ничего не архивирует.")
         }
     }
 }
@@ -223,7 +223,7 @@ private func decisionFlags(_ value: JSONValue, fields: Set<String>, trueFlags: S
     guard case .object(let object) = value, Set(object.keys) == fields.union(trueFlags).union(falseFlags),
           trueFlags.allSatisfy({ value[$0] == .bool(true) }), falseFlags.allSatisfy({ value[$0] == .bool(false) }) else { throw decisionContractError() }
 }
-private func decisionContractError() -> NativeError { .message("Не удалось проверить точный контракт решения. Автоповтора и дополнительных действий нет; обновите квитанции.") }
+private func decisionContractError() -> NativeError { .message(L10n.text("Не удалось проверить точный контракт решения. Автоповтора и дополнительных действий нет; обновите квитанции.")) }
 func decisionID(_ value: String) -> Bool { value.range(of: "^[A-Za-z0-9_.:-]{1,200}$", options: .regularExpression) != nil }
 func decisionHashValue(_ value: String) -> Bool { value.range(of: "^[a-f0-9]{64}$", options: .regularExpression) != nil }
 func decisionFindings(_ values: [String]) -> Bool { values.count <= 33 && values.allSatisfy { $0.count <= 1000 } }

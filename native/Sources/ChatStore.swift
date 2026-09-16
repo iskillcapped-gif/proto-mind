@@ -64,7 +64,7 @@ final class ChatStore {
                 if FileManager.default.fileExists(atPath: objectsDirectory.path)
                     || FileManager.default.fileExists(atPath: backupsDirectory.path) {
                     writeBlocked = true
-                    throw NativeError.message("Список диалогов отсутствует, но сохранённые данные найдены. Выберите резервную копию; новая пустая история не будет записана поверх них.")
+                    throw NativeError.message(L10n.text("Список диалогов отсутствует, но сохранённые данные найдены. Выберите резервную копию; новая пустая история не будет записана поверх них."))
                 }
                 let archive = ChatArchive(conversations: [], selectedID: nil)
                 try adopt(nil, archive: archive)
@@ -78,7 +78,7 @@ final class ChatStore {
                 return archive
             } catch {
                 writeBlocked = true
-                throw NativeError.message("Не удалось прочитать историю. Исходные файлы сохранены; можно выбрать резервную копию. " + error.localizedDescription)
+                throw NativeError.message(L10n.text("Не удалось прочитать историю. Исходные файлы сохранены; можно выбрать резервную копию. ") + error.localizedDescription)
             }
         }
     }
@@ -87,12 +87,12 @@ final class ChatStore {
         let currentGeneration = try PrivateStateAccess.generation(directory)
         guard !loaded || currentGeneration == generationBaseline else {
             conflictDetected = true
-            throw NativeError.message("Данные восстановлены другой копией приложения. Сохраните нужный текст отдельно и перезапустите Proto-Mind.")
+            throw NativeError.message(L10n.text("Данные восстановлены другой копией приложения. Сохраните нужный текст отдельно и перезапустите Proto-Mind."))
         }
         let current = try ChatHistoryFiles.read(url, limit: ChatHistoryFormat.legacyLimit)
         guard (loaded || current == nil), current == baseline else {
             conflictDetected = true
-            throw NativeError.message("История изменена другой копией Proto-Mind. Ваши сообщения остаются в окне. Сохраните их копию или откройте актуальную историю.")
+            throw NativeError.message(L10n.text("История изменена другой копией Proto-Mind. Ваши сообщения остаются в окне. Сохраните их копию или откройте актуальную историю."))
         }
         return current
     }
@@ -175,7 +175,7 @@ final class ChatStore {
             return ChatStoreReadback(archive: restored, data: evidence, sha256: ChatHistoryFormat.hash(evidence), sizeBytes: evidence.count)
         } catch {
             writeBlocked = true
-            throw NativeError.message("История записана, но чтение после сохранения не подтвердилось. Повторная запись заблокирована: " + error.localizedDescription)
+            throw NativeError.message(L10n.text("История записана, но чтение после сохранения не подтвердилось. Повторная запись заблокирована: ") + error.localizedDescription)
         }
     }
 }

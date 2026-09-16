@@ -61,5 +61,5 @@ struct NativeWorkSessionPage {
             && UUID(uuidString: value["run_id"].text)?.uuidString.lowercased() == value["run_id"].text
     }
 
-    static func error() -> NativeError { .message("Не удалось проверить страницу журнала или её связь с диалогом. Обновите журнал.") }
+    static func error() -> NativeError { .message(L10n.text("Не удалось проверить страницу журнала или её связь с диалогом. Обновите журнал.")) }
 }

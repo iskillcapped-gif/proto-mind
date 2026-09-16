@@ -131,14 +131,19 @@ private struct ComposerPopoverAnchor<Content: View>: NSViewRepresentable {
             }
             for name in [NSWindow.didResizeNotification, NSWindow.didMoveNotification, NSWindow.willCloseNotification] {
                 observers.append(NotificationCenter.default.addObserver(forName: name, object: window, queue: .main) { [weak self] _ in
-                    self?.dismiss?(); self?.close()
+                    MainActor.assumeIsolated { self?.dismiss?(); self?.close() }
                 })
             }
             observers.append(NotificationCenter.default.addObserver(forName: NSApplication.didResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
-                self?.dismiss?(); self?.close()
+                MainActor.assumeIsolated { self?.dismiss?(); self?.close() }
+            })
+            observers.append(NotificationCenter.default.addObserver(forName: .interfaceLanguageChanged, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.dismiss?(); self?.close() }
             })
             observers.append(NotificationCenter.default.addObserver(forName: NSWindow.didChangeOcclusionStateNotification, object: window, queue: .main) { [weak self, weak window] _ in
-                if window?.isVisible != true { self?.dismiss?(); self?.close() }
+                MainActor.assumeIsolated {
+                    if window?.isVisible != true { self?.dismiss?(); self?.close() }
+                }
             })
         }
 

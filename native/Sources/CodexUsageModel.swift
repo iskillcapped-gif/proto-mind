@@ -24,7 +24,7 @@ struct CodexUsageSnapshot: Decodable {
         var id: String { kind }
         var title: String {
             guard let minutes = windowMinutes else { return kind == "primary" ? L10n.text("Основной лимит") : L10n.text("Дополнительный лимит") }
-            if minutes == 10080 { return "Неделя" }
+            if minutes == 10080 { return L10n.text("Неделя") }
             if minutes % 1440 == 0 { return L10n.pick("\(minutes / 1440) дн.", "\(minutes / 1440) d") }
             if minutes % 60 == 0 { return L10n.pick("\(minutes / 60) ч", "\(minutes / 60) h") }
             return L10n.pick("\(minutes) мин", "\(minutes) min")
@@ -39,11 +39,11 @@ struct CodexUsageSnapshot: Decodable {
         }
         var usedLabel: String {
             guard let used else { return "—" }
-            return used > 100 ? "100%+" : "\(used.formatted(.number.precision(.fractionLength(0...1))))%"
+            return used > 100 ? "100%+" : "\(used.formatted(.number.precision(.fractionLength(0...1)).locale(L10n.locale)))%"
         }
         var remainingLabel: String {
             guard let remaining else { return "—" }
-            return "\(remaining.formatted(.number.precision(.fractionLength(0...1))))%"
+            return "\(remaining.formatted(.number.precision(.fractionLength(0...1)).locale(L10n.locale)))%"
         }
     }
     struct Bucket: Decodable, Identifiable {
@@ -119,7 +119,7 @@ struct CodexUsageSnapshot: Decodable {
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         let value = try decoder.decode(Self.self, from: JSONEncoder().encode(raw))
         guard value.schema == "proto_mind.codex_usage.v1", value.buckets.count <= 64 else {
-            throw NativeError.message("Не удалось прочитать данные об использовании Codex.")
+            throw NativeError.message(L10n.text("Не удалось прочитать данные об использовании Codex."))
         }
         return value
     }
@@ -210,17 +210,17 @@ final class CodexUsageModel: ObservableObject {
             acceptSummary(try CodexUsageSnapshot.parse(raw))
         } catch {
             guard requestGeneration == generation else { return }
-            summaryError = "Не удалось обновить лимиты."
+            summaryError = L10n.text("Не удалось обновить лимиты.")
         }
     }
 
     static func message(for outcome: String) -> String {
         switch outcome {
-        case "reset": return "Сброс использован."
-        case "alreadyRedeemed": return "Этот сброс уже был применён. Повторно он не расходуется."
-        case "nothingToReset": return "Сейчас нет лимита, который можно сбросить. Сброс не потрачен."
-        case "noCredit": return "Доступных сбросов больше нет."
-        default: return "Результат сброса пока неизвестен. Проверьте эту попытку повторно."
+        case "reset": return L10n.text("Сброс использован.")
+        case "alreadyRedeemed": return L10n.text("Этот сброс уже был применён. Повторно он не расходуется.")
+        case "nothingToReset": return L10n.text("Сейчас нет лимита, который можно сбросить. Сброс не потрачен.")
+        case "noCredit": return L10n.text("Доступных сбросов больше нет.")
+        default: return L10n.text("Результат сброса пока неизвестен. Проверьте эту попытку повторно.")
         }
     }
 
@@ -241,7 +241,7 @@ final class CodexUsageModel: ObservableObject {
         } catch {
             self.snapshot = nil
             acceptSummary(nil)
-            self.error = "Не удалось подтвердить результат. Обновите лимиты: незавершённую попытку можно проверить повторно."
+            self.error = L10n.text("Не удалось подтвердить результат. Обновите лимиты: незавершённую попытку можно проверить повторно.")
         }
     }
 
@@ -261,7 +261,7 @@ final class CodexUsageModel: ObservableObject {
             guard requestGeneration == generation else { return }
             // Retain this account's previous reading with a visible error.
             // Explicit account changes already clear both snapshots.
-            self.error = "Не удалось обновить данные аккаунта."
+            self.error = L10n.text("Не удалось обновить данные аккаунта.")
             summaryError = self.error
         }
     }

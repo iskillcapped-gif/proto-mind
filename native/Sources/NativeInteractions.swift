@@ -68,7 +68,7 @@ struct NativeDisclosureStyle: DisclosureGroupStyle {
                     Spacer(minLength: 0)
                 }
             }.buttonStyle(.nativeHover)
-                .accessibilityValue(configuration.isExpanded ? "Развёрнуто" : "Свёрнуто")
+                .accessibilityValue(configuration.isExpanded ? L10n.text("Развёрнуто") : L10n.text("Свёрнуто"))
             if configuration.isExpanded { configuration.content.padding(.leading, 16) }
         }
     }

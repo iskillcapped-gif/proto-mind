@@ -7,13 +7,13 @@ struct NativeAutoSkillsReport: Equatable {
     var selected: [JSONValue] { value["selected"].items }
     var title: String {
         switch state {
-        case "ready": return "Навыки · выбор при отправке"
-        case "selecting": return "Подбираю подходящий навык"
-        case "selected": return "Навыки · " + selected.map { $0["skill_name"].text }.joined(separator: ", ")
-        case "no_match": return "Навыки · для этой задачи не нужны"
-        case "empty": return "Навыки · нет активных проверенных процедур"
-        case "unavailable": return "Навыки · источники недоступны"
-        default: return "Подбор навыков не завершён"
+        case "ready": return L10n.text("Навыки · выбор при отправке")
+        case "selecting": return L10n.text("Подбираю подходящий навык")
+        case "selected": return L10n.text("Навыки · ") + selected.map { $0["skill_name"].text }.joined(separator: ", ")
+        case "no_match": return L10n.text("Навыки · для этой задачи не нужны")
+        case "empty": return L10n.text("Навыки · нет активных проверенных процедур")
+        case "unavailable": return L10n.text("Навыки · источники недоступны")
+        default: return L10n.text("Подбор навыков не завершён")
         }
     }
 
@@ -102,7 +102,7 @@ struct NativeAutoSkillsReport: Equatable {
             && value["access_mode"] == .string(mode) && workspaceOK
     }
 
-    static func error() -> NativeError { .message("Отчёт автовыбора навыков не прошёл проверку. Автоповтора нет; проверьте журнал.") }
+    static func error() -> NativeError { .message(L10n.text("Отчёт автовыбора навыков не прошёл проверку. Автоповтора нет; проверьте журнал.")) }
     private static func count(_ value: JSONValue) -> Bool {
         if case .number(let number) = value { return number.isFinite && number.rounded() == number && (0...5004).contains(number) }
         return false
@@ -120,24 +120,24 @@ struct AutoSkillsReportView: View {
         DisclosureGroup {
             VStack(alignment: .leading, spacing: 8) {
                 if ["empty", "unavailable"].contains(report.state) {
-                    Text("Запрос идёт обычным путём, без автоматического навыка. Память, настройки и библиотека не изменены.")
+                    Text(L10n.text("Запрос идёт обычным путём, без автоматического навыка. Память, настройки и библиотека не изменены."))
                 } else { Text(report.value["reason"].text).textSelection(.enabled) }
                 ForEach(report.selected, id: \.["skill_id"].text) { row in
-                    Text("\(row["skill_name"].text) · \(row["origin"] == .string("bundled") ? "Встроенный, v" + row["version"].text : "Из опыта, с проверенным происхождением") · \(row["contract_hash"].text.prefix(12))").textSelection(.enabled)
+                    Text("\(row["skill_name"].text) · \(row["origin"] == .string("bundled") ? L10n.text("Встроенный, v") + row["version"].text : L10n.text("Из опыта, с проверенным происхождением")) · \(row["contract_hash"].text.prefix(12))").textSelection(.enabled)
                 }
                 if !report.value["suggested_checks"].items.isEmpty {
-                    Text("Модель предложила проверить:").fontWeight(.medium)
+                    Text(L10n.text("Модель предложила проверить:")).fontWeight(.medium)
                     ForEach(report.value["suggested_checks"].items.map(\.text), id: \.self) { Text("• " + $0).textSelection(.enabled) }
                 }
-                Text("Каталог: \(report.value["catalog_count"].integer) · исключено: \(report.value["excluded_count"].integer). Личная библиотека общая, не отдельная память проекта.")
+                Text(L10n.format("Каталог: \(report.value["catalog_count"].integer) · исключено: \(report.value["excluded_count"].integer). Личная библиотека общая, не отдельная память проекта."))
                 if report.value["schema"] == .string("proto_mind.native_auto_skills.v2") {
-                    Text("Доступно встроенных: \(report.value["bundled_count"].integer) · из опыта: \(report.value["learned_count"].integer). Встроенные процедуры созданы разработчиками, а не выучены из ваших разговоров.")
+                    Text(L10n.format("Доступно встроенных: \(report.value["bundled_count"].integer) · из опыта: \(report.value["learned_count"].integer). Встроенные процедуры созданы разработчиками, а не выучены из ваших разговоров."))
                 }
-                if report.value["catalog_truncated"].flag { Text("Каталог ограничен 32 записями; в v2 четыре места зарезервированы для встроенных навыков, остальные для первых проверенных личных записей по ID.").foregroundStyle(.orange) }
+                if report.value["catalog_truncated"].flag { Text(L10n.text("Каталог ограничен 32 записями; в v2 четыре места зарезервированы для встроенных навыков, остальные для первых проверенных личных записей по ID.")).foregroundStyle(.orange) }
                 if report.value["selector_attempted"].flag {
-                    Text("Отбор: \(report.value["selector_model"].text) · \(report.value["selector_effort"].text). Без инструментов, отдельный запрос в рамках подписки.")
+                    Text(L10n.format("Отбор: \(report.value["selector_model"].text) · \(report.value["selector_effort"].text). Без инструментов, отдельный запрос в рамках подписки."))
                 }
-                Text("Происхождение проверено, эффективность не оценена. Проверки модели не являются вашей приёмкой. Навыки не исполняются как скрипты и не дают дополнительных прав.")
+                Text(L10n.text("Происхождение проверено, эффективность не оценена. Проверки модели не являются вашей приёмкой. Навыки не исполняются как скрипты и не дают дополнительных прав."))
             }.font(.caption).foregroundStyle(.secondary).padding(.top, 8)
         } label: {
             Label(report.title, systemImage: "square.stack.3d.up").lineLimit(1)

@@ -65,7 +65,7 @@ struct ConversationHistoryView: View {
             }
             Divider()
             HStack {
-                Text(searching ? L10n.text("Поиск…") : "Диалогов: \(results.count)")
+                Text(searching ? L10n.text("Поиск…") : L10n.format("Диалогов: \(results.count)"))
                 Spacer()
                 Text(L10n.text("Поиск на этом Mac · без запроса к модели"))
             }.font(.caption).foregroundStyle(.secondary).padding(16)
@@ -124,7 +124,7 @@ struct ConversationHistoryView: View {
                     }
                     if let match {
                         HStack {
-                            Text("Совпадение \(matchIndex + 1) из \(result.matches.count)").font(.callout.weight(.medium))
+                            Text(L10n.format("Совпадение \(matchIndex + 1) из \(result.matches.count)")).font(.callout.weight(.medium))
                             Spacer()
                             Button { matchIndex -= 1 } label: { Image(systemName: "chevron.up") }
                                 .disabled(matchIndex == 0).accessibilityLabel(L10n.text("Предыдущее совпадение"))

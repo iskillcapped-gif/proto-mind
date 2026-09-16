@@ -22,7 +22,7 @@ struct ProjectNote: Identifiable, Equatable {
     var basis: String { raw["basis"].text }
     var active: Bool { raw["status"] == .string("active") }
     var archived: Bool { raw["status"] == .string("archived") }
-    var statusTitle: String { active ? "В памяти" : archived ? "Убрана из памяти" : "Заменена" }
+    var statusTitle: String { active ? L10n.text("В памяти") : archived ? L10n.text("Убрана из памяти") : L10n.text("Заменена") }
     var selection: JSONValue { .object(["id": raw["id"], "record_hash": raw["record_hash"]]) }
     init(_ raw: JSONValue) throws {
         guard case .object(let fields) = raw, Set(fields.keys) == ["id", "record_hash", "saved_at", "kind", "content", "basis", "status", "supersedes_id", "verification"],
@@ -34,11 +34,11 @@ struct ProjectNote: Identifiable, Equatable {
         self.raw = raw
     }
     static func title(_ kind: String) -> String {
-        ["project_fact": "Факт проекта", "preference": "Предпочтение", "decision": "Решение", "lesson": "Вывод", "constraint": "Ограничение"][kind] ?? kind
+        ["project_fact": L10n.text("Факт проекта"), "preference": L10n.text("Предпочтение"), "decision": L10n.text("Решение"), "lesson": L10n.text("Вывод"), "constraint": L10n.text("Ограничение")][kind] ?? kind
     }
 }
 
-func projectMemoryError() -> NativeError { .message("Заметка проекта, область или SHA-256 не прошли проверку. Ничего не прикреплено и не выполнено.") }
+func projectMemoryError() -> NativeError { .message(L10n.text("Заметка проекта, область или SHA-256 не прошли проверку. Ничего не прикреплено и не выполнено.")) }
 
 func verifyCanonicalMaterial(_ material: JSONValue, expected: JSONValue) throws -> String {
     guard case .string(let text) = material, let data = text.data(using: .utf8), data.count <= 512 * 1024,

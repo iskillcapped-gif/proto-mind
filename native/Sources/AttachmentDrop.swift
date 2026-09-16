@@ -11,7 +11,7 @@ enum NativeAttachmentDrop {
               url.path.hasPrefix("/"), url.path.utf8.count <= 16_384,
               !url.path.unicodeScalars.contains(where: { $0.value < 32 || $0.value == 127 }),
               !url.path.split(separator: "/").contains("..") else {
-            throw NativeError.message("Перетащите локальные файлы из Finder, не веб-ссылку или обещанный файл.")
+            throw NativeError.message(L10n.text("Перетащите локальные файлы из Finder, не веб-ссылку или обещанный файл."))
         }
         // These are macOS system aliases, not arbitrary symlinks. Readers still
         // validate every file component with no-follow access before returning data.
@@ -22,16 +22,16 @@ enum NativeAttachmentDrop {
 
     static func decodeURL(_ data: Data) throws -> URL {
         guard data.count <= 16_384, let text = String(data: data, encoding: .utf8),
-              let url = URL(string: text) else { throw NativeError.message("Не удалось прочитать адрес перетаскиваемого файла.") }
+              let url = URL(string: text) else { throw NativeError.message(L10n.text("Не удалось прочитать адрес перетаскиваемого файла.")) }
         return try localURL(url)
     }
 
     static func selection(_ urls: [URL]) throws -> [URL] {
         guard !urls.isEmpty, urls.count <= maximumItems else {
-            throw NativeError.message("За один раз можно выбрать до 3 изображений и 3 текстовых файлов.")
+            throw NativeError.message(L10n.text("За один раз можно выбрать до 3 изображений и 3 текстовых файлов."))
         }
         let result = try urls.map(localURL)
-        guard Set(result.map(\.path)).count == result.count else { throw NativeError.message("Один файл выбран несколько раз. Черновик не изменён.") }
+        guard Set(result.map(\.path)).count == result.count else { throw NativeError.message(L10n.text("Один файл выбран несколько раз. Черновик не изменён.")) }
         return result
     }
 
@@ -40,21 +40,21 @@ enum NativeAttachmentDrop {
 
     static func relativePath(_ url: URL, workspace: String?) throws -> String {
         guard let workspace else {
-            throw NativeError.message("Для текстовых файлов сначала выберите рабочую папку диалога. Перетаскивание не меняет её автоматически.")
+            throw NativeError.message(L10n.text("Для текстовых файлов сначала выберите рабочую папку диалога. Перетаскивание не меняет её автоматически."))
         }
         let root = try localURL(URL(fileURLWithPath: workspace)).path
         guard url.path.hasPrefix(root + "/") else {
-            throw NativeError.message("Текстовые файлы прикрепляются только из рабочей папки диалога. Выберите её вручную; файл не скопирован и не отправлен.")
+            throw NativeError.message(L10n.text("Текстовые файлы прикрепляются только из рабочей папки диалога. Выберите её вручную; файл не скопирован и не отправлен."))
         }
         return String(url.path.dropFirst(root.count + 1))
     }
 
     static func pasteboardURLs(_ pasteboard: NSPasteboard) throws -> [URL] {
         guard let items = pasteboard.pasteboardItems, (1...maximumItems).contains(items.count) else {
-            throw NativeError.message("Перетащите до 6 локальных файлов.")
+            throw NativeError.message(L10n.text("Перетащите до 6 локальных файлов."))
         }
         return try selection(items.map { item in
-            guard let data = item.data(forType: .fileURL) else { throw NativeError.message("Поддерживаются только готовые локальные файлы, не ссылки или file promises.") }
+            guard let data = item.data(forType: .fileURL) else { throw NativeError.message(L10n.text("Поддерживаются только готовые локальные файлы, не ссылки или file promises.")) }
             return try decodeURL(data)
         })
     }
@@ -64,10 +64,10 @@ enum NativeAttachmentDrop {
             let load = AttachmentURLLoad(continuation)
             let progress = provider.loadDataRepresentation(forTypeIdentifier: UTType.fileURL.identifier) { data, _ in
                 if let data, data.count <= 16_384 { load.finish(.success(data)) }
-                else { load.finish(.failure(NativeError.message("Источник не предоставил локальный адрес файла."))) }
+                else { load.finish(.failure(NativeError.message(L10n.text("Источник не предоставил локальный адрес файла.")))) }
             }
             DispatchQueue.global().asyncAfter(deadline: .now() + timeout) {
-                if load.finish(.failure(NativeError.message("Источник слишком долго передаёт файл. Попробуйте перетащить его из Finder ещё раз."))) {
+                if load.finish(.failure(NativeError.message(L10n.text("Источник слишком долго передаёт файл. Попробуйте перетащить его из Finder ещё раз.")))) {
                     progress.cancel()
                 }
             }
@@ -107,7 +107,7 @@ struct NativeDroppedFile {
               (0...262_144).contains(value["characters"].integer),
               value["preview"] == .string(value["preview"].text),
               value["preview"].text.unicodeScalars.count == min(12_000, value["characters"].integer) else {
-            throw NativeError.message("Предпросмотр текстового файла не прошёл проверку.")
+            throw NativeError.message(L10n.text("Предпросмотр текстового файла не прошёл проверку."))
         }
         self.value = value
     }
@@ -125,12 +125,12 @@ struct NativeAttachmentDropPreview: Identifiable {
         guard (1...NativeAttachmentDrop.maximumItems).contains(count), images.count <= 3, files.count <= 3,
               images.allSatisfy({ $0.canAttach && $0.conversationID == conversationID }),
               conversation.id == conversationID, conversation.workspacePath == workspace, !conversation.archived else {
-            throw NativeError.message("Диалог или рабочая папка изменились. Повторите перетаскивание; ничего не прикреплено.")
+            throw NativeError.message(L10n.text("Диалог или рабочая папка изменились. Повторите перетаскивание; ничего не прикреплено."))
         }
         let images = conversation.pendingImages.filter { old in !self.images.contains { $0.source.path == old["path"].text } } + self.images.map(\.source.value)
         let files = conversation.pendingFiles.filter { old in !self.files.contains { $0.value["path"] == old["path"] } } + self.files.map(\.metadata)
         try NativeImageAttachment.validate(images)
-        guard files.count <= 3 else { throw NativeError.message("В черновике уже есть файлы. Допускается до 3 текстовых вложений.") }
+        guard files.count <= 3 else { throw NativeError.message(L10n.text("В черновике уже есть файлы. Допускается до 3 текстовых вложений.")) }
         return (images, files)
     }
 }
@@ -143,8 +143,8 @@ struct AttachmentDropPreviewView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Label("Прикрепить файлы · \(preview.count)", systemImage: "paperclip").font(.title3.weight(.semibold))
-            Text("Только локальный предпросмотр. Файлы не копируются, перетаскивание ничего не отправляет.").foregroundStyle(.secondary)
+            Label(L10n.format("Прикрепить файлы · \(preview.count)"), systemImage: "paperclip").font(.title3.weight(.semibold))
+            Text(L10n.text("Только локальный предпросмотр. Файлы не копируются, перетаскивание ничего не отправляет.")).foregroundStyle(.secondary)
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     ForEach(preview.images) { image in
@@ -160,7 +160,7 @@ struct AttachmentDropPreviewView: View {
                     ForEach(Array(preview.files.enumerated()), id: \.offset) { _, file in
                         VStack(alignment: .leading, spacing: 6) {
                             Label(file.value["path"].text, systemImage: "doc.text").font(.headline)
-                            Text("В сообщение: до \(file.metadata["included_chars"].integer) символов · SHA \(file.value["sha256"].text.prefix(12))").font(.caption).foregroundStyle(.secondary)
+                            Text(L10n.format("В сообщение: до \(file.metadata["included_chars"].integer) символов · SHA \(file.value["sha256"].text.prefix(12))")).font(.caption).foregroundStyle(.secondary)
                             Text(String(file.value["preview"].text.prefix(6000))).font(NativeTheme.codeFont).textSelection(.enabled)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }.padding(12).background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
@@ -168,13 +168,13 @@ struct AttachmentDropPreviewView: View {
                 }.frame(maxWidth: .infinity, alignment: .leading)
             }.frame(maxHeight: .infinity)
             if !preview.images.isEmpty { Text(model.imageDestinationNotice).font(.callout).foregroundStyle(.secondary) }
-            Text("Отправка только отдельной кнопкой. Текст получит выбранный провайдер; изображения с исходными метаданными поддерживаются через Codex. Перед отправкой содержимое проверяется по SHA-256.")
+            Text(L10n.text("Отправка только отдельной кнопкой. Текст получит выбранный провайдер; изображения с исходными метаданными поддерживаются через Codex. Перед отправкой содержимое проверяется по SHA-256."))
                 .font(.caption).foregroundStyle(.secondary)
             if let error { Text(error).font(.callout).foregroundStyle(.orange) }
             HStack {
-                Button("Отмена") { dismiss() }.keyboardShortcut(.cancelAction)
+                Button(L10n.text("Отмена")) { dismiss() }.keyboardShortcut(.cancelAction)
                 Spacer()
-                Button("Прикрепить \(preview.count)") {
+                Button(L10n.format("Прикрепить \(preview.count)")) {
                     do { try model.attachDrop(preview); dismiss() }
                     catch { self.error = error.localizedDescription }
                 }.keyboardShortcut(.defaultAction).disabled(!model.canEditMessageAttachments)
@@ -198,8 +198,8 @@ struct AttachmentDropTarget: ViewModifier {
                         .overlay {
                             VStack(spacing: 12) {
                                 Image(systemName: "square.and.arrow.down").font(.system(size: 30))
-                                Text(model.loadingDroppedAttachments ? "Проверяю файлы локально…" : "Отпустите для предпросмотра").font(.headline)
-                                Text("PDF отдельно, PNG / JPEG или текстовые файлы рабочей папки\nНичего не отправится автоматически")
+                                Text(model.loadingDroppedAttachments ? L10n.text("Проверяю файлы локально…") : L10n.text("Отпустите для предпросмотра")).font(.headline)
+                                Text(L10n.text("PDF отдельно, PNG / JPEG или текстовые файлы рабочей папки\nНичего не отправится автоматически"))
                                     .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
                             }.padding(20)
                         }.padding(12).allowsHitTesting(false).accessibilityHidden(true)

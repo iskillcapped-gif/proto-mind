@@ -32,8 +32,8 @@ extension AppModel {
     func chooseHistoryBackup() {
         guard !globalBusy, !client.turnOutstanding else { return }
         let panel = NSOpenPanel()
-        panel.title = "Выберите копию диалогов"
-        panel.message = "Выберите папку копии Proto-Mind или прежний файл conversations.json."
+        panel.title = L10n.text("Выберите копию диалогов")
+        panel.message = L10n.text("Выберите папку копии Proto-Mind или прежний файл conversations.json.")
         panel.canChooseFiles = true; panel.canChooseDirectories = true; panel.allowsMultipleSelection = false
         presentFilePicker(panel) { [weak self] response in
             guard response == .OK, let url = panel.url else { return }
@@ -42,16 +42,16 @@ extension AppModel {
     }
 
     func exportHistoryBackup(to url: URL) throws {
-        guard !globalBusy, !client.turnOutstanding else { throw NativeError.message("Дождитесь завершения запроса перед сохранением копии.") }
+        guard !globalBusy, !client.turnOutstanding else { throw NativeError.message(L10n.text("Дождитесь завершения запроса перед сохранением копии.")) }
         try store.exportBackup(currentHistoryArchive, to: url)
-        historyBackupNotice = "Копия диалогов сохранена: \(url.lastPathComponent)"
+        historyBackupNotice = L10n.format("Копия диалогов сохранена: \(url.lastPathComponent)")
         historyBackupError = nil
     }
 
     func chooseHistoryExport() {
         guard !globalBusy, !client.turnOutstanding else { return }
         let panel = NSSavePanel()
-        panel.title = "Сохранить копию диалогов"
+        panel.title = L10n.text("Сохранить копию диалогов")
         panel.nameFieldStringValue = "Proto-Mind Dialogs \(Date().formatted(.iso8601.year().month().day())).protomind-history"
         panel.canCreateDirectories = true
         presentFilePicker(panel) { [weak self] response in
@@ -67,7 +67,7 @@ extension AppModel {
             let archive = try store.restore(preview, preserving: currentHistoryArchive)
             installRestoredHistory(archive)
             historyBackupPreview = nil
-            historyBackupNotice = "Диалоги восстановлены. Предыдущее состояние и ваши несохранённые сообщения оставлены в локальных копиях."
+            historyBackupNotice = L10n.text("Диалоги восстановлены. Предыдущее состояние и ваши несохранённые сообщения оставлены в локальных копиях.")
             historyBackupError = nil
             refreshHistoryBackups()
         } catch { historyBackupError = error.localizedDescription }
@@ -78,7 +78,7 @@ extension AppModel {
         do {
             let archive = try store.reloadPreserving(currentHistoryArchive)
             installRestoredHistory(archive)
-            historyBackupNotice = "Актуальная история открыта. Предыдущая версия из этого окна сохранена в локальных копиях."
+            historyBackupNotice = L10n.text("Актуальная история открыта. Предыдущая версия из этого окна сохранена в локальных копиях.")
             historyBackupError = nil
             refreshHistoryBackups()
         } catch { historyBackupError = error.localizedDescription; report(error) }
@@ -98,11 +98,11 @@ extension AppModel {
         restoreComposer(); resetWorkSessionPages(); resetWorkspaceView()
         // select() also closes source-bound inspectors and invalidates their requests.
         if let selectedID { select(selectedID) }
-        status = "История восстановлена"
+        status = L10n.text("История восстановлена")
     }
 
     func saveHistory() throws {
-        guard !privateBackupRestartRequired else { throw NativeError.message("Перезапустите Proto-Mind после восстановления данных.") }
+        guard !privateBackupRestartRequired else { throw NativeError.message(L10n.text("Перезапустите Proto-Mind после восстановления данных.")) }
         draftSave?.cancel()
         do {
             try store.save(currentHistoryArchive)
@@ -119,14 +119,14 @@ extension AppModel {
     @discardableResult
     func persist() -> Bool {
         do { try saveHistory(); return true }
-        catch { status = "История не сохранена"; return false }
+        catch { status = L10n.text("История не сохранена"); return false }
     }
 
     @discardableResult
     func retryHistorySave() -> Bool {
         guard !globalBusy, !client.turnOutstanding, !store.writeBlocked else { return false }
         guard persist() else { return false }
-        status = "История сохранена"
+        status = L10n.text("История сохранена")
         return true
     }
 

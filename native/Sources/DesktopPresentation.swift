@@ -93,6 +93,7 @@ final class DesktopPresentation: ObservableObject {
     private let reduceMotion: () -> Bool
     private var interactionMonitor: Any?
     private var companionSubscription: AnyCancellable?
+    private var languageSubscription: AnyCancellable?
 
     private struct WindowAppearance {
         let frame: NSRect
@@ -123,6 +124,12 @@ final class DesktopPresentation: ObservableObject {
             defaults.object(forKey: preferenceKey + ".sidebarTransparency") as? Double ?? DesktopGlassAppearance.sidebarDefault,
             fallback: DesktopGlassAppearance.sidebarDefault)
         companionSubscription = companions.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
+        languageSubscription = NotificationCenter.default.publisher(for: .interfaceLanguageChanged).sink { [weak self] _ in
+            guard let self else { return }
+            self.corePanel?.title = L10n.text("Ядро Proto-Mind")
+            self.voicePanel?.title = L10n.text("Голос Proto-Mind")
+            for item in self.companions.surfaces { item.window?.title = "Proto-Mind · " + item.id.title }
+        }
     }
 
     func setChatTransparency(_ value: Double) {

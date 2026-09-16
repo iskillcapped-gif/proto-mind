@@ -26,7 +26,7 @@ struct NativeSkillEvidence: Decodable {
 
 enum NativeSkillOperation: String, Decodable {
     case author, apply
-    var title: String { self == .author ? "Подтвердить описание" : "Сохранить один навык" }
+    var title: String { self == .author ? L10n.text("Подтвердить описание") : L10n.text("Сохранить один навык") }
     var mutation: String { self == .author ? "process_memory_only" : "skills_one_record" }
     var tokenPrefix: String { self == .author ? "CONFIRM-SKILL-AUTHOR-" : "CONFIRM-SKILL-APPLY-" }
 }
@@ -191,7 +191,7 @@ struct NativeSkillReview: Decodable {
               report.skillStoreScope == "global_legacy_stores", !report.projectIsolationEnforced,
               skillStores(report.storeHashes), [report.issues, report.sourceIssues, report.warnings, report.applyIssues].allSatisfy(skillFindings),
               value["store_mutation_performed"] == .bool(false) else {
-            throw NativeError.message("Карточка навыка не прошла проверку контракта. Запись недоступна.")
+            throw NativeError.message(L10n.text("Карточка навыка не прошла проверку контракта. Запись недоступна."))
         }
         return report
     }
@@ -230,7 +230,7 @@ struct NativeSkillPreview: Decodable {
                   preview.confirmationToken.range(of: "^\(operation.tokenPrefix)[A-F0-9]{12}$", options: .regularExpression) != nil)
                   : (!preview.issues.isEmpty && preview.confirmationToken.isEmpty),
               value["store_mutation_performed"] == .bool(false) else {
-            throw NativeError.message("Preview навыка не прошёл проверку. Ничего не выполнено.")
+            throw NativeError.message(L10n.text("Preview навыка не прошёл проверку. Ничего не выполнено."))
         }
         return preview
     }
@@ -257,7 +257,7 @@ struct NativeSkillResult: Decodable {
               result.lessonId == selection.lessonID, result.operation == operation, result.mutation == operation.mutation,
               result.receipt.valid(kind: operation.rawValue, lesson: selection.lessonID),
               result.skillMutationPerformed == (operation == .apply), !result.batchApplyPerformed else {
-            throw NativeError.message("Результат записи не удалось проверить. Не повторяйте сохранение: обновите карточку и проверьте receipt.")
+            throw NativeError.message(L10n.text("Результат записи не удалось проверить. Не повторяйте сохранение: обновите карточку и проверьте receipt."))
         }
         return result
     }
@@ -268,7 +268,7 @@ private func decodeSkill<T: Decodable>(_ type: T.Type, _ value: JSONValue, field
         "automatic_promotion", "context_injection_changed", "permissions_changed", "memory_mutation_performed"]
     guard case .object(let root) = value, Set(root.keys) == fields.union(falseFlags).union(["no_execution"]),
           value["no_execution"] == .bool(true), falseFlags.allSatisfy({ value[$0] == .bool(false) }) else {
-        throw NativeError.message("Недопустимое расширение контракта навыка. Ничего не подтверждено.")
+        throw NativeError.message(L10n.text("Недопустимое расширение контракта навыка. Ничего не подтверждено."))
     }
     let decoder = JSONDecoder()
     decoder.keyDecodingStrategy = .convertFromSnakeCase

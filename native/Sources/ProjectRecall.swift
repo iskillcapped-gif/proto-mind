@@ -7,10 +7,10 @@ struct NativeProjectRecallReport: Equatable {
     var selectedIDs: [String] { value["selected_ids"].items.map(\.text) }
     var title: String {
         switch state {
-        case "selected": return "Память проекта · выбрано: \(selectedIDs.count)"
-        case "empty": return "Память проекта · пока нет заметок"
-        case "no_match": return "Память проекта · совпадений нет"
-        default: return "Память проекта · подбор недоступен"
+        case "selected": return L10n.format("Память проекта · выбрано: \(selectedIDs.count)")
+        case "empty": return L10n.text("Память проекта · пока нет заметок")
+        case "no_match": return L10n.text("Память проекта · совпадений нет")
+        default: return L10n.text("Память проекта · подбор недоступен")
         }
     }
 
@@ -67,7 +67,7 @@ struct NativeProjectRecallReport: Equatable {
             && value["access_mode"] == .string(mode) && sameWorkspace
     }
 
-    static func error() -> NativeError { .message("Автоподбор памяти не подтвердил задачу, проект или источники. Проверьте контекст и журнал; автоповтора нет.") }
+    static func error() -> NativeError { .message(L10n.text("Автоподбор памяти не подтвердил задачу, проект или источники. Проверьте контекст и журнал; автоповтора нет.")) }
     private static func count(_ value: JSONValue, limit: Double) -> Bool {
         if case .number(let number) = value { return number.isFinite && number.rounded() == number && (0...limit).contains(number) }
         return false
@@ -82,19 +82,19 @@ struct ProjectRecallReportView: View {
                 switch report.state {
                 case "selected":
                     Text(report.value["algorithm"] == .string("local_content_terms_v3")
-                         ? "Подобраны заметки по содержанию с учётом указанных файлов, известных сервисов и окружения. Слабые повторные совпадения отсеяны. Смысл и достоверность заметок отдельно не проверялись."
+                         ? L10n.text("Подобраны заметки по содержанию с учётом указанных файлов, известных сервисов и окружения. Слабые повторные совпадения отсеяны. Смысл и достоверность заметок отдельно не проверялись.")
                          : report.value["algorithm"] == .string("local_content_terms_v2")
-                         ? "Выбраны текущие заметки по словам задачи с учётом известных форм слов и переводов терминов. Смысл и достоверность заметок отдельно не проверялись."
-                         : "Выбраны текущие версии заметок по совпадению значимых слов задачи. Это утверждения оператора, а не независимая проверка фактов.")
-                case "empty": Text("В этой папке нет активных явно сохранённых заметок. Старая память не переносилась, новое хранилище не создавалось.")
-                case "no_match": Text("Подходящих совпадений с содержанием заметок не найдено. Нужную заметку можно прикрепить вручную.")
-                default: Text("Подбор недоступен: нет рабочей папки либо источник/настройки требуют проверки. Обычный запрос идёт без автоматически добавленных заметок.")
+                         ? L10n.text("Выбраны текущие заметки по словам задачи с учётом известных форм слов и переводов терминов. Смысл и достоверность заметок отдельно не проверялись.")
+                         : L10n.text("Выбраны текущие версии заметок по совпадению значимых слов задачи. Это утверждения оператора, а не независимая проверка фактов."))
+                case "empty": Text(L10n.text("В этой папке нет активных явно сохранённых заметок. Старая память не переносилась, новое хранилище не создавалось."))
+                case "no_match": Text(L10n.text("Подходящих совпадений с содержанием заметок не найдено. Нужную заметку можно прикрепить вручную."))
+                default: Text(L10n.text("Подбор недоступен: нет рабочей папки либо источник/настройки требуют проверки. Обычный запрос идёт без автоматически добавленных заметок."))
                 }
                 Text(report.value["reason"].text).textSelection(.enabled)
-                ForEach(report.selectedIDs, id: \.self) { Text("Источник · \($0.prefix(12))").textSelection(.enabled) }
-                Text("Активных: \(report.value["active_count"].integer) · совпадений: \(report.value["matching_count"].integer) · включено символов: \(report.value["characters"].integer)/6000")
-                if report.value["omitted_count"].integer > 0 { Text("За пределами лимита: \(report.value["omitted_count"].integer). Заметки не обрезаются.") }
-                Text("Только чтение. Нет отдельного запроса модели, записи памяти или новых прав. Старые заметки могут оставаться в истории провайдера; выключатель не удаляет их.")
+                ForEach(report.selectedIDs, id: \.self) { Text(L10n.format("Источник · \($0.prefix(12))")).textSelection(.enabled) }
+                Text(L10n.format("Активных: \(report.value["active_count"].integer) · совпадений: \(report.value["matching_count"].integer) · включено символов: \(report.value["characters"].integer)/6000"))
+                if report.value["omitted_count"].integer > 0 { Text(L10n.format("За пределами лимита: \(report.value["omitted_count"].integer). Заметки не обрезаются.")) }
+                Text(L10n.text("Только чтение. Нет отдельного запроса модели, записи памяти или новых прав. Старые заметки могут оставаться в истории провайдера; выключатель не удаляет их."))
             }.font(.caption).foregroundStyle(.secondary).padding(.top, 7)
         } label: { Label(report.title, systemImage: "brain") }
             .font(.system(size: 12)).foregroundStyle(.secondary)

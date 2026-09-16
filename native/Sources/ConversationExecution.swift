@@ -10,7 +10,11 @@ final class ConversationExecution: ObservableObject {
     var observation: AnyCancellable?
     @Published var running = false
     @Published var stream = ""
-    @Published var status = "Готов"
+    @Published private var statusKey = "Готов"
+    var status: String {
+        get { L10n.text(statusKey) }
+        set { statusKey = newValue }
+    }
     @Published var agentItems: [JSONValue] = []
     @Published var agentReceipt: JSONValue = .null
     @Published var workLog: JSONValue = .null
@@ -106,7 +110,7 @@ extension AppModel {
                 state.status = "Нужно разрешение macOS Automation"
                 if selectedID == state.conversationID {
                     computerUsePermissionIssue = true
-                    error = "macOS не разрешила Proto-Mind управлять приложениями. Откройте Automation, разрешите Proto-Mind Native и начните новый ход с полным доступом. Автоповтора не было."
+                    error = L10n.text("macOS не разрешила Proto-Mind управлять приложениями. Откройте Automation, разрешите Proto-Mind Native и начните новый ход с полным доступом. Автоповтора не было.")
                 }
             } else { state.status = "Агент работает" }
         case "agent_run": state.agentReceipt = event["receipt"]; state.agentItems = state.agentReceipt["items"].items
@@ -124,7 +128,7 @@ extension AppModel {
     }
     var stream: String { get { selectedExecution?.stream ?? "" } set { setSelected(\.stream, newValue) } }
     var status: String {
-        get { selectedExecution?.status ?? idleStatus }
+        get { selectedExecution?.status ?? L10n.text(idleStatus) }
         set { if let state = selectedExecution { state.status = newValue } else { idleStatus = newValue } }
     }
     var lastPersonaTurnReceipt: NativePersonaTurnReceipt? { selectedExecution?.personaReceipt }

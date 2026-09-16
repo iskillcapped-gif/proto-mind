@@ -59,14 +59,14 @@ struct FloatingWorkspaceView: View {
 
     private var header: some View {
         HStack(spacing: 8) {
-            Text(app.selected?.title ?? "Новый диалог")
+            Text(app.selected?.displayTitle ?? L10n.text("Новый диалог"))
                 .font(.system(size: 13, weight: .medium)).lineLimit(1)
                 .frame(maxWidth: 260, alignment: .leading)
             // Only the empty header area drags the window; buttons and text keep their own input.
             DesktopWindowDragArea().frame(height: 36).frame(maxWidth: .infinity)
-            headerButton("Рабочие панели", icon: "rectangle.split.2x2") { app.workspacePanels.toggle() }
-            headerButton("Свернуть в ядро · Esc", icon: "minus") { desktop.collapse() }
-                .accessibilityLabel("Свернуть в ядро")
+            headerButton(L10n.text("Рабочие панели"), icon: "rectangle.split.2x2") { app.workspacePanels.toggle() }
+            headerButton(L10n.text("Свернуть в ядро · Esc"), icon: "minus") { desktop.collapse() }
+                .accessibilityLabel(L10n.text("Свернуть в ядро"))
         }.padding(.horizontal, 20).padding(.vertical, 14)
     }
 
@@ -81,12 +81,12 @@ struct FloatingWelcomeView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             CubeEmblem().frame(width: 44, height: 51).padding(.bottom, 8)
-            Text("Я рядом.").font(.system(size: 30, weight: .medium))
-            Text("Продолжим работу или начнём с новой идеи?")
+            Text(L10n.text("Я рядом.")).font(.system(size: 30, weight: .medium))
+            Text(L10n.text("Продолжим работу или начнём с новой идеи?"))
                 .font(.system(size: 15)).foregroundStyle(.secondary)
             HStack(spacing: 7) {
                 Image(systemName: "waveform")
-                Text("Можно написать или включить голос")
+                Text(L10n.text("Можно написать или включить голос"))
             }.font(.system(size: 11)).foregroundStyle(.tertiary).padding(.top, 5)
         }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 28).padding(.horizontal, 24)
     }
@@ -110,9 +110,9 @@ struct DesktopCoreView: View {
                             .frame(width: 34, height: 34).contentShape(Rectangle())
                             .background(desktop.companions.surface(id).visible ? Color.teal.opacity(0.22) : .clear, in: RoundedRectangle(cornerRadius: 8))
                     }.buttonStyle(.nativeHover).foregroundStyle(.primary)
-                        .help("Показать или скрыть · " + id.title)
-                        .accessibilityLabel("Боковое " + id.title.lowercased())
-                        .accessibilityValue(desktop.companions.surface(id).visible ? "Показано" : "Скрыто")
+                        .help(L10n.text("Показать или скрыть · ") + id.title)
+                        .accessibilityLabel(L10n.text("Боковое ") + id.title.lowercased())
+                        .accessibilityValue(desktop.companions.surface(id).visible ? L10n.text("Показано") : L10n.text("Скрыто"))
                 }
             }.padding(3).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
                 .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.white.opacity(0.15)).allowsHitTesting(false))
@@ -145,11 +145,11 @@ struct DesktopCoreView: View {
                     Image(systemName: voice.inCall ? (voice.muted ? "mic.slash.fill" : "mic.fill") : "mic")
                         .foregroundStyle(voice.inCall ? Color.teal : .primary)
                         .frame(width: 34, height: 32).contentShape(Rectangle())
-                }.help(voice.inCall ? "Управление разговором" : "Начать голосовой разговор")
-                    .accessibilityLabel("Голос Proto-Mind")
+                }.help(voice.inCall ? L10n.text("Управление разговором") : L10n.text("Начать голосовой разговор"))
+                    .accessibilityLabel(L10n.text("Голос Proto-Mind"))
                 Button { desktop.restoreWindow() } label: {
                     Image(systemName: "arrow.up.left.and.arrow.down.right").frame(width: 34, height: 32).contentShape(Rectangle())
-                }.help("Обычное окно").accessibilityLabel("Обычное окно")
+                }.help(L10n.text("Обычное окно")).accessibilityLabel(L10n.text("Обычное окно"))
             }.font(.system(size: 11, weight: .medium)).buttonStyle(.nativeHover).padding(3)
                 .background(.regularMaterial, in: Capsule())
                 .overlay(Capsule().strokeBorder(.white.opacity(0.15)).allowsHitTesting(false))
@@ -159,8 +159,8 @@ struct DesktopCoreView: View {
         }.frame(width: 88, height: DesktopGeometry.coreSize.height)
         }.frame(width: DesktopGeometry.coreSize.width, height: DesktopGeometry.coreSize.height)
             .contentShape(Rectangle())
-            .help(voice.connected ? (voice.muted ? "Микрофон выключен" : "Голос включён")
-                  : voice.inCall ? "Подключение или завершение разговора…" : "Proto-Mind · микрофон выключен")
+            .help(voice.connected ? (voice.muted ? L10n.text("Микрофон выключен") : L10n.text("Голос включён"))
+                  : voice.inCall ? L10n.text("Подключение или завершение разговора…") : L10n.text("Proto-Mind · микрофон выключен"))
     }
 
 }

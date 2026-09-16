@@ -48,20 +48,20 @@ final class DictationSpeech: DictationRecognizing {
         cancel()
         let token = generation
         guard let recognizer = SFSpeechRecognizer(locale: locale) else {
-            throw NativeError.message("Этот язык диктовки недоступен. Выберите другой в настройках голоса.")
+            throw NativeError.message(L10n.text("Этот язык диктовки недоступен. Выберите другой в настройках голоса."))
         }
         let authorization = await Self.authorization()
         try validate(token)
         guard authorization == .authorized else {
-            throw NativeError.message("Разрешите распознавание речи для Proto-Mind: Настройки macOS → Конфиденциальность и безопасность → Распознавание речи.")
+            throw NativeError.message(L10n.text("Разрешите распознавание речи для Proto-Mind: Настройки macOS → Конфиденциальность и безопасность → Распознавание речи."))
         }
         let microphone = await audio.requestAccess()
         try validate(token)
         guard microphone else {
-            throw NativeError.message("Разрешите микрофон для Proto-Mind в настройках конфиденциальности macOS.")
+            throw NativeError.message(L10n.text("Разрешите микрофон для Proto-Mind в настройках конфиденциальности macOS."))
         }
         guard recognizer.isAvailable else {
-            throw NativeError.message("Диктовка Apple пока недоступна. Проверьте подключение к интернету или выберите другой язык.")
+            throw NativeError.message(L10n.text("Диктовка Apple пока недоступна. Проверьте подключение к интернету или выберите другой язык."))
         }
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
@@ -95,7 +95,7 @@ final class DictationSpeech: DictationRecognizing {
                     self.onText?(self.transcript.text, false)
                 case .finished(let failure):
                     if let failure {
-                        self.fail("Не удалось закончить диктовку. Уже распознанный текст сохранён. " + String(failure.prefix(200)))
+                        self.fail(L10n.text("Не удалось закончить диктовку. Уже распознанный текст сохранён. ") + String(failure.prefix(200)))
                     } else {
                         let text = self.transcript.text
                         self.cancel()
@@ -118,7 +118,7 @@ final class DictationSpeech: DictationRecognizing {
                 do { try await Task.sleep(for: .seconds(1)) } catch { return }
                 guard let self, self.generation == token, self.receivingAudio else { return }
                 if !self.audio.captureIsFlowing {
-                    self.fail("Микрофон перестал передавать звук. Распознанный текст сохранён; можно включить диктовку снова.")
+                    self.fail(L10n.text("Микрофон перестал передавать звук. Распознанный текст сохранён; можно включить диктовку снова."))
                     return
                 }
             }
@@ -202,10 +202,10 @@ private final class DictationSpeechEvents: NSObject, SFSpeechRecognitionTaskDele
     }
 
     func speechRecognitionTask(_ task: SFSpeechRecognitionTask, didFinishSuccessfully successfully: Bool) {
-        receive(.finished(successfully ? nil : (task.error?.localizedDescription ?? "Распознавание прервано.")))
+        receive(.finished(successfully ? nil : (task.error?.localizedDescription ?? L10n.text("Распознавание прервано."))))
     }
 
     func speechRecognitionTaskWasCancelled(_ task: SFSpeechRecognitionTask) {
-        receive(.finished("Распознавание отменено системой."))
+        receive(.finished(L10n.text("Распознавание отменено системой.")))
     }
 }

@@ -59,4 +59,4 @@ private func historyHashMaterial(_ value: JSONValue, expected: JSONValue) throws
           try JSONDecoder().decode(JSONValue.self, from: data) == expected else { throw historyError() }
     return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
 }
-func historyError() -> NativeError { .message("Сохранённая история или её SHA-256 не прошли проверку. Никакого восстановления разрешений или автоматического повтора.") }
+func historyError() -> NativeError { .message(L10n.text("Сохранённая история или её SHA-256 не прошли проверку. Никакого восстановления разрешений или автоматического повтора.")) }

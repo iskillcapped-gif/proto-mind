@@ -11,11 +11,11 @@ struct NativeWorkSession: Identifiable, Equatable {
     var reference: JSONValue { .object(["run_id": .string(id), "fingerprint": value["fingerprint"]]) }
     var title: String {
         switch state {
-        case "completed": return "Ответ получен"
-        case "running": return "Работа выполняется"
-        case "preparing": return "Подготовка запроса"
-        case "not_started": return "Запрос не был отправлен"
-        default: return "Исход неизвестен"
+        case "completed": return L10n.text("Ответ получен")
+        case "running": return L10n.text("Работа выполняется")
+        case "preparing": return L10n.text("Подготовка запроса")
+        case "not_started": return L10n.text("Запрос не был отправлен")
+        default: return L10n.text("Исход неизвестен")
         }
     }
 
@@ -27,7 +27,7 @@ struct NativeWorkSession: Identifiable, Equatable {
               value["verification"].text == "not_assessed", NativeManualReview.validRun(value),
               value["automatic_resume"] == .bool(false), value["fingerprint"].text.count == 64,
               value["tools"].items.count <= 64 else {
-            throw NativeError.message("Не удалось проверить формат журнала работы. Файл не изменён.")
+            throw NativeError.message(L10n.text("Не удалось проверить формат журнала работы. Файл не изменён."))
         }
         try NativePDFAttachment.validate(value["context_manifest"]["pdfs"].items)
         try checkKnowledgeMetadata(value["context_manifest"]["knowledge_context"])
@@ -47,14 +47,14 @@ struct NativeWorkSession: Identifiable, Equatable {
                   value["agent_contract_hash"].text.count == 64,
                   value["agent_contract"]["provider"].text == "codex_subscription",
                   value["agent_contract"]["access_mode"].text == "full_access" else {
-                throw NativeError.message("Контракт сохранённого запуска не прошёл проверку. Файл не изменён.")
+                throw NativeError.message(L10n.text("Контракт сохранённого запуска не прошёл проверку. Файл не изменён."))
             }
         }
         if !value["instruction_receipt"].isNull {
             let receipt = try NativeInstructionReceipt(value["instruction_receipt"])
             guard value["status"] == .string("completed"), receipt.value["provider"] == value["provider"],
                   receipt.value["mode"] == value["access_mode"] else {
-                throw NativeError.message("Квитанция инструкций не соответствует сохранённому запуску. Файл не изменён.")
+                throw NativeError.message(L10n.text("Квитанция инструкций не соответствует сохранённому запуску. Файл не изменён."))
             }
         }
         if !value["turn_receipt"].isNull {
@@ -66,7 +66,7 @@ struct NativeWorkSession: Identifiable, Equatable {
                   receipt.value["instruction_receipt_hash"] == value["instruction_receipt"]["receipt_hash"],
                   receipt.value["answer_preview_chars"].integer == value["answer_preview"].text.unicodeScalars.count,
                   receipt.value["answer_preview_sha256"] == .string(NativeTurnReceipt.hash(value["answer_preview"].text)) else {
-                throw NativeError.message("Квитанция связи хода не соответствует сохранённому запуску. Файл не изменён.")
+                throw NativeError.message(L10n.text("Квитанция связи хода не соответствует сохранённому запуску. Файл не изменён."))
             }
         }
         self.value = value
@@ -87,11 +87,11 @@ struct WorkSessionsView: View {
             let split = compact ? AnyLayout(VStackLayout(spacing: 0)) : AnyLayout(HStackLayout(spacing: 0))
         VStack(spacing: 0) {
             HStack(spacing: 12) {
-                Label("Журнал работы", systemImage: "clock.arrow.circlepath").font(.title3.weight(.semibold))
+                Label(L10n.text("Журнал работы"), systemImage: "clock.arrow.circlepath").font(.title3.weight(.semibold))
                 Spacer()
                 if model.loadingWorkSessions { ProgressView().controlSize(.small) }
                 Button { Task { await model.refreshWorkSessions() } } label: { Image(systemName: "arrow.clockwise") }
-                    .disabled(model.busy || model.loadingWorkSessions).help("Перечитать локальный журнал")
+                    .disabled(model.busy || model.loadingWorkSessions).help(L10n.text("Перечитать локальный журнал"))
                 Button { model.showWorkSessions = false } label: { Image(systemName: "xmark") }.keyboardShortcut(.cancelAction)
             }.padding(20)
             Divider()
@@ -106,8 +106,8 @@ struct WorkSessionsView: View {
             if model.workSessions.isEmpty {
                 VStack(spacing: 14) {
                     Image(systemName: "clock").font(.system(size: 30)).foregroundStyle(.tertiary)
-                    Text("Для этого диалога пока нет сохранённых запусков.")
-                    Text("Новые обычные сообщения сохраняют компактный ход работы. Старую историю мы не переписываем.")
+                    Text(L10n.text("Для этого диалога пока нет сохранённых запусков."))
+                    Text(L10n.text("Новые обычные сообщения сохраняют компактный ход работы. Старую историю мы не переписываем."))
                         .foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 430)
                 }.frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
@@ -124,7 +124,7 @@ struct WorkSessionsView: View {
                                         }
                                         Text(run.value["input_preview"].text).lineLimit(2)
                                         if model.isWorkSessionWarningHidden(run) {
-                                            Text("Уведомление скрыто").font(.caption).foregroundStyle(.secondary)
+                                            Text(L10n.text("Уведомление скрыто")).font(.caption).foregroundStyle(.secondary)
                                         }
                                         if run.value["acceptance"].text != "not_recorded" {
                                             Text(NativeManualReview.label(run.value["acceptance"].text)).font(.caption).foregroundStyle(.secondary)
@@ -135,7 +135,7 @@ struct WorkSessionsView: View {
                                 }
                             }
                             if model.workSessionsNextCursor != nil {
-                                Button("Загрузить более ранние") { Task { await model.loadMoreWorkSessions() } }
+                                Button(L10n.text("Загрузить более ранние")) { Task { await model.loadMoreWorkSessions() } }
                                     .disabled(model.busy || model.loadingWorkSessions)
                                     .frame(maxWidth: .infinity).padding(.vertical, 8)
                             }
@@ -144,10 +144,10 @@ struct WorkSessionsView: View {
                     Divider()
                     if let selected {
                         VStack(spacing: 0) {
-                            Picker("Сведения о запуске", selection: $detail) {
-                                Text("Обзор").tag("overview")
-                                Text("Результаты").tag("results")
-                                Text("Приёмка").tag("review")
+                            Picker(L10n.text("Сведения о запуске"), selection: $detail) {
+                                Text(L10n.text("Обзор")).tag("overview")
+                                Text(L10n.text("Результаты")).tag("results")
+                                Text(L10n.text("Приёмка")).tag("review")
                             }.pickerStyle(.segmented).labelsHidden().padding(14)
                             if detail == "results" {
                                 ArtifactDeskView(model: model, run: selected).id(selected.id + selected.value["fingerprint"].text)
@@ -162,9 +162,9 @@ struct WorkSessionsView: View {
             }
             Divider()
             VStack(alignment: .leading, spacing: 5) {
-                if model.busy { Text("Активный ход работы виден в диалоге. Журнал обновится после завершения запроса.") }
-                if let total = model.workSessionsTotal { Text("Показано запусков: \(model.workSessions.count) из \(total).") }
-                Text("Локальные фрагменты, не полный аудит и не резервная копия изменённых файлов. Автоповтора нет.")
+                if model.busy { Text(L10n.text("Активный ход работы виден в диалоге. Журнал обновится после завершения запроса.")) }
+                if let total = model.workSessionsTotal { Text(L10n.format("Показано запусков: \(model.workSessions.count) из \(total).")) }
+                Text(L10n.text("Локальные фрагменты, не полный аудит и не резервная копия изменённых файлов. Автоповтора нет."))
                 Text(model.workSessionsPath).textSelection(.enabled).lineLimit(2)
             }.font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading).padding(16)
         }
@@ -179,53 +179,53 @@ struct WorkSessionsView: View {
         VStack(alignment: .leading, spacing: 18) {
             Text(run.title).font(.title2.weight(.medium))
             if run.state == "unknown" {
-                Label("Запрос успел начать обработку, но его полный результат не подтверждён. Действия могли уже произойти. Сначала проверьте файлы и команды, не запускайте их повторно вслепую.", systemImage: "exclamationmark.triangle")
+                Label(L10n.text("Запрос успел начать обработку, но его полный результат не подтверждён. Действия могли уже произойти. Сначала проверьте файлы и команды, не запускайте их повторно вслепую."), systemImage: "exclamationmark.triangle")
                     .foregroundStyle(.orange).font(.callout)
             }
             Text(run.value["input_preview"].text).textSelection(.enabled)
             VStack(alignment: .leading, spacing: 6) {
-                metadata("Запуск", run.id)
-                metadata("Провайдер", run.value["provider"].text)
-                metadata("Выбранная модель", run.value["requested_model"].text.isEmpty ? "по умолчанию провайдера" : run.value["requested_model"].text)
-                metadata("Режим при запросе", run.value["access_mode"].text)
-                metadata("Рабочая папка", run.value["workspace"]["path"].text.isEmpty ? "не привязана" : run.value["workspace"]["path"].text)
-                metadata("Обновлено", run.value["updated_at"].text)
+                metadata(L10n.text("Запуск"), run.id)
+                metadata(L10n.text("Провайдер"), run.value["provider"].text)
+                metadata(L10n.text("Выбранная модель"), run.value["requested_model"].text.isEmpty ? L10n.text("по умолчанию провайдера") : run.value["requested_model"].text)
+                metadata(L10n.text("Режим при запросе"), run.value["access_mode"].text)
+                metadata(L10n.text("Рабочая папка"), run.value["workspace"]["path"].text.isEmpty ? L10n.text("не привязана") : run.value["workspace"]["path"].text)
+                metadata(L10n.text("Обновлено"), run.value["updated_at"].text)
                 if !run.value["agent_contract_hash"].text.isEmpty {
-                    metadata("Контракт запуска", String(run.value["agent_contract_hash"].text.prefix(12)))
+                    metadata(L10n.text("Контракт запуска"), String(run.value["agent_contract_hash"].text.prefix(12)))
                 }
             }
             if !run.value["agent_contract"].isNull {
-                Text("Контракт фиксирует провайдера, доступные инструменты, лимиты, stop conditions и отсутствие автоповтора до запуска Codex. Runtime-инвентарь проверяется отдельно; это не доказательство достижения цели.")
+                Text(L10n.text("Контракт фиксирует провайдера, доступные инструменты, лимиты, stop conditions и отсутствие автоповтора до запуска Codex. Runtime-инвентарь проверяется отдельно; это не доказательство достижения цели."))
                     .font(.caption).foregroundStyle(.secondary)
             }
             if let receipt = run.instructionReceipt {
                 VStack(alignment: .leading, spacing: 9) {
-                    Label("Квитанция локальных инструкций", systemImage: "checkmark.seal").font(.headline)
-                    metadata("Провайдер и режим", "\(receipt.value["provider"].text) · \(receipt.value["mode"].text)")
+                    Label(L10n.text("Квитанция локальных инструкций"), systemImage: "checkmark.seal").font(.headline)
+                    metadata(L10n.text("Провайдер и режим"), "\(receipt.value["provider"].text) · \(receipt.value["mode"].text)")
                     metadata("Persona", receipt.value["persona_state"].text)
-                    metadata("Выбрано записей памяти", String(receipt.value["selected_memory_count"].integer))
+                    metadata(L10n.text("Выбрано записей памяти"), String(receipt.value["selected_memory_count"].integer))
                     metadata("Correction hints", String(receipt.value["correction_hint_count"].integer))
                     ForEach(Array(receipt.layers.enumerated()), id: \.offset) { _, layer in
                         VStack(alignment: .leading, spacing: 3) {
                             Text(layer["id"].text).font(.callout.weight(.medium))
-                            metadata("Размещение", layer["placement"].text)
-                            metadata("Источник", layer["source"].text)
-                            metadata("Размер", "\(layer["characters"].integer) символов")
+                            metadata(L10n.text("Размещение"), layer["placement"].text)
+                            metadata(L10n.text("Источник"), layer["source"].text)
+                            metadata(L10n.text("Размер"), L10n.format("\(layer["characters"].integer) символов"))
                             metadata("SHA-256", layer["sha256"].text)
                         }.padding(.vertical, 3)
                     }
                     metadata("Receipt SHA-256", receipt.value["receipt_hash"].text)
-                    Text("Сохранены только размеры, источники и SHA-256 фактически собранных Proto-Mind слоёв. Текст инструкций, provider-owned prompt и приватные рассуждения не сохранены. Квитанция подтверждает локальную сборку для provider call, но не является независимым подтверждением доставки или интерпретации провайдером.")
+                    Text(L10n.text("Сохранены только размеры, источники и SHA-256 фактически собранных Proto-Mind слоёв. Текст инструкций, provider-owned prompt и приватные рассуждения не сохранены. Квитанция подтверждает локальную сборку для provider call, но не является независимым подтверждением доставки или интерпретации провайдером."))
                         .font(.caption).foregroundStyle(.secondary)
                 }.padding(14).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
             } else if run.state == "completed" && ["codex", "ollama", "api"].contains(run.value["provider"].text) {
-                Label("Исторический запуск: content-free квитанция инструкций ещё не сохранялась.", systemImage: "clock")
+                Label(L10n.text("Исторический запуск: content-free квитанция инструкций ещё не сохранялась."), systemImage: "clock")
                     .font(.caption).foregroundStyle(.secondary)
             }
-            Text("Автоматическая проверка достижения цели: не выполнялась. \(NativeManualReview.label(run.value["acceptance"].text)). Ответ модели и успешный exit code сами по себе не доказывают завершение задачи.")
+            Text(L10n.format("Автоматическая проверка достижения цели: не выполнялась. \(NativeManualReview.label(run.value["acceptance"].text)). Ответ модели и успешный exit code сами по себе не доказывают завершение задачи."))
                 .font(.callout).foregroundStyle(.secondary)
             if !run.value["success_criteria"].isNull {
-                DisclosureGroup("Критерии, заданные перед отправкой") {
+                DisclosureGroup(L10n.text("Критерии, заданные перед отправкой")) {
                     ForEach(Array(run.value["success_criteria"]["items"].items.enumerated()), id: \.offset) { index, item in
                         Text("\(index + 1). \(item["text"].text)").textSelection(.enabled)
                     }
@@ -240,18 +240,18 @@ struct WorkSessionsView: View {
             if !run.value["context_manifest"]["knowledge_context"]["skill_task"].isNull {
                 let skill = run.value["context_manifest"]["knowledge_context"]["skill_task"]
                 VStack(alignment: .leading, spacing: 9) {
-                    Label("Ориентир: \(skill["skill_name"].text)", systemImage: "list.bullet.clipboard").font(.headline)
+                    Label(L10n.format("Ориентир: \(skill["skill_name"].text)"), systemImage: "list.bullet.clipboard").font(.headline)
                     metadata("Skill ID", skill["skill_id"].text)
-                    metadata("Проверенная версия", String(skill["contract_hash"].text.prefix(12)))
-                    Text("Навык был выбран оператором, не запускался интерпретатором. Происхождение проверялось перед запросом. Откройте «Приёмку», сопоставьте каждый критерий с результатами; ответ сам по себе не означает успех навыка.").font(.callout).foregroundStyle(.secondary)
-                    Button("Открыть текущий навык") {
+                    metadata(L10n.text("Проверенная версия"), String(skill["contract_hash"].text.prefix(12)))
+                    Text(L10n.text("Навык был выбран оператором, не запускался интерпретатором. Происхождение проверялось перед запросом. Откройте «Приёмку», сопоставьте каждый критерий с результатами; ответ сам по себе не означает успех навыка.")).font(.callout).foregroundStyle(.secondary)
+                    Button(L10n.text("Открыть текущий навык")) {
                         Task { model.showWorkSessions = false; await model.openSkillInspection(skillID: skill["skill_id"].text) }
                     }
-                    Text("Исторические SHA не заменяются текущей версией. Ручная приёмка не меняет uses, память или жизненный цикл.").font(.caption).foregroundStyle(.secondary)
+                    Text(L10n.text("Исторические SHA не заменяются текущей версией. Ручная приёмка не меняет uses, память или жизненный цикл.")).font(.caption).foregroundStyle(.secondary)
                 }.padding(14).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
             }
             if !run.value["work_log"]["entries"].items.isEmpty {
-                DisclosureGroup("Публичный ход работы") {
+                DisclosureGroup(L10n.text("Публичный ход работы")) {
                     ForEach(Array(run.value["work_log"]["entries"].items.enumerated()), id: \.offset) { _, entry in
                         if !entry["text"].text.isEmpty { Text(entry["text"].text).textSelection(.enabled).padding(.vertical, 5) }
                         ForEach(Array(entry["steps"].items.enumerated()), id: \.offset) { _, step in
@@ -262,46 +262,46 @@ struct WorkSessionsView: View {
             }
             if !run.value["tools"].items.isEmpty {
                 if run.value["tools_truncated"].flag {
-                    Text("Сохранена последняя часть действий").font(.caption).foregroundStyle(.secondary)
+                    Text(L10n.text("Сохранена последняя часть действий")).font(.caption).foregroundStyle(.secondary)
                 }
-                DisclosureGroup("Наблюдаемые действия: \(run.value["tools"].items.count)") {
+                DisclosureGroup(L10n.format("Наблюдаемые действия: \(run.value["tools"].items.count)")) {
                     ForEach(Array(run.value["tools"].items.enumerated()), id: \.offset) { _, item in AgentToolRow(item: item) }
                 }
             }
             if !run.value["answer_preview"].text.isEmpty {
-                DisclosureGroup("Сохранённый фрагмент ответа") { Text(run.value["answer_preview"].text).textSelection(.enabled) }
+                DisclosureGroup(L10n.text("Сохранённый фрагмент ответа")) { Text(run.value["answer_preview"].text).textSelection(.enabled) }
             }
             if !run.value["sources"].items.isEmpty {
-                DisclosureGroup("Исходные вложения") {
+                DisclosureGroup(L10n.text("Исходные вложения")) {
                     ForEach(Array(run.value["sources"].items.enumerated()), id: \.offset) { _, source in
                         Text("\(source["path"].text) · SHA \(source["sha256"].text.prefix(12))").font(.caption).textSelection(.enabled)
                     }
                 }
             }
             if !run.value["context_manifest"]["images"].items.isEmpty {
-                DisclosureGroup("Изображения этого запроса") {
+                DisclosureGroup(L10n.text("Изображения этого запроса")) {
                     ForEach(Array(run.value["context_manifest"]["images"].items.enumerated()), id: \.offset) { _, image in
                         Text("\(image["path"].text) · \(image["width"].integer) × \(image["height"].integer) · SHA \(image["sha256"].text.prefix(12))")
                             .font(.caption).textSelection(.enabled)
                     }
-                    Text("Журнал хранит метаданные, не копии изображений. Продолжение не прикрепляет их автоматически.").font(.caption).foregroundStyle(.secondary)
+                    Text(L10n.text("Журнал хранит метаданные, не копии изображений. Продолжение не прикрепляет их автоматически.")).font(.caption).foregroundStyle(.secondary)
                 }
             }
             if !run.value["context_manifest"]["pdfs"].items.isEmpty {
-                DisclosureGroup("PDF этого запроса · только метаданные") {
+                DisclosureGroup(L10n.text("PDF этого запроса · только метаданные")) {
                     ForEach(Array(run.value["context_manifest"]["pdfs"].items.enumerated()), id: \.offset) { _, pdf in
-                        Text("\(pdf["name"].text) · стр. \(pdf["pages"].items.map { String($0["number"].integer) }.joined(separator: ", ")) · SHA \(pdf["sha256"].text.prefix(12))")
+                        Text(L10n.format("\(pdf["name"].text) · стр. \(pdf["pages"].items.map { String($0["number"].integer) }.joined(separator: ", ")) · SHA \(pdf["sha256"].text.prefix(12))"))
                             .font(.caption).textSelection(.enabled)
                     }
-                    Text("PDF и извлечённый текст здесь не сохраняются. Продолжение не прикрепляет страницы автоматически.").font(.caption).foregroundStyle(.secondary)
+                    Text(L10n.text("PDF и извлечённый текст здесь не сохраняются. Продолжение не прикрепляет страницы автоматически.")).font(.caption).foregroundStyle(.secondary)
                 }
             }
             Divider()
             WorkSessionNoticeControls(model: model, run: run)
             Button { Task { await model.prepareContinuation(run) } } label: {
-                Label("Подготовить продолжение", systemImage: "square.and.pencil").padding(.horizontal, 8)
+                Label(L10n.text("Подготовить продолжение"), systemImage: "square.and.pencil").padding(.horizontal, 8)
             }.disabled(model.busy || !run.canPrepare || model.selected?.archived == true)
-            Text("Только черновик нового запроса. Просмотрите его и отправьте вручную. Это не восстановление потока провайдера, вложений или прав доступа.")
+            Text(L10n.text("Только черновик нового запроса. Просмотрите его и отправьте вручную. Это не восстановление потока провайдера, вложений или прав доступа."))
                 .font(.caption).foregroundStyle(.secondary)
         }
     }

@@ -190,7 +190,7 @@ extension AppModel {
             let result = try await connection.client.request("account_login")
             guard let url = URL(string: result["url"].text), url.scheme == "https", url.user == nil, url.password == nil,
                   ["auth.openai.com", "chatgpt.com", "openai.com"].contains(url.host ?? "") else {
-                throw NativeError.message("Неожиданный адрес входа; браузер не открыт.")
+                throw NativeError.message(L10n.text("Неожиданный адрес входа; браузер не открыт."))
             }
             connection.loginPending = true
             NSWorkspace.shared.open(url)

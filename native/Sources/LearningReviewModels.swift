@@ -5,10 +5,10 @@ enum NativeLearningOperation: String, Decodable, CaseIterable, Identifiable {
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .accept: return "Принять кандидат"
-        case .reject: return "Отклонить кандидат"
-        case .propose: return "Подготовить запись"
-        case .apply: return "Сохранить один урок"
+        case .accept: return L10n.text("Принять кандидат")
+        case .reject: return L10n.text("Отклонить кандидат")
+        case .propose: return L10n.text("Подготовить запись")
+        case .apply: return L10n.text("Сохранить один урок")
         }
     }
     var mutation: String { self == .apply ? "persistent_memory_one_lesson" : "process_memory_only" }
@@ -164,7 +164,7 @@ struct NativeLearningReview: Decodable {
               report.workspaceIdentityHash.isEmpty || learningHash(report.workspaceIdentityHash),
               !report.commandExecutionPerformed, !report.modelCallPerformed, !report.networkCallPerformed,
               !report.retrievalPerformed, !report.consentStateChanged, !report.storeMutationPerformed, !report.automaticPromotion else {
-            throw NativeError.message("Контракт разбора урока не прошёл проверку. Подтверждение недоступно.")
+            throw NativeError.message(L10n.text("Контракт разбора урока не прошёл проверку. Подтверждение недоступно."))
         }
         return report
     }
@@ -207,7 +207,7 @@ struct NativeLearningPreview: Decodable {
                             : (!preview.issues.isEmpty && preview.confirmationToken.isEmpty),
               !preview.commandExecutionPerformed, !preview.modelCallPerformed, !preview.networkCallPerformed,
               !preview.retrievalPerformed, !preview.consentStateChanged, !preview.storeMutationPerformed, !preview.automaticPromotion else {
-            throw NativeError.message("Контракт подтверждения не прошёл проверку. Ничего не выполнено.")
+            throw NativeError.message(L10n.text("Контракт подтверждения не прошёл проверку. Ничего не выполнено."))
         }
         return preview
     }
@@ -245,7 +245,7 @@ struct NativeLearningResult: Decodable {
               result.memoryMutationPerformed == (operation == .apply), !result.skillMutationPerformed,
               !result.commandExecutionPerformed, !result.modelCallPerformed, !result.networkCallPerformed,
               !result.retrievalPerformed, !result.consentStateChanged, !result.automaticPromotion, !result.batchApplyPerformed else {
-            throw NativeError.message("Ответ подтверждения не удалось проверить. Не повторяйте запись: обновите карточку и проверьте receipt.")
+            throw NativeError.message(L10n.text("Ответ подтверждения не удалось проверить. Не повторяйте запись: обновите карточку и проверьте receipt."))
         }
         return result
     }

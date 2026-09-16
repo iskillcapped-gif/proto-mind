@@ -23,6 +23,7 @@ cp -Rf "${BIN_DIR}/SwiftTerm_SwiftTerm.bundle" "${CONTENTS}/Resources/"
 mkdir -p "${CONTENTS}/Resources/Licenses"
 cp native/Distribution/SwiftTerm-LICENSE.txt "${CONTENTS}/Resources/Licenses/"
 cp native/Info.plist "${CONTENTS}/Info.plist"
+cp -R native/Resources/*.lproj "${CONTENTS}/Resources/"
 scripts/build_native_icon.sh "${CONTENTS}/Resources/ProtoMindCube.icns"
 
 # Machine-local build metadata, not credentials or a public distributable config.

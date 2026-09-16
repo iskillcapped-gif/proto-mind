@@ -91,7 +91,7 @@ extension AppModel {
             guard let index = selected?.messages.firstIndex(where: { $0.id == message.id }), index > 0,
                   selected?.messages[index] == message, let source = selected?.messages[index - 1],
                   reference.matches(source: source, assistant: message, conversation: conversation) else {
-                throw NativeError.message("Связь сообщения с запуском изменилась. Ничего не открыто.")
+                throw NativeError.message(L10n.text("Связь сообщения с запуском изменилась. Ничего не открыто."))
             }
             let saved = try await lookupWorkSession(reference.value["run_id"].text, conversation: conversation)
             guard request == workSessionsRequest, selectedID == conversation,
@@ -111,7 +111,7 @@ extension AppModel {
               UUID(uuidString: run.value["conversation_id"].text) == selectedID,
               let current = workSessions.first(where: { $0.id == run.id }), current.reference == run.reference,
               current.state == run.state, current.needsReview else {
-            throw NativeError.message("Запуск изменился или работа ещё идёт. Обновите журнал; уведомление не скрыто.")
+            throw NativeError.message(L10n.text("Запуск изменился или работа ещё идёт. Обновите журнал; уведомление не скрыто."))
         }
         let notice = try NativeWorkSessionNotice(current)
         let previous = conversations[index].dismissedWorkSessionWarnings
@@ -181,7 +181,7 @@ extension AppModel {
               chat.pendingFiles.isEmpty, chat.pendingImages.isEmpty, chat.pendingPDFs.isEmpty,
               chat.pendingCriteria.isEmpty, projectNoteSelections[chat.id, default: []].isEmpty,
               preparedSkillTasks[chat.id] == nil else {
-            throw NativeError.message("В этом диалоге уже есть черновик или выбранный контекст. Откройте его: продолжение не заменит ваш ввод и вложения.")
+            throw NativeError.message(L10n.text("В этом диалоге уже есть черновик или выбранный контекст. Откройте его: продолжение не заменит ваш ввод и вложения."))
         }
     }
 
@@ -197,7 +197,7 @@ extension AppModel {
     }
 
     private func continuationChangedError() -> NativeError {
-        NativeError.message("Диалог или сохранённая работа изменились. Откройте историю заново. Ничего не отправлено.")
+        NativeError.message(L10n.text("Диалог или сохранённая работа изменились. Откройте историю заново. Ничего не отправлено."))
     }
 
     private func installContinuationDraft(_ draft: String, run: NativeWorkSession, conversation: UUID) {
@@ -207,7 +207,7 @@ extension AppModel {
         invalidateContextPreview()
         flushDraft(); section = .chat; showWorkSessions = false
         transcriptDestination = TranscriptDestination(conversationID: conversation, messageID: nil)
-        status = "Черновик подготовлен · проверьте и отправьте вручную"
+        status = L10n.text("Черновик подготовлен · проверьте и отправьте вручную")
     }
 
     func clearContinuation() {

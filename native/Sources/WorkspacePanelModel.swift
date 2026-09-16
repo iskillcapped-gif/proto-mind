@@ -89,7 +89,7 @@ final class WorkspacePanelModel: ObservableObject {
             return selectedID
         }
         guard tabs.count < Self.maximumTabs else {
-            error = "Открыто 12 вкладок. Закройте одну перед открытием следующей."
+            error = L10n.text("Открыто 12 вкладок. Закройте одну перед открытием следующей.")
             return nil
         }
         tabs.append(proposed); selectedID = proposed.id
@@ -133,7 +133,7 @@ final class WorkspacePanelModel: ObservableObject {
     func replacePDF(_ id: UUID, expected: NativePDFPreview, with preview: NativePDFPreview) throws {
         guard let index = tabs.firstIndex(where: { $0.id == id }),
               case .pdf(let current) = tabs[index].content, current.id == expected.id else {
-            throw NativeError.message("Вкладка PDF уже закрыта или изменилась.")
+            throw NativeError.message(L10n.text("Вкладка PDF уже закрыта или изменилась."))
         }
         tabs[index].content = .pdf(preview)
     }
@@ -164,7 +164,7 @@ extension AppModel {
         let panel = targetPanel ?? workspacePanel
         if NativeBrowserURL.isWebURL(url) { panel.openBrowser(url); return }
         guard url.isFileURL || url.scheme == nil, let root = selected?.workspacePath else {
-            panel.visible = true; panel.error = "Для просмотра файла выберите папку проекта."
+            panel.visible = true; panel.error = L10n.text("Для просмотра файла выберите папку проекта.")
             return
         }
         let file: URL
@@ -182,7 +182,7 @@ extension AppModel {
         let picker = NSOpenPanel()
         picker.canChooseDirectories = false; picker.allowsMultipleSelection = false; picker.resolvesAliases = false
         picker.prompt = L10n.text("Открыть")
-        picker.message = "Текстовые файлы проекта, PNG, JPEG или PDF. Просмотр не прикрепляет файл к сообщению."
+        picker.message = L10n.text("Текстовые файлы проекта, PNG, JPEG или PDF. Просмотр не прикрепляет файл к сообщению.")
         picker.directoryURL = selected?.workspacePath.map { URL(fileURLWithPath: $0) }
         let completion: (NSApplication.ModalResponse) -> Void = { [weak self] response in
             guard response == .OK, let url = picker.url, let self, self.selectedID == conversationID else { return }
@@ -201,7 +201,7 @@ extension AppModel {
         let panel = targetPanel ?? workspacePanel
         guard selectedID == file.conversationID, selected?.workspacePath == file.root,
               selected?.archived != true, !busy else {
-            panel.error = "Вернитесь в исходный диалог и папку, чтобы прикрепить этот файл."
+            panel.error = L10n.text("Вернитесь в исходный диалог и папку, чтобы прикрепить этот файл.")
             return
         }
         filePreview = file.value

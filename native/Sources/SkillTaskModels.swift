@@ -2,7 +2,7 @@ import CryptoKit
 import Foundation
 
 func skillTaskError() -> NativeError {
-    .message("Подготовка навыка, цель или область изменились. Перепроверьте форму либо уберите навык; автоматической замены нет.")
+    .message(L10n.text("Подготовка навыка, цель или область изменились. Перепроверьте форму либо уберите навык; автоматической замены нет."))
 }
 
 private let skillTaskReferenceFields: Set<String> = ["schema", "conversation_id", "workspace", "skill_id", "skill_name", "preview_fingerprint", "skill_record_hash", "source_lesson_id", "provenance_id", "provenance_hash", "contract_hash", "lifecycle_state", "store_hashes", "goal_sha256", "criteria_sha256", "provider", "access_mode", "execution_path", "quality_verification", "shared_skill_library"]
@@ -62,9 +62,9 @@ struct NativeSkillTaskPreview: Equatable {
     var reasons: [String] {
         raw["reasons"].items.map {
             switch $0.text {
-            case "Enter the operator goal before preparing a task.": return "Заполните цель задачи."
-            case "Declare at least one observable success criterion before Send.": return "Добавьте хотя бы один наблюдаемый критерий результата."
-            case "Slash, natural command and exit routes cannot be wrapped as skill tasks.": return "Команды Proto-Mind и выход не оборачиваются в задачу с навыком. Введите обычную цель."
+            case "Enter the operator goal before preparing a task.": return L10n.text("Заполните цель задачи.")
+            case "Declare at least one observable success criterion before Send.": return L10n.text("Добавьте хотя бы один наблюдаемый критерий результата.")
+            case "Slash, natural command and exit routes cannot be wrapped as skill tasks.": return L10n.text("Команды Proto-Mind и выход не оборачиваются в задачу с навыком. Введите обычную цель.")
             default: return $0.text
             }
         }

@@ -8,7 +8,7 @@ struct NativeSessionSpinePilotGrant: Equatable {
 
     init(readiness: NativeSessionSpineActivationReadiness) throws {
         guard readiness.canArm else {
-            throw NativeError.message("Session Spine readiness не допускает локальную подготовку. Ничего не включено.")
+            throw NativeError.message(L10n.text("Session Spine readiness не допускает локальную подготовку. Ничего не включено."))
         }
         candidateHash = readiness.candidateHash
         conversationID = readiness.source["conversation_id"].text
@@ -85,7 +85,7 @@ struct NativeSessionSpineActivationReadiness: Identifiable, Equatable {
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         let encoded = try encoder.encode(candidateMaterial)
         guard let canonical = String(data: encoded, encoding: .utf8) else {
-            throw NativeError.message("Session Spine readiness candidate не удалось канонизировать.")
+            throw NativeError.message(L10n.text("Session Spine readiness candidate не удалось канонизировать."))
         }
         let candidateHash = NativeTurnReceipt.hash(canonical)
         let eligible = identityError == nil
@@ -152,10 +152,10 @@ struct NativeSessionSpineActivationReadiness: Identifiable, Equatable {
         ])
         let materialData = try encoder.encode(material)
         guard let materialText = String(data: materialData, encoding: .utf8) else {
-            throw NativeError.message("Session Spine readiness report не удалось канонизировать.")
+            throw NativeError.message(L10n.text("Session Spine readiness report не удалось канонизировать."))
         }
         guard case .object(var fields) = material else {
-            throw NativeError.message("Session Spine readiness report имеет неверную форму.")
+            throw NativeError.message(L10n.text("Session Spine readiness report имеет неверную форму."))
         }
         fields["report_hash"] = .string(NativeTurnReceipt.hash(materialText))
         return NativeSessionSpineActivationReadiness(
@@ -188,7 +188,7 @@ struct SessionSpineReadinessView: View {
                 Text(current.state).font(.caption2.weight(.semibold)).padding(.horizontal, 8).padding(.vertical, 4)
                     .background(statusColor.opacity(0.13), in: Capsule()).foregroundStyle(statusColor)
                 Spacer()
-                Button("Закрыть") { dismiss() }.keyboardShortcut(.cancelAction)
+                Button(L10n.text("Закрыть")) { dismiss() }.keyboardShortcut(.cancelAction)
             }.padding(20)
             Divider()
             ScrollView {
@@ -198,21 +198,21 @@ struct SessionSpineReadinessView: View {
                         Text(summary).foregroundStyle(.secondary)
                     }
                     HStack(spacing: 10) {
-                        badge("writer выключен", icon: "pencil.slash")
-                        badge("только этот ход", icon: "scope")
-                        badge("до перезапуска", icon: "arrow.clockwise")
+                        badge(L10n.text("writer выключен"), icon: "pencil.slash")
+                        badge(L10n.text("только этот ход"), icon: "scope")
+                        badge(L10n.text("до перезапуска"), icon: "arrow.clockwise")
                     }
                     VStack(alignment: .leading, spacing: 6) {
-                        metadata("Запуск", current.source["run_id"].text)
-                        metadata("Провайдер и режим", "\(current.source["provider"].text) · \(current.source["mode"].text)")
-                        metadata("Кандидат", current.candidateHash)
+                        metadata(L10n.text("Запуск"), current.source["run_id"].text)
+                        metadata(L10n.text("Провайдер и режим"), "\(current.source["provider"].text) · \(current.source["mode"].text)")
+                        metadata(L10n.text("Кандидат"), current.candidateHash)
                         metadata("Installation identity", current.identityState)
                         metadata("Recovery", current.recoveryState)
                         metadata("Readiness receipt", current.value["report_hash"].text)
                     }.padding(14).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
 
                     VStack(alignment: .leading, spacing: 9) {
-                        Text("Будущие обязательные предохранители").font(.headline)
+                        Text(L10n.text("Будущие обязательные предохранители")).font(.headline)
                         ForEach(current.safeguards, id: \.self) { item in
                             Label(safeguardLabel(item), systemImage: "checkmark.shield")
                                 .font(.callout).foregroundStyle(.secondary)
@@ -221,28 +221,28 @@ struct SessionSpineReadinessView: View {
 
                     if current.recoveryRequired {
                         VStack(alignment: .leading, spacing: 7) {
-                            Label("Нужна ручная проверка", systemImage: "exclamationmark.triangle")
+                            Label(L10n.text("Нужна ручная проверка"), systemImage: "exclamationmark.triangle")
                                 .font(.headline).foregroundStyle(.orange)
-                            Text("Существующие identity-байты не прошли read-only проверку. Proto-Mind не исправлял, не удалял и не пересоздавал их.")
+                            Text(L10n.text("Существующие identity-байты не прошли read-only проверку. Proto-Mind не исправлял, не удалял и не пересоздавал их."))
                             Text(current.identityPath).font(NativeTheme.codeFont).textSelection(.enabled)
                         }.padding(14).background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
                     } else if current.armed {
                         VStack(alignment: .leading, spacing: 10) {
-                            Label("Локальная подготовка действует только для этого точного кандидата", systemImage: "checkmark.circle")
+                            Label(L10n.text("Локальная подготовка действует только для этого точного кандидата"), systemImage: "checkmark.circle")
                                 .foregroundStyle(.green)
-                            Text("Она не переживёт перезапуск и не включает writer. Следующий этап всё равно потребует отдельной персональной приёмки нового exact-linked хода.")
+                            Text(L10n.text("Она не переживёт перезапуск и не включает writer. Следующий этап всё равно потребует отдельной персональной приёмки нового exact-linked хода."))
                                 .font(.callout).foregroundStyle(.secondary)
-                            Button("Открыть personal acceptance rehearsal…") {
+                            Button(L10n.text("Открыть personal acceptance rehearsal…")) {
                                 model.openSessionSpineAcceptance(current)
                             }
                             .buttonStyle(.borderedProminent).nativeHoverSurface()
-                            Button("Снять локальную подготовку") { model.revokeSessionSpinePilot() }
+                            Button(L10n.text("Снять локальную подготовку")) { model.revokeSessionSpinePilot() }
                         }.padding(14).background(Color.green.opacity(0.07), in: RoundedRectangle(cornerRadius: 12))
                     } else {
                         VStack(alignment: .leading, spacing: 11) {
-                            Toggle("Понимаю: это только per-launch readiness, без записи Session Spine", isOn: $acknowledged)
+                            Toggle(L10n.text("Понимаю: это только per-launch readiness, без записи Session Spine"), isOn: $acknowledged)
                                 .toggleStyle(.checkbox)
-                            Button("Подготовить этот точный ход") {
+                            Button(L10n.text("Подготовить этот точный ход")) {
                                 model.armSessionSpinePilot(candidateHash: current.candidateHash)
                                 acknowledged = false
                             }
@@ -251,7 +251,7 @@ struct SessionSpineReadinessView: View {
                         }.padding(14).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
                     }
 
-                    Text("Readiness не создаёт installation identity, intent или Session Spine store, не вызывает модель, команды либо инструменты и не меняет историю, Work Session, разрешения или Context Injection. Legacy turns не становятся кандидатами и никогда не backfill-ятся по времени или соседству.")
+                    Text(L10n.text("Readiness не создаёт installation identity, intent или Session Spine store, не вызывает модель, команды либо инструменты и не меняет историю, Work Session, разрешения или Context Injection. Legacy turns не становятся кандидатами и никогда не backfill-ятся по времени или соседству."))
                         .font(.caption).foregroundStyle(.secondary)
                 }.padding(22).frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -268,18 +268,18 @@ struct SessionSpineReadinessView: View {
     }
 
     private var title: String {
-        if current.recoveryRequired { return "Пилот заблокирован без автоматического ремонта" }
-        return current.armed ? "Точный кандидат подготовлен" : "Writer остаётся выключенным"
+        if current.recoveryRequired { return L10n.text("Пилот заблокирован без автоматического ремонта") }
+        return current.armed ? L10n.text("Точный кандидат подготовлен") : L10n.text("Writer остаётся выключенным")
     }
 
     private var summary: String {
         if current.recoveryRequired {
-            return "Read-only inspection обнаружил неоднозначное recovery-состояние. Ни одна запись не выполнялась."
+            return L10n.text("Read-only inspection обнаружил неоднозначное recovery-состояние. Ни одна запись не выполнялась.")
         }
         if current.armed {
-            return "Явный opt-in связан с одним проверенным turn receipt и исчезнет при смене контекста или перезапуске."
+            return L10n.text("Явный opt-in связан с одним проверенным turn receipt и исчезнет при смене контекста или перезапуске.")
         }
-        return "Можно подготовить один уже завершённый exact-linked ход к отдельной будущей приёмке. Это не разрешение на запись."
+        return L10n.text("Можно подготовить один уже завершённый exact-linked ход к отдельной будущей приёмке. Это не разрешение на запись.")
     }
 
     private func badge(_ text: String, icon: String) -> some View {
@@ -296,12 +296,12 @@ struct SessionSpineReadinessView: View {
 
     private func safeguardLabel(_ value: String) -> String {
         switch value {
-        case "exact_history_save_and_readback": return "точное сохранение и readback истории"
-        case "stable_non_authorizing_installation_identity": return "стабильная identity без полномочий"
-        case "durable_intent_before_spine_apply": return "durable intent до любой записи"
-        case "lost_response_recovery_without_duplicate_write": return "recovery без повторной записи"
-        case "one_new_personal_exact_linked_turn_acceptance": return "отдельная приёмка нового личного хода"
-        case "manual_recovery_for_unknown_tail": return "ручная проверка UNKNOWN tail"
+        case "exact_history_save_and_readback": return L10n.text("точное сохранение и readback истории")
+        case "stable_non_authorizing_installation_identity": return L10n.text("стабильная identity без полномочий")
+        case "durable_intent_before_spine_apply": return L10n.text("durable intent до любой записи")
+        case "lost_response_recovery_without_duplicate_write": return L10n.text("recovery без повторной записи")
+        case "one_new_personal_exact_linked_turn_acceptance": return L10n.text("отдельная приёмка нового личного хода")
+        case "manual_recovery_for_unknown_tail": return L10n.text("ручная проверка UNKNOWN tail")
         default: return value
         }
     }

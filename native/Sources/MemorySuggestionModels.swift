@@ -2,7 +2,7 @@ import CryptoKit
 import Foundation
 
 func memorySuggestionError() -> NativeError {
-    .message("Источник предложения изменился или не прошёл проверку. Ничего не сохранено; проверьте сообщение и заметки проекта.")
+    .message(L10n.text("Источник предложения изменился или не прошёл проверку. Ничего не сохранено; проверьте сообщение и заметки проекта."))
 }
 
 func suggestionTextHash(_ text: String) -> String {

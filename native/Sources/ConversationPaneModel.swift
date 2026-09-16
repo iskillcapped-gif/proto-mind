@@ -101,7 +101,7 @@ extension AppModel {
         guard !operationBusy, !isRunning(conversationID), let original = conversations.first(where: { $0.id == conversationID }), !original.archived else { return }
         let picker = NSOpenPanel()
         picker.canChooseDirectories = true; picker.canChooseFiles = false; picker.allowsMultipleSelection = false
-        picker.prompt = "Выбрать папку"
+        picker.prompt = L10n.text("Выбрать папку")
         presentFilePicker(picker, in: panel?.presentations) { [weak self] response in
             guard response == .OK, let url = picker.url, let self else { return }
             Task {

@@ -26,7 +26,7 @@ extension AppModel {
                 try Task.checkCancellation()
                 guard result["mode"].text == "full_access", !result["token"].text.isEmpty,
                       result["workspace_root"] == (conversation.workspacePath.map(JSONValue.string) ?? .null) else {
-                    throw NativeError.message("Не удалось восстановить полный доступ к Mac. Задача не запускалась.")
+                    throw NativeError.message(L10n.text("Не удалось восстановить полный доступ к Mac. Задача не запускалась."))
                 }
                 return AgentAccessGrant(token: result["token"].text, workspace: conversation.workspacePath,
                                         bridgeGeneration: state.client.connectionGeneration)
@@ -38,7 +38,7 @@ extension AppModel {
         guard executions[id] === state, let current = conversations.first(where: { $0.id == id }),
               current.workspacePath == conversation.workspacePath, hasAgentAccessSelection(current),
               grant.bridgeGeneration == state.client.connectionGeneration else {
-            throw NativeError.message("Диалог или доступ изменились во время подключения. Задача не запускалась.")
+            throw NativeError.message(L10n.text("Диалог или доступ изменились во время подключения. Задача не запускалась."))
         }
         agentGrants[id] = grant
     }

@@ -8,7 +8,7 @@ struct NativeWorkSessionNotice: Codable, Equatable {
 
     init(_ run: NativeWorkSession) throws {
         guard let id = UUID(uuidString: run.id), run.needsReview else {
-            throw NativeError.message("Скрывать можно только уведомление о прошлом незавершённом запуске.")
+            throw NativeError.message(L10n.text("Скрывать можно только уведомление о прошлом незавершённом запуске."))
         }
         runID = id; fingerprint = run.value["fingerprint"].text; state = run.state
         try Self.validate([self])
@@ -22,7 +22,7 @@ struct NativeWorkSessionNotice: Codable, Equatable {
         guard notices.count <= 500, Set(notices.map(\.runID)).count == notices.count,
               notices.allSatisfy({ ["unknown", "not_started"].contains($0.state)
                   && $0.fingerprint.count == 64 && $0.fingerprint.allSatisfy({ "0123456789abcdef".contains($0) }) }) else {
-            throw NativeError.message("Настройки уведомлений журнала не прошли проверку. История не изменена.")
+            throw NativeError.message(L10n.text("Настройки уведомлений журнала не прошли проверку. История не изменена."))
         }
     }
 }
@@ -36,14 +36,14 @@ struct WorkSessionNoticeControls: View {
         if run.needsReview {
             VStack(alignment: .leading, spacing: 8) {
                 let hidden = model.isWorkSessionWarningHidden(run)
-                Text(hidden ? "Уведомление об этом запуске скрыто в чате." : "Этот запуск показывает уведомление в чате.")
+                Text(hidden ? L10n.text("Уведомление об этом запуске скрыто в чате.") : L10n.text("Этот запуск показывает уведомление в чате."))
                     .font(.callout).foregroundStyle(.secondary)
-                Button(hidden ? "Показывать уведомление" : "Скрыть уведомление") {
+                Button(hidden ? L10n.text("Показывать уведомление") : L10n.text("Скрыть уведомление")) {
                     do { try model.setWorkSessionWarningHidden(run, hidden: !hidden); error = nil }
                     catch { self.error = error.localizedDescription }
                 }.disabled(model.busy || model.loadingWorkSessions || model.client.turnOutstanding)
-                    .help("Только показ в чате. Не удаляет запуск, не принимает результат и ничего не повторяет.")
-                Text("Сохранится после перезапуска. Запись и её статус останутся в журнале; новые или изменившиеся предупреждения появятся снова.")
+                    .help(L10n.text("Только показ в чате. Не удаляет запуск, не принимает результат и ничего не повторяет."))
+                Text(L10n.text("Сохранится после перезапуска. Запись и её статус останутся в журнале; новые или изменившиеся предупреждения появятся снова."))
                     .font(.caption).foregroundStyle(.secondary)
                 if let error { Text(error).font(.callout).foregroundStyle(.orange).textSelection(.enabled) }
             }
@@ -58,22 +58,22 @@ struct WorkSessionNoticeBanner: View {
         if !model.busy, model.hasWorkSessionNotice {
             HStack(alignment: .top, spacing: 10) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Label(model.workSessionsWarning == nil ? "Предыдущая задача требует внимания" : "Не удалось прочитать часть журнала", systemImage: "exclamationmark.circle")
+                    Label(model.workSessionsWarning == nil ? L10n.text("Предыдущая задача требует внимания") : L10n.text("Не удалось прочитать часть журнала"), systemImage: "exclamationmark.circle")
                         .font(.callout).foregroundStyle(.orange)
                     if model.workSessionsWarning == nil, let run = model.workSessionNoticeToShow {
                         Text("\(run.title): \(run.value["input_preview"].text)").font(.caption).foregroundStyle(.secondary).lineLimit(2)
                     }
                 }
                 Spacer()
-                Button("Открыть журнал") { model.openWorkSessions(model.workSessionNoticeToShow) }
+                Button(L10n.text("Открыть журнал")) { model.openWorkSessions(model.workSessionNoticeToShow) }
                 if model.workSessionsWarning == nil, let run = model.workSessionNoticeToShow {
                     Button {
                         do { try model.setWorkSessionWarningHidden(run, hidden: true) }
                         catch { model.error = error.localizedDescription }
                     } label: { Image(systemName: "xmark") }
                         .disabled(model.loadingWorkSessions || model.client.turnOutstanding)
-                        .accessibilityLabel("Скрыть уведомление о прошлом запуске")
-                        .help("Скрыть только это уведомление. Запуск остаётся в журнале и не считается принятым.")
+                        .accessibilityLabel(L10n.text("Скрыть уведомление о прошлом запуске"))
+                        .help(L10n.text("Скрыть только это уведомление. Запуск остаётся в журнале и не считается принятым."))
                 }
             }.padding(14).background(Color.orange.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
                 .padding(.horizontal, 28).padding(.top, 8)

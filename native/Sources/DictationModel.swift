@@ -97,7 +97,7 @@ final class DictationModel: ObservableObject {
         let separator = base.isEmpty || base.last?.isWhitespace == true ? "" : " "
         let updated = base + separator + text
         guard updated.unicodeScalars.count <= 20_000, !updated.contains("\0") else {
-            stop(); error = "Сообщение достигло 20 000 символов. Продолжите диктовку в следующем сообщении."
+            stop(); error = L10n.text("Сообщение достигло 20 000 символов. Продолжите диктовку в следующем сообщении.")
             return
         }
         lastApplied = updated

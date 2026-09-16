@@ -135,4 +135,4 @@ private func restoreHash(_ value: JSONValue) throws -> String {
 private extension JSONValue {
     var objectCount: Int { if case .object(let value) = self { return value.count }; return 0 }
 }
-private func restoreError() -> NativeError { .message("Не удалось проверить контракт восстановления. Автоповтора нет; проверьте навык и квитанцию.") }
+private func restoreError() -> NativeError { .message(L10n.text("Не удалось проверить контракт восстановления. Автоповтора нет; проверьте навык и квитанцию.")) }

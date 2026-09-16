@@ -112,7 +112,7 @@ extension AppModel {
         if selected?.provider == "codex", !conversations[index].reasoningEffort.isEmpty,
            !availableReasoningEfforts.contains(where: { $0.rawValue == conversations[index].reasoningEffort }) {
             conversations[index].reasoningEffort = ""
-            modelSelectionNotice = "Предыдущее усилие недоступно для этой модели. Выбрано значение по умолчанию."
+            modelSelectionNotice = L10n.text("Предыдущее усилие недоступно для этой модели. Выбрано значение по умолчанию.")
         }
         persist()
     }
@@ -142,11 +142,11 @@ extension AppModel {
     var modelSelectionWarning: String? {
         guard selected?.provider == "codex", !models.isEmpty else { return nil }
         if !(selected?.model.isEmpty ?? true), selectedCodexModel == nil {
-            return "Сохранённая модель недоступна в текущем каталоге. Выберите другую: автоматической подмены не будет."
+            return L10n.text("Сохранённая модель недоступна в текущем каталоге. Выберите другую: автоматической подмены не будет.")
         }
         if let effort = selected?.reasoningEffort, !effort.isEmpty,
            !availableReasoningEfforts.contains(where: { $0.rawValue == effort }) {
-            return "Сохранённое усилие больше не поддерживается. Выберите доступное или сбросьте настройки."
+            return L10n.text("Сохранённое усилие больше не поддерживается. Выберите доступное или сбросьте настройки.")
         }
         return nil
     }
@@ -170,13 +170,13 @@ extension AppModel {
     }
 
     var codexThreadLabel: String {
-        guard selected?.provider == "codex" else { return "Codex не выбран" }
-        guard !codexThreadStatus.isNull else { return "Статус не проверен" }
-        guard codexThreadStatus["workspace_matches"].flag else { return "Нужна новая сессия" }
-        if codexThreadStatus["refresh_required"].flag { return "Обновление инструкций при следующем сообщении" }
-        guard codexThreadStatus["linked"].flag else { return "Новая сессия при следующем сообщении" }
+        guard selected?.provider == "codex" else { return L10n.text("Codex не выбран") }
+        guard !codexThreadStatus.isNull else { return L10n.text("Статус не проверен") }
+        guard codexThreadStatus["workspace_matches"].flag else { return L10n.text("Нужна новая сессия") }
+        if codexThreadStatus["refresh_required"].flag { return L10n.text("Обновление инструкций при следующем сообщении") }
+        guard codexThreadStatus["linked"].flag else { return L10n.text("Новая сессия при следующем сообщении") }
         let short = codexThreadStatus["thread_id_short"].text
-        return short.isEmpty ? "Продолжение сохранённой сессии" : "Продолжение · \(short)"
+        return short.isEmpty ? L10n.text("Продолжение сохранённой сессии") : L10n.format("Продолжение · \(short)")
     }
 
     func refreshCodexThreadStatus() async {
@@ -195,7 +195,7 @@ extension AppModel {
             guard selectedID == id, selected?.workspacePath == workspace, selected?.provider == "codex", selected?.codexAccountID == conversation.codexAccountID else { return }
             guard value["schema"].text == "proto_mind.native_codex_threads.v1",
                   !value["linked"].isNull, !value["workspace_matches"].isNull else {
-                throw NativeError.message("Не удалось проверить локальную связь с сессией Codex.")
+                throw NativeError.message(L10n.text("Не удалось проверить локальную связь с сессией Codex."))
             }
             codexThreadStatus = value
         } catch {
@@ -215,7 +215,7 @@ extension AppModel {
             ])
             guard value["schema"].text == "proto_mind.native_codex_thread_reset.v1",
                   value["no_provider_call"].flag, value["provider_history_deleted"] == .bool(false) else {
-                throw NativeError.message("Сброс сессии Codex не прошёл локальную проверку.")
+                throw NativeError.message(L10n.text("Сброс сессии Codex не прошёл локальную проверку."))
             }
             modelSelectionNotice = value["notice"].text
             codexThreadStatus = .null
@@ -234,7 +234,7 @@ extension AppModel {
     func renameConversation(_ id: UUID, title: String) {
         guard !operationBusy, let index = conversations.firstIndex(where: { $0.id == id }) else { return }
         let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty, name.count <= 120 else { report(NativeError.message("Название должно содержать от 1 до 120 символов.")); return }
+        guard !name.isEmpty, name.count <= 120 else { report(NativeError.message(L10n.text("Название должно содержать от 1 до 120 символов."))); return }
         conversations[index].title = name
         persist()
     }

@@ -89,10 +89,10 @@ final class SkillAuthoringModel: ObservableObject, Identifiable {
             let value = try NativeSkillResult.decode(raw, selection: selected, operation: preview.operation)
             if current, selection == selected {
                 result = value
-                app.status = value.skillMutationPerformed ? "Один навык сохранён и проверен" : "Описание подтверждено; навык ещё не сохранён"
+                app.status = value.skillMutationPerformed ? L10n.text("Один навык сохранён и проверен") : L10n.text("Описание подтверждено; навык ещё не сохранён")
             }
         } catch {
-            if current { self.error = "\(error.localizedDescription) Автоповтора нет. Проверьте карточку и receipt перед следующим действием." }
+            if current { self.error = L10n.format("\(error.localizedDescription) Автоповтора нет. Проверьте карточку и receipt перед следующим действием.") }
         }
         app.busy = false; committing = false
         if current { await refresh(clearError: false) }

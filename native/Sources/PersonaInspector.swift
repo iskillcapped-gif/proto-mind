@@ -62,7 +62,7 @@ struct NativePersonaPreview: Equatable {
               value["snapshot"]["omitted_memory_count"] == .number(0),
               value["snapshot"]["communication_preferences"] == .array([]),
               value["snapshot"]["relevant_memories"] == .array([]) else {
-            throw NativeError.message("PersonaSnapshot не прошёл локальную проверку. Ничего не применено.")
+            throw NativeError.message(L10n.text("PersonaSnapshot не прошёл локальную проверку. Ничего не применено."))
         }
 
         let kernel = value["snapshot"]["kernel"]
@@ -78,7 +78,7 @@ struct NativePersonaPreview: Equatable {
               boundaries.allSatisfy({ Self.validText($0.text, maximum: 400) }),
               case .object(let voice) = kernel["voice"], Set(voice.keys) == Self.voiceFields,
               kernel["voice"]["adaptation"] == .string("contextual_without_modes") else {
-            throw NativeError.message("Brother Kernel имеет неожиданный формат. Ничего не применено.")
+            throw NativeError.message(L10n.text("Brother Kernel имеет неожиданный формат. Ничего не применено."))
         }
 
         let identity = value["snapshot"]["identity"]
@@ -92,7 +92,7 @@ struct NativePersonaPreview: Equatable {
                       && Self.validText(item["item_id"].text, maximum: 120)
                       && Self.validText(item["text"].text, maximum: 400)
               }) else {
-            throw NativeError.message("Identity projection имеет неожиданный формат. Ничего не применено.")
+            throw NativeError.message(L10n.text("Identity projection имеет неожиданный формат. Ничего не применено."))
         }
 
         let task = value["snapshot"]["task"], runtime = value["snapshot"]["self_model"]
@@ -107,7 +107,7 @@ struct NativePersonaPreview: Equatable {
               Self.validWorkspace(runtime["workspace_id"].text),
               Self.validText(runtime["workspace_label"].text, maximum: 120),
               Self.validText(runtime["model"].text, maximum: 160) else {
-            throw NativeError.message("Self-model не прошёл проверку полномочий. Ничего не применено.")
+            throw NativeError.message(L10n.text("Self-model не прошёл проверку полномочий. Ничего не применено."))
         }
 
         let access = runtime["access_mode"].text
@@ -127,7 +127,7 @@ struct NativePersonaPreview: Equatable {
               (access != "mock" || (runtime["authorization_source"] == .string("none")
                     && tools.isEmpty && !canWrite && !canControl && !canWeb)),
               verified == (access == "full_access") else {
-            throw NativeError.message("Persona self-model попытался расширить текущие полномочия. Ничего не применено.")
+            throw NativeError.message(L10n.text("Persona self-model попытался расширить текущие полномочия. Ничего не применено."))
         }
 
         guard case .object(let sources) = value["source_summary"], Set(sources.keys) == Self.sourceFields,
@@ -138,7 +138,7 @@ struct NativePersonaPreview: Equatable {
               value["source_summary"]["workspace"] == .string("opaque_reference_only"),
               case .array(let notices) = value["notices"], (4...8).contains(notices.count),
               notices.allSatisfy({ Self.validText($0.text, maximum: 400) }) else {
-            throw NativeError.message("Источники PersonaSnapshot не прошли проверку. Ничего не применено.")
+            throw NativeError.message(L10n.text("Источники PersonaSnapshot не прошли проверку. Ничего не применено."))
         }
         self.value = value
     }
@@ -202,7 +202,7 @@ struct NativePersonaReadiness: Equatable {
               ["enabled", "disabled", "default_disabled", "unknown"].contains(value["context_injection_state"].text),
               Self.isHash(value["activation_fingerprint"].text), Self.isHash(value["report_hash"].text),
               case .array(let adapters) = value["adapters"], adapters.count == Self.providers.count else {
-            throw NativeError.message("Persona readiness не прошёл локальную проверку. Ничего не активировано.")
+            throw NativeError.message(L10n.text("Persona readiness не прошёл локальную проверку. Ничего не активировано."))
         }
         for (provider, adapter) in zip(Self.providers, adapters) {
             let contract: (adapter: String, placement: String, refresh: String, safety: String, access: Set<String>) = {
@@ -232,16 +232,16 @@ struct NativePersonaReadiness: Equatable {
                   Self.isHash(adapter["prompt_context_hash"].text),
                   (1...16_000).contains(adapter["prompt_context_chars"].integer),
                   adapter["provenance_complete"] == .bool(true) else {
-                throw NativeError.message("Persona adapter evidence имеет неожиданный формат. Ничего не активировано.")
+                throw NativeError.message(L10n.text("Persona adapter evidence имеет неожиданный формат. Ничего не активировано."))
             }
             if provider == "mock" {
                 guard adapter["activation_supported"] == .bool(false),
                       adapter["placement"] == .string("no_model_prompt") else {
-                    throw NativeError.message("Mock не может стать production Persona adapter.")
+                    throw NativeError.message(L10n.text("Mock не может стать production Persona adapter."))
                 }
             } else {
                 guard adapter["activation_supported"] == .bool(true) else {
-                    throw NativeError.message("Production Persona adapter не подтвердил готовность.")
+                    throw NativeError.message(L10n.text("Production Persona adapter не подтвердил готовность."))
                 }
             }
         }
@@ -255,7 +255,7 @@ struct NativePersonaReadiness: Equatable {
               value["parity"]["persona_invariant_hash"].text.isEmpty
                 || Self.isHash(value["parity"]["persona_invariant_hash"].text),
               case .array(let gates) = value["gates"], gates.count == 9 else {
-            throw NativeError.message("Provider parity evidence имеет неожиданный формат. Ничего не активировано.")
+            throw NativeError.message(L10n.text("Provider parity evidence имеет неожиданный формат. Ничего не активировано."))
         }
         var gateIDs = Set<String>()
         for gate in gates {
@@ -264,18 +264,18 @@ struct NativePersonaReadiness: Equatable {
                   Self.validText(gate["detail"].text, maximum: 400),
                   ["PASS", "WARN", "FAIL"].contains(gate["status"].text),
                   gateIDs.insert(gate["id"].text).inserted else {
-                throw NativeError.message("Persona activation gate имеет неожиданный формат. Ничего не активировано.")
+                throw NativeError.message(L10n.text("Persona activation gate имеет неожиданный формат. Ничего не активировано."))
             }
         }
         guard case .array(let blockers) = value["blockers"], blockers.count <= 16,
               blockers.allSatisfy({ Self.validText($0.text, maximum: 400) }),
               case .array(let warnings) = value["warnings"], warnings.count <= 16,
               warnings.allSatisfy({ Self.validText($0.text, maximum: 400) }) else {
-            throw NativeError.message("Persona readiness findings имеют неожиданный формат. Ничего не активировано.")
+            throw NativeError.message(L10n.text("Persona readiness findings имеют неожиданный формат. Ничего не активировано."))
         }
         let expectedStatus = blockers.isEmpty ? (warnings.isEmpty ? "READY" : "WARN") : "NOT_READY"
         guard value["status"] == .string(expectedStatus) else {
-            throw NativeError.message("Persona readiness status не совпадает с gates. Ничего не активировано.")
+            throw NativeError.message(L10n.text("Persona readiness status не совпадает с gates. Ничего не активировано."))
         }
         self.value = value
     }
@@ -327,7 +327,7 @@ struct NativePersonaTurnReceipt: Equatable {
               value["additional_retrieval_calls"] == .number(0),
               value["store_writes_by_activation"] == .number(0),
               value["rollback_path"] == .string("legacy_prompt_next_turn") else {
-            throw NativeError.message("Persona turn receipt имеет неожиданный или небезопасный формат.")
+            throw NativeError.message(L10n.text("Persona turn receipt имеет неожиданный или небезопасный формат."))
         }
         let adapter = value["provider"].text == "codex_subscription"
             ? ("codex_base_instructions", "base_instructions")
@@ -335,13 +335,13 @@ struct NativePersonaTurnReceipt: Equatable {
         guard value["adapter"] == .string(adapter.0), value["placement"] == .string(adapter.1),
               value["provider"].text != "codex_subscription" || ["chat", "full_access"].contains(value["access_mode"].text),
               value["provider"].text != "ollama" || value["access_mode"] == .string("local") else {
-            throw NativeError.message("Persona receipt не совпадает с выбранным provider adapter.")
+            throw NativeError.message(L10n.text("Persona receipt не совпадает с выбранным provider adapter."))
         }
         for field in [
             "snapshot_hash", "persona_invariant_hash", "runtime_hash", "prompt_context_hash",
             "legacy_prompt_hash", "active_prompt_hash", "readiness_hash", "receipt_hash"
         ] where !Self.isHash(value[field].text) {
-            throw NativeError.message("Persona receipt содержит неверный SHA-256.")
+            throw NativeError.message(L10n.text("Persona receipt содержит неверный SHA-256."))
         }
         let ids = value["selected_memory_ids"].items
         let provenance = value["memory_provenance"].items
@@ -349,7 +349,7 @@ struct NativePersonaTurnReceipt: Equatable {
               ids.count == provenance.count, ids.count <= 8,
               Set(ids.map(\.text)).count == ids.count,
               ids.allSatisfy({ Self.validText($0.text, maximum: 160) }) else {
-            throw NativeError.message("Persona receipt содержит неверную сводку выбранной памяти.")
+            throw NativeError.message(L10n.text("Persona receipt содержит неверную сводку выбранной памяти."))
         }
         for (identifier, item) in zip(ids, provenance) {
             guard case .object(let record) = item, Set(record.keys) == Self.memoryFields,
@@ -358,7 +358,7 @@ struct NativePersonaTurnReceipt: Equatable {
                   Self.validText(item["source"].text, maximum: 160),
                   ["verified", "record_source_only"].contains(item["provenance_status"].text),
                   Self.isHash(item["content_hash"].text) else {
-                throw NativeError.message("Persona receipt memory provenance не прошёл локальную проверку.")
+                throw NativeError.message(L10n.text("Persona receipt memory provenance не прошёл локальную проверку."))
             }
         }
         self.value = value
@@ -385,7 +385,7 @@ struct PersonaInspectorView: View {
                 if model.loadingPersonaPreview || model.loadingPersonaReadiness { ProgressView().controlSize(.small) }
                 Button { Task { await model.refreshPersonaInspector() } } label: { Image(systemName: "arrow.clockwise") }
                     .disabled(model.busy || model.loadingPersonaPreview || model.loadingPersonaReadiness)
-                    .help("Пересобрать read-only snapshot и readiness evidence")
+                    .help(L10n.text("Пересобрать read-only snapshot и readiness evidence"))
                 Button { model.showPersonaInspector = false } label: { Image(systemName: "xmark") }
                     .keyboardShortcut(.cancelAction)
             }.padding(20)
@@ -395,19 +395,19 @@ struct PersonaInspectorView: View {
                     PersonaSection("Production state", icon: "switch.2") {
                         HStack(spacing: 8) {
                             Circle().fill(model.personaEnabled ? Color.green : Color.secondary).frame(width: 8, height: 8)
-                            headline(model.personaEnabled ? "Brother Persona включена" : "Legacy prompt активен")
+                            headline(model.personaEnabled ? L10n.text("Brother Persona включена") : L10n.text("Legacy prompt активен"))
                             Spacer()
                             if model.personaEnabled {
                                 Button("Rollback") { model.disablePersona() }.disabled(model.busy)
                             }
                         }
                         Text(model.personaEnabled
-                             ? "Каждый Send повторно проверяет readiness. Rollback возвращает точный legacy prompt на следующем ходе и не стирает историю provider thread."
-                             : "Snapshot/readiness доступны для проверки, но production prompt не меняется без явного opt-in в настройках моделей.")
+                             ? L10n.text("Каждый Send повторно проверяет readiness. Rollback возвращает точный legacy prompt на следующем ходе и не стирает историю provider thread.")
+                             : L10n.text("Snapshot/readiness доступны для проверки, но production prompt не меняется без явного opt-in в настройках моделей."))
                             .font(.caption).foregroundStyle(.secondary)
                         if let receipt = model.lastPersonaTurnReceipt {
-                            fact("Последний snapshot", String(receipt.snapshotHash.prefix(16)))
-                            fact("Память", "\(receipt.selectedMemoryCount) выбранных записей")
+                            fact(L10n.text("Последний snapshot"), String(receipt.snapshotHash.prefix(16)))
+                            fact(L10n.text("Память"), L10n.format("\(receipt.selectedMemoryCount) выбранных записей"))
                             fact("Receipt SHA", String(receipt.receiptHash.prefix(16)))
                         }
                     }
@@ -420,34 +420,34 @@ struct PersonaInspectorView: View {
                     if let preview = model.personaPreview {
                         PersonaSection("Brother Kernel", icon: "person.crop.circle") {
                             headline("\(preview.kernel["display_name"].text) · \(preview.kernel["version"].text)")
-                            fact("Роль", preview.kernel["role"].text)
-                            fact("Язык", preview.kernel["default_language"].text)
-                            fact("Тон", preview.kernel["voice"]["tone"].text)
-                            fact("Обращение", preview.kernel["voice"]["preferred_address"].text)
-                            fact("Адаптация", "Контекстная, без режимов и крутилок личности")
+                            fact(L10n.text("Роль"), preview.kernel["role"].text)
+                            fact(L10n.text("Язык"), preview.kernel["default_language"].text)
+                            fact(L10n.text("Тон"), preview.kernel["voice"]["tone"].text)
+                            fact(L10n.text("Обращение"), preview.kernel["voice"]["preferred_address"].text)
+                            fact(L10n.text("Адаптация"), L10n.text("Контекстная, без режимов и крутилок личности"))
                         }
                         PersonaSection("Identity projection", icon: "checkmark.seal") {
-                            fact("Продукт", preview.identity["product_name"].text.isEmpty ? "не указан" : preview.identity["product_name"].text)
-                            fact("Роль", preview.identity["product_role"].text.isEmpty ? "не указана" : preview.identity["product_role"].text)
-                            fact("Стиль", preview.identity["style"].text.isEmpty ? "не указан" : preview.identity["style"].text)
-                            fact("Миссия", preview.identity["mission"].text.isEmpty ? "не указана" : preview.identity["mission"].text)
+                            fact(L10n.text("Продукт"), preview.identity["product_name"].text.isEmpty ? L10n.text("не указан") : preview.identity["product_name"].text)
+                            fact(L10n.text("Роль"), preview.identity["product_role"].text.isEmpty ? L10n.text("не указана") : preview.identity["product_role"].text)
+                            fact(L10n.text("Стиль"), preview.identity["style"].text.isEmpty ? L10n.text("не указан") : preview.identity["style"].text)
+                            fact(L10n.text("Миссия"), preview.identity["mission"].text.isEmpty ? L10n.text("не указана") : preview.identity["mission"].text)
                             ForEach(Array(preview.identity["items"].items.enumerated()), id: \.offset) { _, item in
                                 Text("\(identityLabel(item["kind"].text)) [\(item["item_id"].text)]: \(item["text"].text)")
                                     .font(.callout).textSelection(.enabled)
                             }
                         }
-                        PersonaSection("Текущий self-model", icon: "gauge.with.dots.needle.67percent") {
-                            fact("Провайдер", preview.runtime["provider"].text)
-                            fact("Модель", preview.runtime["model"].text)
-                            fact("Доступ", accessLabel(preview.runtime["access_mode"].text))
-                            fact("Сеть", networkLabel(preview.runtime["network_state"].text))
+                        PersonaSection(L10n.text("Текущий self-model"), icon: "gauge.with.dots.needle.67percent") {
+                            fact(L10n.text("Провайдер"), preview.runtime["provider"].text)
+                            fact(L10n.text("Модель"), preview.runtime["model"].text)
+                            fact(L10n.text("Доступ"), accessLabel(preview.runtime["access_mode"].text))
+                            fact(L10n.text("Сеть"), networkLabel(preview.runtime["network_state"].text))
                             fact("Workspace", "\(preview.runtime["workspace_label"].text) · \(preview.runtime["workspace_id"].text)")
-                            fact("Инструменты", preview.runtime["tools"].items.map(\.text).joined(separator: ", ").nilIfEmpty ?? "нет")
-                            Text("Описание отражает уже проверенные controls, но само не выдаёт права.")
+                            fact(L10n.text("Инструменты"), preview.runtime["tools"].items.map(\.text).joined(separator: ", ").nilIfEmpty ?? L10n.text("нет"))
+                            Text(L10n.text("Описание отражает уже проверенные controls, но само не выдаёт права."))
                                 .font(.caption).foregroundStyle(.secondary)
                         }
-                        PersonaSection("Память и границы", icon: "lock.shield") {
-                            fact("Выбранная память", "нет · retrieval не запускался")
+                        PersonaSection(L10n.text("Память и границы"), icon: "lock.shield") {
+                            fact(L10n.text("Выбранная память"), L10n.text("нет · retrieval не запускался"))
                             fact("Context Injection", contextLabel(preview.value["context_injection_state"].text))
                             ForEach(Array(preview.kernel["core_laws"].items.enumerated()), id: \.offset) { _, law in
                                 Label(law.text, systemImage: "checkmark.circle").font(.callout)
@@ -456,7 +456,7 @@ struct PersonaInspectorView: View {
                                 Label(boundary.text, systemImage: "hand.raised").font(.callout)
                             }
                         }
-                        PersonaSection("Доказательства", icon: "number.square") {
+                        PersonaSection(L10n.text("Доказательства"), icon: "number.square") {
                             Text("SHA-256 \(preview.snapshot["snapshot_hash"].text)")
                                 .font(.caption.monospaced()).textSelection(.enabled)
                             ForEach(Array(preview.notices.enumerated()), id: \.offset) { _, notice in
@@ -469,12 +469,12 @@ struct PersonaInspectorView: View {
                                     Circle().fill(readinessColor(readiness.status)).frame(width: 8, height: 8)
                                     headline(readinessLabel(readiness.status))
                                     Spacer()
-                                    Text("только проверка").font(.caption).foregroundStyle(.secondary)
+                                    Text(L10n.text("только проверка")).font(.caption).foregroundStyle(.secondary)
                                 }
-                                fact("Выбран", readiness.value["selected_provider"].text)
+                                fact(L10n.text("Выбран"), readiness.value["selected_provider"].text)
                                 fact("Activation SHA", String(readiness.value["activation_fingerprint"].text.prefix(16)))
                                 fact("Parity SHA", readiness.parity["persona_invariant_hash"].text.isEmpty
-                                     ? "не совпал" : String(readiness.parity["persona_invariant_hash"].text.prefix(16)))
+                                     ? L10n.text("не совпал") : String(readiness.parity["persona_invariant_hash"].text.prefix(16)))
                                 ForEach(Array(readiness.adapters.enumerated()), id: \.offset) { _, adapter in
                                     VStack(alignment: .leading, spacing: 3) {
                                         Text("\(adapter["provider"].text) · \(adapter["placement"].text)")
@@ -501,19 +501,19 @@ struct PersonaInspectorView: View {
                                 ForEach(Array(readiness.warnings.enumerated()), id: \.offset) { _, finding in
                                     Label(finding.text, systemImage: "exclamationmark.triangle.fill").font(.caption).foregroundStyle(.orange)
                                 }
-                                Text("Readiness не включает Persona, не вызывает модель и не меняет provider safety instructions.")
+                                Text(L10n.text("Readiness не включает Persona, не вызывает модель и не меняет provider safety instructions."))
                                     .font(.caption).foregroundStyle(.secondary)
                             }
                         }
                     } else if model.personaPreviewError == nil && !model.loadingPersonaPreview {
-                        Text("Откройте инспектор повторно или обновите snapshot.").foregroundStyle(.secondary)
+                        Text(L10n.text("Откройте инспектор повторно или обновите snapshot.")).foregroundStyle(.secondary)
                     }
                 }.padding(22).frame(maxWidth: 760, alignment: .leading).frame(maxWidth: .infinity)
             }
             Divider()
             Label(model.personaEnabled
-                  ? "Opt-in активен · один snapshot на ход · provider safety сохранена · rollback доступен"
-                  : "Preview/readiness only · Persona не активна в prompt · нет model call, retrieval, execution или записи",
+                  ? L10n.text("Opt-in активен · один snapshot на ход · provider safety сохранена · rollback доступен")
+                  : L10n.text("Preview/readiness only · Persona не активна в prompt · нет model call, retrieval, execution или записи"),
                   systemImage: model.personaEnabled ? "person.crop.circle.badge.checkmark" : "eye")
                 .font(.caption).foregroundStyle(.secondary).padding(14)
         }
@@ -533,26 +533,26 @@ struct PersonaInspectorView: View {
     }
 
     private func identityLabel(_ value: String) -> String {
-        ["value": "Ценность", "principle": "Принцип", "boundary": "Граница"][value] ?? value
+        ["value": L10n.text("Ценность"), "principle": L10n.text("Принцип"), "boundary": L10n.text("Граница")][value] ?? value
     }
 
     private func accessLabel(_ value: String) -> String {
-        ["chat": "Чат без инструментов", "full_access": "Full Mac · действующий grant",
-         "local": "Локальный runtime", "mock": "Детерминированный Mock"][value] ?? value
+        ["chat": L10n.text("Чат без инструментов"), "full_access": L10n.text("Full Mac · действующий grant"),
+         "local": L10n.text("Локальный runtime"), "mock": L10n.text("Детерминированный Mock")][value] ?? value
     }
 
     private func networkLabel(_ value: String) -> String {
-        ["disabled": "выключена", "local_only": "только loopback", "available": "доступна по текущему grant"][value] ?? value
+        ["disabled": L10n.text("выключена"), "local_only": L10n.text("только loopback"), "available": L10n.text("доступна по текущему grant")][value] ?? value
     }
 
     private func contextLabel(_ value: String) -> String {
-        ["enabled": "включён ранее, snapshot его не применяет", "disabled": "выключен",
-         "default_disabled": "выключен по умолчанию", "unknown": "не удалось проверить"][value] ?? value
+        ["enabled": L10n.text("включён ранее, snapshot его не применяет"), "disabled": L10n.text("выключен"),
+         "default_disabled": L10n.text("выключен по умолчанию"), "unknown": L10n.text("не удалось проверить")][value] ?? value
     }
 
     private func readinessLabel(_ value: String) -> String {
-        ["READY": "READY к отдельному activation milestone", "WARN": "WARN · control-only выбор",
-         "NOT_READY": "NOT READY · activation заблокирована"][value] ?? value
+        ["READY": L10n.text("READY к отдельному activation milestone"), "WARN": L10n.text("WARN · control-only выбор"),
+         "NOT_READY": L10n.text("NOT READY · activation заблокирована")][value] ?? value
     }
 
     private func readinessColor(_ value: String) -> Color {

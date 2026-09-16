@@ -60,7 +60,7 @@ enum ChatHistoryFormat {
     }
 
     static func conversation(_ data: Data, entry: ChatHistoryEntry? = nil) throws -> Conversation {
-        guard data.count < fileLimit else { throw NativeError.message("Один диалог достиг лимита 50 МБ. Остальная история сохранена.") }
+        guard data.count < fileLimit else { throw NativeError.message(L10n.text("Один диалог достиг лимита 50 МБ. Остальная история сохранена.")) }
         let conversation = try JSONDecoder().decode(Conversation.self, from: data)
         guard Set(conversation.messages.map(\.id)).count == conversation.messages.count else { throw invalid() }
         if let entry {
@@ -71,7 +71,7 @@ enum ChatHistoryFormat {
     }
 
     static func legacy(_ data: Data) throws -> ChatArchive {
-        guard data.count < legacyLimit else { throw NativeError.message("Старый единый файл истории превышает 512 МБ. Исходник не изменён.") }
+        guard data.count < legacyLimit else { throw NativeError.message(L10n.text("Старый единый файл истории превышает 512 МБ. Исходник не изменён.")) }
         let result = try JSONDecoder().decode(ChatArchive.self, from: data)
         guard [1, 2, 3, 4, 5].contains(result.version), result.conversations.count <= conversationLimit,
               Set(result.conversations.map(\.id)).count == result.conversations.count else { throw invalid() }
@@ -90,5 +90,5 @@ enum ChatHistoryFormat {
         return data
     }
 
-    static func invalid() -> NativeError { .message("Не удалось проверить историю: формат, состав или контрольные суммы не совпали.") }
+    static func invalid() -> NativeError { .message(L10n.text("Не удалось проверить историю: формат, состав или контрольные суммы не совпали.")) }
 }

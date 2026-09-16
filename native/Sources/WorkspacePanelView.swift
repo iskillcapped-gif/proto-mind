@@ -286,7 +286,7 @@ private struct WorkspaceImageView: View {
             Divider().workspacePanelHeader()
             Image(nsImage: preview.thumbnail).resizable().scaledToFit().padding(20)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .accessibilityLabel("Изображение \(preview.source.name)")
+                .accessibilityLabel(L10n.format("Изображение \(preview.source.name)"))
             Text("\(preview.source.value["width"].integer) × \(preview.source.value["height"].integer)")
                 .font(.caption).foregroundStyle(.secondary).padding(10)
         }

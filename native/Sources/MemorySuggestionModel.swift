@@ -67,9 +67,9 @@ final class MemorySuggestionModel: ObservableObject, Identifiable {
             if current {
                 saved = note; app.reviewedMemorySuggestions.insert(suggestion.id)
                 app.invalidateContextPreview()
-                app.status = "Заметка сохранена для этой папки; отдельного запроса модели не было"
+                app.status = L10n.text("Заметка сохранена для этой папки; отдельного запроса модели не было")
             }
-        } catch { if current { self.error = "\(error.localizedDescription) Перед повтором проверьте заметки проекта." } }
+        } catch { if current { self.error = L10n.format("\(error.localizedDescription) Перед повтором проверьте заметки проекта.") } }
     }
 }
 

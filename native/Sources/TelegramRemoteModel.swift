@@ -83,7 +83,7 @@ final class TelegramRemoteModel: ObservableObject {
         try change { $0.peer = peer }
         pendingPeer = nil; pairingCode = nil
         let epoch = generation
-        Task { await reply("Подключено к Proto-Mind.\n\n" + TelegramCommand.helpText, epoch: epoch) }
+        Task { await reply(L10n.text("Подключено к Proto-Mind.\n\n") + TelegramCommand.helpText, epoch: epoch) }
     }
     func connect(app: AppModel) async {
         guard !running, !connecting else { return }
@@ -170,30 +170,30 @@ final class TelegramRemoteModel: ObservableObject {
             case .tasks:
                 let rows = state.allowed.enumerated().compactMap { index, id -> String? in
                     guard let chat = app.conversations.first(where: { $0.id == id && !$0.archived }) else { return nil }
-                    return "\(index + 1). \(id == state.selected ? "→ " : "")\(chat.displayTitle)\(app.isRunning(id) ? " · выполняется" : "")"
+                    return "\(index + 1). \(id == state.selected ? "→ " : "")\(chat.displayTitle)\(app.isRunning(id) ? L10n.text(" · выполняется") : "")"
                 }
-                await reply(rows.isEmpty ? "Выберите доступные задачи в настройках Telegram на Mac." : rows.joined(separator: "\n"), epoch: epoch)
+                await reply(rows.isEmpty ? L10n.text("Выберите доступные задачи в настройках Telegram на Mac.") : rows.joined(separator: "\n"), epoch: epoch)
             case .use(let number):
-                guard number > 0, number <= state.allowed.count else { throw NativeError.message("Сначала получите список /tasks и выберите номер из него.") }
+                guard number > 0, number <= state.allowed.count else { throw NativeError.message(L10n.text("Сначала получите список /tasks и выберите номер из него.")) }
                 let id = state.allowed[number - 1]
                 _ = try app.liveVoiceTaskStatus(id); try select(id)
-                await reply("Выбрано: " + (app.conversations.first { $0.id == id }?.displayTitle ?? ""), epoch: epoch)
+                await reply(L10n.text("Выбрано: ") + (app.conversations.first { $0.id == id }?.displayTitle ?? ""), epoch: epoch)
             case .new(let title):
                 let source = try destination(app)
-                guard state.allowed.count < 64 else { throw NativeError.message("Уберите лишние задачи из доступа Telegram в настройках PM.") }
+                guard state.allowed.count < 64 else { throw NativeError.message(L10n.text("Уберите лишние задачи из доступа Telegram в настройках PM.")) }
                 let id = try app.createTelegramConversation(title: title, source: source)
                 try allow(id, enabled: true); try select(id)
-                await reply("Новый чат готов. Напишите задачу. Модель и папка сохранены; полный доступ можно включить в PM.", epoch: epoch)
+                await reply(L10n.text("Новый чат готов. Напишите задачу. Модель и папка сохранены; полный доступ можно включить в PM."), epoch: epoch)
             case .status:
                 let id = try destination(app)
                 await reply(try statusText(app, id: id), epoch: epoch, taskID: id)
             case .stop:
                 let id = try destination(app)
-                guard let execution = app.executions[id], execution.running, let request = execution.requestID else { throw NativeError.message("В выбранной задаче сейчас нечего останавливать.") }
+                guard let execution = app.executions[id], execution.running, let request = execution.requestID else { throw NativeError.message(L10n.text("В выбранной задаче сейчас нечего останавливать.")) }
                 app.closeTaskUpdateQueue(execution: execution)
-                guard app.persist() else { throw NativeError.message("Не удалось сохранить остановку. Проверьте PM.") }
+                guard app.persist() else { throw NativeError.message(L10n.text("Не удалось сохранить остановку. Проверьте PM.")) }
                 _ = try await execution.client.request("cancel", ["request_id": .string(request)])
-                await reply("Остановка запрошена. Уже сделанные изменения сохраняются.", epoch: epoch)
+                await reply(L10n.text("Остановка запрошена. Уже сделанные изменения сохраняются."), epoch: epoch)
             case .message(let text):
                 let id = try destination(app)
                 let prior = completions[id]
@@ -212,9 +212,9 @@ final class TelegramRemoteModel: ObservableObject {
                     })
                 } catch { completions[id] = prior; throw error }
                 guard generation == epoch, running, state.allowed.contains(id) else { return }
-                let update = result["status"].text == "preparing" ? "Задача принята. Результат придёт сюда." : "Уточнение сохранено в очереди. Состояние доставки видно в PM."
+                let update = result["status"].text == "preparing" ? L10n.text("Задача принята. Результат придёт сюда.") : L10n.text("Уточнение сохранено в очереди. Состояние доставки видно в PM.")
                 await reply(update, epoch: epoch)
-            case .unknown: await reply("Неизвестная команда. /help — список команд.", epoch: epoch)
+            case .unknown: await reply(L10n.text("Неизвестная команда. /help — список команд."), epoch: epoch)
             }
         } catch {
             // Only this paired private chat receives errors; credentials and network URLs never reach here.
@@ -224,22 +224,22 @@ final class TelegramRemoteModel: ObservableObject {
     private func destination(_ app: AppModel) throws -> UUID {
         guard let id = state.selected, state.allowed.contains(id),
               app.conversations.contains(where: { $0.id == id && !$0.archived }) else {
-            throw NativeError.message("Выберите доступную задачу: /tasks, затем /use номер. Доступ задаётся в настройках PM на Mac.")
+            throw NativeError.message(L10n.text("Выберите доступную задачу: /tasks, затем /use номер. Доступ задаётся в настройках PM на Mac."))
         }
         return id
     }
     private func statusText(_ app: AppModel, id: UUID) throws -> String {
         let result = try app.liveVoiceTaskStatus(id)
-        let label = result["status"].text == "running" ? "Выполняется" : result["status"].text == "needs_attention" ? "Нужна проверка" : result["status"].text == "idle" ? "Готов к задаче" : "Ответ получен"
+        let label = result["status"].text == "running" ? L10n.text("Выполняется") : result["status"].text == "needs_attention" ? L10n.text("Нужна проверка") : result["status"].text == "idle" ? L10n.text("Готов к задаче") : L10n.text("Ответ получен")
         return label + " · " + result["title"].text + (result["answer"].text.isEmpty ? "" : "\n\n" + result["answer"].text)
-            + (result["answer_partial"].flag ? "\n\n… Полный ответ сохранён в PM." : "")
+            + (result["answer_partial"].flag ? L10n.text("\n\n… Полный ответ сохранён в PM.") : "")
     }
     func taskEnded(app: AppModel, id: UUID, source: UUID, saved: Bool) {
         guard let route = completions[id], route.source == nil || route.source == source else { return }
         completions.removeValue(forKey: id)
         guard running, generation == route.epoch, state.allowed.contains(id) else { return }
-        let text = saved ? ((try? statusText(app, id: id)) ?? "Проверьте результат в PM.")
-            : "Ответ получен, но сохранение требует проверки в PM. Запрос не повторяется автоматически."
+        let text = saved ? ((try? statusText(app, id: id)) ?? L10n.text("Проверьте результат в PM."))
+            : L10n.text("Ответ получен, но сохранение требует проверки в PM. Запрос не повторяется автоматически.")
         Task { [weak self, weak app] in
             guard let self, let app, !app.privateBackupRestartRequired else { return }
             await self.reply(text, epoch: route.epoch, taskID: id)
@@ -266,14 +266,14 @@ final class TelegramRemoteModel: ObservableObject {
 extension AppModel {
     func createTelegramConversation(title: String, source: UUID) throws -> UUID {
         guard !operationBusy, !privateBackupRestartRequired, !historyPersistence.blocksSubmission, !store.writeBlocked,
-              let original = conversations.first(where: { $0.id == source && !$0.archived }) else { throw NativeError.message("Новый чат сейчас недоступен.") }
+              let original = conversations.first(where: { $0.id == source && !$0.archived }) else { throw NativeError.message(L10n.text("Новый чат сейчас недоступен.")) }
         var chat = Conversation()
         chat.title = title.isEmpty ? "Telegram" : String(title.prefix(160))
         chat.workspacePath = original.workspacePath; chat.provider = original.provider
         chat.model = original.model; chat.reasoningEffort = original.reasoningEffort
         chat.codexAccountID = original.codexAccountID; chat.apiConnectionID = original.apiConnectionID
         conversations.insert(chat, at: 0)
-        guard persist() else { conversations.removeAll { $0.id == chat.id }; throw NativeError.message("Не удалось сохранить новый чат.") }
+        guard persist() else { conversations.removeAll { $0.id == chat.id }; throw NativeError.message(L10n.text("Не удалось сохранить новый чат.")) }
         return chat.id
     }
 }

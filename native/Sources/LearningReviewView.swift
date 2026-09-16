@@ -15,14 +15,14 @@ struct LearningReviewView: View {
                     Task { await model.refreshMemoryWorkshop() }
                 } label: { Image(systemName: "chevron.left") }.disabled(locked)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Разбор урока").font(.title2.weight(.semibold))
-                    Text("Решение → предложение → одна проверенная запись")
+                    Text(L10n.text("Разбор урока")).font(.title2.weight(.semibold))
+                    Text(L10n.text("Решение → предложение → одна проверенная запись"))
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
                 if model.loadingLearningReview || model.committingLearningReview { ProgressView().controlSize(.small) }
                 Button { Task { await model.refreshLearningReview() } } label: { Image(systemName: "arrow.clockwise") }
-                    .disabled(locked).help("Перечитать evidence и сбросить старое подтверждение")
+                    .disabled(locked).help(L10n.text("Перечитать evidence и сбросить старое подтверждение"))
                 Button { model.showMemoryWorkshop = false } label: { Image(systemName: "xmark") }
                     .disabled(model.committingLearningReview).keyboardShortcut(.cancelAction)
             }.padding(22)
@@ -36,7 +36,7 @@ struct LearningReviewView: View {
                             .font(.callout).foregroundStyle(.orange).textSelection(.enabled).learningCard()
                     }
                     if model.committingLearningReview {
-                        Label("Подтверждаем один шаг. Не закрывайте ядро до получения результата.", systemImage: "hourglass")
+                        Label(L10n.text("Подтверждаем один шаг. Не закрывайте ядро до получения результата."), systemImage: "hourglass")
                             .font(.callout).learningCard()
                     }
                     if let report = model.learningReview {
@@ -44,20 +44,20 @@ struct LearningReviewView: View {
                             evidence(candidate)
                             stages(report)
                             if let preview = model.learningPreview { confirmation(preview).id("learning-confirmation") }
-                            if let receipt = report.decision { receiptCard(receipt, title: "Решение оператора") }
-                            if let receipt = report.proposal { receiptCard(receipt, title: "Предложение записи") }
-                            if let receipt = report.applyReceipt { receiptCard(receipt, title: "Результат сохранения") }
+                            if let receipt = report.decision { receiptCard(receipt, title: L10n.text("Решение оператора")) }
+                            if let receipt = report.proposal { receiptCard(receipt, title: L10n.text("Предложение записи")) }
+                            if let receipt = report.applyReceipt { receiptCard(receipt, title: L10n.text("Результат сохранения")) }
                         } else {
-                            Label("Кандидат не найден в текущем ядре", systemImage: "tray")
+                            Label(L10n.text("Кандидат не найден в текущем ядре"), systemImage: "tray")
                                 .font(.headline).learningCard()
-                            Text("После перезапуска process-memory кандидаты и решения не восстанавливаются автоматически. Уже сохранённый урок можно найти в Памяти и проверить его происхождение.")
+                            Text(L10n.text("После перезапуска process-memory кандидаты и решения не восстанавливаются автоматически. Уже сохранённый урок можно найти в Памяти и проверить его происхождение."))
                                 .foregroundStyle(.secondary)
                         }
                         diagnostics(report)
                     } else if model.loadingLearningReview {
-                        Text("Читаем локальные evidence и текущие хранилища…").foregroundStyle(.secondary)
+                        Text(L10n.text("Читаем локальные evidence и текущие хранилища…")).foregroundStyle(.secondary)
                     }
-                    Text("Ни одно действие не запускает модель, инструменты, slash-команду или автоматическое обучение.")
+                    Text(L10n.text("Ни одно действие не запускает модель, инструменты, slash-команду или автоматическое обучение."))
                         .font(.caption).foregroundStyle(.secondary)
                 }.padding(22)
               }
@@ -73,12 +73,12 @@ struct LearningReviewView: View {
 
     private var boundary: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label("Под вашим контролем", systemImage: "hand.raised").font(.headline)
-            Text("Принятие кандидата ещё не сохраняет урок. Предложение тоже не пишет в память. Только последний шаг добавляет одну запись memory.lesson.v1.")
+            Label(L10n.text("Под вашим контролем"), systemImage: "hand.raised").font(.headline)
+            Text(L10n.text("Принятие кандидата ещё не сохраняет урок. Предложение тоже не пишет в память. Только последний шаг добавляет одну запись memory.lesson.v1."))
                 .font(.callout).foregroundStyle(.secondary)
-            Label("Память общая для проектов, а не изолирована выбранной папкой", systemImage: "folder.badge.questionmark")
+            Label(L10n.text("Память общая для проектов, а не изолирована выбранной папкой"), systemImage: "folder.badge.questionmark")
                 .font(.callout.weight(.medium)).foregroundStyle(.orange)
-            Text("Один apply на всё запущенное Native-ядро. Решения и предложения живут до его закрытия; предложение действует 15 минут. Сохранённый урок и его provenance переживают перезапуск.")
+            Text(L10n.text("Один apply на всё запущенное Native-ядро. Решения и предложения живут до его закрытия; предложение действует 15 минут. Сохранённый урок и его provenance переживают перезапуск."))
                 .font(.caption).foregroundStyle(.secondary)
         }.learningCard()
     }
@@ -86,25 +86,25 @@ struct LearningReviewView: View {
     private func evidence(_ candidate: NativeLearningCandidate) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Label("Кандидат, не установленный факт", systemImage: "text.quote").font(.headline)
+                Label(L10n.text("Кандидат, не установленный факт"), systemImage: "text.quote").font(.headline)
                 Spacer()
                 Text(candidate.reviewStatus).font(.caption).foregroundStyle(.secondary)
             }
             Text(candidate.text).font(.body).textSelection(.enabled)
             Text(candidate.rationale).font(.callout).foregroundStyle(.secondary)
             detail("Candidate ID", candidate.id)
-            detail("Источники", candidate.sourceKinds.joined(separator: " · "))
+            detail(L10n.text("Источники"), candidate.sourceKinds.joined(separator: " · "))
             detail("Evidence IDs", candidate.evidenceEventIds.joined(separator: "\n"))
-            Text("Confidence из evidence: \(candidate.confidence). Это не независимая проверка истинности урока.")
+            Text(L10n.format("Confidence из evidence: \(candidate.confidence). Это не независимая проверка истинности урока."))
                 .font(.caption).foregroundStyle(.secondary)
         }.learningCard()
     }
 
     private func stages(_ report: NativeLearningReview) -> some View {
         VStack(alignment: .leading, spacing: 15) {
-            stageTitle("1", "Решение", state: report.decision?.status ?? "не принято")
+            stageTitle("1", L10n.text("Решение"), state: report.decision?.status ?? L10n.text("не принято"))
             if report.decision == nil {
-                TextField("Причина решения, необязательно (до 160 символов)", text: $model.learningReason)
+                TextField(L10n.text("Причина решения, необязательно (до 160 символов)"), text: $model.learningReason)
                     .textFieldStyle(.roundedBorder).disabled(locked)
                 HStack {
                     previewButton(.accept, disabled: report.candidate?.reviewStatus != "operator_review_required")
@@ -112,17 +112,17 @@ struct LearningReviewView: View {
                 }
             }
             Divider()
-            stageTitle("2", "Сравнение и предложение", state: report.proposal == nil ? report.eligibilityStatus : "подтверждено")
+            stageTitle("2", L10n.text("Сравнение и предложение"), state: report.proposal == nil ? report.eligibilityStatus : L10n.text("подтверждено"))
             if report.decision?.status == "accepted", report.proposal == nil {
-                Text("Выберите от 1 до 20 активных записей для сравнения. Они не изменятся; выбор ограничивает проверку дублей, а не доступ к проектам.")
+                Text(L10n.text("Выберите от 1 до 20 активных записей для сравнения. Они не изменятся; выбор ограничивает проверку дублей, а не доступ к проектам."))
                     .font(.callout).foregroundStyle(.secondary)
                 HStack {
-                    TextField("Поиск по ID или тексту памяти", text: $model.learningReferenceQuery)
+                    TextField(L10n.text("Поиск по ID или тексту памяти"), text: $model.learningReferenceQuery)
                         .textFieldStyle(.roundedBorder).onSubmit { Task { await model.refreshLearningReview() } }
-                    Button("Найти") { Task { await model.refreshLearningReview() } }
+                    Button(L10n.text("Найти")) { Task { await model.refreshLearningReview() } }
                 }.disabled(locked)
                 if report.references.isEmpty {
-                    Text("Подходящих активных записей нет. Предложение не создаётся без явно выбранного reference ID.")
+                    Text(L10n.text("Подходящих активных записей нет. Предложение не создаётся без явно выбранного reference ID."))
                         .font(.callout).foregroundStyle(.secondary)
                 }
                 ForEach(report.references) { reference in
@@ -138,26 +138,26 @@ struct LearningReviewView: View {
                     }.toggleStyle(.checkbox)
                         .disabled(locked || !reference.selectable || (model.learningReferenceIDs.count >= 20 && !model.learningReferenceIDs.contains(reference.recordId)))
                 }
-                Text("Выбрано: \(model.learningReferenceIDs.count)/20. За лимитом выдачи: \(report.omittedReferenceCount).")
+                Text(L10n.format("Выбрано: \(model.learningReferenceIDs.count)/20. За лимитом выдачи: \(report.omittedReferenceCount)."))
                     .font(.caption).foregroundStyle(.secondary)
-                if !model.learningReferenceIDs.isEmpty { detail("Точный scope", model.learningReferenceIDs.joined(separator: " · ")) }
+                if !model.learningReferenceIDs.isEmpty { detail(L10n.text("Точный scope"), model.learningReferenceIDs.joined(separator: " · ")) }
                 previewButton(.propose, disabled: model.learningReferenceIDs.isEmpty)
             } else if report.proposal != nil {
-                detail("Зафиксированные reference IDs", report.requestedMemoryIds.joined(separator: " · "))
+                detail(L10n.text("Зафиксированные reference IDs"), report.requestedMemoryIds.joined(separator: " · "))
             } else {
-                Text("Сначала необходимо отдельное принятие кандидата.").font(.caption).foregroundStyle(.secondary)
+                Text(L10n.text("Сначала необходимо отдельное принятие кандидата.")).font(.caption).foregroundStyle(.secondary)
             }
             Divider()
-            stageTitle("3", "Запись урока", state: report.applyReceipt == nil ? report.applyStatus : "сохранён")
+            stageTitle("3", L10n.text("Запись урока"), state: report.applyReceipt == nil ? report.applyStatus : L10n.text("сохранён"))
             if report.applyReceipt == nil {
-                Text("Preview перепроверит evidence, возраст предложения, SHA хранилищ и активные точные дубли. Затем потребуется отдельное подтверждение записи в общую память.")
+                Text(L10n.text("Preview перепроверит evidence, возраст предложения, SHA хранилищ и активные точные дубли. Затем потребуется отдельное подтверждение записи в общую память."))
                     .font(.caption).foregroundStyle(.secondary)
                 previewButton(.apply, disabled: report.proposal == nil || !report.nativeApplySlotAvailable)
                 if !report.nativeApplySlotAvailable {
-                    Text("Лимит одной записи уже использован в этом Native-ядре.").font(.caption).foregroundStyle(.orange)
+                    Text(L10n.text("Лимит одной записи уже использован в этом Native-ядре.")).font(.caption).foregroundStyle(.orange)
                 }
             } else {
-                Text("Повторное сохранение недоступно. Проверьте receipt ниже.").font(.callout).foregroundStyle(.secondary)
+                Text(L10n.text("Повторное сохранение недоступно. Проверьте receipt ниже.")).font(.callout).foregroundStyle(.secondary)
             }
         }.learningCard()
     }
@@ -166,19 +166,19 @@ struct LearningReviewView: View {
         VStack(alignment: .leading, spacing: 12) {
             Label(preview.operation.title, systemImage: preview.ready ? "checkmark.shield" : "hand.raised.slash")
                 .font(.headline)
-            Text(preview.ready ? "Preview готов. Этот шаг ещё не выполнен." : "Шаг недоступен. Ничего не выполнено.")
+            Text(preview.ready ? L10n.text("Preview готов. Этот шаг ещё не выполнен.") : L10n.text("Шаг недоступен. Ничего не выполнено."))
                 .foregroundStyle(preview.ready ? Color.secondary : .orange)
             if preview.ready {
                 Text(preview.content).textSelection(.enabled)
                 Text(preview.operation == .apply
-                     ? "Будет добавлена ровно одна запись в proto_mind/data/persistent_memory.json. Другие записи сохраняют исходные поля."
-                     : "Изменится только решение или предложение в оперативной памяти ядра. Файлы не изменятся.")
+                     ? L10n.text("Будет добавлена ровно одна запись в proto_mind/data/persistent_memory.json. Другие записи сохраняют исходные поля.")
+                     : L10n.text("Изменится только решение или предложение в оперативной памяти ядра. Файлы не изменятся."))
                     .font(.callout).foregroundStyle(.secondary)
-                detail("Введите точную фразу подтверждения", preview.confirmationToken)
+                detail(L10n.text("Введите точную фразу подтверждения"), preview.confirmationToken)
                 TextField("CONFIRM-…", text: $token).textFieldStyle(.roundedBorder).font(.body.monospaced())
                     .disabled(locked).autocorrectionDisabled()
                 if preview.requiresGlobalMemoryAcknowledgement {
-                    Toggle("Понимаю: урок станет частью общей памяти Proto-Mind для всех проектов", isOn: $acknowledgeGlobal)
+                    Toggle(L10n.text("Понимаю: урок станет частью общей памяти Proto-Mind для всех проектов"), isOn: $acknowledgeGlobal)
                         .toggleStyle(.checkbox).disabled(locked)
                 }
                 HStack {
@@ -186,7 +186,7 @@ struct LearningReviewView: View {
                         Task { await model.confirmLearningOperation(token: token, acknowledgeGlobal: acknowledgeGlobal) }
                     }.buttonStyle(.borderedProminent).nativeHoverSurface()
                         .disabled(locked || !preview.accepts(token: token, acknowledgeGlobal: acknowledgeGlobal))
-                    Button("Отмена") { model.invalidateLearningConfirmation() }.disabled(locked)
+                    Button(L10n.text("Отмена")) { model.invalidateLearningConfirmation() }.disabled(locked)
                 }
                 detail("Fingerprint", preview.previewFingerprint)
             } else {
@@ -201,19 +201,19 @@ struct LearningReviewView: View {
             Label(title, systemImage: receipt.kind == "apply" ? "checkmark.seal" : "doc.text").font(.headline)
             detail("Receipt", "\(receipt.id) · \(receipt.status) · \(receipt.createdAt)")
             if receipt.kind == "apply" {
-                detail("Запись памяти", receipt.recordId)
+                detail(L10n.text("Запись памяти"), receipt.recordId)
                 detail("Durable provenance", receipt.durableProvenanceId)
-                Text("Проверка текущей записи: \(receipt.verificationStatus)").font(.callout.weight(.medium))
-                detail("SHA до", receipt.beforeStoreSha256)
-                detail("SHA после", receipt.afterStoreSha256)
-                Button("Открыть запись и происхождение") {
+                Text(L10n.format("Проверка текущей записи: \(receipt.verificationStatus)")).font(.callout.weight(.medium))
+                detail(L10n.text("SHA до"), receipt.beforeStoreSha256)
+                detail(L10n.text("SHA после"), receipt.afterStoreSha256)
+                Button(L10n.text("Открыть запись и происхождение")) {
                     model.showMemoryWorkshop = false
                     Task { await model.openMemoryEvidence(recordID: receipt.recordId) }
                 }.disabled(locked)
-                detail("Только ручной rollback, здесь не выполняется", receipt.rollbackSuggestion)
+                detail(L10n.text("Только ручной rollback, здесь не выполняется"), receipt.rollbackSuggestion)
             }
             findings(receipt.warnings, color: .orange)
-            DisclosureGroup("Полные поля receipt") {
+            DisclosureGroup(L10n.text("Полные поля receipt")) {
                 Text(receipt.details).font(.system(size: 11, design: .monospaced)).textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading).padding(.top, 8)
             }.font(.caption)
@@ -221,7 +221,7 @@ struct LearningReviewView: View {
     }
 
     private func diagnostics(_ report: NativeLearningReview) -> some View {
-        DisclosureGroup("Проверки и границы хранения") {
+        DisclosureGroup(L10n.text("Проверки и границы хранения")) {
             VStack(alignment: .leading, spacing: 9) {
                 findings(report.issues, color: .red)
                 findings(report.warnings + report.eligibilityWarnings + report.applyWarnings, color: .secondary)

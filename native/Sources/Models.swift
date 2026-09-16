@@ -237,18 +237,18 @@ final class PreferenceStore {
         guard FileManager.default.fileExists(atPath: url.path) else { return NativePreferences() }
         do {
             let size = try FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber
-            guard let size, size.int64Value <= 65_536 else { throw NativeError.message("Настройки слишком велики.") }
+            guard let size, size.int64Value <= 65_536 else { throw NativeError.message(L10n.text("Настройки слишком велики.")) }
             let data = try Data(contentsOf: url)
-            guard data.count <= 65_536 else { throw NativeError.message("Настройки слишком велики.") }
+            guard data.count <= 65_536 else { throw NativeError.message(L10n.text("Настройки слишком велики.")) }
             let value = try JSONDecoder().decode(NativePreferences.self, from: data)
             guard [1, 2, 3].contains(value.version), value.version != 1 || !value.personaEnabled,
                   Set(value.rememberedAgentAccess.map(\.conversationID)).count == value.rememberedAgentAccess.count else {
-                throw NativeError.message("Неизвестная версия настроек.")
+                throw NativeError.message(L10n.text("Неизвестная версия настроек."))
             }
             return value
         } catch {
             writeBlocked = true
-            throw NativeError.message("Настройки не прочитаны. Облачное разрешение и Brother Persona выключены; исходный файл не перезаписывается: \(url.path)")
+            throw NativeError.message(L10n.format("Настройки не прочитаны. Облачное разрешение и Brother Persona выключены; исходный файл не перезаписывается: \(url.path)"))
         }
     }
 
@@ -262,13 +262,13 @@ final class PreferenceStore {
         try PrivateStateAccess.requireAvailable(url.deletingLastPathComponent())
         let currentGeneration = try PrivateStateAccess.generation(url.deletingLastPathComponent())
         guard !loaded || currentGeneration == generationBaseline else {
-            throw NativeError.message("Данные восстановлены. Перезапустите Proto-Mind перед изменением настроек.")
+            throw NativeError.message(L10n.text("Данные восстановлены. Перезапустите Proto-Mind перед изменением настроек."))
         }
-        guard !writeBlocked else { throw NativeError.message("Запись настроек заблокирована до ручной проверки файла.") }
-        guard preferences.version == 3 else { throw NativeError.message("Записывать можно только текущую версию настроек.") }
+        guard !writeBlocked else { throw NativeError.message(L10n.text("Запись настроек заблокирована до ручной проверки файла.")) }
+        guard preferences.version == 3 else { throw NativeError.message(L10n.text("Записывать можно только текущую версию настроек.")) }
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         let data = try JSONEncoder().encode(preferences)
-        guard data.count <= 65_536 else { throw NativeError.message("Настройки слишком велики. Изменение не сохранено; прежние настройки доступны.") }
+        guard data.count <= 65_536 else { throw NativeError.message(L10n.text("Настройки слишком велики. Изменение не сохранено; прежние настройки доступны.")) }
         try data.write(to: url, options: .atomic)
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
     }

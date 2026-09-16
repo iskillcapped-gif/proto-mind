@@ -131,6 +131,7 @@ extension NativeChecks {
 
     @MainActor
     static func interfaceLanguage(root: URL) throws {
+        try liveInterfaceLanguage(root: root)
         let previous = L10n.language
         defer { L10n.language = previous }
         L10n.language = .english

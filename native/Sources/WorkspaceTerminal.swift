@@ -7,7 +7,8 @@ import SwiftTerm
 final class WorkspaceTerminal: NSObject, ObservableObject, @preconcurrency LocalProcessTerminalViewDelegate {
     let view: LocalProcessTerminalView
     let directory: URL
-    @Published private(set) var title = "Терминал"
+    @Published private var processTitle: String?
+    var title: String { processTitle ?? L10n.text("Терминал") }
     @Published private(set) var running = false
     @Published private(set) var exitCode: Int32?
     private var started = false
@@ -44,7 +45,7 @@ final class WorkspaceTerminal: NSObject, ObservableObject, @preconcurrency Local
     }
 
     func sizeChanged(source: LocalProcessTerminalView, newCols: Int, newRows: Int) {}
-    func setTerminalTitle(source: LocalProcessTerminalView, title: String) { self.title = String(title.prefix(120)) }
+    func setTerminalTitle(source: LocalProcessTerminalView, title: String) { processTitle = String(title.prefix(120)) }
     func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) {}
     func processTerminated(source: TerminalView, exitCode: Int32?) { running = false; self.exitCode = exitCode }
 }
@@ -83,7 +84,7 @@ struct WorkspaceTerminalView: View {
                 Circle().fill(terminal.running ? Color.green : .secondary).frame(width: 5, height: 5)
                 Text(terminal.directory.lastPathComponent).lineLimit(1).help(terminal.directory.path)
                 Spacer()
-                if !terminal.running { Text(terminal.exitCode.map { "Завершено · \($0)" } ?? "Завершено") }
+                if !terminal.running { Text(terminal.exitCode.map { L10n.format("Завершено · \($0)") } ?? L10n.text("Завершено")) }
             }.font(.system(size: 11)).foregroundStyle(.secondary).padding(.horizontal, 12).padding(.vertical, 8)
                 .workspacePanelHeader()
             TerminalSurface(terminal: terminal).frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -93,8 +94,8 @@ struct WorkspaceTerminalView: View {
 
 extension WorkspacePanelModel {
     func openTerminal(directory: URL, executable: String = "/bin/zsh", arguments: [String] = ["-l"]) {
-        guard tabs.count < Self.maximumTabs else { error = "Закройте одну из вкладок перед открытием терминала."; return }
-        guard FileManager.default.isExecutableFile(atPath: executable) else { error = "CLI не найден: \(executable)"; return }
+        guard tabs.count < Self.maximumTabs else { error = L10n.text("Закройте одну из вкладок перед открытием терминала."); return }
+        guard FileManager.default.isExecutableFile(atPath: executable) else { error = L10n.format("CLI не найден: \(executable)"); return }
         let terminal = WorkspaceTerminal(directory: directory)
         guard open(.terminal(terminal)) != nil else { return }
         terminal.start(executable: executable, arguments: arguments)

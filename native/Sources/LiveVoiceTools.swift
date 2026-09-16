@@ -7,7 +7,7 @@ extension AppModel {
 
     func liveVoiceTaskStatus(_ id: UUID) throws -> JSONValue {
         guard let conversation = conversations.first(where: { $0.id == id && !$0.archived }) else {
-            throw NativeError.message("Диалог не найден или находится в архиве.")
+            throw NativeError.message(L10n.text("Диалог не найден или находится в архиве."))
         }
         let state = executions[id]
         let answer = conversation.messages.last { $0.role == "assistant" || $0.role == "report" }
@@ -25,7 +25,7 @@ extension AppModel {
 
     func executeLiveVoiceCall(_ call: LiveVoiceCall, session: UUID) async throws -> JSONValue {
         guard cloudConsent, !privateBackupRestartRequired, !operationBusy else {
-            throw NativeError.message("Сейчас управление задачами недоступно. Проверьте настройки и восстановление данных.")
+            throw NativeError.message(L10n.text("Сейчас управление задачами недоступно. Проверьте настройки и восстановление данных."))
         }
         try PrivateStateAccess.requireAvailable(serviceClient.configuration.stateDirectory)
         let args = call.arguments
@@ -47,33 +47,33 @@ extension AppModel {
                 "tasks": .array(rows), "partial": .bool(included.count < recent.count)])
         case "open_task":
             let id = try voiceConversationID(args)
-            guard canNavigateConversations else { throw NativeError.message("Дождитесь завершения выбора вложений или восстановления данных.") }
+            guard canNavigateConversations else { throw NativeError.message(L10n.text("Дождитесь завершения выбора вложений или восстановления данных.")) }
             select(id)
-            guard selectedID == id, !historyPersistence.blocksSubmission else { throw NativeError.message("Не удалось сохранить переключение диалога.") }
+            guard selectedID == id, !historyPersistence.blocksSubmission else { throw NativeError.message(L10n.text("Не удалось сохранить переключение диалога.")) }
             return try liveVoiceTaskStatus(id)
         case "create_task":
-            guard canNavigateConversations, !historyPersistence.blocksSubmission, !store.writeBlocked else { throw NativeError.message("Сейчас нельзя создать новый диалог.") }
+            guard canNavigateConversations, !historyPersistence.blocksSubmission, !store.writeBlocked else { throw NativeError.message(L10n.text("Сейчас нельзя создать новый диалог.")) }
             let path = args["project_path"].isNull ? nil : args["project_path"].text
             guard path == nil || liveVoiceProjects.contains(path!) else {
-                throw NativeError.message("Эта папка ещё не открыта в Proto-Mind. Выберите её через «Открыть проект», затем повторите команду.")
+                throw NativeError.message(L10n.text("Эта папка ещё не открыта в Proto-Mind. Выберите её через «Открыть проект», затем повторите команду."))
             }
             let title = args["title"].text.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !title.isEmpty, title.count <= 160 else { throw NativeError.message("Нужно короткое название задачи.") }
+            guard !title.isEmpty, title.count <= 160 else { throw NativeError.message(L10n.text("Нужно короткое название задачи.")) }
             flushDraft()
-            guard !historyPersistence.blocksSubmission else { throw NativeError.message("Черновик не сохранён. Новый диалог не создан.") }
+            guard !historyPersistence.blocksSubmission else { throw NativeError.message(L10n.text("Черновик не сохранён. Новый диалог не создан.")) }
             var conversation = Conversation()
             conversation.title = title; conversation.workspacePath = path
             conversation.provider = selected?.provider ?? "codex"; conversation.model = selected?.model ?? ""
             conversation.reasoningEffort = selected?.reasoningEffort ?? ""
             conversations.insert(conversation, at: 0)
-            guard persist() else { conversations.removeAll { $0.id == conversation.id }; throw NativeError.message("Не удалось сохранить новый диалог.") }
+            guard persist() else { conversations.removeAll { $0.id == conversation.id }; throw NativeError.message(L10n.text("Не удалось сохранить новый диалог.")) }
             select(conversation.id)
             return try liveVoiceTaskStatus(conversation.id)
         case "task_status": return try liveVoiceTaskStatus(voiceConversationID(args))
         case "stop_task":
             let id = try voiceConversationID(args)
             guard let state = executions[id], state.running, let request = state.requestID else {
-                throw NativeError.message("У этой задачи нет активного запроса для остановки.")
+                throw NativeError.message(L10n.text("У этой задачи нет активного запроса для остановки."))
             }
             closeTaskUpdateQueue(execution: state); persist()
             let result = try await state.client.request("cancel", ["request_id": .string(request)])
@@ -100,7 +100,7 @@ extension AppModel {
             }
             let message = try snapshot.message(instruction: args["text"].text)
             return try await sendLiveVoiceTaskMessage(message, id: id, session: session)
-        default: throw NativeError.message("Неизвестная голосовая команда.")
+        default: throw NativeError.message(L10n.text("Неизвестная голосовая команда."))
         }
     }
 
@@ -117,7 +117,7 @@ extension AppModel {
                                  finished: ((JSONValue) -> Void)? = nil) async throws -> JSONValue {
         let text = supplied.trimmingCharacters(in: .whitespacesAndNewlines)
         guard authorized(), !text.isEmpty, text.unicodeScalars.count <= 20_000, !text.contains("\0"),
-              !historyPersistence.blocksSubmission, !store.writeBlocked else { throw NativeError.message("Сообщение пустое, слишком большое или история требует восстановления.") }
+              !historyPersistence.blocksSubmission, !store.writeBlocked else { throw NativeError.message(L10n.text("Сообщение пустое, слишком большое или история требует восстановления.")) }
         let state = execution(for: id)
         if state.running { return try enqueueVoiceTaskUpdate(text, execution: state) }
         state.running = true
@@ -125,13 +125,13 @@ extension AppModel {
             try await prepareConversationAccount(state)
             let description = try await state.client.request("describe", ["text": .string(text)])
             guard !description["blocked"].flag, !description["operator"].flag, !description["requires_confirmation"].flag else {
-                throw NativeError.message("Команды изменения самого ядра выполняются через текстовый интерфейс с его подтверждениями.")
+                throw NativeError.message(L10n.text("Команды изменения самого ядра выполняются через текстовый интерфейс с его подтверждениями."))
             }
             guard authorized() else { throw CancellationError() }
             try await ensureAgentAccess(for: state)
             try Task.checkCancellation()
             guard authorized(), cloudConsent, !operationBusy, conversations.contains(where: { $0.id == id && !$0.archived }) else {
-                throw NativeError.message("Условия запуска изменились. Задача не запускалась.")
+                throw NativeError.message(L10n.text("Условия запуска изменились. Задача не запускалась."))
             }
             let lastMessageBefore = conversations.first { $0.id == id }?.messages.last?.id
             Task { @MainActor in
@@ -139,7 +139,7 @@ extension AppModel {
                 await perform(text, execution: state, confirmed: false, operatorInput: false, useDraft: false)
                 if var result = try? liveVoiceTaskStatus(id) {
                     if conversations.first(where: { $0.id == id })?.messages.last?.id == lastMessageBefore {
-                        result = .object(["status": .string("needs_attention"), "answer": .string("Запрос не удалось сохранить или запустить. Проверьте сообщение об ошибке в приложении.")])
+                        result = .object(["status": .string("needs_attention"), "answer": .string(L10n.text("Запрос не удалось сохранить или запустить. Проверьте сообщение об ошибке в приложении."))])
                     }
                     finished?(result)
                 }
@@ -150,7 +150,7 @@ extension AppModel {
 
     private func voiceConversationID(_ args: JSONValue) throws -> UUID {
         guard let id = UUID(uuidString: args["conversation_id"].text),
-              conversations.contains(where: { $0.id == id && !$0.archived }) else { throw NativeError.message("Не найден точный диалог для этой команды.") }
+              conversations.contains(where: { $0.id == id && !$0.archived }) else { throw NativeError.message(L10n.text("Не найден точный диалог для этой команды.")) }
         return id
     }
 }

@@ -66,7 +66,7 @@ struct CompletedFileChangesView: View {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 10) {
                     Image(systemName: "doc.badge.gearshape").foregroundStyle(.secondary)
-                    Text("\(summary.partial ? "Файлы в журнале" : "Изменено файлов"): \(summary.files.count)")
+                    Text("\(summary.partial ? L10n.text("Файлы в журнале") : L10n.text("Изменено файлов")): \(summary.files.count)")
                     Spacer(minLength: 4)
                     counts(summary.additions, summary.deletions)
                 }.font(.system(size: 13, weight: .medium)).padding(14)
@@ -76,12 +76,12 @@ struct CompletedFileChangesView: View {
                 } else { rows(Array(summary.files.prefix(3))) }
                 if summary.files.count > 3 {
                     Divider()
-                    Button(expanded ? "Свернуть список" : "Показать ещё \(summary.files.count - 3)") { expanded.toggle() }
+                    Button(expanded ? L10n.text("Свернуть список") : L10n.format("Показать ещё \(summary.files.count - 3)")) { expanded.toggle() }
                         .font(.system(size: 12)).buttonStyle(.nativeHover).padding(12)
                 }
             }.background(NativeTheme.composer.opacity(0.5), in: RoundedRectangle(cornerRadius: 12))
                 .overlay(RoundedRectangle(cornerRadius: 12).stroke(NativeTheme.hairline))
-                .help(summary.partial ? "Сохранена часть списка. Полные сведения доступны в журнале задачи, если их передал провайдер." : "Строки посчитаны по завершённым правкам этой задачи; повторные правки суммируются. Это не сравнение с Git. У старых записей числа могут отсутствовать.")
+                .help(summary.partial ? L10n.text("Сохранена часть списка. Полные сведения доступны в журнале задачи, если их передал провайдер.") : L10n.text("Строки посчитаны по завершённым правкам этой задачи; повторные правки суммируются. Это не сравнение с Git. У старых записей числа могут отсутствовать."))
         }
     }
 

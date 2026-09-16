@@ -38,7 +38,7 @@ struct ModelAPIKeychain {
         let status = SecItemCopyMatching(value as CFDictionary, &result)
         if status == errSecItemNotFound && connection.local { return "" }
         guard status == errSecSuccess, let data = result as? Data, let key = String(data: data, encoding: .utf8) else {
-            throw NativeError.message("Добавьте API-ключ для «\(connection.name)» в настройках подключений.")
+            throw NativeError.message(L10n.format("Добавьте API-ключ для «\(connection.name)» в настройках подключений."))
         }
         return key
     }
@@ -55,11 +55,11 @@ struct ModelAPIKeychain {
             item[kSecAttrLabel as String] = "Proto-Mind · " + connection.name
             status = SecItemAdd(item as CFDictionary, nil)
         }
-        guard status == errSecSuccess else { throw NativeError.message("Связка ключей не сохранила API-ключ (\(status)).") }
+        guard status == errSecSuccess else { throw NativeError.message(L10n.format("Связка ключей не сохранила API-ключ (\(status)).")) }
     }
     func remove() throws {
         let status = SecItemDelete(query as CFDictionary)
-        guard status == errSecSuccess || status == errSecItemNotFound else { throw NativeError.message("Не удалось удалить API-ключ (\(status)).") }
+        guard status == errSecSuccess || status == errSecItemNotFound else { throw NativeError.message(L10n.format("Не удалось удалить API-ключ (\(status)).")) }
     }
 }
 

@@ -352,7 +352,7 @@ extension L10n {
         "Прозрачность фона": "Background transparency",
         "Окно чата": "Chat window",
         "Левая колонка": "Left sidebar",
-        "Боковое ": "Side window ",
+        "Боковое ": "Side ",
         "Слева — плотный фон, справа — прозрачный. Текст и кнопки остаются чёткими. Изменения видны сразу в парящем режиме и сохраняются после перезапуска.": "Left makes the background solid; right makes it transparent. Text and controls stay clear. Changes appear immediately in floating mode and persist across restarts.",
         "В macOS включено уменьшение прозрачности. Фон остаётся непрозрачным, выбранные значения сохранены.": "Reduce Transparency is enabled in macOS. Backgrounds remain solid; your selected values are saved.",
         "Вернуть исходную прозрачность": "Reset transparency",
