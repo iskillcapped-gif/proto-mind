@@ -17,6 +17,7 @@ extension AppModel {
             "project_path": conversation.workspacePath.map(JSONValue.string) ?? .null,
             "provider": .string(conversation.provider), "model": .string(conversation.model),
             "answer": .string(String((answer?.text ?? "").prefix(6000))),
+            "answer_partial": .bool((answer?.text.count ?? 0) > 6000),
             "updates": .array((conversation.messages.last { $0.role == "user" }?.taskUpdates ?? []).map {
                 .object(["id": .string($0.id.uuidString), "state": .string($0.state.rawValue)])
             })])
@@ -105,8 +106,17 @@ extension AppModel {
 
     /// Explicit voice input carries its own context and never consumes the editor.
     private func sendLiveVoiceTaskMessage(_ supplied: String, id: UUID, session: UUID) async throws -> JSONValue {
+        try await sendExternalTaskMessage(supplied, id: id, finished: { [weak self] result in
+            self?.liveVoice.taskFinished(id, session: session, result: result)
+        })
+    }
+
+    /// Voice and paired remote input use the same execution and never consume an editor draft.
+    func sendExternalTaskMessage(_ supplied: String, id: UUID,
+                                 authorized: @escaping () -> Bool = { true },
+                                 finished: ((JSONValue) -> Void)? = nil) async throws -> JSONValue {
         let text = supplied.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, text.unicodeScalars.count <= 20_000,
+        guard authorized(), !text.isEmpty, text.unicodeScalars.count <= 20_000, !text.contains("\0"),
               !historyPersistence.blocksSubmission, !store.writeBlocked else { throw NativeError.message("Сообщение пустое, слишком большое или история требует восстановления.") }
         let state = execution(for: id)
         if state.running { return try enqueueVoiceTaskUpdate(text, execution: state) }
@@ -116,19 +126,21 @@ extension AppModel {
             guard !description["blocked"].flag, !description["operator"].flag, !description["requires_confirmation"].flag else {
                 throw NativeError.message("Команды изменения самого ядра выполняются через текстовый интерфейс с его подтверждениями.")
             }
+            guard authorized() else { throw CancellationError() }
             try await ensureAgentAccess(for: state)
             try Task.checkCancellation()
-            guard cloudConsent, !operationBusy, conversations.contains(where: { $0.id == id && !$0.archived }) else {
+            guard authorized(), cloudConsent, !operationBusy, conversations.contains(where: { $0.id == id && !$0.archived }) else {
                 throw NativeError.message("Условия запуска изменились. Задача не запускалась.")
             }
             let lastMessageBefore = conversations.first { $0.id == id }?.messages.last?.id
             Task { @MainActor in
+                guard authorized() else { state.running = false; return }
                 await perform(text, execution: state, confirmed: false, operatorInput: false, useDraft: false)
                 if var result = try? liveVoiceTaskStatus(id) {
                     if conversations.first(where: { $0.id == id })?.messages.last?.id == lastMessageBefore {
                         result = .object(["status": .string("needs_attention"), "answer": .string("Запрос не удалось сохранить или запустить. Проверьте сообщение об ошибке в приложении.")])
                     }
-                    liveVoice.taskFinished(id, session: session, result: result)
+                    finished?(result)
                 }
             }
             return .object(["status": .string("preparing"), "conversation_id": .string(id.uuidString)])

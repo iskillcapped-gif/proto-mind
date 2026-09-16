@@ -54,6 +54,14 @@ struct NativeChecks {
             print("Native Live voice checks: \(passed) OK")
             return
         }
+        if CommandLine.arguments.contains("--messengers-only"),
+           let fixture = LaunchConfiguration.argument("--fixture"), let python = LaunchConfiguration.argument("--python"),
+           let service = LaunchConfiguration.argument("--steering-service") {
+            try await messengerConnections(root: root)
+            try await telegramRemote(fixture: URL(fileURLWithPath: fixture), service: URL(fileURLWithPath: service), python: URL(fileURLWithPath: python), root: root)
+            print("Native messenger checks: \(passed) OK")
+            return
+        }
         if CommandLine.arguments.contains("--usage-only") {
             try await codexUsageContracts(root: root)
             print("Native usage checks: \(passed) OK")
@@ -194,12 +202,14 @@ struct NativeChecks {
         try check(app.composerRevision == 1 && app.composer == "prepared command", "Explicit composer replacement has a revision")
 
         try preferencesAndLegacyHistory(root: root)
+        try await messengerConnections(root: root)
         try liveVoiceContracts(root: root)
         try await liveVoiceAudioConversion()
         if let fixture = LaunchConfiguration.argument("--fixture"), let python = LaunchConfiguration.argument("--python"),
            let service = LaunchConfiguration.argument("--steering-service") {
             try await liveVoiceIntegration(fixture: URL(fileURLWithPath: fixture), service: URL(fileURLWithPath: service),
                                            python: URL(fileURLWithPath: python), root: root)
+            try await telegramRemote(fixture: URL(fileURLWithPath: fixture), service: URL(fileURLWithPath: service), python: URL(fileURLWithPath: python), root: root)
         }
         try privateBackupContracts(root: root)
         try await codexUsageContracts(root: root)

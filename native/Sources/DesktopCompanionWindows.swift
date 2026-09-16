@@ -317,7 +317,7 @@ final class DesktopCompanionWindows: ObservableObject {
             let window = makeWindow(item)
             window.isFloatingPanel = desktop.enabled
             window.level = desktop.enabled ? .floating : workspace.level
-            window.collectionBehavior = desktop.enabled ? [.moveToActiveSpace, .fullScreenAuxiliary] : [.fullScreenAuxiliary]
+            window.collectionBehavior = desktop.enabled ? DesktopWindowPolicy.floating : [.fullScreenAuxiliary]
             let target: NSRect
             if item.docked {
                 target = item.expanded ? row.expanded(content: desktop.regularContentFrame) : row.panels[item.id]!
@@ -413,7 +413,7 @@ final class DesktopCompanionWindows: ObservableObject {
         window.isReleasedWhenClosed = false; window.isFloatingPanel = true; window.hidesOnDeactivate = false
         window.isOpaque = false; window.backgroundColor = .clear; window.hasShadow = true
         window.animationBehavior = .none
-        window.level = .floating; window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
+        window.level = .floating; window.collectionBehavior = DesktopWindowPolicy.floating
         window.minSize = DesktopCompanionGeometry.minimum
         let delegate = DesktopCompanionDelegate(owner: self, id: item.id)
         item.delegate = delegate; window.delegate = delegate

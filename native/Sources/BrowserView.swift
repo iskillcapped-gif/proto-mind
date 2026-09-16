@@ -30,6 +30,7 @@ final class NativeBrowserTab: NSObject, ObservableObject, WKNavigationDelegate, 
     private(set) var navigationRevision = 0
     private(set) var closed = false
     let webView: WKWebView
+    let messenger: MessengerService?
     @Published var address = ""
     @Published private(set) var title = L10n.text("Новая страница")
     @Published private(set) var currentURL: URL?
@@ -40,9 +41,17 @@ final class NativeBrowserTab: NSObject, ObservableObject, WKNavigationDelegate, 
     var openTab: ((URL) -> Void)?
     private var observations: [NSKeyValueObservation] = []
 
-    override init() {
+    override convenience init() { self.init(store: .nonPersistent()) }
+
+    init(store: WKWebsiteDataStore, messenger: MessengerService? = nil) {
+        self.messenger = messenger
         let configuration = WKWebViewConfiguration()
-        configuration.websiteDataStore = .nonPersistent()
+        configuration.websiteDataStore = store
+        if messenger == .whatsapp {
+            // WhatsApp's browser gate expects a Safari version token; WKWebView
+            // omits it. Advertise the macOS 14 minimum WebKit compatibility level.
+            configuration.applicationNameForUserAgent = "Version/17.0 Safari/605.1.15"
+        }
         configuration.mediaTypesRequiringUserActionForPlayback = .all
         configuration.preferences.javaScriptCanOpenWindowsAutomatically = false
         webView = WKWebView(frame: .zero, configuration: configuration)
@@ -109,6 +118,12 @@ final class NativeBrowserTab: NSObject, ObservableObject, WKNavigationDelegate, 
             error = L10n.text("Для скачивания откройте страницу во внешнем браузере.")
             return
         }
+        if let messenger, navigationAction.targetFrame?.isMainFrame != false, !messenger.accepts(url) {
+            decisionHandler(.cancel)
+            if navigationAction.navigationType == .linkActivated { openTab?(url) }
+            else { error = L10n.pick("Этот переход отклонён. Откройте ссылку в обычной вкладке браузера.", "This navigation was blocked. Open the link in a regular browser tab.") }
+            return
+        }
         decisionHandler(.allow)
     }
 
@@ -138,6 +153,19 @@ final class NativeBrowserTab: NSObject, ObservableObject, WKNavigationDelegate, 
     func webView(_ webView: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin,
                  initiatedByFrame frame: WKFrameInfo, type: WKMediaCaptureType,
                  decisionHandler: @escaping (WKPermissionDecision) -> Void) { decisionHandler(.deny) }
+
+    func webView(_ webView: WKWebView, runOpenPanelWith parameters: WKOpenPanelParameters,
+                 initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping ([URL]?) -> Void) {
+        guard messenger != nil, let owner = webView.window, owner.attachedSheet == nil else { completionHandler(nil); return }
+        let expected = navigationRevision
+        let picker = NSOpenPanel()
+        picker.canChooseFiles = true; picker.canChooseDirectories = false
+        picker.allowsMultipleSelection = parameters.allowsMultipleSelection
+        picker.beginSheetModal(for: owner) { [weak self] response in
+            guard let self, !self.closed, self.navigationRevision == expected, response == .OK else { completionHandler(nil); return }
+            completionHandler(picker.urls)
+        }
+    }
 }
 
 private struct NativeWebSurface: NSViewRepresentable {

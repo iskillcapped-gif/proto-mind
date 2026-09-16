@@ -278,7 +278,8 @@ extension AppModel {
         }
         closeTaskUpdateQueue(execution: state)
         state.clearTurn()
-        persist()
+        let saved = persist()
+        telegram.taskEnded(app: self, id: conversationID, source: userMessage.id, saved: saved)
         if selectedID == conversationID {
             await refreshCodexThreadStatus()
             if selectedID == conversationID { await refresh() }

@@ -82,6 +82,10 @@ extension NativeChecks {
         companions.toggle(.first); companions.toggle(.second)
         let first = companions.surface(.first), second = companions.surface(.second)
         guard let firstWindow = first.window, let secondWindow = second.window else { throw NativeError.message("Companion windows not created") }
+        try check([window, firstWindow, secondWindow, desktop.corePanel!].allSatisfy {
+            $0.collectionBehavior.contains(.canJoinAllApplications) && $0.collectionBehavior.contains(.canJoinAllSpaces)
+                && $0.collectionBehavior.contains(.fullScreenAuxiliary) && !$0.collectionBehavior.contains(.moveToActiveSpace)
+        }, "The complete floating group can accompany another application's fullscreen Space")
         try check(firstWindow !== secondWindow && firstWindow !== window && firstWindow.frame.maxY == window.frame.maxY
                   && secondWindow.frame.minY == window.frame.minY && firstWindow.frame.minX == secondWindow.frame.minX
                   && firstWindow.canBecomeKey && firstWindow.parent === window && secondWindow.parent === window,

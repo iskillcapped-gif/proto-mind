@@ -34,7 +34,7 @@ struct WorkspacePanelTab: Identifiable {
         case .text(let file): return file.url.lastPathComponent
         case .image(let image): return image.source.name
         case .pdf(let pdf): return pdf.source.name
-        case .browser: return L10n.text("Браузер")
+        case .browser(let browser): return browser.messenger?.title ?? L10n.text("Браузер")
         case .conversation: return L10n.text("Диалог PM")
         case .terminal: return L10n.text("Терминал")
         case .answer(let answer): return answer.title
@@ -45,7 +45,7 @@ struct WorkspacePanelTab: Identifiable {
         case .text: return "doc.text"
         case .image: return "photo"
         case .pdf: return "doc.richtext"
-        case .browser: return "globe"
+        case .browser(let browser): return browser.messenger == nil ? "globe" : "message"
         case .conversation: return "bubble.left.and.bubble.right"
         case .terminal: return "terminal"
         case .answer: return "doc.text"

@@ -110,7 +110,11 @@ extension NativeBrowserTab {
         guard !closed, !webView.isLoading, revision == navigationRevision, webView.url == url else {
             throw NativeError.message(L10n.pick("Страница изменилась во время чтения. Повторите передачу.", "The page changed while being read. Capture it again."))
         }
-        return try BrowserPageSnapshot(value, expectedURL: url)
+        let snapshot = try BrowserPageSnapshot(value, expectedURL: url)
+        if messenger != nil && !snapshot.selection {
+            throw NativeError.message(L10n.pick("Выделите сообщения, которые хотите передать PM. Остальная переписка останется в мессенджере.", "Select the messages you want to share with PM. The rest stays in the messenger."))
+        }
+        return snapshot
     }
 }
 

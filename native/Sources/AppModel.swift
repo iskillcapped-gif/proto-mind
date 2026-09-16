@@ -49,6 +49,8 @@ final class AppModel: ObservableObject {
     @Published var account: JSONValue = .null
     let codexUsage = CodexUsageModel()
     let apiConnections: ModelAPIConnections
+    let messengers: MessengerConnections
+    let telegram: TelegramRemoteModel
     let liveVoice: LiveVoiceModel
     let dictation: DictationModel
     let responseAttention: ResponseAttention
@@ -236,9 +238,12 @@ final class AppModel: ObservableObject {
     private var personaReadinessRequest = UUID()
 
     init(configuration: LaunchConfiguration = .load(), historyStore: ChatStore? = nil,
-         uiDefaults: UserDefaults = .standard, dictationSpeech: DictationRecognizing? = nil) {
+         uiDefaults: UserDefaults = .standard, dictationSpeech: DictationRecognizing? = nil,
+         telegram: TelegramRemoteModel? = nil) {
         workspacePanels = WorkspacePanels(stateDirectory: configuration.stateDirectory, defaults: uiDefaults)
         apiConnections = ModelAPIConnections(stateDirectory: configuration.stateDirectory, defaults: uiDefaults)
+        messengers = MessengerConnections(profile: configuration.stateDirectory)
+        self.telegram = telegram ?? TelegramRemoteModel(profile: configuration.stateDirectory)
         desktop = DesktopPresentation(stateDirectory: configuration.stateDirectory, defaults: uiDefaults)
         liveVoice = LiveVoiceModel(stateDirectory: configuration.stateDirectory)
         dictation = DictationModel(stateDirectory: configuration.stateDirectory, defaults: uiDefaults, speech: dictationSpeech)

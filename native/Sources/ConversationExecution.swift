@@ -70,6 +70,7 @@ extension AppModel {
     }
 
     func shutdown() {
+        telegram.stop()
         workspacePanels.closeAll()
         dictation.shutdown()
         presentations.shutdown()

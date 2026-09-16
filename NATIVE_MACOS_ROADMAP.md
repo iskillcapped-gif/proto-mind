@@ -4,6 +4,42 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Messengers and Remote Tasks — Native 0.68.0
+
+Telegram and WhatsApp web tabs use persistent, profile/service-scoped WebKit
+stores. Ordinary browser tabs remain ephemeral. Explicit message selection is
+required before a messenger snapshot enters the existing Browser to Task flow;
+source identity, bounded content and untrusted-data labeling stay intact. Upload
+pickers attach to their original window. Resetting sign-in closes matching views
+before clearing that store. Calls, system notifications and in-app downloads are
+not part of this release.
+
+The optional Telegram bot uses Keychain credentials, expiring pairing links,
+local account approval and a task allowlist. Private fresh messages can list,
+select, create, inspect, start, steer and stop tasks. New chats carry model/folder
+choices but not Mac permissions. Voice and Telegram share the same draft-free
+execution entrypoint; completions send only after the regular AppModel save.
+Connection metadata and an at-most-once input cursor live outside restored
+private backups under ProtoMindConnections. A sidecar lease prevents simultaneous
+polling by instances of one profile. Disconnecting leaves accepted tasks alive.
+Connection startup is explicit; offline queued input is not executed later.
+
+The floating window group now uses canJoinAllApplications, canJoinAllSpaces and
+fullScreenAuxiliary consistently, including passive previews and voice. Normal
+mode keeps its ordinary collection behavior and level.
+
+Verification: **1,858 Native checks passed**, including real local WebKit
+selection boundaries, persistent/ephemeral store separation, pairing/allowlist
+controls, duplicate-update rejection, background steering/completion, exact stop,
+draft preservation and disconnect behavior through a fake Telegram transport.
+A separate signed QA app verified Telegram Web and WhatsApp's QR sign-in page,
+panel launchers, retained web sign-in, and opening from settings. WhatsApp needs
+a Safari compatibility version in WKWebView's user agent. Fullscreen collection
+flags and passive hover transitions are covered locally; video-player-specific
+overlay behavior still needs operator confirmation. The installed developer
+bundle is **0.68.0 (95)**; its previous bundle was preserved. The portable
+installer remains the separate 0.66.1 artifact.
+
 ## New Chat Project Folder — Native 0.67.2
 
 The sidebar and File menu now call the new-conversation action **Новый чат**

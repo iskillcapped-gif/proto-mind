@@ -137,6 +137,8 @@ struct NativeSettingsView: View {
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                     case .services:
+                        MessengerSettings(app: model, connections: model.messengers)
+                        TelegramRemoteSettings(app: model, remote: model.telegram)
                         ModelAPIConnectionSettings(app: model, connections: model.apiConnections)
                         Section { GitHubConnectionView(app: model, github: model.github) }
                             .task { await model.github.refresh(app: model) }

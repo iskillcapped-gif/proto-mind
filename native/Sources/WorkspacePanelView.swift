@@ -108,6 +108,11 @@ struct WorkspacePanelView: View {
             }
         }
         Button(L10n.text("Браузер / веб-приложение"), systemImage: "globe") { activate(); panel.openBrowser() }
+        Menu(L10n.pick("Мессенджеры", "Messengers")) {
+            ForEach(MessengerService.allCases) { service in
+                Button(service.title) { activate(); model.openMessenger(service, in: panel) }
+            }
+        }
         Button(L10n.text("Терминал"), systemImage: "terminal") { activate(); panel.openTerminal(directory: directory) }
         Menu(L10n.text("Другой CLI")) {
             Button("Claude Code") {

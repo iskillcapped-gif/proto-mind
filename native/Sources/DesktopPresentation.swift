@@ -3,6 +3,12 @@ import Combine
 import CryptoKit
 import SwiftUI
 
+/// The cube and its workspace must belong to the same Spaces, including another
+/// app's fullscreen Space. Ordering a hover preview never activates Proto-Mind.
+enum DesktopWindowPolicy {
+    static let floating: NSWindow.CollectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .canJoinAllApplications]
+}
+
 /// Window geometry is UI state only. It never participates in dialog or voice ownership.
 enum DesktopGeometry {
     static let coreSize = NSSize(width: 136, height: 124)
@@ -247,7 +253,7 @@ final class DesktopPresentation: ObservableObject {
             panel.title = L10n.text("Голос Proto-Mind"); panel.titleVisibility = .hidden; panel.titlebarAppearsTransparent = true
             panel.isReleasedWhenClosed = false; panel.isFloatingPanel = true; panel.hidesOnDeactivate = false
             panel.isOpaque = false; panel.backgroundColor = .clear; panel.hasShadow = true
-            panel.level = .floating; panel.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
+            panel.level = .floating; panel.collectionBehavior = DesktopWindowPolicy.floating
             panel.minSize = NSSize(width: 350, height: 480)
             panel.onClose = { [weak app] in app?.showLiveVoice = false }
             panel.contentView = NSHostingView(rootView: FloatingVoiceView(app: app, voice: app.liveVoice, desktop: self))
@@ -335,7 +341,7 @@ final class DesktopPresentation: ObservableObject {
         }
         window.isOpaque = false; window.backgroundColor = .clear; window.hasShadow = true
         window.animationBehavior = .none
-        window.level = .floating; window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
+        window.level = .floating; window.collectionBehavior = DesktopWindowPolicy.floating
         window.minSize = DesktopGeometry.minimumWorkspace
         let core = makeCore(app: app)
         let screens = NSScreen.screens.map(\.visibleFrame)
@@ -574,7 +580,7 @@ final class DesktopPresentation: ObservableObject {
         panel.setAccessibilitySubrole(.floatingWindow)
         panel.isFloatingPanel = true; panel.hidesOnDeactivate = false
         panel.isOpaque = false; panel.backgroundColor = .clear; panel.hasShadow = false
-        panel.level = .floating; panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
+        panel.level = .floating; panel.collectionBehavior = DesktopWindowPolicy.floating.union(.ignoresCycle)
         panel.isReleasedWhenClosed = false
         let host = DesktopCoreHost(rootView: DesktopCoreView(app: app, voice: app.liveVoice, desktop: self))
         host.desktop = self; panel.contentView = host
