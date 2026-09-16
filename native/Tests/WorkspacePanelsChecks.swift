@@ -66,6 +66,7 @@ extension NativeChecks {
 
     @MainActor
     static func workspacePanelsIntegration(fixture: URL, python: URL, root: URL) async throws {
+        try await workspacePanelDrafts(fixture: fixture, python: python, root: root)
         let state = root.appendingPathComponent("two-panels-state")
         let app = AppModel(configuration: LaunchConfiguration(projectRoot: fixture, python: python, stateDirectory: state))
         defer { app.shutdown() }

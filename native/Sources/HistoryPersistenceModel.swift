@@ -2,7 +2,12 @@ import AppKit
 import Foundation
 
 extension AppModel {
-    var currentHistoryArchive: ChatArchive { ChatArchive(conversations: conversations, selectedID: selectedID) }
+    var currentHistoryArchive: ChatArchive {
+        // Preserve written drafts for restart/recovery, but never serialize untouched launchers.
+        let saved = conversations.filter { !provisionalPanelConversations.contains($0.id) || $0.hasDraftOrMessages }
+        let selection = selectedID.flatMap { id in saved.contains(where: { $0.id == id }) ? id : saved.first?.id }
+        return ChatArchive(conversations: saved, selectedID: selection)
+    }
 
     func openHistoryBackups() {
         guard !globalBusy, !client.turnOutstanding else { return }
@@ -85,6 +90,7 @@ extension AppModel {
         pendingAction = nil; imagePreview = nil; pdfPreview = nil; attachmentDropPreview = nil
         showWorkSessions = false; showConversationHistory = false; showContextDesk = false; showInspector = false
         workspacePanel.closeAll()
+        provisionalPanelConversations.removeAll()
         conversations = archive.conversations
         if conversations.isEmpty { conversations = [Conversation()] }
         selectedID = conversations.first(where: { $0.id == archive.selectedID })?.id ?? conversations.first?.id
@@ -99,7 +105,7 @@ extension AppModel {
         guard !privateBackupRestartRequired else { throw NativeError.message("Перезапустите Proto-Mind после восстановления данных.") }
         draftSave?.cancel()
         do {
-            try store.save(ChatArchive(conversations: conversations, selectedID: selectedID))
+            try store.save(currentHistoryArchive)
             dirtyDraft = false
             if error == historyPersistence.failure { error = nil }
             historyPersistence = HistoryPersistenceState()

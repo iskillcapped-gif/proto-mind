@@ -17,17 +17,60 @@ extension AppModel {
     }
 
     func newPanelConversation(in panel: WorkspacePanelModel) {
-        guard canNavigateConversations, panel.tabs.count < WorkspacePanelModel.maximumTabs else { return }
+        guard canNavigateConversations else { return }
+        panel.onConversationClosed = { [weak self] id in self?.finishPanelDraft(id) }
+        if let empty = panel.tabs.first(where: { tab in
+            guard case .conversation(let id) = tab.content else { return false }
+            return provisionalPanelConversations.contains(id)
+                && conversations.first(where: { $0.id == id })?.hasDraftOrMessages == false
+        }) {
+            panel.selectedID = empty.id; panel.visible = true
+            return
+        }
+        guard panel.tabs.count < WorkspacePanelModel.maximumTabs else { return }
         var chat = Conversation()
         if let source = selected {
             chat.provider = source.provider; chat.model = source.model; chat.reasoningEffort = source.reasoningEffort
             chat.workspacePath = source.workspacePath; chat.apiConnectionID = source.apiConnectionID
         } else if serviceClient.configuration.isPortable { chat.provider = "codex"; chat.model = "" }
         // A new conversation inherits a model and folder, never an authorization grant.
+        provisionalPanelConversations.insert(chat.id)
         conversations.insert(chat, at: 0)
-        _ = execution(for: chat.id)
         panel.open(.conversation(chat.id))
-        persist()
+    }
+
+    /// Closing an unused launcher discards UI state. A written draft stays reachable.
+    func finishPanelDraft(_ id: UUID) {
+        guard provisionalPanelConversations.contains(id), selectedID != id, !isRunning(id),
+              let chat = conversations.first(where: { $0.id == id }) else { return }
+        let panels = [workspacePanels.upper, workspacePanels.lower] + desktop.companions.surfaces.map(\.panel)
+        guard !panels.contains(where: { panel in
+            panel.tabs.contains { if case .conversation(let other) = $0.content { return other == id }; return false }
+        }) else { return }
+        provisionalPanelConversations.remove(id)
+        if chat.hasDraftOrMessages { persist(); return }
+        // This idle draft loses its bridge entirely, so do not enqueue a revocation
+        // RPC which could reconnect that bridge after shutdown.
+        restoringAgentAccess.removeValue(forKey: id)?.cancel()
+        agentGrants.removeValue(forKey: id)
+        if pendingAgentAccess?.conversationID == id { pendingAgentAccess = nil }
+        if rememberedAgentAccess.contains(where: { $0.conversationID == id }) {
+            rememberedAgentAccess.removeAll { $0.conversationID == id }
+            do { try savePreferences() } catch { report(error) }
+        }
+        executions.removeValue(forKey: id)?.client.shutdown()
+        conversations.removeAll { $0.id == id }
+    }
+
+    /// Publish only after an explicit nonempty send; save its draft before any RPC.
+    func beginPanelConversation(_ id: UUID, text: String) -> Bool {
+        guard provisionalPanelConversations.contains(id), let index = conversations.firstIndex(where: { $0.id == id }) else { return true }
+        if conversations[index].draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if selectedID == id { setComposer(text) } else { conversations[index].draft = text }
+        }
+        provisionalPanelConversations.remove(id)
+        guard persist() else { provisionalPanelConversations.insert(id); return false }
+        return true
     }
 
     func configureConversation(_ id: UUID, provider: String? = nil, model: String? = nil, effort: String? = nil) {
@@ -78,5 +121,13 @@ extension AppModel {
                 }
             }
         }
+    }
+}
+
+extension Conversation {
+    var hasDraftOrMessages: Bool {
+        !messages.isEmpty || !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || !pendingFiles.isEmpty || !pendingImages.isEmpty || !pendingPDFs.isEmpty
+            || !pendingCriteria.isEmpty || draftContinuation != nil
     }
 }

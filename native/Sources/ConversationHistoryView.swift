@@ -74,11 +74,11 @@ struct ConversationHistoryView: View {
             .font(NativeTheme.interfaceFont).buttonStyle(.nativeHover)
             .onAppear { query = model.conversationSearch; searchFocused = true }
             .onChange(of: selectedID) { _, _ in matchIndex = 0 }
-            .onChange(of: model.conversations) { _, _ in revision += 1 }
+            .onChange(of: model.listedConversations) { _, _ in revision += 1 }
             .task(id: searchKey) {
                 searching = true
                 do { try await Task.sleep(nanoseconds: 120_000_000) } catch { return }
-                let found = await ConversationHistorySearch.find(in: model.conversations, query: query, scope: scope)
+                let found = await ConversationHistorySearch.find(in: model.listedConversations, query: query, scope: scope)
                 guard !Task.isCancelled else { return }
                 results = found; matchIndex = 0; visibleLimit = 60; searching = false
                 if !found.contains(where: { $0.id == selectedID }) { selectedID = found.first?.id }

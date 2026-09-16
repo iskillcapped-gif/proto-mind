@@ -4,6 +4,28 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Panel Drafts — Native 0.65.7
+
+Opening **Диалог PM** in an internal or floating panel creates only a provisional
+editor. Repeating the action reuses an untouched tab in that panel. First nonempty
+Send publishes the chat through the existing history writer, before any request.
+An attachment-only Send follows the same path. Blank tabs do not appear in the
+sidebar, history search, open-chat menu or voice task list, and are not persisted.
+
+Written drafts and selected attachments are still saved for recovery. Closing
+their last editor keeps them reachable in the conversation list; after restart,
+these saved drafts are regular chats. An untouched tab is discarded when its last
+editor closes. Existing chats, running tasks and previously saved empty chats are
+left intact. No archive schema migration or provider change is required.
+
+Verification: all 1,737 Native checks passed, including four independent launchers,
+empty Send, repeated opening, first-send save failure, restored and erased drafts,
+attachment-only submission, concurrent turns and the Session Spine history writer.
+The attachment check also found and fixed normalization of macOS system path
+aliases before text-file selection. A disposable app verified an internal panel
+and both floating companions, publication on first Send, closing a written draft
+and relaunching without the untouched tabs. No live model or microphone was used.
+
 ## Companion Navigation and Sizing — Native 0.65.6
 
 Both floating companions have a size toggle next to Return to position. It expands

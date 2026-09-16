@@ -44,7 +44,7 @@ final class PrivateBackupModel: ObservableObject {
     var restartRequired: Bool { result["restart_required"].flag }
 
     func windowIsPreserved(_ app: AppModel) -> Bool {
-        preservedWindow?.conversations == app.conversations && preservedWindow?.selectedID == app.selectedID
+        preservedWindow?.conversations == app.currentHistoryArchive.conversations && preservedWindow?.selectedID == app.currentHistoryArchive.selectedID
     }
 
     func refresh(app: AppModel) async {

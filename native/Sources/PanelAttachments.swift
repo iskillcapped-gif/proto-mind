@@ -38,7 +38,7 @@ extension AppModel {
                 conversations[index].pendingPDFs = next
             } else {
                 guard let root = conversation.workspacePath else { throw NativeError.message("Выберите папку проекта для текстового вложения.") }
-                let path = try NativeAttachmentDrop.relativePath(url, workspace: root)
+                let path = try NativeAttachmentDrop.relativePath(NativeAttachmentDrop.localURL(url), workspace: root)
                 let file = try await client.request("workspace_read", ["workspace_root": .string(root), "path": .string(path)])
                 guard file["read_only"].flag, file["path"].text == path, !isRunning(conversationID),
                       let index = conversations.firstIndex(where: { $0.id == conversationID }), conversations[index].workspacePath == root, !conversations[index].archived,

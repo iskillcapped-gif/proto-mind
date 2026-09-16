@@ -30,6 +30,7 @@ extension AppModel {
             execution(for: conversationID).status = "Сначала восстановите сохранение истории"
             return
         }
+        guard beginPanelConversation(conversationID, text: text) else { return }
         let state = execution(for: conversationID)
         state.running = true
         do {

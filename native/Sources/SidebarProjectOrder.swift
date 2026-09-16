@@ -233,7 +233,7 @@ private struct SidebarProjectDrop: DropDelegate {
             guard case .success(let item) = result else { return }
             Task { @MainActor in
                 guard !app.operationBusy, !app.privateBackupRestartRequired else { return }
-                order.move(item, to: target, after: after, conversations: app.conversations)
+                order.move(item, to: target, after: after, conversations: app.listedConversations)
             }
         }
         return true
@@ -289,7 +289,7 @@ private struct SidebarProjectHeading: View {
 
     private func moveBy(_ offset: Int) {
         guard !app.operationBusy, !app.privateBackupRestartRequired, let target = neighbour(offset) else { return }
-        order.move(.init(id: group.id, owner: order.owner), to: target, after: offset > 0, conversations: app.conversations)
+        order.move(.init(id: group.id, owner: order.owner), to: target, after: offset > 0, conversations: app.listedConversations)
     }
 }
 

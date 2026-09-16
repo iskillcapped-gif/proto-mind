@@ -233,6 +233,10 @@ extension NativeChecks {
         guard let writerAccepted = app.sessionSpineAcceptance, writerAccepted.accepted else {
             throw NativeError.message(app.error ?? "P2l personal rehearsal was not accepted")
         }
+        app.newPanelConversation(in: app.workspacePanels.upper)
+        guard case .conversation(let blankPanelDraft)? = app.workspacePanels.upper.selected?.content else {
+            throw NativeError.message("Missing provisional draft beside the Spine writer")
+        }
         let beforeWriter = try fileBytes(state)
         await app.openSessionSpineWriter(writerAccepted)
         guard let writerPreview = app.sessionSpineWriterPreview else {
@@ -259,6 +263,10 @@ extension NativeChecks {
             writerPreview, token: writerPreview.confirmationToken, acknowledgement: true
         )
         let stabilizedHistory = try fileBytes(state)
+        try check(!(try ChatStore(directory: state).load()).conversations.contains { $0.id == blankPanelDraft }
+                  && app.provisionalPanelConversations.contains(blankPanelDraft),
+                  "The Spine writer uses the same archive projection and cannot persist an unrelated blank panel draft")
+        app.workspacePanels.upper.close(app.workspacePanels.upper.selectedID!)
         let historyPath = state.appendingPathComponent("conversations.json").path
         let stabilizedKeys = Set(beforeWriter.keys).union(stabilizedHistory.keys)
         let changedByReadback = Set(stabilizedKeys.filter { beforeWriter[$0] != stabilizedHistory[$0] })

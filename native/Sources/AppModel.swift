@@ -27,6 +27,8 @@ struct PendingPersonaActivation: Identifiable {
 @MainActor
 final class AppModel: ObservableObject {
     @Published var conversations: [Conversation] = []
+    // Unsent panel launchers are UI drafts, not entries in the conversation list.
+    @Published var provisionalPanelConversations: Set<UUID> = []
     @Published var selectedID: UUID? {
         didSet {
             if !initializing, oldValue != selectedID { dictation.stop() }
@@ -34,6 +36,7 @@ final class AppModel: ObservableObject {
                 _ = execution(for: id)
                 liveVoice.updateContext(app: self)
             }
+            if !initializing, let oldValue, oldValue != selectedID { finishPanelDraft(oldValue) }
         }
     }
     @Published var section: WorkspaceSection = .chat {
@@ -288,9 +291,12 @@ final class AppModel: ObservableObject {
     }
 
     var selected: Conversation? { conversations.first { $0.id == selectedID } }
+    var listedConversations: [Conversation] {
+        conversations.filter { !provisionalPanelConversations.contains($0.id) }
+    }
     var visibleConversations: [Conversation] {
         let query = conversationSearch.trimmingCharacters(in: .whitespacesAndNewlines)
-        return conversations.filter { chat in
+        return listedConversations.filter { chat in
             chat.archived == showArchived && (query.isEmpty || chat.title.localizedCaseInsensitiveContains(query)
                 || chat.messages.contains { $0.searchableText.localizedCaseInsensitiveContains(query) })
         }.sorted { $0.updatedAt == $1.updatedAt ? $0.id.uuidString < $1.id.uuidString : $0.updatedAt > $1.updatedAt }

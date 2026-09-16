@@ -63,6 +63,7 @@ final class WorkspacePanelModel: ObservableObject {
     @Published var error: String?
     @Published var filesSelected = false
     weak var presentations: WorkspacePresentations?
+    var onConversationClosed: ((UUID) -> Void)?
     var selected: WorkspacePanelTab? { tabs.first { $0.id == selectedID } }
 
     func showFiles() { visible = true; selectedID = nil; filesSelected = true; error = nil }
@@ -100,11 +101,13 @@ final class WorkspacePanelModel: ObservableObject {
 
     func close(_ id: UUID) {
         guard let index = tabs.firstIndex(where: { $0.id == id }) else { return }
+        let closed = tabs[index].content
         if case .browser(let browser) = tabs[index].content { browser.close() }
         if case .terminal(let terminal) = tabs[index].content { terminal.close() }
         tabs.remove(at: index)
         if selectedID == id { selectedID = tabs.isEmpty ? nil : tabs[min(index, tabs.count - 1)].id }
         error = nil
+        if case .conversation(let conversationID) = closed { onConversationClosed?(conversationID) }
     }
 
     func closeAll() {

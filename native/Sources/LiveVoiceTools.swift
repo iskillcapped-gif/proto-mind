@@ -2,7 +2,7 @@ import Foundation
 
 extension AppModel {
     var liveVoiceProjects: [String] {
-        Array(Set(conversations.filter { !$0.archived }.compactMap(\.workspacePath))).sorted()
+        Array(Set(listedConversations.filter { !$0.archived }.compactMap(\.workspacePath))).sorted()
     }
 
     func liveVoiceTaskStatus(_ id: UUID) throws -> JSONValue {
@@ -34,7 +34,7 @@ extension AppModel {
                 .object(["name": .string(URL(fileURLWithPath: $0).lastPathComponent), "path": .string($0)])
             })])
         case "list_tasks":
-            let recent = conversations.filter { !$0.archived }.sorted { $0.updatedAt > $1.updatedAt }
+            let recent = listedConversations.filter { !$0.archived }.sorted { $0.updatedAt > $1.updatedAt }
             let included = recent.filter { isRunning($0.id) || $0.id == selectedID }
                 + recent.filter { !isRunning($0.id) && $0.id != selectedID }.prefix(60)
             let rows: [JSONValue] = included.map { conversation in

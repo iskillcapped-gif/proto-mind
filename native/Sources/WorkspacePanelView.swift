@@ -103,7 +103,7 @@ struct WorkspacePanelView: View {
     @ViewBuilder private var actions: some View {
         Button("Новый диалог PM", systemImage: "bubble.left.and.bubble.right") { activate(); model.newPanelConversation(in: panel) }
         Menu("Открыть диалог") {
-            ForEach(model.conversations.filter { !$0.archived }.prefix(60)) { conversation in
+            ForEach(model.listedConversations.filter { !$0.archived }.prefix(60)) { conversation in
                 Button(conversation.title) { activate(); panel.open(.conversation(conversation.id)) }
             }
         }

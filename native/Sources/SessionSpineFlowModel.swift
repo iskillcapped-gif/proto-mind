@@ -246,7 +246,7 @@ extension AppModel {
                 throw NativeError.message("P2l preview изменился перед первой записью. Повторите проверку; ничего не записано.")
             }
 
-            let archive = ChatArchive(conversations: conversations, selectedID: selectedID)
+            let archive = currentHistoryArchive
             durableWriteStarted = true
             let readback = try store.saveAndReadBack(archive)
             draftSave?.cancel(); dirtyDraft = false
