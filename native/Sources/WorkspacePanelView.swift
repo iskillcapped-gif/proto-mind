@@ -160,7 +160,7 @@ struct WorkspacePanelView: View {
         switch tab.content {
         case .text(let file): WorkspaceTextView(model: model, panel: panel, file: file)
         case .image(let image): WorkspaceImageView(model: model, panel: panel, preview: image)
-        case .pdf(let pdf): WorkspacePDFView(model: model, panel: panel, preview: pdf, tabID: tab.id)
+        case .pdf(let pdf): WorkspacePDFView(model: model, panel: panel, preview: pdf, tabID: tab.id).id(pdf.id)
         case .browser(let browser): BrowserView(browser: browser, app: model, sourcePanel: panel)
         case .conversation(let id): ConversationPaneView(app: model, conversationID: id, panel: panel)
         case .terminal(let terminal): WorkspaceTerminalView(terminal: terminal)
@@ -212,6 +212,8 @@ private struct WorkspaceAnswerView: View {
                     if NativeBrowserURL.isWebURL(url) { panel.openBrowser(url) }
                     else { model.openPanelFile(url, conversationID: answer.conversationID, panel: panel) }
                 }).padding(24).frame(maxWidth: .infinity, alignment: .leading)
+                Color.clear.frame(height: 16)
+                    .background(ResponseReadMarker(app: model, conversationID: answer.conversationID, messageID: answer.messageID))
             }
         }.responseExportFeedback(responseExport)
     }
@@ -305,61 +307,7 @@ private struct WorkspaceImageView: View {
     }
 }
 
-private struct WorkspacePDFView: View {
-    @ObservedObject var model: AppModel
-    let panel: WorkspacePanelModel
-    let preview: NativePDFPreview
-    let tabID: UUID
-    private var page: Int { preview.source.pages.first ?? 1 }
-    private var total: Int { preview.source.value["page_count"].integer }
-    private var currentConversation: Bool { model.selectedID == preview.conversationID && model.selected?.workspacePath == preview.workspace }
-
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Text(preview.source.name).font(.callout).lineLimit(1)
-                Spacer()
-                if preview.canAttach {
-                    Button {
-                        do { try model.attachPDF(preview) } catch { panel.error = error.localizedDescription }
-                    } label: { Image(systemName: "paperclip") }
-                        .disabled(!model.canEditMessageAttachments || model.loadingPDFPreview || !currentConversation || !preview.hasText || model.selected?.archived == true)
-                        .help(L10n.text("Прикрепить выбранные страницы")).accessibilityLabel(L10n.text("Прикрепить страницы PDF"))
-                }
-                documentMenu(URL(fileURLWithPath: preview.source.path))
-            }.padding(14).workspacePanelHeader()
-            Divider().workspacePanelHeader()
-            HStack {
-                Text(L10n.text("Текст PDF")).font(.caption).foregroundStyle(.secondary)
-                Spacer()
-                Button { changePage(page - 1) } label: { Image(systemName: "chevron.left") }
-                    .disabled(page <= 1 || model.loadingPDFPreview || !model.canEditMessageAttachments || !currentConversation)
-                    .accessibilityLabel(L10n.text("Предыдущая страница PDF"))
-                Text("\(preview.source.pageLabel) / \(total)").font(.caption.monospacedDigit())
-                Button { changePage((preview.source.pages.last ?? page) + 1) } label: { Image(systemName: "chevron.right") }
-                    .disabled((preview.source.pages.last ?? page) >= total || model.loadingPDFPreview || !model.canEditMessageAttachments || !currentConversation)
-                    .accessibilityLabel(L10n.text("Следующая страница PDF"))
-                if model.loadingPDFPreview { ProgressView().controlSize(.small) }
-            }.padding(12).workspacePanelHeader()
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    ForEach(Array(preview.pages.enumerated()), id: \.offset) { _, value in
-                        Text(value["text"].text.isEmpty ? L10n.text("На этой странице нет текстового слоя.") : value["text"].text)
-                            .font(NativeTheme.messageFont).lineSpacing(6).textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        if value["truncated"].flag {
-                            Text(L10n.text("Показано начало текста страницы.")).font(.caption).foregroundStyle(.secondary)
-                        }
-                    }
-                }.padding(24)
-            }
-            Text(L10n.text("Оригинальное оформление — через «Открыть».")).font(.caption).foregroundStyle(.secondary).padding(10)
-        }
-    }
-    private func changePage(_ next: Int) { Task { await model.refreshWorkspacePDF(preview, page: next, tabID: tabID, in: panel) } }
-}
-
-private func documentMenu(_ url: URL, text: Bool = false) -> some View {
+func documentMenu(_ url: URL, text: Bool = false) -> some View {
     Menu {
         Button(text ? L10n.text("Открыть в TextEdit") : L10n.text("Открыть в Просмотре")) {
             let application = URL(fileURLWithPath: text ? "/System/Applications/TextEdit.app" : "/System/Applications/Preview.app")

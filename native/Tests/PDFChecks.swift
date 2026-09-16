@@ -6,7 +6,7 @@ import UniformTypeIdentifiers
 
 extension NativeChecks {
     @MainActor
-    static func syntheticPDF(_ pages: [String]) throws -> Data {
+    static func syntheticPDF(_ pages: [String], background: NSColor? = nil) throws -> Data {
         let data = NSMutableData()
         var mediaBox = CGRect(x: 0, y: 0, width: 612, height: 792)
         guard let consumer = CGDataConsumer(data: data), let context = CGContext(consumer: consumer, mediaBox: &mediaBox, nil) else {
@@ -14,6 +14,7 @@ extension NativeChecks {
         }
         for text in pages {
             context.beginPDFPage(nil)
+            if let background { context.setFillColor(background.cgColor); context.fill(mediaBox) }
             NSGraphicsContext.saveGraphicsState()
             NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
             NSAttributedString(string: text, attributes: [.font: NSFont.systemFont(ofSize: 14)]).draw(in: CGRect(x: 30, y: 30, width: 550, height: 730))
@@ -34,7 +35,7 @@ extension NativeChecks {
         defer { app.shutdown() }
         await app.start(); app.setProvider("mock")
         let document = try NativeAttachmentDrop.localURL(root.appendingPathComponent("selected document.pdf"))
-        let original = try syntheticPDF(["PAGE ONE: Привет, локальный PDF.", "PAGE TWO: SELECTED PRIVATE EXCERPT", "PAGE THREE: NEVER SELECTED"])
+        let original = try syntheticPDF(["PAGE ONE: Привет, локальный PDF.", "PAGE TWO: SELECTED PRIVATE EXCERPT", "PAGE THREE: NEVER SELECTED"], background: .lightGray)
         try original.write(to: document)
         try check(NativeAttachmentDrop.isPDF(document), "PDF has a dedicated attachment route outside workspace text files")
         try check(try NativePDFPageSelection.parse("1-3, 7, 2", total: 7) == [1, 2, 3, 7], "PDF page ranges are bounded, unique and sorted")
@@ -59,9 +60,43 @@ extension NativeChecks {
         await app.submit("Do not send from preview")
         try check(app.messages.isEmpty && (try fileBytes(state)) == before && (try fileBytes(fixture)) == coreBefore && !app.cloudConsent,
                   "Enter during PDF preview does not send, write stores, start a run or grant cloud")
+        let pageValue = try await app.serviceClient.request("pdf_render_page", ["path": .string(document.path),
+            "expected_sha256": initial.source.value["sha256"], "page": .number(2)])
+        let rendered = try RenderedPDFPage(pageValue, source: initial, page: 2)
+        try check(rendered.preview.source.pages == [2] && rendered.preview.hasText && rendered.size.height == 1600
+                  && rendered.size.width > 1000 && rendered.image.isValid,
+                  "Sandboxed PDF renderer returns a bounded real page image and the exact same page text")
+        let raster = NSBitmapImageRep(data: rendered.image.tiffRepresentation!)!
+        try check((raster.colorAt(x: 2, y: 2)?.usingColorSpace(.deviceRGB)?.redComponent ?? 1) < 0.9,
+                  "Original page artwork reaches the page edge without a false white border")
+        try check((try fileBytes(state)) == before && (try fileBytes(fixture)) == coreBefore && !app.busy,
+                  "Rendering through the independent reader does not write state or set conversation busy")
+        for key in ["page", "width", "png_sha256", "png_base64"] {
+            guard case .object(var invalid) = pageValue else { throw NativeError.message("Missing page fixture") }
+            invalid[key] = key == "page" ? .number(1) : key == "width" ? .number(1601) : .string("invalid")
+            var refused = false
+            do { _ = try RenderedPDFPage(.object(invalid), source: initial, page: 2) } catch { refused = true }
+            try check(refused, "Rendered PDF rejects mismatched \(key) before displaying an image")
+        }
+        let reader = PDFPageReader()
+        app.pdfPreview = nil; app.newConversation(); app.setComposer("Do not replace this draft")
+        let differentID = app.selectedID
+        await reader.load(initial, page: 3, client: app.serviceClient)
+        try check(reader.rendered?.preview.source.pages == [3] && app.selectedID == differentID && app.composer == "Do not replace this draft",
+                  "PDF navigation remains available after switching conversations and preserves the new draft")
+        app.select(initial.conversationID); app.pdfPreview = initial
         let selected = try await app.reloadPDFPreview(initial, pages: [2])
         try check(selected.source.pages == [2] && selected.pages[0]["text"].text.contains("SELECTED PRIVATE EXCERPT")
                   && !selected.pages[0]["text"].text.contains("PAGE THREE"), "Only explicitly selected page text appears in refreshed PDF preview")
+        let rotatedURL = root.appendingPathComponent("rotated.pdf").resolvingSymlinksInPath()
+        let rotatedDocument = PDFDocument(data: original)!
+        rotatedDocument.page(at: 0)!.rotation = 90
+        try rotatedDocument.dataRepresentation()!.write(to: rotatedURL)
+        let rotatedValue = try await app.serviceClient.request("pdf_preview", ["path": .string(rotatedURL.path)])
+        let rotatedPreview = try NativePDFPreview(rotatedValue, conversationID: initial.conversationID, workspace: nil, canAttach: false)
+        await reader.load(rotatedPreview, page: 1, client: app.serviceClient)
+        try check(reader.rendered?.size.width == 1600 && (reader.rendered?.size.height ?? 0) < 1600,
+                  "Rotated PDF pages keep their original landscape orientation")
         let raw = try await app.client.request("pdf_preview", ["path": .string(document.path), "pages": .array([.number(2)])])
         for change in ["text", "number", "hash", "payload"] {
             guard case .object(var invalid) = raw, case .object(var page) = raw["pages"].items[0], case .object(var metadata) = raw["pdf"] else { throw NativeError.message("Invalid fixture") }
@@ -76,7 +111,7 @@ extension NativeChecks {
         }
         try app.attachPDF(selected); app.pdfPreview = nil
         let saved = try ChatStore(directory: state).load()
-        try check(saved.version == 5 && saved.conversations[0].pendingPDFs == [selected.source.value], "PDF selection persists as metadata in private history v5")
+        try check(saved.version == 5 && saved.conversations.first { $0.id == selected.conversationID }?.pendingPDFs == [selected.source.value], "PDF selection persists as metadata in private history v5")
         try check(!String(decoding: Data(contentsOf: app.store.url), as: UTF8.self).contains("SELECTED PRIVATE EXCERPT")
                   && (try Data(contentsOf: document)) == original, "No PDF original or extracted text is copied to conversation history")
         let strip = NSHostingController(rootView: PendingPDFAttachmentsView(model: app))
@@ -131,6 +166,14 @@ extension NativeChecks {
         var refusedBlank = false
         do { try app.attachPDF(blank) } catch { refusedBlank = true }
         try check(!blank.hasText && refusedBlank && app.selected?.pendingPDFs.isEmpty == true, "Blank or scan-only page previews explain missing text and cannot attach")
+        let blankImage = try await app.serviceClient.request("pdf_render_page", ["path": .string(blank.source.path),
+            "expected_sha256": blank.source.value["sha256"], "page": .number(1)])
+        try check(try !RenderedPDFPage(blankImage, source: blank, page: 1).preview.hasText,
+                  "Pages without a text layer can still be viewed without enabling OCR or attachment")
+        try syntheticPDF(["Changed while open"]).write(to: empty)
+        await reader.load(blank, page: 1, client: app.serviceClient)
+        try check(reader.error != nil && reader.rendered == nil && !reader.loading,
+                  "A changed PDF fails visibly; stale page content is not mislabeled as the new document")
         app.pdfPreview = nil
         let broken = root.appendingPathComponent("broken.pdf").resolvingSymlinksInPath()
         try Data("%PDF-broken".utf8).write(to: broken)

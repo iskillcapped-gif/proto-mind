@@ -140,12 +140,13 @@ struct SidebarView: View {
         return Button {
             let query = model.conversationSearch.trimmingCharacters(in: .whitespacesAndNewlines)
             let match = query.isEmpty ? nil : chat.messages.last { $0.searchableText.localizedCaseInsensitiveContains(query) }
-            model.returnToConversation(chat.id, messageID: match?.id)
+            model.returnToConversation(chat.id, messageID: match?.id ?? model.responseAttention.entry(for: chat)?.messageID)
         } label: {
             HStack(spacing: 8) {
                 if chat.archived { Image(systemName: "archivebox").font(.system(size: 12)).foregroundStyle(.secondary) }
                 Text(chat.displayTitle).font(.system(size: 14)).lineLimit(1)
                 Spacer(minLength: 0)
+                if let entry = model.responseAttention.entry(for: chat) { ResponseAttentionMark(entry: entry) }
                 if isWorking {
                     WorkingIndicator()
                 } else if !chat.draft.isEmpty {
@@ -155,7 +156,8 @@ struct SidebarView: View {
                 .background(model.selectedID == chat.id && model.section == .chat ? NativeTheme.selection : .clear,
                             in: RoundedRectangle(cornerRadius: 9))
         }.buttonStyle(.nativeHover).disabled(presentationLocked || !model.canNavigateConversations).help(chat.displayTitle)
-            .accessibilityLabel(chat.displayTitle + (isWorking ? L10n.text(" · Выполняется задача") : ""))
+            .accessibilityLabel(chat.displayTitle + (isWorking ? L10n.text(" · Выполняется задача") : "")
+                                + (model.responseAttention.entry(for: chat).map { " · " + $0.label } ?? ""))
             .contextMenu {
                 Button(L10n.text("Переименовать…")) { newTitle = chat.title; renaming = chat }
                 Button(chat.archived ? L10n.text("Вернуть из архива") : L10n.text("В архив")) { model.archiveConversation(chat.id, archived: !chat.archived) }

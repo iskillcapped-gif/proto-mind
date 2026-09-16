@@ -170,7 +170,8 @@ class CodexUsageTests(unittest.TestCase):
                                              ("account_usage", "steer"), ("account_usage", "image_preview"),
                                              ("process", "steer"), ("account_limits", "steer"),
                                              ("process", "image_preview"), ("process", "pdf_preview"),
-                                             ("process", "workspace_read"), ("image_preview", "steer")]:
+                                             ("process", "workspace_read"), ("process", "pdf_render_page"),
+                                             ("pdf_render_page", "steer"), ("image_preview", "steer")]:
             incoming, outgoing = queue.Queue(), queue.Queue()
             started, release, next_started = threading.Event(), threading.Event(), threading.Event()
             class Source:

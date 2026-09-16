@@ -93,6 +93,13 @@ struct NativeChecks {
             print("Native continuity checks: \(passed) OK")
             return
         }
+        if CommandLine.arguments.contains("--response-pdf-only"),
+           let fixture = LaunchConfiguration.argument("--fixture"), let python = LaunchConfiguration.argument("--python") {
+            try responseAttentionContracts(root: root)
+            try await pdfAttachments(fixture: URL(fileURLWithPath: fixture), python: URL(fileURLWithPath: python), root: root)
+            print("Native response/PDF checks: \(passed) OK")
+            return
+        }
         if CommandLine.arguments.contains("--interface-only") {
             try await sidebarProjectOrdering(root: root)
             try await composerDictation(root: root)
@@ -101,6 +108,7 @@ struct NativeChecks {
             try await desktopPresentation(root: root)
             try await desktopCompanions(root: root)
             try await workspacePresentations(root: root)
+            try responseAttentionContracts(root: root)
             try chatPresentation(root: root)
             try workspacePanelContracts(root: root)
             try interfaceLanguage(root: root)
@@ -226,6 +234,7 @@ struct NativeChecks {
         try await desktopPresentation(root: root)
         try await desktopCompanions(root: root)
         try await workspacePresentations(root: root)
+        try responseAttentionContracts(root: root)
         try chatPresentation(root: root)
         try workspacePanelContracts(root: root)
         try interfaceLanguage(root: root)

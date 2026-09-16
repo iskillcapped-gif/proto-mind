@@ -14,7 +14,11 @@ For current development guidance, see [`AGENTS.md`](AGENTS.md). The [current pri
 
 ## Native macOS Direction
 
-The current native workspace is **Native 0.66.1 / Response Actions**, built with SwiftUI/AppKit over the existing Python cognitive core. It retains project memory, independent conversations, live steering and explicit Mac access. This development line is separate from the earlier submitted Build Week baseline.
+The current native workspace is **Native 0.67.0 / Unread Replies and PDF Pages**, built with SwiftUI/AppKit over the existing Python cognitive core. It retains project memory, independent conversations, live steering and explicit Mac access. This development line is separate from the earlier submitted Build Week baseline.
+
+**New replies:** sidebar dots mark unread model replies; interrupted requests get an orange attention mark. The floating cube shows the number of conversations with unread results, independently of its active-task ring. Click the count to open a result. Marks survive restart and clear when the end of that reply is visible in an active workspace; passive cube previews do not mark it read. This is response/read status, not a claim that the task outcome was verified.
+
+**PDF pages:** document panels now show original page artwork, page navigation and fit/zoom controls, with a separate selectable-text view. Rendering is local and bounded inside the existing sandboxed helper. Opening or paging does not attach anything. The paperclip explicitly adds the current page’s text; scanned pages can be viewed but have no attachable text without OCR. Documents remain limited to 8 MiB/300 pages; raster previews are at most 1600 pixels on the longest edge. The currently packaged portable beta above remains 0.66.1 pending the next distribution build.
 
 **Response actions:** the quiet **…** menu under a reply keeps its details and adds **Save response…**. Save the chosen reply as Markdown from chat or its result panel; only the visible reply is exported, with its original formatting. Result tabs use the reply heading or conversation title. Copy briefly shows a checkmark.
 

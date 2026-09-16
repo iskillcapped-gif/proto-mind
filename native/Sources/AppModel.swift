@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import Foundation
 import UniformTypeIdentifiers
 
@@ -50,6 +51,8 @@ final class AppModel: ObservableObject {
     let apiConnections: ModelAPIConnections
     let liveVoice: LiveVoiceModel
     let dictation: DictationModel
+    let responseAttention: ResponseAttention
+    private var attentionObservation: AnyCancellable?
     let sidebarProjectOrder: SidebarProjectOrder
     let desktop: DesktopPresentation
     let presentations = WorkspacePresentations()
@@ -239,6 +242,7 @@ final class AppModel: ObservableObject {
         desktop = DesktopPresentation(stateDirectory: configuration.stateDirectory, defaults: uiDefaults)
         liveVoice = LiveVoiceModel(stateDirectory: configuration.stateDirectory)
         dictation = DictationModel(stateDirectory: configuration.stateDirectory, defaults: uiDefaults, speech: dictationSpeech)
+        responseAttention = ResponseAttention(stateDirectory: configuration.stateDirectory, defaults: uiDefaults)
         sidebarProjectOrder = SidebarProjectOrder(stateDirectory: configuration.stateDirectory, defaults: uiDefaults)
         serviceClient = BridgeClient(configuration: configuration)
         store = historyStore ?? ChatStore(directory: configuration.stateDirectory)
@@ -278,6 +282,8 @@ final class AppModel: ObservableObject {
             if self.desktop.enabled { self.desktop.revealMainContent() }
             else { self.desktop.window?.makeKeyAndOrderFront(nil) }
         }
+        if !historyPersistence.blocksSubmission { responseAttention.prune(conversations) }
+        attentionObservation = responseAttention.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }
         initializing = false
     }
 
@@ -1386,6 +1392,7 @@ final class AppModel: ObservableObject {
         guard let index = conversations.firstIndex(where: { $0.id == id }) else { return }
         conversations[index].messages.append(message)
         conversations[index].updatedAt = Date()
+        responseAttention.record(message, conversationID: id)
     }
 
     func report(_ error: Error) { self.error = error.localizedDescription; status = "Нужна проверка" }

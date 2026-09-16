@@ -70,6 +70,8 @@ extension NativeChecks {
         try check(!app.isRunning(a) && app.isRunning(b) && secondState.client.turnOutstanding
                   && app.messages.last?.isError == true && app.composer == "Черновик A",
                   "Stopping A preserves its newer draft and leaves B running")
+        try check(app.responseAttention.entries[a]?.needsAttention == true && app.responseAttention.entries[b] == nil,
+                  "An interrupted task gets an attention marker while the other task is still running")
         try check(app.agentGrants[b] != nil, "Stopping A does not revoke B's Full Mac permission")
         app.newConversation()
         let c = app.selectedID!
@@ -99,9 +101,12 @@ extension NativeChecks {
                   && completed.messages.last?.text.contains("Уточнение только A") == false && !app.globalBusy
                   && completed.messages.first?.taskUpdates?.last?.state == .accepted,
                   "B's final answer includes only B's steering input")
+        try check(app.unreadConversations.count == 2 && app.responseAttention.entries[b]?.messageID == completed.messages.last?.id
+                  && app.responseAttention.entries[b]?.needsAttention == false,
+                  "A real background completion records its exact reply without touching navigation")
         let restored = AppModel(configuration: configuration)
         defer { restored.shutdown() }
-        try check(restored.conversations == app.conversations && restored.selectedID == c
+        try check(restored.conversations == app.conversations && restored.selectedID == c && restored.unreadConversations.count == 2
                   && completed.messages.last?.turnReference != nil && !restored.anyTaskRunning,
                   "One history writer preserves both task outcomes, exact lineage and all drafts across restart")
         let idleConnection = app.executions[c]!.client

@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import base64
+import binascii
 import hashlib
 import json
 import os
@@ -19,6 +21,8 @@ MAX_PDF_BYTES = 8 * 1024 * 1024
 MAX_PDF_PAGES = 300
 MAX_SELECTED_PAGES = 8
 MAX_PAGE_CHARS = 3000
+MAX_RENDER_BYTES = 5 * 1024 * 1024
+MAX_RENDER_EDGE = 1600
 PDF_FIELDS = frozenset({"schema", "path", "name", "sha256", "mime_type", "size_bytes", "page_count", "pages"})
 PAGE_FIELDS = frozenset({"number", "characters", "included_chars", "text_sha256", "truncated"})
 _SHA = re.compile(r"[a-f0-9]{64}")
@@ -61,6 +65,14 @@ def validate_pdf_metadata(value: object) -> list[dict]:
 
 
 def extract_pdf(helper: Path | None, data: bytes, pages: list[int]) -> dict:
+    return _pdf_worker(helper, data, "--pages", ",".join(map(str, pages)))
+
+
+def render_pdf(helper: Path | None, data: bytes, page: int) -> dict:
+    return _pdf_worker(helper, data, "--render-page", str(page))
+
+
+def _pdf_worker(helper: Path | None, data: bytes, mode: str, selection: str) -> dict:
     """Only a startup-configured local worker; the RPC cannot choose an executable."""
     if helper is None or not helper.is_absolute() or sys.platform != "darwin":
         raise ValueError("Local PDF reader is unavailable. Rebuild the Native app; no cloud fallback was used.")
@@ -71,14 +83,14 @@ def extract_pdf(helper: Path | None, data: bytes, pages: list[int]) -> dict:
         # PDF bytes arrive over stdin. No source path, credentials or shell command
         # enters the worker; network and file writes are denied by the OS profile.
         result = subprocess.run(["/usr/bin/sandbox-exec", "-p", "(version 1)(allow default)(deny network*)(deny file-write*)",
-                                 str(helper), "--pages", ",".join(map(str, pages))], input=data,
+                                 str(helper), mode, selection], input=data,
                                 stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=12, check=False,
                                 env={"PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "LANG": "en_US.UTF-8"})
     except subprocess.TimeoutExpired:
         raise ValueError("PDF took too long to read locally. No attachment or request was created.") from None
     except OSError:
         raise ValueError("Local PDF reader could not start. Rebuild the Native app; no fallback was used.") from None
-    if len(result.stdout) > 512 * 1024:
+    if len(result.stdout) > (7 * 1024 * 1024 if mode == "--render-page" else 512 * 1024):
         raise ValueError("PDF reader output exceeded its limit.")
     try:
         value = json.loads(result.stdout)
@@ -112,6 +124,10 @@ class PDFReader(ImageReader):
         if not data.startswith(b"%PDF-"):
             raise ValueError("File is not a PDF document.")
         value = extract_pdf(self.helper, data, numbers)
+        return self._selected(path, data, numbers, value)
+
+    @staticmethod
+    def _selected(path: str, data: bytes, numbers: list[int], value: dict) -> SelectedPDF:
         if (not isinstance(value, dict) or value.get("schema") != "proto_mind.native_pdf_text.v1"
                 or value.get("engine") != "apple_pdfkit_text_v1"
                 or type(value.get("page_count")) is not int or not 1 <= value["page_count"] <= MAX_PDF_PAGES
@@ -136,6 +152,34 @@ class PDFReader(ImageReader):
         selected = self.read(path, pages, expected_sha256)
         return {"schema": "proto_mind.native_pdf_preview.v1", "read_only": True, "no_execution": True,
                 "pdf": selected.metadata, "pages": selected.pages, "has_text": selected.has_text}
+
+    def render_page(self, path: str, page: object, expected_sha256: str | None) -> dict:
+        numbers = page_selection([page])
+        if not isinstance(expected_sha256, str) or not _SHA.fullmatch(expected_sha256):
+            raise ValueError("Open a PDF preview before rendering its pages.")
+        path, data = self.read_bytes(path, expected_sha256, suffixes={".pdf"}, maximum=MAX_PDF_BYTES, label="PDF")
+        if not data.startswith(b"%PDF-"):
+            raise ValueError("File is not a PDF document.")
+        value = render_pdf(self.helper, data, numbers[0])
+        if (not isinstance(value, dict) or value.get("schema") != "proto_mind.native_pdf_render.v1"
+                or type(value.get("page")) is not int or value["page"] != page
+                or any(type(value.get(key)) is not int or not 1 <= value[key] <= MAX_RENDER_EDGE for key in ("width", "height"))
+                or not isinstance(value.get("png_base64"), str) or len(value["png_base64"]) > (MAX_RENDER_BYTES + 2) // 3 * 4):
+            raise ValueError("Rendered PDF page contract could not be verified.")
+        selected = self._selected(path, data, numbers, value.get("text_preview"))
+        try:
+            png = base64.b64decode(value["png_base64"], validate=True)
+        except (ValueError, binascii.Error):
+            raise ValueError("Invalid rendered PDF image.") from None
+        if (not 33 <= len(png) <= MAX_RENDER_BYTES or png[:16] != b"\x89PNG\r\n\x1a\n\x00\x00\x00\x0dIHDR"
+                or int.from_bytes(png[16:20], "big") != value["width"]
+                or int.from_bytes(png[20:24], "big") != value["height"]):
+            raise ValueError("Rendered PDF image dimensions could not be verified.")
+        preview = {"schema": "proto_mind.native_pdf_preview.v1", "read_only": True, "no_execution": True,
+                   "pdf": selected.metadata, "pages": selected.pages, "has_text": selected.has_text}
+        return {"schema": "proto_mind.native_pdf_page.v1", "read_only": True, "no_execution": True,
+                "preview": preview, "page": page, "width": value["width"], "height": value["height"],
+                "png_base64": value["png_base64"], "png_sha256": hashlib.sha256(png).hexdigest()}
 
     def selected(self, specifications: object) -> list[SelectedPDF]:
         result = []

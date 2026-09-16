@@ -101,7 +101,7 @@ BRIDGE_VERSION = 1
 MAX_INPUT_CHARS = 32_000
 MAX_REQUEST_BYTES = 512 * 1024
 MAX_LIVE_SESSIONS = 32
-ATTACHMENT_READ_METHODS = {"image_preview", "pdf_preview", "workspace_status", "workspace_list", "workspace_read"}
+ATTACHMENT_READ_METHODS = {"image_preview", "pdf_preview", "pdf_render_page", "workspace_status", "workspace_list", "workspace_read"}
 RESET_CODEX_THREAD_CONFIRMATION = "START NEW CODEX SESSION"
 
 
@@ -1310,6 +1310,8 @@ class NativeBackend:
             return self.image_reader().preview(params.get("path"), params.get("expected_sha256"))
         if method == "pdf_preview":
             return self.pdf_reader().preview(params.get("path"), params.get("pages"), params.get("expected_sha256"))
+        if method == "pdf_render_page":
+            return self.pdf_reader().render_page(params.get("path"), params.get("page"), params.get("expected_sha256"))
         if method == "account_status":
             return self.subscription.account()
         if method == "steer":

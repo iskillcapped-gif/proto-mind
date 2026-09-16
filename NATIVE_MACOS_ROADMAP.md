@@ -4,6 +4,41 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Unread Replies and PDF Pages — Native 0.67.0
+
+Completed model replies get an unread dot in the sidebar; interrupted requests get
+an orange attention mark. The floating cube counts conversations with unread
+results independently of its running-task ring. Its count opens a result menu.
+Navigation targets the exact response, and only its visible footer in an active,
+uncovered workspace acknowledges it. Passive cube previews and hidden tabs do
+not acknowledge results. Read state survives restart in profile-specific UI
+preferences, outside dialog history and private backups; old history starts read.
+A temporarily blocked history load retains these preferences for recovery.
+
+PDF panels render original page artwork locally through the existing isolated
+worker. One page at a time is rasterized to at most 1600 pixels on the longest
+edge; the 8 MiB document and 300-page limits remain. Navigation, fit/zoom and a
+selectable-text mode work independently of the selected conversation's task.
+The original source hash, page number, image dimensions and image digest are
+checked before display. Changed sources fail visibly. Explicit attachment still
+adds only the current page's bounded text, never the original or rendered image;
+pages without a text layer remain viewable without enabling OCR. The original
+PDF is never parsed in the GUI, and viewing never follows PDF actions or calls a
+provider.
+
+Verification: 2,324 Python tests and compileall passed; optional pytest is absent.
+The broad Native run passed 1,795 checks, including two concurrent real disposable
+bridges, interrupted/completed outcomes, exact acknowledgement, restart and
+profile isolation, history byte preservation, independent PDF reads, source
+changes, blank and rotated pages, and raster edge coverage. A final focused run
+passed 90 response/PDF checks, including preservation during a pending restore. A separate app profile
+verified sidebar marks, cube count/menu navigation, viewport acknowledgement,
+original PDF colors/layout, portrait/landscape pages, zoom/fit, selectable text,
+page-specific attachment and draft preservation after switching conversations.
+The final release also verified that an explicitly reopened replacement PDF
+resets page/zoom state, including replacing three pages with one.
+No live model, microphone or operator profile was used for these checks.
+
 ## Response Actions — Native 0.66.1
 
 The reply footer uses a grey ellipsis without a text label or menu chevron.

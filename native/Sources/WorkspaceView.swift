@@ -570,6 +570,7 @@ struct MessageView: View {
                             .accessibilityLabel(L10n.pick("Действия с ответом", "Response actions"))
                     }
                 }.buttonStyle(.nativeHover).font(.system(size: 13)).foregroundStyle(.secondary).padding(.top, 2)
+                    .background(ResponseReadMarker(app: model, conversationID: conversationID ?? model.selectedID, messageID: message.id))
                 if showRaw { Text(message.raw).font(.system(size: 11, design: .monospaced)).textSelection(.enabled) }
             }.frame(maxWidth: .infinity, alignment: .leading).responseExportFeedback(responseExport)
         }

@@ -1,4 +1,5 @@
 """Selected PDF page contracts on temporary data; no personal files or providers."""
+import base64
 import hashlib
 import json
 import os
@@ -50,6 +51,45 @@ class NativePDFTests(unittest.TestCase):
 
     def files(self):
         return {str(path.relative_to(self.base)): path.read_bytes() for path in self.base.rglob("*") if path.is_file() and not path.is_symlink()}
+
+    def rendered_fixture(self, page=1):
+        png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6sWQAAAAASUVORK5CYII="
+        return {"schema": "proto_mind.native_pdf_render.v1", "page": page, "width": 1, "height": 1,
+                "png_base64": png, "text_preview": self.extract(None, b"", [page])}
+
+    def test_render_is_hash_bound_read_only_and_keeps_original_layout_out_of_context(self):
+        spec = self.spec()
+        before = self.files()
+        with patch.object(pdf, "render_pdf", return_value=self.rendered_fixture(2)) as worker, \
+             patch.object(self.backend, "_coordinator", side_effect=AssertionError("No core")):
+            result = self.backend.dispatch("pdf_render_page", {"path": str(self.file), "page": 2,
+                "expected_sha256": spec["sha256"]}, lambda _: self.fail("No event"), "render")
+        self.assertTrue(result["read_only"] and result["no_execution"])
+        self.assertEqual(result["page"], 2)
+        self.assertEqual(result["preview"]["pdf"]["pages"][0]["number"], 2)
+        self.assertEqual(result["png_sha256"], hashlib.sha256(base64.b64decode(result["png_base64"])).hexdigest())
+        worker.assert_called_once_with(self.reader.helper, self.file.read_bytes(), 2)
+        self.assertNotIn("png_base64", result["preview"]["pdf"])
+        self.assertEqual(before, self.files())
+        self.assertFalse(self.backend.subscription.calls)
+        self.file.write_bytes(text_pdf(["CHANGED"]))
+        with patch.object(pdf, "render_pdf") as worker, self.assertRaisesRegex(ValueError, "changed"):
+            self.reader.render_page(str(self.file), 1, spec["sha256"])
+        worker.assert_not_called()
+
+    def test_render_rejects_bad_selection_and_mismatched_or_oversized_image(self):
+        sha = self.spec()["sha256"]
+        for page, expected in [(True, sha), (0, sha), (301, sha), (1.0, sha), (1, None), (1, "x")]:
+            with patch.object(pdf, "render_pdf") as worker, self.assertRaises(ValueError):
+                self.reader.render_page(str(self.file), page, expected)
+            worker.assert_not_called()
+        for changes in [{"page": 2}, {"width": 1601}, {"height": True}, {"width": 2},
+                        {"png_base64": "not png"}, {"png_base64": "a" * (7 * 1024 * 1024)},
+                        {"text_preview": None}, {"schema": "other"}]:
+            value = {**self.rendered_fixture(), **changes}
+            with self.subTest(changes=list(changes)), patch.object(pdf, "render_pdf", return_value=value), self.assertRaises(ValueError):
+                self.reader.render_page(str(self.file), 1, sha)
+        self.assertFalse(self.backend.subscription.calls)
 
     def test_preview_is_read_only_explicit_default_first_page_and_no_provider(self):
         before = self.files()

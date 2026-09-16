@@ -92,15 +92,13 @@ not upload the beta or submit a Product Hunt entry.
 This packaging boundary does not freeze the product: future UI, memory and
 capability improvements use the same source and can ship in both editions.
 
-## Candidate After Launch Preparation: Everyday Document Work
+## Everyday Reading and Background Results — 0.67.0
 
-The next useful candidate is original PDF viewing in the working panel, with clear page navigation and the existing explicit attachment controls. The current panel can inspect selected PDF text but does not render the original layout. Keep viewing separate from sending document contents. This candidate has not been started; the operator's larger functional expansion remains to be scoped.
+Unread replies are marked in the sidebar and counted on the floating cube, alongside the independent running-task animation. Interrupted requests retain a distinct attention mark. Reading the visible response footer acknowledges that exact completion; hidden tabs, covered chats and nonactivating hover previews do not. Read state survives restart in profile-specific UI preferences without rewriting history.
 
-The September 16 interface pass also identified unread completed replies as a
-useful companion to concurrent tasks: mark them in the sidebar and optionally
-notify while the floating workspace is hidden. Current rows indicate running
-tasks and drafts, but do not track whether a background answer was read. This
-remains a candidate; OS notifications and their permissions are not enabled.
+PDF panels show the original page artwork with page navigation, fit/zoom and a selectable-text mode. The existing sandboxed helper renders one bounded page at a time; source hashes prevent quietly switching to a changed document. Viewing is separate from explicitly attaching the current page’s text. OCR and sending page images are not enabled by this feature.
+
+The operator postponed the second-Mac installation trial while no tester is available. The existing launch kit and portable beta remain available; this does not block local product development.
 
 ## Later Candidates
 

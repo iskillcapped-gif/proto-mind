@@ -139,6 +139,7 @@ struct DesktopCoreView: View {
                 }
             }.frame(width: 80, height: 78)
                 .overlay(DesktopCoreHandle(desktop: desktop))
+                .overlay(alignment: .topTrailing) { CoreResponseBadge(app: app).offset(x: 3, y: -2) }
             HStack(spacing: 6) {
                 Button { desktop.openVoice() } label: {
                     Image(systemName: voice.inCall ? (voice.muted ? "mic.slash.fill" : "mic.fill") : "mic")
