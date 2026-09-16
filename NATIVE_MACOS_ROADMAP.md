@@ -30,6 +30,8 @@ save failure and recovery, voice routing without a live API call, and language
 isolation. Five portable Python checks passed. A disposable app verified English
 after restart, browser capture, normal Mock submission, collapsed source evidence
 and answers beside chat. No personal account, live model or microphone was used.
+The final onboarding/sidebar copy corrections also passed 512 focused Native
+interface checks; the full suite above was not repeated for these label changes.
 
 ## Panel Drafts — Native 0.65.7
 
