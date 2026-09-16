@@ -62,6 +62,7 @@ final class WorkspacePanelModel: ObservableObject {
     @Published var selectedID: UUID?
     @Published var error: String?
     @Published var filesSelected = false
+    weak var presentations: WorkspacePresentations?
     var selected: WorkspacePanelTab? { tabs.first { $0.id == selectedID } }
 
     func showFiles() { visible = true; selectedID = nil; filesSelected = true; error = nil }
@@ -164,7 +165,7 @@ extension AppModel {
                 }
             }
         }
-        presentFilePicker(picker, completion: completion)
+        presentFilePicker(picker, in: panel.presentations, completion: completion)
     }
 
     func attachWorkspaceText(_ file: WorkspaceTextPreview, in targetPanel: WorkspacePanelModel? = nil) {

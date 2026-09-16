@@ -76,9 +76,9 @@ enum DesktopCompanionGeometry {
             && overlap >= min(frame.height, anchor.height) * 0.45
     }
 
-    static func enlarged(_ frame: NSRect, screen: NSRect) -> NSRect {
-        let size = NSSize(width: max(frame.width, min(1000, screen.width * 0.8)),
-                          height: max(frame.height, min(820, screen.height * 0.9)))
+    static func enlarged(_ frame: NSRect, screen: NSRect, preferredSize: NSSize? = nil) -> NSRect {
+        let size = NSSize(width: max(frame.width, preferredSize?.width ?? min(1000, screen.width * 0.8)),
+                          height: max(frame.height, preferredSize?.height ?? min(820, screen.height * 0.9)))
         return DesktopGeometry.fit(NSRect(x: frame.midX - size.width / 2, y: frame.midY - size.height / 2,
                                          width: size.width, height: size.height), within: screen)
     }

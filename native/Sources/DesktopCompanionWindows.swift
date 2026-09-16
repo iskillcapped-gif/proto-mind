@@ -8,6 +8,7 @@ final class DesktopCompanion: ObservableObject, Identifiable {
     let id: DesktopCompanionID
     let panel = WorkspacePanelModel()
     let chrome = WorkspacePanelChrome()
+    let presentations = WorkspacePresentations()
     @Published fileprivate(set) var visible = false
     @Published fileprivate(set) var docked = true
     @Published fileprivate(set) var expanded = false
@@ -20,7 +21,7 @@ final class DesktopCompanion: ObservableObject, Identifiable {
     fileprivate var compactFrame: NSRect?
     fileprivate var expandedFrame: NSRect?
     fileprivate var dragging = false
-    init(_ id: DesktopCompanionID) { self.id = id }
+    init(_ id: DesktopCompanionID) { self.id = id; panel.presentations = presentations }
 }
 
 /// Windows own geometry and visibility; their retained panel models own content and sessions.
@@ -82,7 +83,34 @@ final class DesktopCompanionWindows: ObservableObject {
         let bounds = screen(for: desktop?.window?.frame ?? .zero)
         return min(640, max(1, bounds.width - DesktopCompanionGeometry.gap) * 0.52)
     }
-    func attach(desktop: DesktopPresentation, app: AppModel) { self.desktop = desktop; self.app = app }
+    func attach(desktop: DesktopPresentation, app: AppModel) {
+        self.desktop = desktop; self.app = app
+        for item in surfaces { app.presentations.register(item.presentations) }
+    }
+
+    func presentationSource(for window: NSWindow?) -> WorkspacePresentations? {
+        var candidate = window
+        while let window = candidate {
+            if let item = surfaces.first(where: { $0.window === window }) { return item.presentations }
+            candidate = window.sheetParent ?? window.parent
+        }
+        return nil
+    }
+
+    private func revealPresentation(_ id: DesktopCompanionID) {
+        let item = surface(id)
+        guard item.visible, desktop?.enabled == true else { return }
+        app?.dictation.stop()
+        if item.docked {
+            for other in surfaces where other.id != id && other.docked && other.expanded {
+                other.expanded = false; other.panel.expanded = false
+            }
+        }
+        // Raise the source window without using revealMainContent, which folds it.
+        if desktop?.expanded != true || desktop?.previewing == true { desktop?.expand(animated: false) }
+        layout()
+        if presentsWindows { item.window?.makeKeyAndOrderFront(nil) }
+    }
 
     func toggle(_ id: DesktopCompanionID) {
         let item = surface(id)
@@ -131,6 +159,10 @@ final class DesktopCompanionWindows: ObservableObject {
         let compact = lastRow?.panels[id] ?? item.window?.frame
         item.docked = false
         if item.expanded { item.expandedFrame = item.window?.frame }
+        else if let compact, let previous = item.expandedFrame {
+            // Reuse the size, never a position left over from an earlier docking.
+            item.expandedFrame = DesktopCompanionGeometry.enlarged(compact, screen: screen(for: compact), preferredSize: previous.size)
+        }
         item.compactFrame = compact
         save(item); layout()
     }
@@ -319,6 +351,7 @@ final class DesktopCompanionWindows: ObservableObject {
     func shutdown() {
         for item in surfaces {
             item.chrome.shutdown()
+            item.presentations.shutdown()
             storeFreeFrame(item); save(item)
             item.panel.closeAll()
             if let window = item.window { window.parent?.removeChildWindow(window) }
@@ -351,7 +384,14 @@ final class DesktopCompanionWindows: ObservableObject {
 
     private func storeFreeFrame(_ item: DesktopCompanion) {
         guard !item.docked, let frame = item.window?.frame else { return }
-        if item.expanded { item.expandedFrame = frame } else { item.compactFrame = frame }
+        if item.expanded { item.expandedFrame = frame }
+        else {
+            if let previous = item.compactFrame, let expanded = item.expandedFrame, previous.origin != frame.origin {
+                item.expandedFrame = DesktopGeometry.fit(expanded.offsetBy(dx: frame.midX - previous.midX,
+                    dy: frame.midY - previous.midY), within: screen(for: frame))
+            }
+            item.compactFrame = frame
+        }
     }
 
     private func makeWindow(_ item: DesktopCompanion) -> DesktopCompanionPanel {
@@ -366,9 +406,11 @@ final class DesktopCompanionWindows: ObservableObject {
         window.minSize = DesktopCompanionGeometry.minimum
         let delegate = DesktopCompanionDelegate(owner: self, id: item.id)
         item.delegate = delegate; window.delegate = delegate
+        item.presentations.window = window
+        let id = item.id
+        item.presentations.reveal = { [weak self] in self?.revealPresentation(id) }
         if let app {
-            let host = NSHostingView(rootView: DesktopCompanionView(app: app, owner: self, surface: item)
-                .environment(\.workspacePresentations, app.presentations))
+            let host = NSHostingView(rootView: DesktopCompanionView(app: app, owner: self, surface: item))
             // Docking owns the frame. Content-derived min/max constraints must not
             // enlarge a half-height slot after its SwiftUI contents update.
             host.sizingOptions = []

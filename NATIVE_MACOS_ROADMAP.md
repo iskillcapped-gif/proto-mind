@@ -4,6 +4,35 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Companion Navigation and Sizing — Native 0.65.6
+
+Both floating companions have a size toggle next to Return to position. It expands
+or restores the miniature; the hover corner remains available. Moving a detached
+miniature translates its saved expanded frame, preserving the chosen large size.
+Detaching again centers that size on the new compact location instead of restoring
+an obsolete sidebar position. Attached expansion and the upper/lower home slots
+keep their existing behavior.
+
+Each companion now hosts its own auxiliary pages and nested confirmations.
+Settings, conversation context and response details retain their source bindings,
+live updates and dismissal guards, with Back returning to the mounted tab. Native
+file/folder pickers attach to the initiating window without collapsing it. Delayed
+previews capture their destination before awaiting; message image/PDF previews
+also retain their destination panel. The main router tracks forwarded pages and
+shared dismissal guards without creating another history writer.
+
+Verification: 464 focused interface checks during implementation and all 1,716
+Native checks on the final sources passed, including both detached geometries,
+reattachment, captured routing after focus changes, nested dismissal, OS picker
+ownership, same-turn reopening, moving an already-open screen between windows
+and retaining settings in place while an operation blocks dismissal.
+An idle nested page produces no further publication loop. A disposable application
+build checked the new size toggle, lower-window attachment/context routes,
+upper-window terminal confirmation/cancellation and opening a synthetic PDF in
+that same expanded upper window. The release build also checked moving settings
+from the main chat to the upper window and opening the API settings/editor from
+its model popup. No live model or microphone was used.
+
 ## Companion Controls on Hover — Native 0.65.5
 
 Compact floating companions now hide the complete top chrome when the pointer

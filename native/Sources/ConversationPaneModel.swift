@@ -53,12 +53,12 @@ extension AppModel {
         invalidateContextPreview(); invalidateSessionSpinePilot(); persist()
     }
 
-    func choosePanelWorkspace(conversationID: UUID) {
+    func choosePanelWorkspace(conversationID: UUID, in panel: WorkspacePanelModel? = nil) {
         guard !operationBusy, !isRunning(conversationID), let original = conversations.first(where: { $0.id == conversationID }), !original.archived else { return }
         let picker = NSOpenPanel()
         picker.canChooseDirectories = true; picker.canChooseFiles = false; picker.allowsMultipleSelection = false
         picker.prompt = "Выбрать папку"
-        presentFilePicker(picker) { [weak self] response in
+        presentFilePicker(picker, in: panel?.presentations) { [weak self] response in
             guard response == .OK, let url = picker.url, let self else { return }
             Task {
                 let state = self.execution(for: conversationID)
@@ -73,7 +73,9 @@ extension AppModel {
                     self.conversations[index].pendingFiles = []
                     self.projectNoteSelections[conversationID] = nil; self.preparedSkillTasks[conversationID] = nil
                     self.persist()
-                } catch { self.report(error) }
+                } catch {
+                    if let panel { panel.error = error.localizedDescription } else { self.report(error) }
+                }
             }
         }
     }

@@ -21,7 +21,7 @@ private struct PresentationProbeView: View {
     @State private var localText = "Local initial"
     var body: some View {
         WorkspaceContentHost(app: app, presentations: app.presentations)
-            .workspaceSheet(isPresented: $probe.shown, onDismiss: { probe.parentDismissals += 1 }) {
+            .workspaceSheet(isPresented: $probe.shown, routingKey: "probe", onDismiss: { probe.parentDismissals += 1 }) {
                 VStack {
                     Text(probe.label).onChange(of: probe.label, initial: true) { _, value in probe.rendered = value }
                     Text(localText).onChange(of: localText, initial: true) { _, value in probe.renderedLocal = value }
@@ -31,6 +31,7 @@ private struct PresentationProbeView: View {
                         Text(item.text)
                     }
             }
+            .workspaceSheet(isPresented: $app.showSettings, routingKey: "settings") { Text("Settings") }
             .onAppear { probe.changeLocal = { localText = $0 } }
             .environment(\.workspacePresentations, app.presentations)
     }
@@ -85,6 +86,11 @@ extension NativeChecks {
         try await settle()
         try check(center.pages.count == 2 && center.pages.last?.id != firstChild && probe.item?.id == replacement.id
                   && probe.childDismissals == 1, "Replacing an item closes its old page without clearing the new binding")
+        let settledPublications = publications
+        try await settle()
+        try await settle()
+        try check(publications == settledPublications,
+                  "An idle nested presentation does not continuously publish or re-render its source")
         center.dismissTop()
         try await settle()
         try check(center.pages.count == 1 && probe.shown && probe.item == nil && probe.childDismissals == 2,
@@ -103,15 +109,60 @@ extension NativeChecks {
                   "Closing an inline page clears its source and invokes onDismiss exactly once")
         probe.shown = true
         try await settle()
+        center.dismissAll(); probe.shown = true
+        try await settle()
+        try check(center.pages.count == 1 && probe.shown,
+                  "Dismissing and reopening a binding in one UI turn still mounts the new page")
+        center.dismissAll()
+        try await settle()
+        probe.shown = true
+        try await settle()
         probe.item = .init(text: "Child")
         try await settle()
         probe.shown = false
         try await settle()
-        try check(center.pages.isEmpty && probe.item == nil && probe.parentDismissals == 2 && probe.childDismissals == 3,
+        try check(center.pages.isEmpty && probe.item == nil && probe.parentDismissals == 4 && probe.childDismissals == 3,
                   "Model-driven parent removal also clears nested previews exactly once")
-        try check(publications < 100 && app.currentHistoryArchive.conversations == original.conversations
+        try check(app.currentHistoryArchive.conversations == original.conversations
                   && app.selectedID == selected && execution.running && !app.liveVoice.inCall && !app.cloudConsent,
-                  "Inline navigation has no render feedback loop and preserves task, selection, history and voice consent")
+                  "Inline navigation preserves task, selection, history and voice consent")
+        let remote = WorkspacePresentations()
+        let remoteHost = NSHostingController(rootView: WorkspacePresentationHost(presentations: remote, backTitle: "Back") { Color.clear })
+        let remoteWindow = NSWindow(contentRect: NSRect(x: 150, y: 150, width: 580, height: 620),
+                                    styleMask: [.titled], backing: .buffered, defer: false)
+        remoteWindow.isReleasedWhenClosed = false
+        remoteWindow.contentViewController = remoteHost; remote.window = remoteWindow
+        defer { remoteWindow.close() }
+        center.register(remote)
+        center.prepare("probe", in: remote); probe.shown = true
+        try await settle()
+        probe.label = "Updated in companion"
+        try await settle()
+        try check(center.pages.isEmpty && remote.pages.count == 1 && probe.rendered == "Updated in companion",
+                  "A forwarded source binding stays live inside its captured companion")
+        center.prepare("probe", in: center); probe.shown = true
+        try await settle()
+        try check(center.pages.count == 1 && remote.pages.isEmpty && probe.shown,
+                  "Reopening the same bound screen from another window moves only that presentation")
+        center.dismissAll()
+        try await settle()
+        app.openSettings(in: remote)
+        try await settle()
+        try check(remote.pages.count == 1 && center.pages.isEmpty && app.showSettings,
+                  "Opening settings captures the companion instead of falling back to the main chat")
+        let settingsID = remote.pages[0].id
+        remote.setDismissalDisabled(true, id: settingsID)
+        app.openSettings(in: center)
+        try await settle()
+        try check(remote.pages.count == 1 && center.pages.isEmpty && app.showSettings,
+                  "Settings cannot move away from a window while its nested operation blocks dismissal")
+        remote.setDismissalDisabled(false, id: settingsID)
+        app.openSettings(in: center)
+        try await settle()
+        try check(center.pages.count == 1 && remote.pages.isEmpty && app.showSettings,
+                  "Settings already open elsewhere move to the requesting window after the operation finishes")
+        center.dismissAll()
+        try await settle()
         execution.running = false
         app.discardUnsavedOnExit = true; app.busy = true
         try check(!app.canTerminateWorkspace() && app.exitPrompt == .busy && !app.discardUnsavedOnExit,

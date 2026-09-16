@@ -263,6 +263,9 @@ final class DesktopPresentation: ObservableObject {
         self.window = window; self.app = app
         companions.attach(desktop: self, app: app)
         app.presentations.window = window
+        app.presentations.destination = { [weak self] in
+            self?.companions.presentationSource(for: NSApp.keyWindow)
+        }
         let delegate = DesktopWindowDelegate(desktop: self, previous: window.delegate)
         windowDelegate = delegate; window.delegate = delegate
         for name in [NSWindow.didMoveNotification, NSWindow.didResizeNotification, NSWindow.didEndLiveResizeNotification] {

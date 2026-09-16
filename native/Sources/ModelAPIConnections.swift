@@ -196,6 +196,7 @@ struct APIConnectionPicker: View {
 struct ConversationProviderChoices: View {
     @ObservedObject var app: AppModel
     @ObservedObject var connections: ModelAPIConnections
+    @Environment(\.workspacePresentations) private var presentations
     let conversationID: UUID
     var chosen: () -> Void = {}
     var body: some View {
@@ -209,7 +210,7 @@ struct ConversationProviderChoices: View {
                     }
                 }
                 ComposerMenuRow(title: "Подключить API…", icon: "plus") {
-                    chosen(); app.settingsSection = .services; app.showSettings = true
+                    chosen(); app.settingsSection = .services; app.openSettings(in: presentations)
                 }
             }.padding(.top, 6)
         }.font(.system(size: 12)).padding(8)

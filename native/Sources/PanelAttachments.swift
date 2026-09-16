@@ -7,20 +7,20 @@ extension AppModel {
         persist()
     }
 
-    func choosePanelAttachment(conversationID: UUID) {
+    func choosePanelAttachment(conversationID: UUID, in panel: WorkspacePanelModel? = nil) {
         guard !operationBusy, !isRunning(conversationID), let conversation = conversations.first(where: { $0.id == conversationID }) else { return }
         let picker = NSOpenPanel()
         picker.canChooseDirectories = false; picker.allowsMultipleSelection = false
         picker.directoryURL = conversation.workspacePath.map { URL(fileURLWithPath: $0) }
         picker.prompt = "Прикрепить"
         picker.message = "Текстовый файл из папки этого диалога или первая страница PDF."
-        presentFilePicker(picker) { [weak self] response in
+        presentFilePicker(picker, in: panel?.presentations) { [weak self] response in
             guard response == .OK, let url = picker.url, let self else { return }
-            Task { await self.attachPanelFile(url, conversationID: conversationID) }
+            Task { await self.attachPanelFile(url, conversationID: conversationID, in: panel) }
         }
     }
 
-    func attachPanelFile(_ url: URL, conversationID: UUID) async {
+    func attachPanelFile(_ url: URL, conversationID: UUID, in panel: WorkspacePanelModel? = nil) async {
         guard !operationBusy, !isRunning(conversationID), let conversation = conversations.first(where: { $0.id == conversationID }), !conversation.archived else { return }
         do {
             let client = execution(for: conversationID).client
@@ -49,7 +49,9 @@ extension AppModel {
                 conversations[index].pendingFiles = files
             }
             persist()
-        } catch { report(error) }
+        } catch {
+            if let panel { panel.error = error.localizedDescription } else { report(error) }
+        }
     }
 
     func openPanelFile(_ url: URL, conversationID: UUID, panel: WorkspacePanelModel) {

@@ -3,7 +3,7 @@ import Foundation
 
 // Main-actor transitions for this domain; stored state remains in AppModel.
 extension AppModel {
-    func openSessionSpine(for message: ChatMessage) async {
+    func openSessionSpine(for message: ChatMessage, in source: WorkspacePresentations? = nil) async {
         guard !globalBusy, !client.turnOutstanding, !loadingWorkSessions, !loadingSessionSpinePreview,
               let conversation = selected, let conversationID = selectedID else { return }
         let matches = conversation.messages.indices.filter { conversation.messages[$0].id == message.id }
@@ -11,6 +11,7 @@ extension AppModel {
               let rawReference = message.turnReference else {
             report(NativeError.message("Для этого ответа нет однозначного источника Session Spine. Ничего не открыто.")); return
         }
+        let destination = source ?? presentations.currentDestination
         let source = conversation.messages[assistantIndex - 1]
         let request = UUID()
         sessionSpinePreviewRequest = request
@@ -38,9 +39,11 @@ extension AppModel {
                   selected?.messages.indices.contains(assistantIndex) == true,
                   selected?.messages[assistantIndex] == message,
                   selected?.messages[assistantIndex - 1] == source else { return }
-            sessionSpinePreview = try NativeSessionSpinePreview(
+            let preview = try NativeSessionSpinePreview(
                 raw, source: source, assistant: message, conversation: conversationID, reference: reference, run: run
             )
+            presentations.prepare(preview.id, in: destination)
+            sessionSpinePreview = preview
             status = "Session Spine · точная read-only проекция"
         } catch {
             if sessionSpinePreviewRequest == request && selectedID == conversationID { report(error) }

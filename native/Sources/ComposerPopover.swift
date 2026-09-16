@@ -25,6 +25,8 @@ extension View {
 
 private struct ComposerPopoverAnchor<Content: View>: NSViewRepresentable {
     @Binding var isPresented: Bool
+    @Environment(\.workspacePresentations) private var presentations
+    @Environment(\.desktopGlass) private var desktopGlass
     let width: CGFloat
     let trailing: Bool
     let confinedToColumn: Bool
@@ -40,7 +42,8 @@ private struct ComposerPopoverAnchor<Content: View>: NSViewRepresentable {
             // Hosting updates cannot synchronously change the source SwiftUI tree.
             DispatchQueue.main.async { [weak view, weak coordinator] in
                 guard let view, let coordinator, isPresented else { return }
-                coordinator.show(anchor: view, width: width, trailing: trailing, confinedToColumn: confinedToColumn, columnWidth: columnWidth, content: AnyView(content()))
+                coordinator.show(anchor: view, width: width, trailing: trailing, confinedToColumn: confinedToColumn, columnWidth: columnWidth,
+                                 content: AnyView(content().environment(\.workspacePresentations, presentations).environment(\.desktopGlass, desktopGlass)))
             }
         } else { coordinator.close() }
     }

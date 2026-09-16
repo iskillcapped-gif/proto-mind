@@ -31,11 +31,11 @@ struct WorkspaceView: View {
         .disclosureGroupStyle(NativeDisclosureStyle())
         .onChange(of: model.section) { _, next in if next.libraryCollection != nil { libraryExpanded = true } }
         .workspaceSheet(item: $model.exitPrompt) { WorkspaceExitView(app: model, prompt: $0) }
-        .workspaceSheet(isPresented: $model.showSettings) { NativeSettingsView(model: model) }
+        .workspaceSheet(isPresented: $model.showSettings, routingKey: "settings") { NativeSettingsView(model: model) }
         .workspaceSheet(isPresented: $model.showFirstLaunch, onDismiss: {
             FirstLaunch.dismiss(model.serviceClient.configuration)
         }) { FirstLaunchView(model: model) }
-        .workspaceSheet(isPresented: $model.showInspector) {
+        .workspaceSheet(isPresented: $model.showInspector, routingKey: "inspector") {
             EvidenceInspectorView(model: model).workspacePageSize(width: 560, height: 680)
         }
         .workspaceSheet(item: $model.pendingAction) { action in
@@ -55,7 +55,7 @@ struct WorkspaceView: View {
             }.padding(28).workspacePageSize(width: 560)
         }
         .workspaceSheet(item: $model.pendingAgentAccess) { request in AgentAccessSheet(model: model, request: request) }
-        .workspaceSheet(isPresented: $model.showWorkSessions, onDismiss: {
+        .workspaceSheet(isPresented: $model.showWorkSessions, routingKey: "workSessions", onDismiss: {
             if model.selected?.draftContinuation != nil { model.focusReturnedDraft() }
         }) { WorkSessionsView(model: model) }
         .workspaceSheet(isPresented: $model.showConversationHistory, onDismiss: { model.focusReturnedDraft() }) {
@@ -67,7 +67,7 @@ struct WorkspaceView: View {
         }) { PrivateBackupView(app: model, backup: model.privateBackup) }
         .workspaceSheet(isPresented: $model.showCodexUsage) { CodexUsageView(app: model, usage: model.codexUsage) }
         .workspaceSheet(item: $model.sessionSpinePreview) { SessionSpinePreviewView(model: model, preview: $0) }
-        .workspaceSheet(isPresented: $model.showContextDesk) { ContextDeskView(model: model) }
+        .workspaceSheet(isPresented: $model.showContextDesk, routingKey: "contextDesk") { ContextDeskView(model: model) }
         .workspaceSheet(isPresented: $model.showPersonaInspector) { PersonaInspectorView(model: model) }
         .workspaceSheet(isPresented: $model.showMemoryWorkshop) { MemoryWorkshopView(model: model) }
         .workspaceSheet(item: $model.skillAuthoring) { SkillAuthoringView(model: $0) }
@@ -475,6 +475,7 @@ struct MessageView: View {
     @ObservedObject var model: AppModel
     var conversationID: UUID? = nil
     var targetPanel: WorkspacePanelModel? = nil
+    @Environment(\.workspacePresentations) private var presentations
     @State private var showRaw = false
     @State private var showLegacyActions = false
 
@@ -522,17 +523,17 @@ struct MessageView: View {
                     Button { model.copy(message.text) } label: { Image(systemName: "doc.on.doc") }
                         .help("Копировать ответ").accessibilityLabel("Копировать ответ")
                     if let conversationID, conversationID != model.selectedID {
-                        Button("Подробнее") { model.select(conversationID); model.showMessage(message) }
+                        Button("Подробнее") { model.select(conversationID); model.showMessage(message, in: presentations) }
                     } else if message.hasResponseDetails || message.turnReference != nil {
                         Menu {
                             if message.hasResponseDetails {
-                                Button("Об ответе", systemImage: "info.circle") { model.showMessage(message) }
+                                Button("Об ответе", systemImage: "info.circle") { model.showMessage(message, in: presentations) }
                                 Button(showRaw ? "Скрыть исходный отчёт" : "Исходный отчёт", systemImage: "text.alignleft") { showRaw.toggle() }
                             }
                             if message.turnReference != nil {
-                                Button("Ход этой задачи", systemImage: "clock.arrow.circlepath") { Task { await model.openWorkSession(for: message) } }
+                                Button("Ход этой задачи", systemImage: "clock.arrow.circlepath") { Task { await model.openWorkSession(for: message, in: presentations) } }
                                     .disabled(model.busy || model.loadingWorkSessions)
-                                Button("Цепочка диалога · Session Spine", systemImage: "point.3.connected.trianglepath.dotted") { Task { await model.openSessionSpine(for: message) } }
+                                Button("Цепочка диалога · Session Spine", systemImage: "point.3.connected.trianglepath.dotted") { Task { await model.openSessionSpine(for: message, in: presentations) } }
                                     .disabled(model.busy || model.loadingWorkSessions || model.loadingSessionSpinePreview)
                             }
                         } label: {
@@ -567,7 +568,7 @@ struct MessageView: View {
             ForEach(Array((message.imageContext ?? []).enumerated()), id: \.offset) { _, image in
                 Button {
                     if let conversationID, conversationID != model.selectedID { model.select(conversationID) }
-                    Task { await model.previewImage(image["path"].text, expectedSHA: image["sha256"].text, canAttach: false, inWorkspacePanel: true) }
+                    Task { await model.previewImage(image["path"].text, expectedSHA: image["sha256"].text, canAttach: false, inWorkspacePanel: true, targetPanel: targetPanel) }
                 } label: {
                     Label("\(image["name"].text) · \(image["width"].integer) × \(image["height"].integer)", systemImage: "photo")
                         .font(.caption).foregroundStyle(.secondary)
@@ -575,7 +576,7 @@ struct MessageView: View {
                     .help("Локальный просмотр исходного файла с проверкой SHA-256. Изображение не отправляется повторно.")
             }
             ForEach(Array((message.pdfContext ?? []).enumerated()), id: \.offset) { _, pdf in
-                Button { if let conversationID, conversationID != model.selectedID { model.select(conversationID) }; Task { await model.previewPDF(pdf["path"].text, expected: pdf, canAttach: false, inWorkspacePanel: true) } } label: {
+                Button { if let conversationID, conversationID != model.selectedID { model.select(conversationID) }; Task { await model.previewPDF(pdf["path"].text, expected: pdf, canAttach: false, inWorkspacePanel: true, targetPanel: targetPanel) } } label: {
                     Label("\(pdf["name"].text) · стр. \(pdf["pages"].items.map { String($0["number"].integer) }.joined(separator: ", "))", systemImage: "doc.richtext")
                         .font(.caption).foregroundStyle(.secondary)
                 }.buttonStyle(.nativeHover).disabled(!model.canReceiveAttachments)

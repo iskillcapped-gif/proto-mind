@@ -6,11 +6,13 @@ struct DesktopCompanionView: View {
     @ObservedObject var owner: DesktopCompanionWindows
     @ObservedObject var surface: DesktopCompanion
     @ObservedObject private var chrome: WorkspacePanelChrome
+    @ObservedObject private var presentations: WorkspacePresentations
     @Environment(\.accessibilityVoiceOverEnabled) private var voiceOver
 
     init(app: AppModel, owner: DesktopCompanionWindows, surface: DesktopCompanion) {
         self.app = app; self.owner = owner; self.surface = surface
         self.chrome = surface.chrome
+        self.presentations = surface.presentations
     }
 
     var body: some View {
@@ -19,6 +21,11 @@ struct DesktopCompanionView: View {
                 Image(systemName: "rectangle").font(.system(size: 11))
                 Text(surface.id.title).font(.system(size: 11, weight: .medium))
                 CompanionDragArea(owner: owner, id: surface.id).frame(maxWidth: .infinity).frame(height: 30)
+                Button { owner.toggleExpansion(surface.id) } label: {
+                    Image(systemName: surface.expanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+                        .frame(width: 26, height: 28)
+                }.help(surface.expanded ? "Вернуть миниатюру" : "Развернуть окно")
+                    .accessibilityLabel((surface.expanded ? "Миниатюра · " : "Развернуть окно · ") + surface.id.title)
                 Button { owner.restoreBase(surface.id) } label: {
                     Image(systemName: "arrow.uturn.backward").frame(width: 26, height: 28)
                 }.help(surface.id == .first ? "Вернуть наверх справа · исходный размер" : "Вернуть вниз справа · исходный размер")
@@ -28,8 +35,10 @@ struct DesktopCompanionView: View {
             }.frame(height: 34).foregroundStyle(.secondary).buttonStyle(.nativeHover)
                 .padding(.leading, surface.id == .second ? 32 : 16).padding(.trailing, 8).padding(.top, 4)
                 .workspacePanelHeader()
-            WorkspacePanelView(model: app, panel: surface.panel, position: surface.id.position,
-                controls: WorkspacePanelControls(title: surface.id.title, activate: { owner.pinPreview() }, expand: { owner.toggleExpansion(surface.id) }))
+            WorkspacePresentationHost(presentations: presentations, backTitle: "К окну") {
+                WorkspacePanelView(model: app, panel: surface.panel, position: surface.id.position,
+                    controls: WorkspacePanelControls(title: surface.id.title, activate: { owner.pinPreview() }, expand: { owner.toggleExpansion(surface.id) }))
+            }
         }
         .background(DesktopGlassBackground(transparency: surface.transparency, tint: NativeTheme.canvas))
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
@@ -56,9 +65,11 @@ struct DesktopCompanionView: View {
         .background(CompanionHoverRegion(owner: owner, id: surface.id))
         .environment(\.desktopGlass, true)
         .environment(\.workspaceChrome, chrome)
-        .environment(\.workspaceChromeVisible, surface.expanded || chrome.visible || voiceOver)
+        .environment(\.workspacePresentations, presentations)
+        .environment(\.workspaceChromeVisible, surface.expanded || chrome.visible || voiceOver || !presentations.pages.isEmpty)
         .onExitCommand {
-            if surface.expanded { owner.toggleExpansion(surface.id) }
+            if !presentations.pages.isEmpty { presentations.dismissTop() }
+            else if surface.expanded { owner.toggleExpansion(surface.id) }
             else { owner.toggle(surface.id) }
         }
     }

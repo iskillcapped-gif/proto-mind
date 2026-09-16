@@ -179,7 +179,7 @@ struct WorkspacePanelView: View {
         activate()
         let picker = NSOpenPanel()
         picker.canChooseDirectories = false; picker.allowsMultipleSelection = false; picker.prompt = "Запустить CLI"
-        model.presentFilePicker(picker) { result in
+        model.presentFilePicker(picker, in: panel.presentations) { result in
             if result == .OK, let url = picker.url { panel.openTerminal(directory: directory, executable: url.path, arguments: []) }
         }
     }

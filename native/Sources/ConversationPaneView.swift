@@ -5,6 +5,7 @@ struct ConversationPaneView: View {
     @ObservedObject var app: AppModel
     let conversationID: UUID
     @ObservedObject var panel: WorkspacePanelModel
+    @Environment(\.workspacePresentations) private var presentations
     @State private var draft = ""
     @State private var revision = 0
     @State private var modelMenu = false
@@ -125,7 +126,8 @@ struct ConversationPaneView: View {
                     .frame(height: min(115, max(56, CGFloat(draft.components(separatedBy: "\n").count) * 23 + 28)))
             }
             HStack(spacing: 5) {
-                Button { app.choosePanelAttachment(conversationID: conversationID) } label: { Image(systemName: "plus").frame(width: 26, height: 28) }
+                Button { app.choosePanelAttachment(conversationID: conversationID, in: panel) } label: { Image(systemName: "plus").frame(width: 26, height: 28) }
+                    .accessibilityLabel("Прикрепить файл в панели")
                     .help("Прикрепить текстовый файл проекта или PDF").disabled(running || app.operationBusy)
                 Button { contextMenu.toggle() } label: { Image(systemName: "slider.horizontal.3").frame(width: 26, height: 28) }
                     .help("Папка, доступ и память").disabled(running || app.operationBusy)
@@ -172,14 +174,14 @@ struct ConversationPaneView: View {
     private func contextOptions(_ conversation: Conversation) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Этот диалог").font(.system(size: 14, weight: .medium))
-            Button { contextMenu = false; app.choosePanelWorkspace(conversationID: conversationID) } label: {
+            Button { contextMenu = false; app.choosePanelWorkspace(conversationID: conversationID, in: panel) } label: {
                 Label(conversation.workspacePath.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "Выбрать папку проекта", systemImage: "folder")
             }
             if conversation.provider == "codex" {
                 Button {
                     contextMenu = false
                     if app.hasAgentAccessSelection(conversation) { Task { await app.disableAgentAccess(conversationID: conversationID) } }
-                    else { app.requestAgentAccess(conversationID: conversationID) }
+                    else { app.requestAgentAccess(conversationID: conversationID, in: presentations) }
                 } label: {
                     Label(app.hasAgentAccessSelection(conversation) ? "Выключить доступ к Mac" : "Разрешить доступ к Mac", systemImage: "shield")
                         .foregroundStyle(app.hasAgentAccessSelection(conversation) ? Color.orange : .primary)
@@ -187,7 +189,11 @@ struct ConversationPaneView: View {
                 Toggle("Подбирать навыки", isOn: setting(\.autoSkillsEnabled))
                 Toggle("Вспоминать заметки проекта", isOn: setting(\.autoProjectRecallEnabled))
             }
-            Button("Все настройки диалога") { contextMenu = false; app.select(conversationID); app.showContextDesk = true }
+            Button("Все настройки диалога") {
+                contextMenu = false; app.select(conversationID)
+                app.presentations.prepare("contextDesk", in: presentations ?? app.presentations)
+                app.showContextDesk = true
+            }
         }.font(.system(size: 12)).padding(18)
     }
 

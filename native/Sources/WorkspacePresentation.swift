@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 
 /// Transient navigation only. Each source binding retains ownership of its operation.
@@ -15,24 +16,64 @@ final class WorkspacePresentations: ObservableObject {
     @Published private(set) var pages: [Page] = []
     weak var window: NSWindow?
     var reveal: () -> Void = {}
+    var destination: () -> WorkspacePresentations? = { nil }
     private weak var priorResponder: NSResponder?
-    var locked: Bool { pages.contains { $0.dismissalDisabled } }
+    private var children: [WorkspacePresentations] = []
+    private var observations: [AnyCancellable] = []
+    private var forwarded: [UUID: WorkspacePresentations] = [:]
+    private var activeKeys: [AnyHashable: UUID] = [:]
+    private final class WeakDestination {
+        weak var value: WorkspacePresentations?
+        init(_ value: WorkspacePresentations) { self.value = value }
+    }
+    private var prepared: [AnyHashable: WeakDestination] = [:]
+    var locked: Bool { pages.contains { $0.dismissalDisabled } || children.contains { $0.locked } }
+    var currentDestination: WorkspacePresentations { destination() ?? self }
 
-    func present(id: UUID, content: AnyView, clearBinding: @escaping () -> Void, onDismiss: @escaping () -> Void = {}) {
-        guard !pages.contains(where: { $0.id == id }) else { return }
+    func register(_ child: WorkspacePresentations) {
+        guard child !== self, !children.contains(where: { $0 === child }) else { return }
+        children.append(child)
+        observations.append(child.objectWillChange.sink { [weak self] in self?.objectWillChange.send() })
+    }
+
+    /// Capture an operation's origin before awaiting. Consume it when its binding opens.
+    func prepare(_ key: AnyHashable, in destination: WorkspacePresentations) {
+        if let id = activeKeys[key], (forwarded[id] ?? self) !== destination { remove(id: id) }
+        prepared[key] = WeakDestination(destination)
+    }
+
+    func present(id: UUID, content: AnyView, clearBinding: @escaping () -> Void, onDismiss: @escaping () -> Void = {}, routingKey: AnyHashable? = nil) {
+        guard !pages.contains(where: { $0.id == id }), forwarded[id] == nil else {
+            if let routingKey { prepared[routingKey] = nil }
+            return
+        }
+        let target = routingKey.flatMap { prepared.removeValue(forKey: $0)?.value } ?? currentDestination
+        if let routingKey { activeKeys[routingKey] = id }
+        let clear = { [weak self] in
+            self?.activeKeys = self?.activeKeys.filter { $0.value != id } ?? [:]
+            self?.forwarded[id] = nil
+            clearBinding()
+        }
+        if target !== self {
+            forwarded[id] = target
+            target.present(id: id, content: content, clearBinding: clear, onDismiss: onDismiss)
+            return
+        }
         if pages.isEmpty { priorResponder = window?.firstResponder }
-        pages.append(Page(id: id, content: content, clearBinding: clearBinding, onDismiss: onDismiss,
+        pages.append(Page(id: id, content: content, clearBinding: clear, onDismiss: onDismiss,
                           dismiss: { [weak self] in self?.dismiss(id: id) }))
         reveal()
         window?.makeFirstResponder(nil)
     }
 
     func update(id: UUID, content: AnyView) {
+        if let target = forwarded[id] { target.update(id: id, content: content); return }
         guard let index = pages.firstIndex(where: { $0.id == id }) else { return }
         pages[index].content = content
     }
 
     func setDismissalDisabled(_ disabled: Bool, id: UUID) {
+        if let target = forwarded[id] { target.setDismissalDisabled(disabled, id: id); return }
         guard let index = pages.firstIndex(where: { $0.id == id }), pages[index].dismissalDisabled != disabled else { return }
         pages[index].dismissalDisabled = disabled
     }
@@ -50,11 +91,13 @@ final class WorkspacePresentations: ObservableObject {
     @discardableResult func dismissAll() -> Bool {
         guard !locked else { return false }
         if let first = pages.first { remove(id: first.id) }
+        for child in children { child.dismissAll() }
         return true
     }
 
     /// A model can close its own finished/invalidated page, including any child previews.
     func remove(id: UUID) {
+        if let target = forwarded.removeValue(forKey: id) { target.remove(id: id); return }
         guard let index = pages.firstIndex(where: { $0.id == id }) else { return }
         let removed = Array(pages[index...].reversed())
         pages.removeSubrange(index...)
@@ -62,7 +105,10 @@ final class WorkspacePresentations: ObservableObject {
         if pages.isEmpty, window?.isKeyWindow == true, let priorResponder { window?.makeFirstResponder(priorResponder) }
     }
 
-    func shutdown() { pages = []; priorResponder = nil; window = nil; reveal = {} }
+    func shutdown() {
+        observations = []; children.forEach { $0.shutdown() }; children = []
+        forwarded = [:]; activeKeys = [:]; prepared = [:]; pages = []; priorResponder = nil; window = nil; reveal = {}; destination = { nil }
+    }
 }
 
 private struct WorkspacePresentationsKey: EnvironmentKey { static let defaultValue: WorkspacePresentations? = nil }
@@ -95,9 +141,9 @@ private struct WorkspaceDismissalPreference: PreferenceKey {
 }
 
 extension View {
-    func workspaceSheet<Page: View>(isPresented: Binding<Bool>, onDismiss: (() -> Void)? = nil,
+    func workspaceSheet<Page: View>(isPresented: Binding<Bool>, routingKey: String? = nil, onDismiss: (() -> Void)? = nil,
                                    @ViewBuilder content: @escaping () -> Page) -> some View {
-        modifier(WorkspaceSheetModifier(isPresented: isPresented, onDismiss: onDismiss, page: content))
+        modifier(WorkspaceSheetModifier(isPresented: isPresented, routingKey: routingKey, onDismiss: onDismiss, page: content))
     }
     func workspaceSheet<Item: Identifiable, Page: View>(item: Binding<Item?>, onDismiss: (() -> Void)? = nil,
                                                        @ViewBuilder content: @escaping (Item) -> Page) -> some View {
@@ -138,6 +184,7 @@ extension View {
 private struct WorkspaceSheetModifier<Page: View>: ViewModifier {
     @Environment(\.workspacePresentations) private var presentations
     @Binding var isPresented: Bool
+    let routingKey: String?
     let onDismiss: (() -> Void)?
     @ViewBuilder let page: () -> Page
     @State private var id = UUID()
@@ -149,10 +196,14 @@ private struct WorkspaceSheetModifier<Page: View>: ViewModifier {
         let renderedPage = isPresented ? AnyView(page()) : nil
         if let presentations {
             content.onChange(of: isPresented, initial: true) { _, shown in
-                if shown, let renderedPage { presentations.present(id: id, content: renderedPage, clearBinding: { isPresented = false }, onDismiss: onDismiss ?? {}) }
+                if shown, let renderedPage { presentations.present(id: id, content: renderedPage, clearBinding: { isPresented = false }, onDismiss: onDismiss ?? {}, routingKey: routingKey) }
                 else { presentations.remove(id: id) }
             }.onChange(of: sourceRevision) { _, _ in
-                if isPresented, let renderedPage { presentations.update(id: id, content: renderedPage) }
+                if isPresented, let renderedPage {
+                    // A model may dismiss and reopen the same binding in one run-loop turn.
+                    presentations.present(id: id, content: renderedPage, clearBinding: { isPresented = false }, onDismiss: onDismiss ?? {}, routingKey: routingKey)
+                    presentations.update(id: id, content: renderedPage)
+                }
             }.onDisappear { presentations.remove(id: id) }
         } else { content.sheet(isPresented: $isPresented, onDismiss: onDismiss, content: page) }
     }
@@ -176,10 +227,16 @@ private struct WorkspaceItemSheetModifier<Item: Identifiable, Page: View>: ViewM
                     let expected = value.id
                     presentations.present(id: id, content: renderedPage, clearBinding: {
                         if item?.id == expected { item = nil }
-                    }, onDismiss: onDismiss ?? {})
+                    }, onDismiss: onDismiss ?? {}, routingKey: AnyHashable(value.id))
                 }
             }.onChange(of: sourceRevision) { _, _ in
-                if let renderedPage { presentations.update(id: id, content: renderedPage) }
+                if let value, let renderedPage {
+                    let expected = value.id
+                    presentations.present(id: id, content: renderedPage, clearBinding: {
+                        if item?.id == expected { item = nil }
+                    }, onDismiss: onDismiss ?? {}, routingKey: AnyHashable(value.id))
+                    presentations.update(id: id, content: renderedPage)
+                }
             }.onDisappear { presentations.remove(id: id) }
         } else { content.sheet(item: $item, onDismiss: onDismiss, content: page) }
     }
@@ -207,8 +264,19 @@ struct WorkspaceContentHost: View {
     @ObservedObject var app: AppModel
     @ObservedObject var presentations: WorkspacePresentations
     var body: some View {
-        ZStack {
+        WorkspacePresentationHost(presentations: presentations, backTitle: "К чату") {
             WorkspaceSplitView(model: app, panel: app.workspacePanel)
+        }
+    }
+}
+
+struct WorkspacePresentationHost<Content: View>: View {
+    @ObservedObject var presentations: WorkspacePresentations
+    let backTitle: String
+    @ViewBuilder var content: () -> Content
+    var body: some View {
+        ZStack {
+            content()
                 .opacity(presentations.pages.isEmpty ? 1 : 0)
                 .allowsHitTesting(presentations.pages.isEmpty)
                 .disabled(!presentations.pages.isEmpty)
@@ -217,12 +285,14 @@ struct WorkspaceContentHost: View {
                 VStack(spacing: 0) {
                     HStack {
                         Button { presentations.dismissTop() } label: {
-                            Label(presentations.pages.count == 1 ? "К чату" : "Назад", systemImage: "chevron.left")
+                            Label(presentations.pages.count == 1 ? backTitle : "Назад", systemImage: "chevron.left")
                         }.buttonStyle(.nativeHover).disabled(presentations.locked)
                         Spacer()
                     }.font(.system(size: 12)).foregroundStyle(.secondary).padding(.horizontal, 20).padding(.vertical, 12)
                     Divider().opacity(0.4)
                     page.content
+                        .environment(\.workspacePresentations, presentations)
+                        .environment(\.workspaceChromeVisible, true)
                         .environment(\.workspaceInline, true)
                         .environment(\.workspaceDismiss, page.dismiss)
                         .onPreferenceChange(WorkspaceDismissalPreference.self) { presentations.setDismissalDisabled($0, id: page.id) }
@@ -239,13 +309,18 @@ struct WorkspaceContentHost: View {
 }
 
 extension AppModel {
-    func openSettings() { showSettings = true }
+    func openSettings(in source: WorkspacePresentations? = nil) {
+        guard !presentations.locked else { return }
+        presentations.prepare("settings", in: source ?? presentations.currentDestination)
+        showSettings = true
+    }
 
-    /// OS pickers remain native, attached to the actual workspace rather than a transient menu.
-    func presentFilePicker(_ panel: NSSavePanel, completion: @escaping (NSApplication.ModalResponse) -> Void) {
-        if desktop.enabled { desktop.revealMainContent() }
-        if let window = desktop.window {
-            guard window.attachedSheet == nil else { return }
+    /// Capture the source now; a later completion must never fall back to the selected window.
+    func presentFilePicker(_ panel: NSSavePanel, in source: WorkspacePresentations? = nil, completion: @escaping (NSApplication.ModalResponse) -> Void) {
+        let source = source ?? presentations.currentDestination
+        source.reveal()
+        if let window = source.window {
+            guard window.attachedSheet == nil else { completion(.cancel); return }
             window.makeKeyAndOrderFront(nil)
             panel.beginSheetModal(for: window, completionHandler: completion)
         } else { panel.begin(completionHandler: completion) }

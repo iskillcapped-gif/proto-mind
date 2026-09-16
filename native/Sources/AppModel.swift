@@ -578,13 +578,15 @@ final class AppModel: ObservableObject {
         return hasAgentAccessSelection(conversation)
     }
 
-    func requestAgentAccess(conversationID: UUID? = nil) {
+    func requestAgentAccess(conversationID: UUID? = nil, in source: WorkspacePresentations? = nil) {
         guard let id = conversationID ?? selectedID,
               let conversation = conversations.first(where: { $0.id == id }),
               !operationBusy, !isRunning(id), !conversation.archived, conversation.provider == "codex", cloudConsent else {
             report(NativeError.message("Сначала выберите Codex и разрешите облачную обработку.")); return
         }
-        pendingAgentAccess = PendingAgentAccess(conversationID: id, workspace: conversation.workspacePath)
+        let request = PendingAgentAccess(conversationID: id, workspace: conversation.workspacePath)
+        presentations.prepare(request.id, in: source ?? presentations.currentDestination)
+        pendingAgentAccess = request
     }
 
     func confirmAgentAccess() async {
@@ -743,7 +745,10 @@ final class AppModel: ObservableObject {
         catch { report(error) }
     }
 
-    func showMessage(_ message: ChatMessage) { inspectedMessageID = message.id; showInspector = true }
+    func showMessage(_ message: ChatMessage, in source: WorkspacePresentations? = nil) {
+        presentations.prepare("inspector", in: source ?? presentations.currentDestination)
+        inspectedMessageID = message.id; showInspector = true
+    }
 
     func checkOllama() async {
         guard !busy else { return }
@@ -751,14 +756,14 @@ final class AppModel: ObservableObject {
         catch { report(error) }
     }
 
-    func chooseWorkspace() {
+    func chooseWorkspace(in source: WorkspacePresentations? = nil) {
         guard !busy else { return }
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.allowsMultipleSelection = false
         panel.prompt = "Подключить только для чтения"
         panel.directoryURL = selected?.workspacePath.map { URL(fileURLWithPath: $0) } ?? client.configuration.projectRoot
         let conversationID = selectedID
-        presentFilePicker(panel) { [weak self] response in
+        presentFilePicker(panel, in: source) { [weak self] response in
             guard response == .OK, let url = panel.url, let self, self.selectedID == conversationID else { return }
             Task { await self.bindWorkspace(url.path) }
         }

@@ -24,7 +24,7 @@ struct ProjectWorkspaceView: View {
                     .disabled(!model.canEditMessageAttachments || model.loadingWorkspace || model.selected?.workspacePath == nil).help("Обновить файлы").accessibilityLabel("Обновить файлы")
                 Menu {
                     Button("Открыть файл…") { model.chooseWorkspaceDocument(in: panel) }
-                    Button("Выбрать папку…") { model.chooseWorkspace() }.disabled(model.busy)
+                    Button("Выбрать папку…") { model.chooseWorkspace(in: panel?.presentations) }.disabled(model.busy)
                 } label: { Image(systemName: "ellipsis") }
                     .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().disabled(!model.canEditMessageAttachments)
                     .accessibilityLabel("Действия с файлами")
@@ -39,7 +39,7 @@ struct ProjectWorkspaceView: View {
                     Text("Файлы рядом с разговором").font(.headline)
                     Text("Выберите папку, чтобы читать документы и код.\nФайлы попадут в запрос только после прикрепления.")
                         .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                    Button("Выбрать папку…") { model.chooseWorkspace() }.buttonStyle(.bordered).disabled(model.busy)
+                    Button("Выбрать папку…") { model.chooseWorkspace(in: panel?.presentations) }.buttonStyle(.bordered).disabled(model.busy)
                     Button("Открыть изображение или PDF…") { model.chooseWorkspaceDocument(in: panel) }.disabled(!model.canEditMessageAttachments)
                 }.padding(24).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {

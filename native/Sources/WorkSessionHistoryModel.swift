@@ -75,13 +75,15 @@ extension AppModel {
         return selected?.dismissedWorkSessionWarnings.contains { $0.matches(run) } == true
     }
 
-    func openWorkSessions(_ run: NativeWorkSession? = nil) {
+    func openWorkSessions(_ run: NativeWorkSession? = nil, in source: WorkspacePresentations? = nil) {
+        presentations.prepare("workSessions", in: source ?? presentations.currentDestination)
         inspectedWorkSessionID = run?.id
         showWorkSessions = true
     }
 
-    func openWorkSession(for message: ChatMessage) async {
+    func openWorkSession(for message: ChatMessage, in source: WorkspacePresentations? = nil) async {
         guard !busy, !loadingWorkSessions, let raw = message.turnReference, let conversation = selectedID else { return }
+        let destination = source ?? presentations.currentDestination
         let request = UUID(); workSessionsRequest = request; loadingWorkSessions = true
         defer { if request == workSessionsRequest { loadingWorkSessions = false } }
         do {
@@ -98,7 +100,7 @@ extension AppModel {
             let run = try reference.resolve(in: [saved], conversation: conversation)
             workSessions = mergedWorkSessions(workSessions, with: [run])
             workSessionsActionError = nil
-            openWorkSessions(run)
+            openWorkSessions(run, in: destination)
         } catch { if request == workSessionsRequest && selectedID == conversation { report(error) } }
     }
 
