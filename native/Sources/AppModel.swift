@@ -32,7 +32,7 @@ final class AppModel: ObservableObject {
     @Published var provisionalPanelConversations: Set<UUID> = []
     @Published var selectedID: UUID? {
         didSet {
-            if !initializing, oldValue != selectedID { dictation.stop() }
+            if !initializing, oldValue != selectedID { dictation.stop(for: oldValue) }
             if !initializing, let id = selectedID {
                 _ = execution(for: id)
                 liveVoice.updateContext(app: self)
@@ -41,9 +41,9 @@ final class AppModel: ObservableObject {
         }
     }
     @Published var section: WorkspaceSection = .chat {
-        didSet { if !initializing, section != .chat { dictation.stop() } }
+        didSet { if !initializing, section != .chat { dictation.stop(for: selectedID) } }
     }
-    @Published var composer = "" { didSet { if !initializing { dictation.composerChanged() }; draftChanged() } }
+    @Published var composer = "" { didSet { if !initializing { dictation.composerChanged(conversationID: selectedID) }; draftChanged() } }
     @Published var composerRevision = 0
     @Published var bootstrap: JSONValue = .null
     let codexAccounts: CodexAccounts
@@ -61,6 +61,7 @@ final class AppModel: ObservableObject {
     let sidebarProjectOrder: SidebarProjectOrder
     let desktop: DesktopPresentation
     let presentations = WorkspacePresentations()
+    let conversationRouting = ConversationRouting()
     @Published var showSettings = false
     @Published var showFirstLaunch = false
     @Published var exitPrompt: WorkspaceExitPrompt?
@@ -321,32 +322,34 @@ final class AppModel: ObservableObject {
     }
     var messages: [ChatMessage] { selected?.messages ?? [] }
     var evidenceMessage: ChatMessage? {
-        messages.first { $0.id == inspectedMessageID } ?? messages.last { $0.role != "user" && !$0.isError }
+        conversations.lazy.flatMap(\.messages).first { $0.id == inspectedMessageID } ?? messages.last { $0.role != "user" && !$0.isError }
     }
     var contextLabel: String {
         bootstrap["context_injection"].isNull ? L10n.text("Context: неизвестно") : bootstrap["context_injection"].flag ? L10n.text("Context: включён") : L10n.text("Context: выключен")
     }
 
-    var contextRequestParameters: [String: JSONValue]? {
-        guard let conversation = selected else { return nil }
+    var contextRequestParameters: [String: JSONValue]? { selectedID.flatMap { contextRequestParameters(for: $0) } }
+    func contextRequestParameters(for id: UUID) -> [String: JSONValue]? {
+        guard let conversation = conversations.first(where: { $0.id == id }) else { return nil }
+        let context = ConversationComposerContext(app: self, id: id)
         var params: [String: JSONValue] = [
-            "text": .string(composer), "conversation_id": .string(conversation.id.uuidString),
+            "text": .string(context.draft), "conversation_id": .string(conversation.id.uuidString),
             "provider": .string(conversation.provider), "model": .string(conversation.model),
             "reasoning_effort": .string(conversation.provider == "codex" ? conversation.reasoningEffort : ""),
             "history": .array(conversation.history), "files": .array(conversation.pendingFiles),
             "images": .array(conversation.pendingImages),
             "pdfs": .array(conversation.pendingPDFs),
-            "project_memory": .array(pendingProjectNotes.map(\.selection)),
+            "project_memory": .array((projectNoteSelections[id] ?? []).map(\.selection)),
             "criteria": .array(conversation.pendingCriteria.map(JSONValue.string)),
             "auto_skills": .bool(conversation.provider == "codex" && conversation.autoSkillsEnabled),
             "auto_project_recall": .bool(conversation.provider == "codex" && conversation.autoProjectRecallEnabled),
             "project_recall_algorithm": .string("local_content_terms_v3"),
             "persona_enabled": .bool(personaEnabled && conversation.provider != "api"),
-            "cloud_consent": .bool(cloudConsent), "access_mode": .string(fullAccessEnabled ? "full_access" : "chat")
+            "cloud_consent": .bool(cloudConsent), "access_mode": .string(context.fullAccess ? "full_access" : "chat")
         ]
         if let path = conversation.workspacePath { params["workspace_root"] = .string(path) }
-        if let pendingSkillTask { params["skill_task"] = pendingSkillTask.selection }
-        if fullAccessEnabled, let grant = agentGrants[conversation.id] {
+        if let pendingSkillTask = preparedSkillTasks[id] { params["skill_task"] = pendingSkillTask.selection }
+        if context.fullAccess, let grant = agentGrants[conversation.id] {
             params["access_token"] = .string(grant.token)
         }
         return params
@@ -542,8 +545,8 @@ final class AppModel: ObservableObject {
     }
 
     func setPendingCriteria(_ values: [String], conversationID: UUID) throws {
-        guard !busy, selectedID == conversationID, selected?.archived != true,
-              let index = conversations.firstIndex(where: { $0.id == conversationID }) else {
+        guard !operationBusy, !isRunning(conversationID),
+              let index = conversations.firstIndex(where: { $0.id == conversationID }), !conversations[index].archived else {
             throw NativeError.message(L10n.text("Диалог изменился или занят. Критерии не сохранены."))
         }
         let items = try NativeTaskCriteria.validate(values)
@@ -846,66 +849,70 @@ final class AppModel: ObservableObject {
         persist()
     }
 
-    var imageDestinationNotice: String {
+    var imageDestinationNotice: String { imageDestinationNotice(for: selectedID) }
+    func imageDestinationNotice(for id: UUID?) -> String {
+        let selected = conversations.first { $0.id == id }
         guard selected?.provider == "codex" else {
             return L10n.text("Изображения пока поддерживаются только через Codex. Выбор локальный; Ollama/Mock не получат эти файлы. Провайдер не меняется автоматически.")
         }
         guard cloudConsent else {
             return L10n.text("Сейчас всё остаётся на Mac. Для отправки изображений в OpenAI разрешите облачную обработку; выбор файла сам по себе её не включает.")
         }
-        let selectedModel = models.first { selected?.model.isEmpty == false ? $0["id"].text == selected?.model : $0["default"].flag }
+        let selectedModel = codexAccount(for: id).models.first { selected?.model.isEmpty == false ? $0["id"].text == selected?.model : $0["default"].flag }
         guard selectedModel?["input_modalities"].items.contains(.string("image")) == true else {
             return L10n.text("Каталог пока не подтверждает изображения для выбранной модели. Обновите модели или выберите совместимую; Send повторно проверит поддержку.")
         }
         return L10n.text("После «Отправить» выбранные изображения уйдут в OpenAI вместе с сообщением. До этого просмотр локальный. В следующих запросах они не пересылаются автоматически.")
     }
 
-    func chooseImage() {
-        guard canReceiveAttachments, let conversationID = selectedID else { return }
+    func chooseImage(conversationID requestedID: UUID? = nil, in source: WorkspacePresentations? = nil) {
+        guard let conversationID = requestedID ?? selectedID,
+              canReceiveAttachments(for: conversationID) else { return }
+        let destination = source ?? presentations.currentDestination
         let panel = NSOpenPanel()
         panel.canChooseDirectories = false; panel.canChooseFiles = true; panel.allowsMultipleSelection = false
         panel.allowedContentTypes = [.png, .jpeg]; panel.resolvesAliases = false
         panel.prompt = L10n.text("Просмотреть локально")
         panel.message = L10n.text("Выберите PNG/JPEG до 4 МиБ. Этот шаг ничего не отправляет в модель.")
         let completion: (NSApplication.ModalResponse) -> Void = { [weak self] response in
-            guard response == .OK, let url = panel.url, let self, self.selectedID == conversationID else { return }
-            Task { await self.previewImage(url.path) }
+            guard response == .OK, let url = panel.url, let self, (requestedID != nil || self.selectedID == conversationID) else { return }
+            Task { await self.previewImage(url.path, conversationID: requestedID, in: destination) }
         }
-        presentFilePicker(panel, completion: completion)
+        presentFilePicker(panel, in: destination, completion: completion)
     }
 
-    func previewImage(_ path: String, expectedSHA: String? = nil, canAttach: Bool = true, inWorkspacePanel: Bool = false, targetPanel: WorkspacePanelModel? = nil) async {
+    func previewImage(_ path: String, expectedSHA: String? = nil, canAttach: Bool = true, inWorkspacePanel: Bool = false, targetPanel: WorkspacePanelModel? = nil, conversationID requestedID: UUID? = nil, in source: WorkspacePresentations? = nil) async {
         let panel = targetPanel ?? workspacePanel
-        guard canEditMessageAttachments, !loadingImagePreview, !loadingDroppedAttachments, !loadingPDFPreview,
-              pdfPreview == nil, attachmentDropPreview == nil,
-              let conversationID = selectedID else { return }
+        guard let conversationID = requestedID ?? selectedID, canEditAttachments(for: conversationID), !loadingImagePreview, !loadingDroppedAttachments, !loadingPDFPreview,
+              pdfPreview == nil, attachmentDropPreview == nil else { return }
+        let destination = source ?? targetPanel?.presentations ?? presentations.currentDestination
         loadingImagePreview = true
         defer { loadingImagePreview = false }
         do {
             var params: [String: JSONValue] = ["path": .string(path)]
             if let expectedSHA { params["expected_sha256"] = .string(expectedSHA) }
-            let result = try await client.request("image_preview", params)
-            guard selectedID == conversationID, canEditMessageAttachments else { return }
-            let preview = try NativeImagePreview(result, conversationID: conversationID, canAttach: canAttach)
+            let result = try await execution(for: conversationID).client.request("image_preview", params)
+            guard (requestedID != nil || selectedID == conversationID), canEditAttachments(for: conversationID) else { return }
+            let preview = try NativeImagePreview(result, conversationID: conversationID, canAttach: canAttach, requiresSelectedConversation: requestedID == nil)
             guard preview.source.path == path, expectedSHA == nil || preview.source.sha256 == expectedSHA else {
                 throw NativeError.message(L10n.text("Предпросмотр относится к другому изображению. Ничего не прикреплено."))
             }
             if imageThumbnails.count >= 12 { imageThumbnails.removeAll() }
             imageThumbnails[preview.source.sha256] = preview.thumbnail
             if inWorkspacePanel { panel.open(.image(preview)) }
-            else { imagePreview = preview }
-        } catch { report(error) }
+            else { presentations.prepare(preview.id, in: destination); imagePreview = preview }
+        } catch { reportAttachmentError(error, in: destination) }
     }
 
     func attachImage(_ preview: NativeImagePreview) throws {
-        guard preview.canAttach, canEditMessageAttachments, selectedID == preview.conversationID, selected?.archived != true,
+        guard preview.canAttach, (!preview.requiresSelectedConversation || selectedID == preview.conversationID), canEditAttachments(for: preview.conversationID),
               let index = conversations.firstIndex(where: { $0.id == preview.conversationID }) else {
             throw NativeError.message(L10n.text("Диалог изменился или занят. Изображение не прикреплено."))
         }
         var next = conversations[index].pendingImages.filter { $0["path"].text != preview.source.path }
         next.append(preview.source.value)
         try updatePendingImages(next, index: index)
-        section = .chat
+        if selectedID == preview.conversationID { section = .chat }
     }
 
     func removePendingImage(_ path: String) {
@@ -950,10 +957,11 @@ final class AppModel: ObservableObject {
         return true
     }
 
-    func receiveAttachmentDrop(_ urls: [URL]) -> Bool {
-        guard canReceiveAttachments, let conversation = selected else { return false }
+    func receiveAttachmentDrop(_ urls: [URL], conversationID: UUID? = nil, in source: WorkspacePresentations? = nil) -> Bool {
+        guard let id = conversationID ?? selectedID, canReceiveAttachments(for: id), let conversation = conversations.first(where: { $0.id == id }) else { return false }
+        let destination = source ?? presentations.currentDestination
         loadingDroppedAttachments = true
-        Task { await finishAttachmentDrop(conversation) { urls } }
+        Task { await finishAttachmentDrop(conversation, in: destination, requiresSelection: conversationID == nil) { urls } }
         return true
     }
 
@@ -963,13 +971,17 @@ final class AppModel: ObservableObject {
         await finishAttachmentDrop(conversation) { urls }
     }
 
-    private func finishAttachmentDrop(_ conversation: Conversation, load: () async throws -> [URL]) async {
+    private func finishAttachmentDrop(_ conversation: Conversation, in source: WorkspacePresentations? = nil, requiresSelection: Bool = true, load: () async throws -> [URL]) async {
+        let destination = source ?? presentations.currentDestination
+        let client = execution(for: conversation.id).client
         defer { loadingDroppedAttachments = false; attachmentDropTargeted = false }
         do {
             let urls = try NativeAttachmentDrop.selection(await load())
             if urls.contains(where: NativeAttachmentDrop.isPDF) {
                 guard urls.count == 1 else { throw NativeError.message(L10n.text("Перетащите один PDF отдельно, чтобы выбрать страницы. Остальные файлы добавьте следующим действием; черновик не изменён.")) }
-                pdfPreview = try await readPDFPreview(urls[0].path, pages: [1], conversation: conversation, canAttach: true)
+                let preview = try await readPDFPreview(urls[0].path, pages: [1], conversation: conversation, canAttach: true, requiresSelectedConversation: requiresSelection)
+                guard !requiresSelection || selectedID == conversation.id else { return }
+                presentations.prepare(preview.id, in: destination); pdfPreview = preview
                 return
             }
             guard urls.filter(NativeAttachmentDrop.isImage).count <= 3,
@@ -978,7 +990,7 @@ final class AppModel: ObservableObject {
             }
             var images: [NativeImagePreview] = [], files: [NativeDroppedFile] = []
             for url in urls {
-                guard selectedID == conversation.id, selected?.workspacePath == conversation.workspacePath, canEditMessageAttachments else { return }
+                guard (!requiresSelection || selectedID == conversation.id), conversations.first(where: { $0.id == conversation.id })?.workspacePath == conversation.workspacePath, canEditAttachments(for: conversation.id) else { return }
                 if NativeAttachmentDrop.isImage(url) {
                     let value = try await client.request("image_preview", ["path": .string(url.path)])
                     let preview = try NativeImagePreview(value, conversationID: conversation.id, canAttach: true)
@@ -990,17 +1002,17 @@ final class AppModel: ObservableObject {
                     files.append(try NativeDroppedFile(value, path: path))
                 }
             }
-            guard selectedID == conversation.id, let current = selected, canEditMessageAttachments else { return }
-            let preview = NativeAttachmentDropPreview(conversationID: conversation.id, workspace: conversation.workspacePath, images: images, files: files)
+            guard (!requiresSelection || selectedID == conversation.id), let current = conversations.first(where: { $0.id == conversation.id }), canEditAttachments(for: conversation.id) else { return }
+            let preview = NativeAttachmentDropPreview(conversationID: conversation.id, workspace: conversation.workspacePath, images: images, files: files, requiresSelectedConversation: requiresSelection)
             _ = try preview.merged(with: current)
-            attachmentDropPreview = preview
+            presentations.prepare(preview.id, in: destination); attachmentDropPreview = preview
         } catch {
-            if selectedID == conversation.id { report(error) }
+            if !requiresSelection || selectedID == conversation.id { reportAttachmentError(error, in: destination) }
         }
     }
 
     func attachDrop(_ preview: NativeAttachmentDropPreview) throws {
-        guard canEditMessageAttachments, !loadingDroppedAttachments, selectedID == preview.conversationID,
+        guard (!preview.requiresSelectedConversation || selectedID == preview.conversationID), canEditAttachments(for: preview.conversationID), !loadingDroppedAttachments,
               let index = conversations.firstIndex(where: { $0.id == preview.conversationID }) else {
             throw NativeError.message(L10n.text("Диалог изменился или занят. Файлы не прикреплены."))
         }
@@ -1016,10 +1028,12 @@ final class AppModel: ObservableObject {
         }
         if imageThumbnails.count + preview.images.count > 12 { imageThumbnails.removeAll() }
         for image in preview.images { imageThumbnails[image.source.sha256] = image.thumbnail }
-        section = .chat
+        if selectedID == preview.conversationID { section = .chat }
     }
 
-    var pdfDestinationNotice: String {
+    var pdfDestinationNotice: String { pdfDestinationNotice(for: selectedID) }
+    func pdfDestinationNotice(for id: UUID?) -> String {
+        let selected = conversations.first { $0.id == id }
         if selected?.provider == "codex" {
             return cloudConsent
                 ? L10n.text("Только после «Отправить» выбранный текст страниц уйдёт в OpenAI. Оригинал PDF не пересылается и не копируется. В истории сохраняются лишь метаданные вложения.")
@@ -1030,31 +1044,33 @@ final class AppModel: ObservableObject {
             : L10n.text("После «Отправить» выбранный текст страниц получит локальная Ollama. Оригинал PDF не пересылается и не копируется.")
     }
 
-    func choosePDF() {
-        guard canReceiveAttachments, let conversationID = selectedID else { return }
+    func choosePDF(conversationID requestedID: UUID? = nil, in source: WorkspacePresentations? = nil) {
+        guard let conversationID = requestedID ?? selectedID,
+              canReceiveAttachments(for: conversationID) else { return }
+        let destination = source ?? presentations.currentDestination
         let panel = NSOpenPanel()
         panel.canChooseDirectories = false; panel.canChooseFiles = true; panel.allowsMultipleSelection = false
         panel.allowedContentTypes = [.pdf]; panel.resolvesAliases = false
         panel.prompt = L10n.text("Выбрать страницы")
         panel.message = L10n.text("PDF с текстовым слоем до 8 МиБ. Локальный просмотр, без отправки.")
         let completion: (NSApplication.ModalResponse) -> Void = { [weak self] response in
-            guard response == .OK, let url = panel.url, let self, self.selectedID == conversationID else { return }
-            Task { await self.previewPDF(url.path) }
+            guard response == .OK, let url = panel.url, let self, (requestedID != nil || self.selectedID == conversationID) else { return }
+            Task { await self.previewPDF(url.path, conversationID: requestedID, in: destination) }
         }
-        presentFilePicker(panel, completion: completion)
+        presentFilePicker(panel, in: destination, completion: completion)
     }
 
     func readPDFPreview(_ path: String, pages: [Int], conversation: Conversation,
-                                canAttach: Bool, expectedSHA: String? = nil) async throws -> NativePDFPreview {
+                                canAttach: Bool, expectedSHA: String? = nil, requiresSelectedConversation: Bool = true) async throws -> NativePDFPreview {
         let path = try NativeAttachmentDrop.localURL(URL(fileURLWithPath: path)).path
         var params: [String: JSONValue] = ["path": .string(path), "pages": .array(pages.map { .number(Double($0)) })]
         if let expectedSHA { params["expected_sha256"] = .string(expectedSHA) }
-        let result = try await client.request("pdf_preview", params)
-        guard canEditMessageAttachments, selectedID == conversation.id,
-              selected?.workspacePath == conversation.workspacePath, selected?.archived != true else {
+        let result = try await execution(for: conversation.id).client.request("pdf_preview", params)
+        guard (!requiresSelectedConversation || selectedID == conversation.id), canEditAttachments(for: conversation.id),
+              conversations.first(where: { $0.id == conversation.id })?.workspacePath == conversation.workspacePath else {
             throw NativeError.message(L10n.text("Диалог изменился или занят. PDF не прикреплён и не отправлен."))
         }
-        let preview = try NativePDFPreview(result, conversationID: conversation.id, workspace: conversation.workspacePath, canAttach: canAttach)
+        let preview = try NativePDFPreview(result, conversationID: conversation.id, workspace: conversation.workspacePath, canAttach: canAttach, requiresSelectedConversation: requiresSelectedConversation)
         guard preview.source.path == path, preview.source.pages == pages,
               expectedSHA == nil || preview.source.sha256 == expectedSHA else {
             throw NativeError.message(L10n.text("Предпросмотр не соответствует выбранному PDF или страницам."))
@@ -1062,25 +1078,29 @@ final class AppModel: ObservableObject {
         return preview
     }
 
-    func previewPDF(_ path: String, expected: JSONValue? = nil, canAttach: Bool = true, inWorkspacePanel: Bool = false, targetPanel: WorkspacePanelModel? = nil) async {
+    func previewPDF(_ path: String, expected: JSONValue? = nil, canAttach: Bool = true, inWorkspacePanel: Bool = false, targetPanel: WorkspacePanelModel? = nil, conversationID requestedID: UUID? = nil, in source: WorkspacePresentations? = nil) async {
         let panel = targetPanel ?? workspacePanel
-        guard canReceiveAttachments, let conversation = selected else { return }
+        guard let id = requestedID ?? selectedID, canReceiveAttachments(for: id),
+              let conversation = conversations.first(where: { $0.id == id }) else { return }
+        let destination = source ?? targetPanel?.presentations ?? presentations.currentDestination
         loadingPDFPreview = true
         defer { loadingPDFPreview = false }
         do {
             let source = try expected.map(NativePDFAttachment.init)
             let preview = try await readPDFPreview(path, pages: source?.pages ?? [1], conversation: conversation,
-                                                   canAttach: canAttach, expectedSHA: source?.sha256)
+                                                   canAttach: canAttach, expectedSHA: source?.sha256, requiresSelectedConversation: requestedID == nil)
             guard expected == nil || preview.source.value == expected else {
                 throw NativeError.message(L10n.text("Текст выбранных страниц изменился. Уберите PDF и выберите его заново."))
             }
+            guard requestedID != nil || selectedID == conversation.id else { return }
             if inWorkspacePanel { panel.open(.pdf(preview)) }
-            else { pdfPreview = preview }
-        } catch { if selectedID == conversation.id { report(error) } }
+            else { presentations.prepare(preview.id, in: destination); pdfPreview = preview }
+        } catch { reportAttachmentError(error, in: destination) }
     }
 
     func reloadPDFPreview(_ preview: NativePDFPreview, pages: [Int]) async throws -> NativePDFPreview {
-        guard canEditMessageAttachments, !loadingPDFPreview, preview.canAttach, let conversation = selected,
+        guard (!preview.requiresSelectedConversation || selectedID == preview.conversationID), canEditAttachments(for: preview.conversationID), !loadingPDFPreview, preview.canAttach,
+              let conversation = conversations.first(where: { $0.id == preview.conversationID }),
               conversation.id == preview.conversationID, conversation.workspacePath == preview.workspace,
               pdfPreview?.source.path == preview.source.path else {
             throw NativeError.message(L10n.text("Выбор PDF изменился или занят. Ничего не отправлено."))
@@ -1088,19 +1108,18 @@ final class AppModel: ObservableObject {
         loadingPDFPreview = true
         defer { loadingPDFPreview = false }
         return try await readPDFPreview(preview.source.path, pages: pages, conversation: conversation,
-                                         canAttach: true, expectedSHA: preview.source.sha256)
+                                         canAttach: true, expectedSHA: preview.source.sha256, requiresSelectedConversation: preview.requiresSelectedConversation)
     }
 
     func attachPDF(_ preview: NativePDFPreview) throws {
-        guard preview.canAttach, preview.hasText, canEditMessageAttachments, !loadingPDFPreview,
-              !loadingDroppedAttachments, selectedID == preview.conversationID,
-              selected?.workspacePath == preview.workspace, selected?.archived != true,
+        guard preview.canAttach, preview.hasText, (!preview.requiresSelectedConversation || selectedID == preview.conversationID), canEditAttachments(for: preview.conversationID), !loadingPDFPreview,
+              !loadingDroppedAttachments, conversations.first(where: { $0.id == preview.conversationID })?.workspacePath == preview.workspace,
               let index = conversations.firstIndex(where: { $0.id == preview.conversationID }) else {
             throw NativeError.message(L10n.text("PDF не готов, диалог изменился или занят. Ничего не прикреплено."))
         }
         let next = conversations[index].pendingPDFs.filter { $0["path"].text != preview.source.path } + [preview.source.value]
         try updatePendingPDFs(next, index: index)
-        section = .chat
+        if selectedID == preview.conversationID { section = .chat }
     }
 
     func removePendingPDF() {

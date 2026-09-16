@@ -30,7 +30,8 @@ final class DictationModel: ObservableObject {
     private var finishDeadline: Task<Void, Never>?
     private var observers: [NSObjectProtocol] = []
     private weak var app: AppModel?
-    private var conversationID: UUID?
+    private(set) var conversationID: UUID?
+    private(set) var displayConversationID: UUID?
     private var base = ""
     private var lastApplied = ""
     private var applying = false
@@ -44,26 +45,31 @@ final class DictationModel: ObservableObject {
         })
     }
 
-    func canStart(app: AppModel) -> Bool {
-        app.selected != nil && app.selected?.archived != true && app.section == .chat
+    func canStart(app: AppModel, conversationID: UUID? = nil, in source: WorkspacePresentations? = nil) -> Bool {
+        let chat = app.conversations.first { $0.id == (conversationID ?? app.selectedID) }
+        return chat != nil && chat?.archived != true && (conversationID != nil || app.section == .chat)
             && !app.operationBusy && !app.privateBackupRestartRequired && !app.liveVoice.inCall
-            && !app.historyPersistence.blocksSubmission && app.presentations.pages.isEmpty
+            && !app.historyPersistence.blocksSubmission && !app.store.writeBlocked
+            && (source ?? app.presentations).pages.isEmpty
     }
 
     func setLanguage(_ value: DictationLanguage) {
         stop(); language = value; defaults.set(value.rawValue, forKey: preferenceKey)
     }
 
-    func toggle(app: AppModel) async {
-        if active { finish(); return }
-        await start(app: app)
+    func toggle(app: AppModel, conversationID: UUID? = nil, in source: WorkspacePresentations? = nil) async {
+        let id = conversationID ?? app.selectedID
+        if active && self.conversationID == id { finish(); return }
+        if active { stop() }
+        await start(app: app, conversationID: id, in: source)
     }
 
-    func start(app: AppModel) async {
-        guard !active, canStart(app: app) else { return }
+    func start(app: AppModel, conversationID: UUID? = nil, in source: WorkspacePresentations? = nil) async {
+        guard !active, canStart(app: app, conversationID: conversationID, in: source) else { return }
         token = UUID(); let token = token
-        self.app = app; conversationID = app.selectedID
-        base = app.composer; lastApplied = base
+        self.app = app; self.conversationID = conversationID ?? app.selectedID
+        displayConversationID = self.conversationID
+        base = ConversationComposerContext(app: app, id: self.conversationID).draft; lastApplied = base
         phase = .preparing; error = nil; level = 0
         speech.onText = { [weak self] text, final in
             guard let self, self.token == token, self.active else { return }
@@ -90,8 +96,9 @@ final class DictationModel: ObservableObject {
     }
 
     private func receive(_ transcript: String) {
-        guard let app, app.selectedID == conversationID, app.selected?.archived != true,
-              app.composer == lastApplied else { stop(); return }
+        guard let app, let conversationID else { stop(); return }
+        let context = ConversationComposerContext(app: app, id: conversationID)
+        guard context.conversation?.archived == false, context.draft == lastApplied else { stop(); return }
         let text = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         let separator = base.isEmpty || base.last?.isWhitespace == true ? "" : " "
@@ -102,13 +109,16 @@ final class DictationModel: ObservableObject {
         }
         lastApplied = updated
         applying = true
-        app.setComposer(updated, preservingContinuation: true)
+        app.setConversationDraft(updated, id: conversationID, preservingContinuation: true)
         applying = false
     }
 
     /// Edits, submission and navigation own the draft from this point onward.
     /// Late recognition callbacks must never replace them or leak into another task.
-    func composerChanged() { if active && !applying { stop() } }
+    func composerChanged(conversationID: UUID? = nil) {
+        if active && !applying && (conversationID == nil || conversationID == self.conversationID) { stop() }
+    }
+    func stop(for id: UUID?) { if active && conversationID == id { stop() } }
 
     func finish() {
         guard active else { return }

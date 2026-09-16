@@ -4,6 +4,39 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Shared Conversation Surfaces — Native 0.71.0
+
+The main reader and all side PM tabs now use `ChatView` and `ComposerView`.
+`ConversationComposerContext` projects an exact conversation's draft, execution,
+account catalog, effort, permissions and send/stop eligibility without changing
+`AppModel.selectedID`. The same centered column, typography, responsive toolbar,
+Mac access control and Apple dictation are available in compact and expanded
+panels. Image/PDF/drop previews, criteria and project memory capture their source
+conversation and presentation window; they no longer need to select the main chat.
+Dictation retains its original draft and rejects late results after manual editing,
+submission or moving capture to another composer. Ordinary typing keeps its caret;
+programmatic updates synchronize mounted copies of the same conversation.
+
+`ConversationRouting` observes intentional mouse/keyboard input inside workspace
+content, excluding the sidebar, passive cube previews and focus/order changes.
+Sidebar selection uses the last available target, reuses an existing chat tab or
+adds one beside a browser/file/terminal. It preserves the main selection and all
+other drafts, targets exact search/unread messages and reports the tab limit without
+closing documents. Hidden/closed targets fall back to the main reader. The sidebar
+New Chat action follows the same destination and retains provisional draft rules.
+Window layout and routing do not grant access, alter accounts or end tasks.
+
+Verification: 1917 full Native checks passed; after the final model-selection
+compatibility adjustment, 607 interface checks passed. Coverage includes parallel
+conversation execution, account/model isolation, retained drafts and caret state,
+bound dictation, source-scoped image/PDF/drop previews, stale-preview refusal,
+sidebar tab reuse/capacity and unavailable-target fallback. Isolated UI QA covered
+an expanded companion and an embedded panel, browser-to-chat sidebar navigation,
+shared menus, criteria, file-picker ownership and a reviewed text attachment in
+the side conversation while the main draft stayed untouched. No paid model or
+live microphone call was made. Python behavior and private-state schemas are
+unchanged; portable distribution remains 0.66.1.
+
 ## Live Interface Language — Native 0.70.0
 
 Settings → Appearance switches English/Russian immediately across the existing

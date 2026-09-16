@@ -91,9 +91,10 @@ struct NativePDFPreview: Identifiable {
     let source: NativePDFAttachment
     let pages: [JSONValue]
     let canAttach: Bool
+    let requiresSelectedConversation: Bool
     var hasText: Bool { pages.contains { !$0["text"].text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty } }
 
-    init(_ value: JSONValue, conversationID: UUID, workspace: String?, canAttach: Bool) throws {
+    init(_ value: JSONValue, conversationID: UUID, workspace: String?, canAttach: Bool, requiresSelectedConversation: Bool = true) throws {
         guard value["schema"] == .string("proto_mind.native_pdf_preview.v1"),
               value["read_only"] == .bool(true), value["no_execution"] == .bool(true) else {
             throw NativeError.message(L10n.text("Предпросмотр PDF не прошёл проверку."))
@@ -113,6 +114,7 @@ struct NativePDFPreview: Identifiable {
         }
         self.source = source; self.pages = pages; self.conversationID = conversationID
         self.workspace = workspace; self.canAttach = canAttach
+        self.requiresSelectedConversation = requiresSelectedConversation
         guard value["has_text"] == .bool(hasText) else { throw NativeError.message(L10n.text("Не удалось проверить текстовый слой PDF.")) }
     }
 }
@@ -156,7 +158,7 @@ struct PDFAttachmentPreviewView: View {
                                 error = nil
                             } catch { self.error = error.localizedDescription }
                         }
-                    }.disabled(model.loadingPDFPreview || !model.canEditMessageAttachments)
+                    }.disabled(model.loadingPDFPreview || !model.canEditAttachments(for: preview.conversationID))
                     if model.loadingPDFPreview { ProgressView().controlSize(.small) }
                 }
             }
@@ -177,7 +179,7 @@ struct PDFAttachmentPreviewView: View {
                 }.frame(maxWidth: .infinity, alignment: .leading)
             }.frame(maxHeight: .infinity)
             Text(preview.source.path).font(.caption).foregroundStyle(.secondary).textSelection(.enabled).lineLimit(2)
-            Text(preview.canAttach ? model.pdfDestinationNotice : L10n.text("Локальное повторное чтение выбранных страниц с проверкой SHA-256. PDF не прикрепляется и не отправляется повторно."))
+            Text(preview.canAttach ? model.pdfDestinationNotice(for: preview.conversationID) : L10n.text("Локальное повторное чтение выбранных страниц с проверкой SHA-256. PDF не прикрепляется и не отправляется повторно."))
                 .font(.caption).foregroundStyle(.secondary)
             if !preview.hasText { Text(L10n.text("В выбранных страницах нет текста для модели. Выберите другие страницы; сканы пока не поддерживаются.")).font(.callout).foregroundStyle(.orange) }
             if let error { Text(error).font(.callout).foregroundStyle(.orange).lineLimit(3) }
@@ -189,7 +191,7 @@ struct PDFAttachmentPreviewView: View {
                     Button(L10n.text("Прикрепить выбранный текст")) {
                         do { try model.attachPDF(preview); dismiss() }
                         catch { self.error = error.localizedDescription }
-                    }.disabled(!preview.hasText || !selectionMatches || model.loadingPDFPreview || !model.canEditMessageAttachments)
+                    }.disabled(!preview.hasText || !selectionMatches || model.loadingPDFPreview || !model.canEditAttachments(for: preview.conversationID))
                 }
             }
         }.padding(22).workspacePageSize(width: 760, height: 650).buttonStyle(.nativeHover)
@@ -198,19 +200,22 @@ struct PDFAttachmentPreviewView: View {
 
 struct PendingPDFAttachmentsView: View {
     @ObservedObject var model: AppModel
+    var conversationID: UUID? = nil
+    @Environment(\.workspacePresentations) private var presentations
+    private var context: ConversationComposerContext { ConversationComposerContext(app: model, id: conversationID ?? model.selectedID) }
     var body: some View {
-        ForEach(Array((model.selected?.pendingPDFs ?? []).enumerated()), id: \.offset) { _, pdf in
+        ForEach(Array((context.conversation?.pendingPDFs ?? []).enumerated()), id: \.offset) { _, pdf in
             HStack(spacing: 8) {
-                Button { Task { await model.previewPDF(pdf["path"].text, expected: pdf, canAttach: false) } } label: {
+                Button { Task { await model.previewPDF(pdf["path"].text, expected: pdf, canAttach: false, conversationID: context.id, in: presentations) } } label: {
                     Label(L10n.format("\(pdf["name"].text) · стр. \(pdf["pages"].items.map { String($0["number"].integer) }.joined(separator: ", "))"), systemImage: "doc.richtext")
                         .lineLimit(1)
                 }.help(L10n.text("Проверить локальный текст выбранных страниц PDF"))
                 Spacer(minLength: 4)
-                Button { model.removePendingPDF() } label: { Image(systemName: "xmark") }
+                Button { model.removeConversationAttachment(pdf["path"].text, kind: .pdf, conversationID: context.id) } label: { Image(systemName: "xmark") }
                     .help(L10n.text("Убрать PDF из сообщения")).accessibilityLabel(L10n.text("Убрать PDF из сообщения"))
             }.font(.caption).padding(10).frame(height: 42)
                 .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 10))
                 .padding(.horizontal, 12).padding(.top, 10)
-        }.buttonStyle(.nativeHover).disabled(!model.canEditMessageAttachments || model.loadingPDFPreview || model.loadingDroppedAttachments)
+        }.buttonStyle(.nativeHover).disabled(!context.canEditAttachments || model.loadingPDFPreview || model.loadingDroppedAttachments)
     }
 }

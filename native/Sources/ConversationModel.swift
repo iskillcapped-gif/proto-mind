@@ -5,6 +5,7 @@ import Foundation
 extension AppModel {
     func newConversation() {
         guard canNavigateConversations else { return }
+        conversationRouting.activate(nil)
         presentations.dismissAll()
         invalidateContextPreview()
         invalidateSessionSpinePilot()
@@ -42,6 +43,7 @@ extension AppModel {
 
     func select(_ id: UUID) {
         guard canNavigateConversations, conversations.contains(where: { $0.id == id }) else { return }
+        conversationRouting.activate(nil)
         presentations.dismissAll()
         invalidateContextPreview()
         invalidateSessionSpinePilot()

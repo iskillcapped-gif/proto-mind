@@ -87,7 +87,12 @@ struct WorkspacePanelView: View {
             }.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .background(desktopGlass ? (controls == nil ? NativeTheme.canvas.opacity(0.12) : Color.clear) : NativeTheme.canvas)
+        .onChange(of: panel.selectedID) { old, _ in
+            if let tab = panel.tabs.first(where: { $0.id == old }), case .conversation(let id) = tab.content { model.dictation.stop(for: id) }
+            if model.conversationRouting.panel === panel { model.conversationRouting.objectWillChange.send() }
+        }
         .workspaceMenuBoundary()
+        .background(ConversationInteractionRegion(routing: model.conversationRouting, panel: panel, enabled: panel.visible))
         .overlay(alignment: position == .upper ? .bottomLeading : .topLeading) {
             if controls == nil {
             Button { model.workspacePanels.toggleExpansion(position) } label: {
@@ -108,6 +113,7 @@ struct WorkspacePanelView: View {
     }
 
     private func activate() {
+        model.conversationRouting.activate(panel)
         if let controls { controls.activate() } else { model.workspacePanels.active = position }
     }
     private var directory: URL { model.selected?.workspacePath.map { URL(fileURLWithPath: $0) } ?? FileManager.default.homeDirectoryForCurrentUser }
@@ -159,6 +165,7 @@ struct WorkspacePanelView: View {
         return tab.title
     }
     private func close(_ tab: WorkspacePanelTab) {
+        if case .conversation(let id) = tab.content { model.dictation.stop(for: id) }
         if case .terminal(let terminal) = tab.content, terminal.running { terminalToClose = tab.id; confirmTerminalClose = true }
         else { panel.close(tab.id) }
     }

@@ -72,6 +72,7 @@ final class WorkspacePanelModel: ObservableObject {
     @Published private(set) var tabs: [WorkspacePanelTab] = []
     @Published var selectedID: UUID?
     @Published var error: String?
+    @Published var transcriptDestination: TranscriptDestination?
     @Published var filesSelected = false
     weak var presentations: WorkspacePresentations?
     var onConversationClosed: ((UUID) -> Void)?

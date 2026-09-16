@@ -229,6 +229,29 @@ extension NativeChecks {
         try check(!dictation.active && app.settingsSection == .voice && !app.liveVoice.inCall,
                   "Opening the voice entry releases dictation before setup or a voice call")
 
+        var side = Conversation(); side.draft = "Side speech:"; app.conversations.append(side)
+        let mainID = app.selectedID!, mainDraft = app.composer
+        await dictation.start(app: app, conversationID: side.id)
+        speech.onText?("first phrase", false)
+        try check(app.conversations.first { $0.id == side.id }?.draft == "Side speech: first phrase"
+                  && app.selectedID == mainID && app.composer == mainDraft,
+                  "Side dictation inserts into the captured draft without selecting or editing the main chat")
+        app.composer += " unrelated main edit"
+        try check(dictation.active && dictation.conversationID == side.id,
+                  "Typing in a different composer cannot interrupt or redirect side dictation")
+        let delayedSide = speech.onText
+        app.setConversationDraft("Side manual edit", id: side.id)
+        delayedSide?("late words", true)
+        try check(!dictation.active && app.conversations.first { $0.id == side.id }?.draft == "Side manual edit",
+                  "Manual edits in the dictated side chat cancel capture and reject late recognition")
+        await dictation.start(app: app, conversationID: side.id)
+        let formerSide = speech.onText
+        await dictation.toggle(app: app, conversationID: mainID)
+        formerSide?("old microphone callback", true)
+        try check(dictation.conversationID == mainID && app.conversations.first { $0.id == side.id }?.draft == "Side manual edit",
+                  "Moving the microphone to another composer invalidates the former recording callbacks")
+        dictation.stop()
+
         dictation.setLanguage(.ukrainian)
         let reopened = DictationModel(stateDirectory: state, defaults: defaults, speech: FixtureDictationSpeech())
         try check(reopened.language == .ukrainian && !reopened.active, "Dictation language persists; microphone state never does")

@@ -50,8 +50,10 @@ struct NativeImagePreview: Identifiable {
     let source: NativeImageAttachment
     let thumbnail: NSImage
     let canAttach: Bool
+    // Main-chat previews expire on navigation; explicitly bound panel previews retain their owner.
+    let requiresSelectedConversation: Bool
 
-    init(_ value: JSONValue, conversationID: UUID, canAttach: Bool) throws {
+    init(_ value: JSONValue, conversationID: UUID, canAttach: Bool, requiresSelectedConversation: Bool = true) throws {
         guard value["schema"].text == "proto_mind.native_image_preview.v1",
               value["read_only"] == .bool(true), value["no_execution"] == .bool(true) else {
             throw NativeError.message(L10n.text("Предпросмотр изображения не прошёл проверку."))
@@ -79,6 +81,7 @@ struct NativeImagePreview: Identifiable {
         self.thumbnail = NSImage(cgImage: thumbnail, size: .zero)
         self.conversationID = conversationID
         self.canAttach = canAttach
+        self.requiresSelectedConversation = requiresSelectedConversation
     }
 }
 
@@ -102,7 +105,7 @@ struct ImageAttachmentPreviewView: View {
             Text("\(preview.source.value["width"].integer) × \(preview.source.value["height"].integer) · \(ByteCountFormatter.string(fromByteCount: Int64(preview.source.value["size_bytes"].integer), countStyle: .binary)) · SHA \(preview.source.sha256.prefix(12))")
                 .font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
             Text(preview.source.path).font(.caption).foregroundStyle(.secondary).textSelection(.enabled).lineLimit(2)
-            Text(preview.canAttach ? model.imageDestinationNotice : L10n.text("Исходный файл проверен по сохранённому SHA-256. Этот просмотр ничего не отправляет и не прикрепляет повторно."))
+            Text(preview.canAttach ? model.imageDestinationNotice(for: preview.conversationID) : L10n.text("Исходный файл проверен по сохранённому SHA-256. Этот просмотр ничего не отправляет и не прикрепляет повторно."))
                 .font(.callout).foregroundStyle(.secondary)
             Text(L10n.text("Превью уменьшено для экрана; при отправке передаётся исходный файл, включая встроенные метаданные. Автоматического скрытия личных данных нет."))
                 .font(.caption).foregroundStyle(.secondary)
@@ -115,7 +118,7 @@ struct ImageAttachmentPreviewView: View {
                     Button(L10n.text("Прикрепить к сообщению")) {
                         do { try model.attachImage(preview); dismiss() }
                         catch { self.error = error.localizedDescription }
-                    }.keyboardShortcut(.defaultAction).disabled(!model.canEditMessageAttachments)
+                    }.keyboardShortcut(.defaultAction).disabled(!model.canEditAttachments(for: preview.conversationID))
                 }
             }
         }.padding(22).workspacePageSize(width: 740, height: 620).buttonStyle(.nativeHover)
@@ -124,14 +127,17 @@ struct ImageAttachmentPreviewView: View {
 
 struct PendingImageAttachmentsView: View {
     @ObservedObject var model: AppModel
+    var conversationID: UUID? = nil
+    @Environment(\.workspacePresentations) private var presentations
+    private var context: ConversationComposerContext { ConversationComposerContext(app: model, id: conversationID ?? model.selectedID) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             ScrollView(.horizontal) {
                 HStack(spacing: 8) {
-                    ForEach(Array((model.selected?.pendingImages ?? []).enumerated()), id: \.offset) { _, image in
+                    ForEach(Array((context.conversation?.pendingImages ?? []).enumerated()), id: \.offset) { _, image in
                         HStack(spacing: 6) {
-                            Button { Task { await model.previewImage(image["path"].text, expectedSHA: image["sha256"].text, canAttach: false) } } label: {
+                            Button { Task { await model.previewImage(image["path"].text, expectedSHA: image["sha256"].text, canAttach: false, conversationID: context.id, in: presentations) } } label: {
                                 HStack(spacing: 8) {
                                     if let thumbnail = model.imageThumbnails[image["sha256"].text] {
                                         Image(nsImage: thumbnail).resizable().scaledToFit().frame(width: 48, height: 40)
@@ -142,7 +148,7 @@ struct PendingImageAttachmentsView: View {
                                     }.font(.caption)
                                 }
                             }.help(L10n.text("Просмотреть локально; файл будет проверен по SHA-256"))
-                            Button { model.removePendingImage(image["path"].text) } label: { Image(systemName: "xmark") }
+                            Button { model.removeConversationAttachment(image["path"].text, kind: .image, conversationID: context.id) } label: { Image(systemName: "xmark") }
                                 .help(L10n.text("Убрать изображение из сообщения")).accessibilityLabel(L10n.format("Убрать изображение \(image["name"].text)"))
                         }.padding(5).background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 10))
                     }
@@ -150,8 +156,8 @@ struct PendingImageAttachmentsView: View {
             }.frame(height: 60).scrollIndicators(.hidden)
             // Split-view minimum-width probes must not turn this notice into a
             // tall fixedSize column and push the whole window outside its bounds.
-            Text(model.imageDestinationNotice).font(.caption).foregroundStyle(.secondary)
-                .lineLimit(3).help(model.imageDestinationNotice)
-        }.buttonStyle(.nativeHover).disabled(!model.canEditMessageAttachments || model.loadingImagePreview || model.loadingDroppedAttachments).padding(.horizontal, 12).padding(.top, 10)
+            Text(model.imageDestinationNotice(for: context.id)).font(.caption).foregroundStyle(.secondary)
+                .lineLimit(3).help(model.imageDestinationNotice(for: context.id))
+        }.buttonStyle(.nativeHover).disabled(!context.canEditAttachments || model.loadingImagePreview || model.loadingDroppedAttachments).padding(.horizontal, 12).padding(.top, 10)
     }
 }

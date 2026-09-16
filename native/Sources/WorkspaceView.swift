@@ -280,9 +280,26 @@ enum TranscriptRenderingPolicy {
     }
 }
 
-private struct ChatView: View {
+struct ChatView: View {
     @Environment(\.desktopGlass) private var desktopGlass
     @ObservedObject var model: AppModel
+    var conversationID: UUID? = nil
+    var panel: WorkspacePanelModel? = nil
+    @Environment(\.workspacePresentations) private var presentations
+    private var id: UUID? { conversationID ?? model.selectedID }
+    private var conversation: Conversation? { model.conversations.first { $0.id == id } }
+    private var messages: [ChatMessage] { conversation?.messages ?? [] }
+    private var state: ConversationExecution? { id.flatMap { model.executions[$0] } }
+    private var destination: TranscriptDestination? {
+        get { panel?.transcriptDestination ?? (panel == nil ? model.transcriptDestination : nil) }
+        nonmutating set { if let panel { panel.transcriptDestination = newValue } else { model.transcriptDestination = newValue } }
+    }
+    private func openLink(_ url: URL) {
+        if let panel, let id {
+            if NativeBrowserURL.isWebURL(url) { panel.openBrowser(url) }
+            else { model.openPanelFile(url, conversationID: id, panel: panel) }
+        } else { model.openWorkspaceLink(url) }
+    }
     @State private var nearBottom = true
     @State private var followOutput = true
     @State private var renderedMessageLimit = TranscriptRenderingPolicy.initialMessageLimit
@@ -290,10 +307,10 @@ private struct ChatView: View {
 
     private var renderedMessages: ArraySlice<ChatMessage> {
         let range = historyWindow ?? TranscriptRenderingPolicy.renderedRange(
-            totalCount: model.messages.count,
+            totalCount: messages.count,
             messageLimit: renderedMessageLimit
         )
-        return model.messages[min(range.lowerBound, model.messages.count)..<min(range.upperBound, model.messages.count)]
+        return messages[min(range.lowerBound, messages.count)..<min(range.upperBound, messages.count)]
     }
 
     private var hiddenMessageCount: Int {
@@ -301,13 +318,15 @@ private struct ChatView: View {
     }
 
     var body: some View {
+        GeometryReader { container in
+            let inset: CGFloat = container.size.width < 600 ? 16 : (desktopGlass ? 24 : NativeTheme.conversationInset)
         VStack(spacing: 0) {
-            WorkSessionNoticeBanner(model: model)
+            if panel == nil { WorkSessionNoticeBanner(model: model) }
             GeometryReader { viewport in
                 ScrollViewReader { proxy in
                     ScrollView {
                         VStack(spacing: 0) {
-                            if model.messages.isEmpty { welcome.padding(.top, desktopGlass ? 12 : 60).padding(.bottom, 24) }
+                            if messages.isEmpty { welcome.padding(.top, desktopGlass ? 12 : 60).padding(.bottom, 24) }
                             // Variable-height selectable rows can enter a retained layout loop
                             // in macOS SwiftUI's lazy stack after a long-lived window resumes.
                             VStack(alignment: .leading, spacing: 34) {
@@ -328,30 +347,30 @@ private struct ChatView: View {
                                 }
                                 ForEach(renderedMessages) { message in
                                     VStack(alignment: .leading, spacing: 16) {
-                                        MessageView(message: message, model: model)
+                                        MessageView(message: message, model: model, conversationID: id, targetPanel: panel)
                                         if let updates = message.taskUpdates, !updates.isEmpty {
-                                            TaskUpdatesView(updates: updates, active: model.activeTaskMessageID == message.id,
+                                            TaskUpdatesView(updates: updates, active: state?.sourceMessageID == message.id,
                                                             copy: model.copy)
                                         }
                                     }.id(message.id)
-                                        .background(model.transcriptDestination?.conversationID == model.selectedID
-                                            && model.transcriptDestination?.messageID == message.id ? NativeTheme.selection : .clear,
+                                        .background(destination?.conversationID == id
+                                            && destination?.messageID == message.id ? NativeTheme.selection : .clear,
                                             in: RoundedRectangle(cornerRadius: 10))
                                 }
-                                if renderedMessages.endIndex < model.messages.count {
+                                if renderedMessages.endIndex < messages.count {
                                     Button(L10n.text("Показать следующие сообщения")) { loadLater(using: proxy) }
                                         .font(.system(size: 12)).frame(maxWidth: .infinity).padding(.vertical, 8)
                                         .accessibilityLabel(L10n.text("Показать следующие сообщения"))
                                 }
-                                if model.selectedExecution?.running == true {
+                                if state?.running == true {
                                     VStack(alignment: .leading, spacing: 20) {
-                                        WorkTimelineView(log: model.workLog, agentReceipt: model.agentReceipt,
-                                                         toolItems: model.agentItems, live: true, startedAt: model.turnStartedAt)
-                                        if !model.stream.isEmpty { MessageMarkdownView(text: model.stream, copy: model.copy, openLink: { model.openWorkspaceLink($0) }) }
+                                        WorkTimelineView(log: state?.workLog ?? .null, agentReceipt: state?.agentReceipt ?? .null,
+                                                         toolItems: state?.agentItems ?? [], live: true, startedAt: state?.startedAt)
+                                        if !(state?.stream ?? "").isEmpty { MessageMarkdownView(text: (state?.stream ?? ""), copy: model.copy, openLink: openLink) }
                                     }.frame(maxWidth: .infinity, alignment: .leading)
                                 }
                             }.frame(maxWidth: NativeTheme.columnWidth)
-                                .padding(.horizontal, desktopGlass ? 24 : NativeTheme.conversationInset).padding(.vertical, 30)
+                                .padding(.horizontal, inset).padding(.vertical, 30)
                                 .frame(maxWidth: .infinity)
                             Color.clear.frame(height: 1).id("bottom")
                                 .background(GeometryReader { anchor in
@@ -366,17 +385,17 @@ private struct ChatView: View {
                             if #unavailable(macOS 15), followOutput != next { followOutput = next }
                         }
                         .onAppear { navigate(using: proxy) }
-                        .onChange(of: model.selectedID) { _, _ in
+                        .onChange(of: id) { _, _ in
                             renderedMessageLimit = TranscriptRenderingPolicy.initialMessageLimit
                             historyWindow = nil
                             followOutput = true
                             navigate(using: proxy)
                         }
-                        .onChange(of: model.transcriptDestination) { _, _ in navigate(using: proxy) }
-                        .onChange(of: model.turnStartedAt) { _, value in
+                        .onChange(of: destination) { _, _ in navigate(using: proxy) }
+                        .onChange(of: state?.startedAt) { _, value in
                             if value != nil { historyWindow = nil; followOutput = true; scrollToLatest(proxy) }
                         }
-                        .onChange(of: model.messages.count) { oldCount, newCount in
+                        .onChange(of: messages.count) { oldCount, newCount in
                             renderedMessageLimit = TranscriptRenderingPolicy.adjustedLimit(
                                 oldCount: oldCount,
                                 newCount: newCount,
@@ -385,15 +404,15 @@ private struct ChatView: View {
                             )
                             if followOutput { scrollToLatest(proxy) }
                         }
-                        .onChange(of: model.stream.count) { _, _ in if followOutput { scrollToLatest(proxy) } }
-                        .onChange(of: model.messages.last?.taskUpdates) { _, _ in if followOutput { scrollToLatest(proxy) } }
-                        .onChange(of: model.workLog) { _, _ in if followOutput { scrollToLatest(proxy) } }
-                        .onChange(of: model.selectedExecution?.running) { _, _ in if followOutput { scrollToLatest(proxy) } }
+                        .onChange(of: (state?.stream ?? "").count) { _, _ in if followOutput { scrollToLatest(proxy) } }
+                        .onChange(of: messages.last?.taskUpdates) { _, _ in if followOutput { scrollToLatest(proxy) } }
+                        .onChange(of: state?.workLog ?? .null) { _, _ in if followOutput { scrollToLatest(proxy) } }
+                        .onChange(of: state?.running) { _, _ in if followOutput { scrollToLatest(proxy) } }
                         .overlay(alignment: .bottom) {
                             if !nearBottom || historyWindow != nil {
                                 Button {
                                     historyWindow = nil; followOutput = true
-                                    model.transcriptDestination = nil
+                                    destination = nil
                                     scrollToLatest(proxy)
                                 } label: {
                                     Image(systemName: "arrow.down").font(.system(size: 15)).frame(width: 34, height: 34)
@@ -403,8 +422,11 @@ private struct ChatView: View {
                         }
                 }
             }
-            ComposerView(model: model).padding(.horizontal, desktopGlass ? 24 : NativeTheme.conversationInset).padding(.top, 7).padding(.bottom, desktopGlass ? 18 : 8).background(desktopGlass ? Color.clear : canvas)
-        }.modifier(AttachmentDropTarget(model: model))
+            ComposerView(model: model, conversationID: conversationID, panel: panel).padding(.horizontal, inset).padding(.top, 7).padding(.bottom, desktopGlass ? 18 : 8).background(desktopGlass ? Color.clear : canvas)
+        }
+        }.modifier(MainChatAttachmentDrop(model: model, enabled: panel == nil))
+        .background(ConversationInteractionRegion(routing: model.conversationRouting, panel: panel,
+            enabled: (panel?.visible ?? true) && (presentations?.pages.isEmpty ?? true)))
     }
 
     private func scrollToLatest(_ proxy: ScrollViewProxy) {
@@ -416,15 +438,15 @@ private struct ChatView: View {
     }
 
     private func navigate(using proxy: ScrollViewProxy) {
-        guard let destination = model.transcriptDestination, destination.conversationID == model.selectedID,
-              let target = destination.messageID, let index = model.messages.firstIndex(where: { $0.id == target }) else {
+        guard let destination = destination, destination.conversationID == id,
+              let target = destination.messageID, let index = messages.firstIndex(where: { $0.id == target }) else {
             historyWindow = nil; followOutput = true; scrollToLatest(proxy); return
         }
-        historyWindow = TranscriptRenderingPolicy.focusedRange(totalCount: model.messages.count, targetIndex: index)
+        historyWindow = TranscriptRenderingPolicy.focusedRange(totalCount: messages.count, targetIndex: index)
         followOutput = false
         Task { @MainActor in
             await Task.yield()
-            guard model.transcriptDestination == destination, model.selectedID == destination.conversationID else { return }
+            guard self.destination == destination, id == destination.conversationID else { return }
             proxy.scrollTo(target, anchor: .center)
         }
     }
@@ -434,7 +456,7 @@ private struct ChatView: View {
         if let window = historyWindow {
             historyWindow = max(0, window.lowerBound - TranscriptRenderingPolicy.pageSize)..<window.upperBound
         } else {
-            renderedMessageLimit = TranscriptRenderingPolicy.expandedLimit(totalCount: model.messages.count, messageLimit: renderedMessageLimit)
+            renderedMessageLimit = TranscriptRenderingPolicy.expandedLimit(totalCount: messages.count, messageLimit: renderedMessageLimit)
         }
         guard let previousFirstID else { return }
         Task { @MainActor in
@@ -446,7 +468,7 @@ private struct ChatView: View {
     private func loadLater(using proxy: ScrollViewProxy) {
         guard let window = historyWindow else { return }
         let previousLast = renderedMessages.last?.id
-        historyWindow = window.lowerBound..<min(model.messages.count, window.upperBound + TranscriptRenderingPolicy.pageSize)
+        historyWindow = window.lowerBound..<min(messages.count, window.upperBound + TranscriptRenderingPolicy.pageSize)
         Task { @MainActor in
             await Task.yield()
             if let previousLast { proxy.scrollTo(previousLast, anchor: .bottom) }
@@ -454,7 +476,15 @@ private struct ChatView: View {
     }
 
     @ViewBuilder private var welcome: some View {
-        if desktopGlass { FloatingWelcomeView() } else { ConversationWelcomeView(model: model) }
+        if desktopGlass { FloatingWelcomeView() } else { ConversationWelcomeView(model: model, conversationID: conversationID, panel: panel) }
+    }
+}
+
+private struct MainChatAttachmentDrop: ViewModifier {
+    let model: AppModel
+    let enabled: Bool
+    @ViewBuilder func body(content: Content) -> some View {
+        if enabled { content.modifier(AttachmentDropTarget(model: model)) } else { content }
     }
 }
 
@@ -557,7 +587,7 @@ struct MessageView: View {
                             if message.role == "assistant", message.hasResponseDetails || message.turnReference != nil { Divider() }
                             if let conversationID, conversationID != model.selectedID {
                                 Button(L10n.text("Об ответе"), systemImage: "info.circle") {
-                                    model.select(conversationID); model.showMessage(message, in: presentations)
+                                    model.showMessage(message, in: presentations)
                                 }
                             } else {
                                 if message.hasResponseDetails {
@@ -601,19 +631,18 @@ struct MessageView: View {
             }
             ForEach(Array((message.imageContext ?? []).enumerated()), id: \.offset) { _, image in
                 Button {
-                    if let conversationID, conversationID != model.selectedID { model.select(conversationID) }
-                    Task { await model.previewImage(image["path"].text, expectedSHA: image["sha256"].text, canAttach: false, inWorkspacePanel: true, targetPanel: targetPanel) }
+                    Task { await model.previewImage(image["path"].text, expectedSHA: image["sha256"].text, canAttach: false, inWorkspacePanel: true, targetPanel: targetPanel, conversationID: conversationID, in: presentations) }
                 } label: {
                     Label("\(image["name"].text) · \(image["width"].integer) × \(image["height"].integer)", systemImage: "photo")
                         .font(.caption).foregroundStyle(.secondary)
-                }.buttonStyle(.nativeHover).disabled(model.busy || model.loadingImagePreview)
+                }.buttonStyle(.nativeHover).disabled(ConversationComposerContext(app: model, id: conversationID ?? model.selectedID).busy || model.loadingImagePreview)
                     .help(L10n.text("Локальный просмотр исходного файла с проверкой SHA-256. Изображение не отправляется повторно."))
             }
             ForEach(Array((message.pdfContext ?? []).enumerated()), id: \.offset) { _, pdf in
-                Button { if let conversationID, conversationID != model.selectedID { model.select(conversationID) }; Task { await model.previewPDF(pdf["path"].text, expected: pdf, canAttach: false, inWorkspacePanel: true, targetPanel: targetPanel) } } label: {
+                Button { Task { await model.previewPDF(pdf["path"].text, expected: pdf, canAttach: false, inWorkspacePanel: true, targetPanel: targetPanel, conversationID: conversationID, in: presentations) } } label: {
                     Label(L10n.format("\(pdf["name"].text) · стр. \(pdf["pages"].items.map { String($0["number"].integer) }.joined(separator: ", "))"), systemImage: "doc.richtext")
                         .font(.caption).foregroundStyle(.secondary)
-                }.buttonStyle(.nativeHover).disabled(!model.canReceiveAttachments)
+                }.buttonStyle(.nativeHover).disabled((conversationID ?? model.selectedID).map { model.canReceiveAttachments(for: $0) } != true)
                     .help(L10n.text("Локально прочитать выбранные страницы с проверкой SHA-256; без повторной отправки"))
             }
         }

@@ -1,14 +1,25 @@
 import AppKit
 
+enum PanelAttachmentKind { case image, pdf, file }
+
 extension AppModel {
+    func reportAttachmentError(_ error: Error, in destination: WorkspacePresentations) {
+        let panels = [workspacePanels.upper, workspacePanels.lower] + desktop.companions.surfaces.map(\.panel)
+        if destination !== presentations, let panel = panels.first(where: { $0.presentations === destination }) {
+            panel.error = error.localizedDescription
+        } else { report(error) }
+    }
+
     func clearPanelAttachments(_ id: UUID) {
         guard !operationBusy, let index = conversations.firstIndex(where: { $0.id == id }), !conversations[index].archived else { return }
         conversations[index].pendingFiles = []; conversations[index].pendingImages = []; conversations[index].pendingPDFs = []
         persist()
     }
 
-    func choosePanelAttachment(conversationID: UUID, in panel: WorkspacePanelModel? = nil) {
-        guard !operationBusy, !isRunning(conversationID), let conversation = conversations.first(where: { $0.id == conversationID }) else { return }
+    func choosePanelAttachment(conversationID: UUID, in panel: WorkspacePanelModel? = nil, kind: PanelAttachmentKind = .file) {
+        if kind == .image { chooseImage(conversationID: conversationID, in: panel?.presentations); return }
+        if kind == .pdf { choosePDF(conversationID: conversationID, in: panel?.presentations); return }
+        guard canReceiveAttachments(for: conversationID), let conversation = conversations.first(where: { $0.id == conversationID }) else { return }
         let picker = NSOpenPanel()
         picker.canChooseDirectories = false; picker.allowsMultipleSelection = false
         picker.directoryURL = conversation.workspacePath.map { URL(fileURLWithPath: $0) }
@@ -16,7 +27,7 @@ extension AppModel {
         picker.message = L10n.text("Текстовый файл из папки этого диалога или первая страница PDF.")
         presentFilePicker(picker, in: panel?.presentations) { [weak self] response in
             guard response == .OK, let url = picker.url, let self else { return }
-            Task { await self.attachPanelFile(url, conversationID: conversationID, in: panel) }
+            _ = self.receiveAttachmentDrop([url], conversationID: conversationID, in: panel?.presentations)
         }
     }
 
@@ -66,5 +77,23 @@ extension AppModel {
                 panel.open(.text(WorkspaceTextPreview(conversationID: conversationID, root: root, value: file)))
             } catch { panel.error = error.localizedDescription }
         }
+    }
+}
+
+extension AppModel {
+    func canEditAttachments(for id: UUID) -> Bool { ConversationComposerContext(app: self, id: id).canEditAttachments }
+    func canReceiveAttachments(for id: UUID) -> Bool {
+        canEditAttachments(for: id) && !loadingDroppedAttachments && !loadingImagePreview && !loadingPDFPreview
+            && imagePreview == nil && pdfPreview == nil && attachmentDropPreview == nil && pendingAction == nil && pendingAgentAccess == nil
+    }
+    func removeConversationAttachment(_ path: String, kind: PanelAttachmentKind, conversationID: UUID?) {
+        guard let id = conversationID, canEditAttachments(for: id), let index = conversations.firstIndex(where: { $0.id == id }) else { return }
+        let previous = conversations[index]
+        switch kind {
+        case .file: conversations[index].pendingFiles.removeAll { $0["path"].text == path }
+        case .image: conversations[index].pendingImages.removeAll { $0["path"].text == path }
+        case .pdf: conversations[index].pendingPDFs.removeAll { $0["path"].text == path }
+        }
+        do { try saveHistory() } catch { conversations[index] = previous; report(error) }
     }
 }

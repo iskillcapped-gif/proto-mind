@@ -123,6 +123,7 @@ struct NativeChecks {
             return
         }
         if CommandLine.arguments.contains("--interface-only") {
+            try modelSelection(root: root)
             try await sidebarProjectOrdering(root: root)
             try await composerDictation(root: root)
             try githubContracts(root: root)
@@ -709,6 +710,17 @@ struct NativeChecks {
         app.setReasoningEffort("medium")
         app.setModel("fixture-primary")
         try check(app.selected?.reasoningEffort == "medium", "Compatible effort survives a model change")
+        ConversationComposerContext(app: app, id: app.selectedID).setModel("fixture-primary")
+        try check(app.selected?.reasoningEffort == "medium", "Shared main composer preserves compatible effort and existing model-selection semantics")
+        var sideChat = Conversation(); sideChat.provider = "codex"; sideChat.model = "fixture-primary"; sideChat.reasoningEffort = "high"
+        app.conversations.append(sideChat)
+        let sideContext = ConversationComposerContext(app: app, id: sideChat.id)
+        sideContext.setModel("fixture-primary")
+        try check(sideContext.conversation?.reasoningEffort == "high" && app.selectedID != sideChat.id,
+                  "Side model selection preserves supported effort without switching the main conversation")
+        sideContext.setModel("fixture-smaller")
+        try check(sideContext.conversation?.reasoningEffort.isEmpty == true && app.selected?.reasoningEffort == "medium",
+                  "An incompatible side model resets only its own effort")
         let beforeCatalogRefresh = try Data(contentsOf: app.store.url)
         app.models = [option("fixture-primary", name: "GPT-5.5", efforts: ["low"], isDefault: true)]
         try check(try app.modelSelectionWarning != nil && Data(contentsOf: app.store.url) == beforeCatalogRefresh, "Catalog drift warns without silently rewriting saved choices")
@@ -1064,6 +1076,12 @@ struct NativeChecks {
         do { try app.attachImage(preview) } catch { wrongChat = true }
         try check(wrongChat && app.selectedID != other && app.selected?.pendingImages.isEmpty == true,
                   "A stale preview cannot attach to another conversation")
+        await app.previewImage(file.path, conversationID: other)
+        guard let sidePreview = app.imagePreview else { throw NativeError.message(app.error ?? "Missing side image preview") }
+        try app.attachImage(sidePreview); app.imagePreview = nil
+        try check(app.selectedID != other && app.selected?.pendingImages.isEmpty == true
+                  && app.conversations.first { $0.id == other }?.pendingImages == [sidePreview.source.value],
+                  "An explicitly bound side image preview attaches only to its original chat without selecting it")
         let corruptDirectory = root.appendingPathComponent("corrupt-image-state")
         try FileManager.default.createDirectory(at: corruptDirectory, withIntermediateDirectories: true)
         let corruptFile = corruptDirectory.appendingPathComponent("conversations.json")
@@ -1205,6 +1223,13 @@ struct NativeChecks {
         refused = false
         do { try app.attachDrop(preview) } catch { refused = true }
         try check(refused && (try fileBytes(state)) == afterSwitch, "A stale drop cannot attach to a different conversation")
+        try check(app.receiveAttachmentDrop([note], conversationID: preview.conversationID), "A side drop can begin while another conversation is selected")
+        for _ in 0..<100 where app.loadingDroppedAttachments { try await Task.sleep(nanoseconds: 20_000_000) }
+        guard let sideDrop = app.attachmentDropPreview else { throw NativeError.message(app.error ?? "Missing side drop preview") }
+        try app.attachDrop(sideDrop); app.attachmentDropPreview = nil
+        try check(app.selectedID != sideDrop.conversationID && app.selected?.pendingFiles.isEmpty == true
+                  && app.conversations.first { $0.id == sideDrop.conversationID }?.pendingFiles == preview.files.map(\.metadata),
+                  "A bound side drop retains its original workspace and cannot populate the main chat")
         let badState = root.appendingPathComponent("corrupt-drop-state")
         try FileManager.default.createDirectory(at: badState, withIntermediateDirectories: true)
         let badHistory = badState.appendingPathComponent("conversations.json")

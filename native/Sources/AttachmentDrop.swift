@@ -119,6 +119,7 @@ struct NativeAttachmentDropPreview: Identifiable {
     let workspace: String?
     let images: [NativeImagePreview]
     let files: [NativeDroppedFile]
+    var requiresSelectedConversation = true
     var count: Int { images.count + files.count }
 
     func merged(with conversation: Conversation) throws -> (images: [JSONValue], files: [JSONValue]) {
@@ -177,7 +178,7 @@ struct AttachmentDropPreviewView: View {
                 Button(L10n.format("Прикрепить \(preview.count)")) {
                     do { try model.attachDrop(preview); dismiss() }
                     catch { self.error = error.localizedDescription }
-                }.keyboardShortcut(.defaultAction).disabled(!model.canEditMessageAttachments)
+                }.keyboardShortcut(.defaultAction).disabled(!model.canEditAttachments(for: preview.conversationID))
             }
         }.padding(22).workspacePageSize(width: 720, height: 570).buttonStyle(.nativeHover)
     }

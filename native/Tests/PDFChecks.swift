@@ -190,6 +190,18 @@ extension NativeChecks {
                       && (try fileBytes(state)) == unchanged && (try fileBytes(fixture)) == targets,
                       "Invalid, encrypted, symlink or mixed PDF drop fails cleanly without draft/store mutation: \(urls.map(\.lastPathComponent))")
         }
+        app.newConversation(); app.setComposer("Main PDF draft stays here")
+        var staleRefused = false
+        do { try app.attachPDF(selected) } catch { staleRefused = true }
+        try check(staleRefused && app.selected?.pendingPDFs.isEmpty == true, "A main PDF preview expires after navigating to another chat")
+        await app.previewPDF(document.path, conversationID: selected.conversationID)
+        guard let sidePDF = app.pdfPreview else { throw NativeError.message(app.error ?? "Missing side PDF preview") }
+        let sidePages = try await app.reloadPDFPreview(sidePDF, pages: [2])
+        try app.attachPDF(sidePages); app.pdfPreview = nil
+        try check(app.selectedID != sidePages.conversationID && app.selected?.pendingPDFs.isEmpty == true
+                  && app.composer == "Main PDF draft stays here"
+                  && app.conversations.first { $0.id == sidePages.conversationID }?.pendingPDFs == [sidePages.source.value],
+                  "Side PDF page selection and attachment remain bound to their original chat without changing the main draft")
         let badState = root.appendingPathComponent("bad-pdf-history")
         try FileManager.default.createDirectory(at: badState, withIntermediateDirectories: true)
         let corrupt = Data("broken history".utf8)

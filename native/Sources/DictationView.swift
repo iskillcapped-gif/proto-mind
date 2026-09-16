@@ -4,18 +4,22 @@ struct DictationButton: View {
     @ObservedObject var app: AppModel
     @ObservedObject var dictation: DictationModel
     @ObservedObject var voice: LiveVoiceModel
+    var conversationID: UUID? = nil
+    @Environment(\.workspacePresentations) private var presentations
+    private var id: UUID? { conversationID ?? app.selectedID }
+    private var active: Bool { dictation.active && dictation.conversationID == id }
 
     var body: some View {
-        Button { Task { await dictation.toggle(app: app) } } label: {
-            Image(systemName: dictation.active ? "stop.circle.fill" : "mic")
+        Button { Task { await dictation.toggle(app: app, conversationID: id, in: presentations) } } label: {
+            Image(systemName: active ? "stop.circle.fill" : "mic")
                 .font(.system(size: 17))
-                .foregroundStyle(dictation.active ? NativeTheme.accent : .secondary)
+                .foregroundStyle(active ? NativeTheme.accent : .secondary)
                 .frame(width: 28, height: 32)
         }.buttonStyle(.nativeHover)
-            .disabled(!dictation.active && !dictation.canStart(app: app))
+            .disabled(!active && !dictation.canStart(app: app, conversationID: id, in: presentations))
             .help(voice.inCall ? L10n.text("Завершите голосовой разговор, чтобы диктовать текст")
-                  : dictation.active ? L10n.text("Закончить диктовку") : L10n.text("Диктовать сообщение · ") + dictation.language.title)
-            .accessibilityLabel(dictation.active ? L10n.text("Закончить диктовку") : L10n.text("Диктовка сообщения"))
+                  : active ? L10n.text("Закончить диктовку") : L10n.text("Диктовать сообщение · ") + dictation.language.title)
+            .accessibilityLabel(active ? L10n.text("Закончить диктовку") : L10n.text("Диктовка сообщения"))
     }
 }
 

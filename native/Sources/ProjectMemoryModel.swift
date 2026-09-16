@@ -26,8 +26,10 @@ final class ProjectMemoryModel: ObservableObject, Identifiable {
     @Published private(set) var matching = 0
     @Published private(set) var recalling = false
     init(app: AppModel, scope: ProjectMemoryScope) { self.app = app; self.scope = scope }
-    var current: Bool { app.projectMemory?.id == id && app.selectedID == scope.conversationID && app.selected?.workspacePath == scope.workspace }
-    var locked: Bool { !current || app.globalBusy || app.client.turnOutstanding || loading || saving }
+    var conversation: Conversation? { app.conversations.first { $0.id == scope.conversationID } }
+    var client: BridgeClient { app.execution(for: scope.conversationID).client }
+    var current: Bool { app.projectMemory?.id == id && conversation?.workspacePath == scope.workspace }
+    var locked: Bool { !current || app.globalBusy || client.turnOutstanding || loading || saving }
     var note: JSONValue { .object(["kind": .string(noteKind), "content": .string(content.trimmingCharacters(in: .whitespacesAndNewlines)),
                                  "basis": .string(basis.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? L10n.text("Добавлено пользователем в память проекта.") : basis.trimmingCharacters(in: .whitespacesAndNewlines)), "supersedes_id": .string(supersedesID)]) }
     func invalidate() { preview = nil; statePreview = nil }
@@ -40,7 +42,7 @@ final class ProjectMemoryModel: ObservableObject, Identifiable {
             var params = scope.parameters
             if recall { params["query"] = .string(query.trimmingCharacters(in: .whitespacesAndNewlines)); params["include_history"] = .bool(includeHistory) }
             else { params["include_history"] = .bool(includeHistory); params["offset"] = .number(Double(offset)) }
-            let value = try await app.client.request(recall ? "project_memory_recall" : "project_memory_list", params)
+            let value = try await client.request(recall ? "project_memory_recall" : "project_memory_list", params)
             try checkProjectMemory(value, scope: scope, kind: "list")
             guard current, case .array(let rows) = value["items"], rows.count <= (recall ? 5 : 40),
                   case .array(let warnings) = value["issues"], warnings.count <= 2001,
@@ -55,7 +57,7 @@ final class ProjectMemoryModel: ObservableObject, Identifiable {
         defer { loading = false }
         do {
             var params = scope.parameters; params["record_id"] = .string(note.id)
-            let value = try await app.client.request("project_memory_inspect", params)
+            let value = try await client.request("project_memory_inspect", params)
             try checkProjectMemory(value, scope: scope, kind: "inspect")
             let checked = try ProjectNote(value["item"])
             guard current, checked.id == note.id, checked.raw["record_hash"] == note.raw["record_hash"] else { throw projectMemoryError() }
@@ -69,7 +71,7 @@ final class ProjectMemoryModel: ObservableObject, Identifiable {
         defer { loading = false }
         do {
             var params = scope.parameters; params["note"] = selected
-            let value = try await app.client.request("project_memory_preview", params)
+            let value = try await client.request("project_memory_preview", params)
             try checkProjectMemory(value, scope: scope, kind: "preview")
             guard current, selected == note, ["kind", "content", "basis", "supersedes_id"].allSatisfy({ value["body"][$0] == selected[$0] }) else { throw projectMemoryError() }
             preview = value
@@ -84,7 +86,7 @@ final class ProjectMemoryModel: ObservableObject, Identifiable {
             var params = scope.parameters; params["note"] = note
             params["preview_fingerprint"] = preview["preview_fingerprint"]; params["confirmation_token"] = .string(token)
             params["acknowledge_operator_note"] = .bool(true)
-            let value = try await app.client.request("project_memory_save", params)
+            let value = try await client.request("project_memory_save", params)
             try checkProjectMemory(value, scope: scope, kind: "saved")
             _ = try ProjectNote(value["item"])
             if current {
@@ -118,7 +120,7 @@ final class ProjectMemoryModel: ObservableObject, Identifiable {
         do {
             var params = scope.parameters
             params["record_id"] = selected.raw["id"]; params["record_hash"] = selected.raw["record_hash"]; params["action"] = .string(action)
-            let value = try await app.client.request("project_memory_state_preview", params)
+            let value = try await client.request("project_memory_state_preview", params)
             try checkProjectMemory(value, scope: scope, kind: "state_preview")
             guard current, detail == selected, value["item"] == selected.raw, value["body"]["action"] == .string(action) else { throw projectMemoryError() }
             statePreview = value
@@ -133,7 +135,7 @@ final class ProjectMemoryModel: ObservableObject, Identifiable {
             params["record_id"] = detail.raw["id"]; params["record_hash"] = detail.raw["record_hash"]; params["action"] = action
             params["preview_fingerprint"] = statePreview["preview_fingerprint"]; params["confirmation_token"] = statePreview["confirmation_token"]
             params["acknowledge_memory_change"] = .bool(true)
-            let value = try await app.client.request("project_memory_state_save", params)
+            let value = try await client.request("project_memory_state_save", params)
             try checkProjectMemory(value, scope: scope, kind: "state_saved")
             let saved = try ProjectNote(value["item"])
             guard value["action"] == action,
@@ -161,14 +163,15 @@ final class ProjectMemoryModel: ObservableObject, Identifiable {
         supersedesID = detail.id; noteKind = detail.kind; content = detail.content; basis = ""; invalidate(); notice = nil
     }
     func attach() {
-        guard !locked, let detail, detail.active, issues.isEmpty, app.selected?.archived == false else { return }
+        guard !locked, let detail, detail.active, issues.isEmpty, conversation?.archived == false else { return }
         var selected = app.projectNoteSelections[scope.conversationID] ?? []
         selected.removeAll { $0.id == detail.id }
         guard selected.count < 5 else { error = L10n.text("Можно выбрать не больше пяти заметок для одного сообщения."); return }
         selected.append(detail); app.projectNoteSelections[scope.conversationID] = selected
         app.invalidateContextPreview()
         app.status = L10n.text("Заметка выбрана только для следующего сообщения; отправьте его вручную")
-        app.section = .chat; close()
+        if app.selectedID == scope.conversationID { app.section = .chat }
+        close()
     }
 }
 
@@ -178,11 +181,14 @@ extension AppModel {
         invalidateContextPreview()
     }
     var pendingProjectNotes: [ProjectNote] { selectedID.map { projectNoteSelections[$0] ?? [] } ?? [] }
-    func openProjectMemory() async {
-        guard !globalBusy, !client.turnOutstanding, let selected, let workspace = selected.workspacePath else {
+    func openProjectMemory(conversationID: UUID? = nil, in source: WorkspacePresentations? = nil) async {
+        guard let id = conversationID ?? selectedID, !globalBusy, !execution(for: id).client.turnOutstanding,
+              let chat = conversations.first(where: { $0.id == id }), let workspace = chat.workspacePath else {
             error = L10n.text("Сначала выберите рабочую папку диалога."); return
         }
-        let panel = ProjectMemoryModel(app: self, scope: ProjectMemoryScope(conversationID: selected.id, workspace: workspace))
+        let destination = source ?? presentations.currentDestination
+        let panel = ProjectMemoryModel(app: self, scope: ProjectMemoryScope(conversationID: id, workspace: workspace))
+        presentations.prepare(panel.id, in: destination)
         projectMemory = panel; await panel.refresh()
     }
     func removeProjectNote(_ id: String) {

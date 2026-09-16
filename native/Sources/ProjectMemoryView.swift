@@ -94,14 +94,16 @@ struct ProjectMemoryView: View {
 
 struct PendingProjectNotesView: View {
     @ObservedObject var model: AppModel
+    var conversationID: UUID? = nil
+    private var context: ConversationComposerContext { ConversationComposerContext(app: model, id: conversationID ?? model.selectedID) }
     var body: some View {
         ScrollView(.horizontal) {
             HStack(spacing: 6) {
-                ForEach(model.pendingProjectNotes) { note in
+                ForEach(context.id.map { model.projectNoteSelections[$0] ?? [] } ?? []) { note in
                     HStack(spacing: 6) {
                         Image(systemName: "brain.head.profile")
                         Text(String(note.content.prefix(45))).lineLimit(1)
-                        Button { model.removeProjectNote(note.id) } label: { Image(systemName: "xmark") }.disabled(model.busy)
+                        Button { if let id = context.id { model.projectNoteSelections[id]?.removeAll { $0.id == note.id }; model.invalidateContextPreview() } } label: { Image(systemName: "xmark") }.disabled(context.busy)
                     }.font(.caption).padding(8).background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
                         .help(L10n.text("Явно выбранная заметка проекта. Перед Send проверяются проект, актуальность и SHA. Не автоматический recall."))
                 }

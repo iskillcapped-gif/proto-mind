@@ -3,6 +3,14 @@ import SwiftUI
 
 struct SidebarView: View {
     @ObservedObject var model: AppModel
+    @ObservedObject private var routing: ConversationRouting
+    private var selectedConversationID: UUID? {
+        if let panel = routing.destination {
+            if case .conversation(let id) = panel.selected?.content { return id }
+            return nil
+        }
+        return model.selectedID
+    }
     private var presentations: WorkspacePresentations { model.presentations }
     @State private var presentationLocked = false
     @Binding var libraryExpanded: Bool
@@ -17,6 +25,7 @@ struct SidebarView: View {
 
     init(model: AppModel, libraryExpanded: Binding<Bool>, openSettings: @escaping () -> Void) {
         self.model = model
+        self.routing = model.conversationRouting
         self._libraryExpanded = libraryExpanded
         self.openSettings = openSettings
     }
@@ -33,7 +42,7 @@ struct SidebarView: View {
                     .background {
                         Button("") { searchVisible = true; searchFocused = true }.keyboardShortcut("f").hidden().accessibilityHidden(true)
                     }
-                Button { model.newConversation() } label: {
+                Button { model.newSidebarConversation() } label: {
                     HStack {
                         Label(L10n.text("Новый чат"), systemImage: "square.and.pencil")
                         Spacer()
@@ -140,7 +149,7 @@ struct SidebarView: View {
         return Button {
             let query = model.conversationSearch.trimmingCharacters(in: .whitespacesAndNewlines)
             let match = query.isEmpty ? nil : chat.messages.last { $0.searchableText.localizedCaseInsensitiveContains(query) }
-            model.returnToConversation(chat.id, messageID: match?.id ?? model.responseAttention.entry(for: chat)?.messageID)
+            model.openSidebarConversation(chat.id, messageID: match?.id ?? model.responseAttention.entry(for: chat)?.messageID)
         } label: {
             HStack(spacing: 8) {
                 if chat.archived { Image(systemName: "archivebox").font(.system(size: 12)).foregroundStyle(.secondary) }
@@ -153,7 +162,7 @@ struct SidebarView: View {
                     Image(systemName: "pencil").font(.system(size: 10)).foregroundStyle(.secondary).help(L10n.text("Есть черновик"))
                 }
             }.padding(.leading, 30).padding(.trailing, 10).padding(.vertical, 9).frame(maxWidth: .infinity, alignment: .leading)
-                .background(model.selectedID == chat.id && model.section == .chat ? NativeTheme.selection : .clear,
+                .background(selectedConversationID == chat.id && model.section == .chat ? NativeTheme.selection : .clear,
                             in: RoundedRectangle(cornerRadius: 9))
         }.buttonStyle(.nativeHover).disabled(presentationLocked || !model.canNavigateConversations).help(chat.displayTitle)
             .accessibilityLabel(chat.displayTitle + (isWorking ? L10n.text(" · Выполняется задача") : "")

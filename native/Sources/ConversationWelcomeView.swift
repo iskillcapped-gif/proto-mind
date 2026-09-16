@@ -2,6 +2,10 @@ import SwiftUI
 
 struct ConversationWelcomeView: View {
     @ObservedObject var model: AppModel
+    var conversationID: UUID? = nil
+    var panel: WorkspacePanelModel? = nil
+    @Environment(\.workspacePresentations) private var presentations
+    private var context: ConversationComposerContext { ConversationComposerContext(app: model, id: conversationID ?? model.selectedID) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
@@ -19,13 +23,14 @@ struct ConversationWelcomeView: View {
                 }
                 card(L10n.text("Обсудить идею"), detail: L10n.text("Разложить мысли по полочкам"), icon: "lightbulb") {
                     let prompt = L10n.text("Помоги мне разобраться с идеей: ")
-                    model.setComposer(model.composer.isEmpty ? prompt : model.composer + "\n" + prompt)
+                    context.setDraft(context.draft.isEmpty ? prompt : context.draft + "\n" + prompt)
                 }
-                card(L10n.text("Открыть проект"), detail: L10n.text("Выбрать папку для работы"), icon: "folder") { model.chooseWorkspace() }
+                card(L10n.text("Открыть проект"), detail: L10n.text("Выбрать папку для работы"), icon: "folder") { if let id = conversationID { model.choosePanelWorkspace(conversationID: id, in: panel) } else { model.chooseWorkspace() } }
                 card(L10n.text("Вспомнить важное"), detail: L10n.text("Открыть сохранённую память"), icon: "brain") {
                     Task {
-                        if model.selected?.workspacePath != nil { await model.openProjectMemory() }
-                        else { await model.showLibrary(.memory) }
+                        if context.conversation?.workspacePath != nil { await model.openProjectMemory(conversationID: context.id, in: presentations) }
+                        else if conversationID == nil { await model.showLibrary(.memory) }
+                        else if let id = context.id { model.choosePanelWorkspace(conversationID: id, in: panel) }
                     }
                 }
             }.padding(.top, 6)
@@ -42,6 +47,6 @@ struct ConversationWelcomeView: View {
             }.frame(maxWidth: .infinity, minHeight: 99, alignment: .topLeading).padding(16)
                 .background(NativeTheme.composer, in: RoundedRectangle(cornerRadius: 14))
                 .overlay(RoundedRectangle(cornerRadius: 14).stroke(NativeTheme.hairline))
-        }.buttonStyle(.nativeHover).disabled(model.busy)
+        }.buttonStyle(.nativeHover).disabled(context.busy)
     }
 }

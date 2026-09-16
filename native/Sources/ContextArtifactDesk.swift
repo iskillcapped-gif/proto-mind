@@ -294,22 +294,51 @@ struct NativeArtifactPreview: Equatable {
 
 struct ContextDeskView: View {
     @ObservedObject var model: AppModel
+    var conversationID: UUID? = nil
+    @WorkspaceDismiss private var dismiss
+    @State private var scopedPreview: NativeContextPreview?
+    @State private var scopedError: String?
+    @State private var scopedLoading = false
+    private var preview: NativeContextPreview? { conversationID == nil ? model.contextPreview : scopedPreview }
+    private var error: String? { conversationID == nil ? model.contextPreviewError : scopedError }
+    private var loading: Bool { conversationID == nil ? model.loadingContextPreview : scopedLoading }
+    private var busy: Bool { model.operationBusy || (conversationID.map(model.isRunning) ?? model.busy) }
+    private func refresh() async {
+        guard let id = conversationID else { await model.refreshContextPreview(); return }
+        guard !busy, !scopedLoading else { return }
+        scopedLoading = true; scopedError = nil; scopedPreview = nil
+        defer { scopedLoading = false }
+        do {
+            let state = model.execution(for: id)
+            try await model.ensureAgentAccess(for: state)
+            guard let params = model.contextRequestParameters(for: id) else { return }
+            let result = try await state.client.request("context_preview", params)
+            guard params == model.contextRequestParameters(for: id) else { throw NativeError.message(L10n.text("Состав запроса изменился. Обновите локальный просмотр.")) }
+            let value = try NativeContextPreview(result)
+            if !value.manifest["knowledge_context"]["project_recall"].isNull {
+                let recall = try NativeProjectRecallReport(value.manifest["knowledge_context"]["project_recall"])
+                guard params["auto_project_recall"] == .bool(true), params["project_memory"]?.items.isEmpty == true,
+                      recall.matches(conversation: id, text: params["text"]!.text.trimmingCharacters(in: .whitespacesAndNewlines), workspace: params["workspace_root"]?.text, mode: params["access_mode"]!.text) else { throw NativeProjectRecallReport.error() }
+            }
+            scopedPreview = value
+        } catch { scopedError = error.localizedDescription }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             HStack {
                 Label(L10n.text("Контекст перед отправкой"), systemImage: "doc.text.magnifyingglass").font(.title3.weight(.semibold))
                 Spacer()
-                if model.loadingContextPreview { ProgressView().controlSize(.small) }
-                Button { Task { await model.refreshContextPreview() } } label: { Image(systemName: "arrow.clockwise") }
-                    .disabled(model.busy || model.loadingContextPreview).help(L10n.text("Перепроверить файлы локально"))
-                Button { model.showContextDesk = false } label: { Image(systemName: "xmark") }.keyboardShortcut(.cancelAction)
+                if loading { ProgressView().controlSize(.small) }
+                Button { Task { await refresh() } } label: { Image(systemName: "arrow.clockwise") }
+                    .disabled(busy || loading).help(L10n.text("Перепроверить файлы локально"))
+                Button { dismiss() } label: { Image(systemName: "xmark") }.keyboardShortcut(.cancelAction)
             }.padding(20)
             Divider()
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    if let error = model.contextPreviewError { Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.orange) }
-                    if let preview = model.contextPreview {
+                    if let error = error { Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.orange) }
+                    if let preview = preview {
                         let manifest = preview.manifest
                         DeskSection(L10n.text("Куда пойдёт запрос"), icon: "arrow.up.circle") {
                             Text(destination(manifest["destination"].text)).font(.headline)
@@ -481,7 +510,7 @@ struct ContextDeskView: View {
                                     }
                                 }.padding(.vertical, 5)
                             }
-                            if !preview.imageSources.isEmpty { Text(model.imageDestinationNotice).font(.callout).foregroundStyle(.secondary) }
+                            if !preview.imageSources.isEmpty { Text(model.imageDestinationNotice(for: conversationID ?? model.selectedID)).font(.callout).foregroundStyle(.secondary) }
                             Text(L10n.text("До 4 МиБ на файл и 8 МиБ суммарно. При Send проверяются SHA-256 и поддержка изображений моделью. Встроенные метаданные не удаляются. Старые картинки не пересылаются из истории."))
                                 .font(.caption).foregroundStyle(.secondary)
                         }
@@ -515,7 +544,7 @@ struct ContextDeskView: View {
                         }
                         Text(L10n.text("Максимум 12 сообщений по 2 000 символов; отчёты, ошибки и журналы инструментов не повторяются как история. Mock не анализирует вложения. Локальные инструкции Proto-Mind показаны выше; скрытые инструкции провайдера и приватные рассуждения недоступны."))
                             .font(.caption).foregroundStyle(.secondary)
-                    } else if !model.loadingContextPreview && model.contextPreviewError == nil {
+                    } else if !loading && error == nil {
                         Text(L10n.text("Откройте просмотр вне активного запроса.")).foregroundStyle(.secondary)
                     }
                 }.padding(24).frame(maxWidth: .infinity, alignment: .leading)
@@ -524,11 +553,11 @@ struct ContextDeskView: View {
             HStack {
                 Text(L10n.text("Только просмотр. Ни одного запроса модели, записи в память или нового разрешения.")).font(.caption).foregroundStyle(.secondary)
                 Spacer()
-                Button(L10n.text("К сообщению")) { model.showContextDesk = false }
+                Button(L10n.text("К сообщению")) { dismiss() }
             }.padding(18)
         }.workspacePageSize(width: 850, height: 680).workspaceBackground(NativeTheme.canvas)
             .font(NativeTheme.interfaceFont).buttonStyle(.nativeHover).disclosureGroupStyle(NativeDisclosureStyle())
-            .task { await model.refreshContextPreview() }
+            .task { await refresh() }
     }
 
     private func destination(_ value: String) -> String {

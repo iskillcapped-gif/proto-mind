@@ -4,12 +4,13 @@ import Foundation
 // Main-actor transitions for this domain; stored state remains in AppModel.
 extension AppModel {
     func submit(_ supplied: String? = nil) async {
-        if supplied == nil { dictation.stop() }
+        if supplied == nil { dictation.stop(for: selectedID) }
         guard let conversationID = selectedID else { return }
         await submit(conversationID: conversationID, supplied: supplied)
     }
 
     func submit(conversationID: UUID, supplied: String? = nil) async {
+        if supplied == nil { dictation.stop(for: conversationID) }
         guard let conversation = conversations.first(where: { $0.id == conversationID }) else { return }
         let hasAttachments = !conversation.pendingFiles.isEmpty || !conversation.pendingImages.isEmpty || !conversation.pendingPDFs.isEmpty
         let draftText = (supplied ?? conversation.draft).trimmingCharacters(in: .whitespacesAndNewlines)

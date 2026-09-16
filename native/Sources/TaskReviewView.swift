@@ -108,13 +108,14 @@ struct NativeManualReviewPreview: Identifiable {
 
 struct TaskCriteriaView: View {
     @ObservedObject var model: AppModel
+    @WorkspaceDismiss private var dismiss
     private let conversationID: UUID?
     @State private var draft: String
     @State private var error: String?
 
-    init(model: AppModel) {
-        self.model = model; conversationID = model.selectedID
-        _draft = State(initialValue: (model.selected?.pendingCriteria ?? []).joined(separator: "\n"))
+    init(model: AppModel, conversationID: UUID? = nil) {
+        self.model = model; self.conversationID = conversationID ?? model.selectedID
+        _draft = State(initialValue: (model.conversations.first { $0.id == (conversationID ?? model.selectedID) }?.pendingCriteria ?? []).joined(separator: "\n"))
     }
 
     var body: some View {
@@ -129,15 +130,15 @@ struct TaskCriteriaView: View {
             Text(L10n.text("Критерии сохранятся в черновике и попадут в следующий запрос. Оценить результат можно будет в журнале работы."))
                 .font(.callout).foregroundStyle(.secondary)
             HStack {
-                Button(L10n.text("Отмена")) { model.showTaskCriteria = false }.keyboardShortcut(.cancelAction)
+                Button(L10n.text("Отмена")) { dismiss() }.keyboardShortcut(.cancelAction)
                 Spacer()
                 Button(L10n.text("Сохранить критерии")) {
                     do {
                         guard let conversationID else { throw NativeError.message(L10n.text("Откройте диалог.")) }
                         try model.setPendingCriteria(NativeTaskCriteria.parse(draft), conversationID: conversationID)
-                        model.showTaskCriteria = false
+                        dismiss()
                     } catch { self.error = error.localizedDescription }
-                }.disabled(model.busy).keyboardShortcut(.return, modifiers: .command)
+                }.disabled(model.operationBusy || conversationID.map(model.isRunning) == true).keyboardShortcut(.return, modifiers: .command)
             }
         }.padding(26).workspacePageSize(width: 620, height: 440).workspaceBackground(NativeTheme.canvas)
             .font(NativeTheme.interfaceFont).buttonStyle(.nativeHover)

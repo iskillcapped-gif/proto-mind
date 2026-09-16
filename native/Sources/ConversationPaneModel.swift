@@ -3,11 +3,12 @@ import Foundation
 
 extension AppModel {
     /// Every surface edits the existing archive through its one writer. No shadow AppModel or store.
-    func setConversationDraft(_ text: String, id: UUID) {
+    func setConversationDraft(_ text: String, id: UUID, preservingContinuation: Bool = false) {
         guard let index = conversations.firstIndex(where: { $0.id == id }), !conversations[index].archived else { return }
-        if selectedID == id { setComposer(text); return }
+        if selectedID == id { setComposer(text, preservingContinuation: preservingContinuation); return }
+        dictation.composerChanged(conversationID: id)
         conversations[index].draft = text
-        if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { conversations[index].draftContinuation = nil }
+        if !preservingContinuation || text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { conversations[index].draftContinuation = nil }
         dirtyDraft = true; historyPersistence.hasUnsavedChanges = true
         draftSave?.cancel()
         draftSave = Task { [weak self] in
@@ -48,6 +49,7 @@ extension AppModel {
         guard !panels.contains(where: { panel in
             panel.tabs.contains { if case .conversation(let other) = $0.content { return other == id }; return false }
         }) else { return }
+        dictation.stop(for: id)
         provisionalPanelConversations.remove(id)
         if chat.hasDraftOrMessages { persist(); return }
         // This idle draft loses its bridge entirely, so do not enqueue a revocation
@@ -87,7 +89,12 @@ extension AppModel {
         if let model {
             guard conversations[index].provider != "codex" || model.isEmpty || codexModels(for: id).contains(where: { $0.id == model }) else { return }
             conversations[index].model = model
-            conversations[index].reasoningEffort = ""
+            if conversations[index].provider == "codex" {
+                let option = codexModels(for: id).first { model.isEmpty ? $0.isDefault : $0.id == model }
+                if option?.efforts.contains(where: { $0.rawValue == conversations[index].reasoningEffort }) != true {
+                    conversations[index].reasoningEffort = ""
+                }
+            }
         }
         if let effort {
             let model = codexModels(for: id).first { conversations[index].model.isEmpty ? $0.isDefault : $0.id == conversations[index].model }

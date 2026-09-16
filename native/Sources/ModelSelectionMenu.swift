@@ -15,19 +15,21 @@ enum ModelSelectionPresentation {
 
 struct ModelSelectionMenu: View {
     @ObservedObject var model: AppModel
+    var conversationID: UUID? = nil
+    private var context: ConversationComposerContext { ConversationComposerContext(app: model, id: conversationID ?? model.selectedID) }
     let openSettings: () -> Void
     @State private var open = false
 
-    private var isCodex: Bool { model.selected?.provider == "codex" }
-    private var accountPrefix: String { isCodex && model.codexAccounts.items.count > 1 ? model.selectedCodexAccount.shortName + " · " : "" }
+    private var isCodex: Bool { context.conversation?.provider == "codex" }
+    private var accountPrefix: String { isCodex && model.codexAccounts.items.count > 1 ? model.codexAccount(for: context.id).shortName + " · " : "" }
     private var title: String {
-        isCodex ? "\(accountPrefix)\(model.codexModelLabel) · \(model.reasoningEffortLabel)" : localModelLabel
+        isCodex ? "\(accountPrefix)\(context.modelLabel) · \(context.effortLabel)" : localModelLabel
     }
     private var styledTitle: Text {
-        let effort = Text(" · \(model.reasoningEffortLabel)").foregroundColor(.secondary)
+        let effort = Text(" · \(context.effortLabel)").foregroundColor(.secondary)
         let account = Text(accountPrefix).foregroundColor(.secondary)
         return isCodex
-            ? Text("\(account)\(model.codexModelLabel)\(effort)")
+            ? Text("\(account)\(context.modelLabel)\(effort)")
             : Text(localModelLabel)
     }
 
@@ -40,40 +42,42 @@ struct ModelSelectionMenu: View {
                 .padding(.horizontal, 5)
                 .frame(minWidth: 70, idealWidth: ModelSelectionPresentation.width(for: title), maxWidth: ModelSelectionPresentation.width(for: title), minHeight: 32)
                 .contentShape(Rectangle())
-        }.buttonStyle(.nativeHover).fixedSize(horizontal: false, vertical: true).help(title).disabled(model.busy)
-            .accessibilityLabel(isCodex ? L10n.pick("Модель \(model.codexModelLabel), усилие \(model.reasoningEffortLabel)", "Model \(model.codexModelLabel), effort \(model.reasoningEffortLabel)") : L10n.pick("Модель \(localModelLabel)", "Model \(localModelLabel)"))
+        }.buttonStyle(.nativeHover).fixedSize(horizontal: false, vertical: true).help(title).disabled(context.busy)
+            .accessibilityLabel(isCodex ? L10n.pick("Модель \(context.modelLabel), усилие \(context.effortLabel)", "Model \(context.modelLabel), effort \(context.effortLabel)") : L10n.pick("Модель \(localModelLabel)", "Model \(localModelLabel)"))
             .composerPopover(isPresented: $open, width: 326, trailing: true) {
-                ModelSelectionChoices(model: model, open: $open, openSettings: openSettings)
+                ModelSelectionChoices(model: model, conversationID: context.id, open: $open, openSettings: openSettings)
             }
     }
 
-    private var localModelLabel: String { ModelSelectionPresentation.localLabel(model) }
+    private var localModelLabel: String { context.localLabel }
 }
 
 struct ModelSelectionChoices: View {
     @ObservedObject var model: AppModel
+    var conversationID: UUID? = nil
+    private var context: ConversationComposerContext { ConversationComposerContext(app: model, id: conversationID ?? model.selectedID) }
     @Binding var open: Bool
     let openSettings: () -> Void
     @State private var section = "model"
-    private var isCodex: Bool { model.selected?.provider == "codex" }
-    private var localModelLabel: String { ModelSelectionPresentation.localLabel(model) }
+    private var isCodex: Bool { context.conversation?.provider == "codex" }
+    private var localModelLabel: String { context.localLabel }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(isCodex ? "ChatGPT" : model.providerLabel).font(.system(size: 14, weight: .semibold))
+                    Text(isCodex ? "ChatGPT" : context.providerLabel).font(.system(size: 14, weight: .semibold))
                     Text(L10n.text("Для этого диалога")).font(.system(size: 11)).foregroundStyle(.secondary)
                 }
                 Spacer()
                 if isCodex {
-                    Button { Task { await model.refreshAccount() } } label: {
+                    Button { Task { await model.refreshAccount( model.codexAccount(for: context.id)) } } label: {
                         Image(systemName: "arrow.clockwise").frame(width: 28, height: 28)
                     }.buttonStyle(.nativeHover).foregroundStyle(.secondary)
                         .disabled(model.connecting).help(L10n.text("Обновить доступные модели"))
                 }
             }.padding(.horizontal, 8).padding(.top, 6)
-            if isCodex, let id = model.selectedID {
+            if isCodex, let id = context.id {
                 ConversationAccountPicker(app: model, conversationID: id) { open = false }
             }
             if isCodex {
@@ -84,37 +88,37 @@ struct ModelSelectionChoices: View {
             }
             VStack(spacing: 3) {
                 if isCodex && section == "effort" {
-                    choice(L10n.text("По умолчанию"), subtitle: model.selectedCodexModel?.defaultEffort?.title,
-                           selected: (model.selected?.reasoningEffort ?? "").isEmpty) {
-                        model.setReasoningEffort(""); open = false
+                    choice(L10n.text("По умолчанию"), subtitle: context.selectedModel?.defaultEffort?.title,
+                           selected: (context.conversation?.reasoningEffort ?? "").isEmpty) {
+                        context.setEffort(""); open = false
                     }
-                    ForEach(model.availableReasoningEfforts) { effort in
-                        choice(effort.title, selected: model.selected?.reasoningEffort == effort.rawValue, effort: effort) {
-                            model.setReasoningEffort(effort.rawValue); open = false
+                    ForEach((context.selectedModel?.efforts ?? [])) { effort in
+                        choice(effort.title, selected: context.conversation?.reasoningEffort == effort.rawValue, effort: effort) {
+                            context.setEffort(effort.rawValue); open = false
                         }
                     }
-                    if let selected = model.selected?.reasoningEffort, !selected.isEmpty,
-                       !model.availableReasoningEfforts.contains(where: { $0.rawValue == selected }) {
+                    if let selected = context.conversation?.reasoningEffort, !selected.isEmpty,
+                       !(context.selectedModel?.efforts ?? []).contains(where: { $0.rawValue == selected }) {
                         Text(L10n.text("Выбранное усилие сейчас недоступно")).font(.caption).foregroundStyle(.secondary).padding(10)
                     }
                 } else if isCodex {
-                    choice(L10n.text("Автоматически"), subtitle: L10n.text("По умолчанию для аккаунта"), selected: (model.selected?.model ?? "").isEmpty) {
-                        model.setModel(""); open = false
+                    choice(L10n.text("Автоматически"), subtitle: L10n.text("По умолчанию для аккаунта"), selected: (context.conversation?.model ?? "").isEmpty) {
+                        context.setModel(""); open = false
                     }
-                    ForEach(model.codexModels) { item in
-                        choice(item.displayName, selected: model.selected?.model == item.id) {
-                            model.setModel(item.id); open = false
+                    ForEach(context.models) { item in
+                        choice(item.displayName, selected: context.conversation?.model == item.id) {
+                            context.setModel(item.id); open = false
                         }
                     }
-                    if let selected = model.selected?.model, !selected.isEmpty, model.selectedCodexModel == nil {
+                    if let selected = context.conversation?.model, !selected.isEmpty, context.selectedModel == nil {
                         Text(L10n.format("\(selected) · недоступна")).font(.caption).foregroundStyle(.secondary).padding(10)
                     }
                 } else {
                     choice(localModelLabel, selected: true) { open = false }
                 }
-            }.disabled(model.busy)
+            }.disabled(context.busy)
             Divider().opacity(0.5)
-            if let id = model.selectedID {
+            if let id = context.id {
                 ConversationProviderChoices(app: model, connections: model.apiConnections, conversationID: id) { open = false }
             }
             ComposerMenuRow(title: L10n.text("Настройки модели"), icon: "slider.horizontal.3") {
