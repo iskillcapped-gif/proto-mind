@@ -181,6 +181,7 @@ struct WorkspaceSplitView: View {
             ZStack(alignment: .topLeading) {
                 mainContent
                     .frame(width: layout.main.width, height: layout.main.height)
+                    .workspaceMenuBoundary()
                     .clipped()
                     .opacity(panels.expanded == nil ? 1 : 0)
                     .allowsHitTesting(panels.expanded == nil)

@@ -37,7 +37,7 @@ struct DesktopCompanionView: View {
                 .workspacePanelHeader()
             WorkspacePresentationHost(presentations: presentations, backTitle: L10n.text("К окну")) {
                 WorkspacePanelView(model: app, panel: surface.panel, position: surface.id.position,
-                    controls: WorkspacePanelControls(title: surface.id.title, activate: { owner.pinPreview() }, expand: { owner.toggleExpansion(surface.id) }))
+                    controls: WorkspacePanelControls(title: surface.id.title, activate: { owner.pinPreview() }))
             }
         }
         .background(DesktopGlassBackground(transparency: surface.transparency, tint: NativeTheme.canvas))

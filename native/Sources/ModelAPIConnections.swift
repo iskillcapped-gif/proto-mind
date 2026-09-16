@@ -213,7 +213,24 @@ struct ConversationProviderChoices: View {
                     chosen(); app.settingsSection = .services; app.openSettings(in: presentations)
                 }
             }.padding(.top, 6)
-        }.font(.system(size: 12)).padding(8)
+        }.disclosureGroupStyle(ModelSourceDisclosureStyle()).font(.system(size: 12)).padding(8)
             .disabled(app.operationBusy || app.isRunning(conversationID))
+    }
+}
+
+private struct ModelSourceDisclosureStyle: DisclosureGroupStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button { configuration.isExpanded.toggle() } label: {
+                HStack(spacing: 8) {
+                    configuration.label
+                    Spacer(minLength: 8)
+                    Image(systemName: configuration.isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 9, weight: .medium))
+                }.frame(maxWidth: .infinity, minHeight: 30).contentShape(Rectangle())
+            }.buttonStyle(.nativeHover)
+                .accessibilityValue(configuration.isExpanded ? L10n.pick("Развёрнуто", "Expanded") : L10n.pick("Свёрнуто", "Collapsed"))
+            if configuration.isExpanded { configuration.content }
+        }
     }
 }

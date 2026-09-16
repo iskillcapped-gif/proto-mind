@@ -4,7 +4,6 @@ import SwiftUI
 struct WorkspacePanelControls {
     let title: String
     let activate: () -> Void
-    let expand: () -> Void
 }
 
 struct WorkspacePanelView: View {
@@ -15,6 +14,7 @@ struct WorkspacePanelView: View {
     var position: WorkspacePanelPosition = .upper
     var controls: WorkspacePanelControls? = nil
     @State private var hovered = false
+    @State private var addingTab = false
     @State private var terminalToClose: UUID?
     @State private var confirmTerminalClose = false
 
@@ -49,9 +49,20 @@ struct WorkspacePanelView: View {
                         if let id { Task { @MainActor in await Task.yield(); proxy.scrollTo(id, anchor: .trailing) } }
                     }
                 }
-                Menu { actions } label: { Image(systemName: "plus").frame(width: 26, height: 28) }
-                    .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+                Button { activate(); addingTab.toggle() } label: { Image(systemName: "plus").frame(width: 26, height: 28).contentShape(Rectangle()) }
+                    .buttonStyle(.nativeHover)
                     .help(L10n.text("Добавить вкладку")).accessibilityLabel(L10n.text("Добавить вкладку · ") + (controls?.title ?? position.title))
+                    .composerPopover(isPresented: $addingTab, width: 270, trailing: true, direction: .below) {
+                        WorkspacePanelMenu(model: model, panel: panel, activate: activate, dismiss: { addingTab = false }, chooseCLI: chooseCLI)
+                    }
+                if controls == nil {
+                    Button { model.workspacePanels.toggleExpansion(position) } label: {
+                        Image(systemName: panel.expanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+                            .frame(width: 26, height: 28).contentShape(Rectangle())
+                    }.buttonStyle(.nativeHover).foregroundStyle(.secondary)
+                        .help(panel.expanded ? L10n.text("Вернуть размер") : L10n.text("Развернуть до боковой колонки"))
+                        .accessibilityLabel((panel.expanded ? L10n.pick("Свернуть панель · ", "Restore panel · ") : L10n.pick("Развернуть панель · ", "Expand panel · ")) + position.title)
+                }
             }.padding(.horizontal, 9).frame(height: 40).workspacePanelHeader()
             Divider().opacity(0.5).workspacePanelHeader()
             if let error = panel.error {
@@ -76,6 +87,7 @@ struct WorkspacePanelView: View {
             }.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .background(desktopGlass ? (controls == nil ? NativeTheme.canvas.opacity(0.12) : Color.clear) : NativeTheme.canvas)
+        .workspaceMenuBoundary()
         .overlay(alignment: position == .upper ? .bottomLeading : .topLeading) {
             if controls == nil {
             Button { model.workspacePanels.toggleExpansion(position) } label: {
@@ -99,37 +111,6 @@ struct WorkspacePanelView: View {
         if let controls { controls.activate() } else { model.workspacePanels.active = position }
     }
     private var directory: URL { model.selected?.workspacePath.map { URL(fileURLWithPath: $0) } ?? FileManager.default.homeDirectoryForCurrentUser }
-
-    @ViewBuilder private var actions: some View {
-        Button(L10n.text("Новый диалог PM"), systemImage: "bubble.left.and.bubble.right") { activate(); model.newPanelConversation(in: panel) }
-        Menu(L10n.text("Открыть диалог")) {
-            ForEach(model.listedConversations.filter { !$0.archived }.prefix(60)) { conversation in
-                Button(conversation.displayTitle) { activate(); panel.open(.conversation(conversation.id)) }
-            }
-        }
-        Button(L10n.text("Браузер / веб-приложение"), systemImage: "globe") { activate(); panel.openBrowser() }
-        Menu(L10n.pick("Мессенджеры", "Messengers")) {
-            ForEach(MessengerService.allCases) { service in
-                Button(service.title) { activate(); model.openMessenger(service, in: panel) }
-            }
-        }
-        Button(L10n.text("Терминал"), systemImage: "terminal") { activate(); panel.openTerminal(directory: directory) }
-        Menu(L10n.text("Другой CLI")) {
-            Button("Claude Code") {
-                activate()
-                if let path = TerminalLaunch.executable("claude") { panel.openTerminal(directory: directory, executable: path, arguments: []) }
-                else { panel.error = L10n.text("Claude Code не установлен. Установите CLI и войдите в свой аккаунт; затем откройте его здесь.") }
-            }
-            Button(L10n.text("Выбрать исполняемый файл…")) { chooseCLI() }
-        }
-        Divider()
-        Button(L10n.text("Открыть файл…"), systemImage: "doc") { activate(); model.chooseWorkspaceDocument(in: panel) }.disabled(!model.canEditMessageAttachments)
-        Button(L10n.text("Файлы основного проекта"), systemImage: "folder") { activate(); model.showProjectFiles(in: panel) }
-        Divider()
-        Button(panel.expanded ? L10n.text("Вернуть размер") : L10n.text("Развернуть панель"), systemImage: "arrow.up.left.and.arrow.down.right") {
-            if let controls { controls.expand() } else { model.workspacePanels.toggleExpansion(position) }
-        }
-    }
 
     private var welcome: some View {
         ViewThatFits {

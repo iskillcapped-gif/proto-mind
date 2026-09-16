@@ -88,6 +88,28 @@ extension NativeChecks {
                       && menu.minY > sidebarButton.maxY && screen.contains(menu),
                       "The sidebar popup stays inside its narrow column and scrolls above the menu button")
         }
+        for surface in [CGRect(x: 640, y: 120, width: 320, height: 250), CGRect(x: -1200, y: 400, width: 190, height: 400)] {
+            for direction in [WorkspaceMenuDirection.above, .below] {
+                let y = direction == .above ? surface.minY + 18 : surface.maxY - 45
+                let anchor = CGRect(x: surface.maxX - 44, y: y, width: 28, height: 28)
+                let popup = ComposerPopoverPlacement.frame(anchor: anchor, screen: surface,
+                    size: CGSize(width: 340, height: 1200), trailing: true, direction: direction)
+                try check(surface.insetBy(dx: 8, dy: 8).contains(popup) && popup.width <= surface.width - 16
+                          && (direction == .above ? popup.minY > anchor.maxY : popup.maxY < anchor.minY),
+                          "Header and composer menus stay inside their own narrow or offset surface")
+            }
+        }
+        let owner = NSWindow(contentRect: CGRect(x: 100, y: 100, width: 700, height: 500), styleMask: [.borderless], backing: .buffered, defer: false)
+        owner.isReleasedWhenClosed = false
+        defer { owner.close() }
+        let surfaceView = NSView(frame: CGRect(x: 380, y: 30, width: 300, height: 220))
+        owner.contentView!.addSubview(surfaceView)
+        let boundary = WorkspaceMenuBounds(); boundary.view = surfaceView
+        let initialBoundary = boundary.frame(in: owner)
+        surfaceView.frame = CGRect(x: 10, y: 10, width: 680, height: 480)
+        try check(initialBoundary == CGRect(x: 480, y: 130, width: 300, height: 220)
+                  && boundary.frame(in: owner) == CGRect(x: 110, y: 110, width: 680, height: 480),
+                  "Menu confinement follows the mounted panel when expanded instead of reusing its miniature bounds")
         let message = ChatMessage(role: "assistant", text: "Ответ", notices: ["Служебное пояснение"])
         try check(message.hasResponseDetails && !ChatMessage(role: "assistant", text: "Ответ").hasResponseDetails,
                   "Moved notices remain reachable through details even without cognitive evidence")

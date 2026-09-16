@@ -4,6 +4,24 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Menus Within Their Workspace — Native 0.69.1
+
+Panel plus buttons use a contained list. Conversation, messenger and CLI choices
+replace that list in place with a Back action. Header menus open below their
+button, composer menus above it; both are bounded by the mounted surface and
+the window's visible content, with scrolling for long content. Companion chrome
+stays visible while its menu is open. Hiding, moving or resizing the owner closes
+the popup. Internal panels now expose expand/restore in the top bar as well as
+the corner control, retaining the same tabs and drafts. The entire model-source
+disclosure row responds to clicks in both main and panel composers.
+
+Verification: 558 Native interface checks passed, including narrow/offset popup
+geometry and live boundary updates after panel resizing. An isolated QA app
+exercised internal and separate-window add-tab menus, in-place messenger/CLI
+lists, Escape dismissal, expansion/restoration with a retained draft and a click
+in the middle of the model-source row. No provider turn was sent. Python and
+private-state formats are unchanged; portable distribution remains 0.66.1.
+
 ## Multiple ChatGPT Accounts — Native 0.69.0
 
 Each conversation can select a named ChatGPT subscription account from its model

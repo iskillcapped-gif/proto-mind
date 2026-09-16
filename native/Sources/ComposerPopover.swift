@@ -1,16 +1,22 @@
 import AppKit
 import SwiftUI
 
-// AppKit menus and NSPopover may flip below the anchor. Composer panels instead
-// occupy only the available space above it; long contents scroll within that space.
+enum WorkspaceMenuDirection { case above, below }
+
+// Composer menus stay above their button; header menus stay below it. Both use
+// the available part of their owning surface, with scrolling for long lists.
 enum ComposerPopoverPlacement {
-    static func frame(anchor: CGRect, screen: CGRect, size: CGSize, trailing: Bool, confinedToColumn: Bool = false, columnWidth: CGFloat? = nil) -> CGRect {
+    static func frame(anchor: CGRect, screen: CGRect, size: CGSize, trailing: Bool, confinedToColumn: Bool = false, columnWidth: CGFloat? = nil,
+                      direction: WorkspaceMenuDirection = .above) -> CGRect {
+        guard !screen.isNull, screen.width > 16, screen.height > 16 else { return .zero }
         let bounds = screen.insetBy(dx: 8, dy: 8)
         let column = confinedToColumn ? bounds.intersection(CGRect(x: anchor.minX, y: bounds.minY, width: columnWidth ?? anchor.width, height: bounds.height)) : bounds
         guard !column.isNull, column.width > 0 else { return .zero }
         let width = min(size.width, column.width)
-        let bottom = max(bounds.minY, anchor.maxY + 8)
-        let height = max(0, min(size.height, bounds.maxY - bottom))
+        let edge = direction == .above ? min(bounds.maxY, max(bounds.minY, anchor.maxY + 8))
+            : max(bounds.minY, min(bounds.maxY, anchor.minY - 8))
+        let height = max(0, min(size.height, direction == .above ? bounds.maxY - edge : edge - bounds.minY))
+        let bottom = direction == .above ? edge : edge - height
         let left = trailing ? anchor.maxX - width : anchor.minX
         return CGRect(x: min(max(left, column.minX), column.maxX - width), y: bottom, width: width, height: height)
     }
@@ -18,8 +24,9 @@ enum ComposerPopoverPlacement {
 
 extension View {
     func composerPopover<Content: View>(isPresented: Binding<Bool>, width: CGFloat = 300, trailing: Bool = false, confinedToColumn: Bool = false, columnWidth: CGFloat? = nil,
+                                       direction: WorkspaceMenuDirection = .above,
                                        @ViewBuilder content: @escaping () -> Content) -> some View {
-        background(ComposerPopoverAnchor(isPresented: isPresented, width: width, trailing: trailing, confinedToColumn: confinedToColumn, columnWidth: columnWidth, content: content))
+        background(ComposerPopoverAnchor(isPresented: isPresented, width: width, trailing: trailing, confinedToColumn: confinedToColumn, columnWidth: columnWidth, direction: direction, content: content))
     }
 }
 
@@ -27,10 +34,14 @@ private struct ComposerPopoverAnchor<Content: View>: NSViewRepresentable {
     @Binding var isPresented: Bool
     @Environment(\.workspacePresentations) private var presentations
     @Environment(\.desktopGlass) private var desktopGlass
+    @Environment(\.workspaceMenuBounds) private var menuBounds
+    @Environment(\.workspaceChrome) private var chrome
+    @Environment(\.isEnabled) private var enabled
     let width: CGFloat
     let trailing: Bool
     let confinedToColumn: Bool
     let columnWidth: CGFloat?
+    let direction: WorkspaceMenuDirection
     @ViewBuilder let content: () -> Content
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -38,14 +49,19 @@ private struct ComposerPopoverAnchor<Content: View>: NSViewRepresentable {
     func updateNSView(_ view: NSView, context: Context) {
         let coordinator = context.coordinator
         coordinator.dismiss = { isPresented = false }
-        if isPresented {
+        if isPresented && enabled {
             // Hosting updates cannot synchronously change the source SwiftUI tree.
             DispatchQueue.main.async { [weak view, weak coordinator] in
                 guard let view, let coordinator, isPresented else { return }
                 coordinator.show(anchor: view, width: width, trailing: trailing, confinedToColumn: confinedToColumn, columnWidth: columnWidth,
-                                 content: AnyView(content().environment(\.workspacePresentations, presentations).environment(\.desktopGlass, desktopGlass)))
+                                 direction: direction, menuBounds: menuBounds, chrome: chrome,
+                                 content: AnyView(content().environment(\.workspacePresentations, presentations).environment(\.desktopGlass, desktopGlass)
+                                    .environment(\.workspaceMenuBounds, menuBounds).environment(\.workspaceChrome, chrome)))
             }
-        } else { coordinator.close() }
+        } else {
+            coordinator.close()
+            if isPresented { DispatchQueue.main.async { coordinator.dismiss?() } }
+        }
     }
     static func dismantleNSView(_ view: NSView, coordinator: Coordinator) { coordinator.close() }
 
@@ -54,24 +70,28 @@ private struct ComposerPopoverAnchor<Content: View>: NSViewRepresentable {
         override var canBecomeMain: Bool { false }
     }
 
-    final class Coordinator {
+    @MainActor final class Coordinator {
         var dismiss: (() -> Void)?
         private var panel: Panel?
         private var monitor: Any?
         private var observers: [NSObjectProtocol] = []
         private weak var priorResponder: NSResponder?
         private weak var owner: NSWindow?
+        private weak var chrome: WorkspacePanelChrome?
+        private let chromeHold = UUID()
 
-        func show(anchor: NSView, width: CGFloat, trailing: Bool, confinedToColumn: Bool, columnWidth: CGFloat?, content: AnyView) {
+        func show(anchor: NSView, width: CGFloat, trailing: Bool, confinedToColumn: Bool, columnWidth: CGFloat?,
+                  direction: WorkspaceMenuDirection, menuBounds: WorkspaceMenuBounds?, chrome: WorkspacePanelChrome?, content: AnyView) {
             guard let window = anchor.window, let screen = window.screen else { return }
             let rect = window.convertToScreen(anchor.convert(anchor.bounds, to: nil))
-            let bounds = confinedToColumn ? screen.visibleFrame.intersection(window.frame) : screen.visibleFrame
+            let bounds = screen.visibleFrame.intersection(window.convertToScreen(window.contentLayoutRect))
+                .intersection(menuBounds?.frame(in: window) ?? window.frame)
             let fittedWidth = min(width, confinedToColumn ? (columnWidth ?? rect.width) : width, max(0, bounds.width - 16))
             let measured = NSHostingController(rootView: content.frame(width: fittedWidth))
                 .sizeThatFits(in: CGSize(width: fittedWidth, height: 10000))
             let frame = ComposerPopoverPlacement.frame(anchor: rect, screen: bounds,
                                                        size: CGSize(width: fittedWidth, height: measured.height), trailing: trailing,
-                                                       confinedToColumn: confinedToColumn, columnWidth: columnWidth)
+                                                       confinedToColumn: confinedToColumn, columnWidth: columnWidth, direction: direction)
             guard frame.height > 0 else { dismiss?(); return }
             let root = AnyView(
                 ScrollView { content.frame(maxWidth: .infinity, alignment: .leading) }
@@ -94,6 +114,7 @@ private struct ComposerPopoverAnchor<Content: View>: NSViewRepresentable {
             panel.contentView = NSHostingView(rootView: root)
             self.panel = panel
             owner = window
+            self.chrome = chrome; chrome?.hold(chromeHold, while: true)
             priorResponder = window.firstResponder
             window.addChildWindow(panel, ordered: .above)
             panel.makeKeyAndOrderFront(nil)
@@ -116,11 +137,15 @@ private struct ComposerPopoverAnchor<Content: View>: NSViewRepresentable {
             observers.append(NotificationCenter.default.addObserver(forName: NSApplication.didResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
                 self?.dismiss?(); self?.close()
             })
+            observers.append(NotificationCenter.default.addObserver(forName: NSWindow.didChangeOcclusionStateNotification, object: window, queue: .main) { [weak self, weak window] _ in
+                if window?.isVisible != true { self?.dismiss?(); self?.close() }
+            })
         }
 
         func close() {
             if let monitor { NSEvent.removeMonitor(monitor) }; monitor = nil
             observers.forEach(NotificationCenter.default.removeObserver); observers = []
+            chrome?.hold(chromeHold, while: false); chrome = nil
             guard let panel else { return }
             let wasKey = panel.isKeyWindow
             self.panel = nil

@@ -14,7 +14,9 @@ For current development guidance, see [`AGENTS.md`](AGENTS.md). The [current pri
 
 ## Native macOS Direction
 
-The current native workspace is **Native 0.69.0 / Multiple ChatGPT Accounts**, built with SwiftUI/AppKit over the existing Python cognitive core. It retains project memory, independent conversations, live steering and explicit Mac access. This development line is separate from the earlier submitted Build Week baseline.
+The current native workspace is **Native 0.69.1 / Menus Within Their Workspace**, built with SwiftUI/AppKit over the existing Python cognitive core. It retains project memory, independent conversations, live steering and explicit Mac access. This development line is separate from the earlier submitted Build Week baseline.
+
+**Workspace menus:** add-tab lists and their submenus stay within the originating panel; composer popups stay within their chat column or companion window. Long lists scroll inside the available area. Each internal panel also has an expand/restore button in its top bar. The complete **Источник модели** row toggles the provider list.
 
 **Multiple ChatGPT accounts:** **Settings → Models → ChatGPT accounts** adds named subscription logins through the official Codex browser sign-in. The account menu inside each chat's model selector chooses its login, including either companion window. Work and personal chats can run simultaneously with separate credentials, model catalogs, provider sessions and usage displays. Account selection survives restart; the original main login remains unchanged. An active chat's account cannot be replaced or logged out. Switching an idle chat preserves its local messages, starts a fresh provider session with recent chat context, and clears model/Mac-access choices. These are provider connections within one PM installation: PM memory and local history remain shared. Credentials and provider rollouts stay outside private backups.
 
