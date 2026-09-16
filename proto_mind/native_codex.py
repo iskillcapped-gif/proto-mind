@@ -507,16 +507,17 @@ class CodexRPC:
 
 
 class CodexSubscription:
-    def __init__(self, state_dir: Path, *, transport_factory=CodexRPC) -> None:
+    def __init__(self, state_dir: Path, *, transport_factory=CodexRPC, thread_state_dir: Path | None = None) -> None:
         self.home = state_dir / "codex-profile"
         self.workspace = state_dir / "codex-empty-workspace"
         self.transport_factory = transport_factory
-        self.threads = CodexThreadStore(state_dir)
+        self.threads = CodexThreadStore(thread_state_dir or state_dir)
         self.rpc: CodexRPC | None = None
         self.active_turn: tuple[str, str] | None = None
         self.on_main_turn = None
         self.last_thread_info: dict | None = None
         self.cancelled = threading.Event()
+        self.pending_login_id: str | None = None
 
     def connect(self) -> CodexRPC:
         if self.rpc is not None and not self.rpc.closed:
@@ -554,7 +555,14 @@ class CodexSubscription:
         result = self.connect().request("account/login/start", {"type": "chatgpt"})
         if result.get("type") != "chatgpt":
             raise CodexConnectionError("Only ChatGPT browser sign-in is supported.")
+        self.pending_login_id = result.get("loginId")
         return {"url": validate_login_url(result.get("authUrl")), "login_id": result.get("loginId", "")}
+
+    def cancel_login(self) -> dict:
+        if self.pending_login_id:
+            self.connect().request("account/login/cancel", {"loginId": self.pending_login_id})
+            self.pending_login_id = None
+        return {"cancelled": True}
 
     def logout(self) -> dict:
         self.connect().request("account/logout")

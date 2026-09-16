@@ -62,6 +62,14 @@ struct NativeChecks {
             print("Native messenger checks: \(passed) OK")
             return
         }
+        if CommandLine.arguments.contains("--accounts-only"),
+           let fixture = LaunchConfiguration.argument("--fixture"), let python = LaunchConfiguration.argument("--python"),
+           let service = LaunchConfiguration.argument("--steering-service") {
+            try await multipleCodexAccounts(fixture: URL(fileURLWithPath: fixture), service: URL(fileURLWithPath: service),
+                                           python: URL(fileURLWithPath: python), root: root)
+            print("Native multi-account checks: \(passed) OK")
+            return
+        }
         if CommandLine.arguments.contains("--usage-only") {
             try await codexUsageContracts(root: root)
             print("Native usage checks: \(passed) OK")
@@ -265,6 +273,8 @@ struct NativeChecks {
             if let service = LaunchConfiguration.argument("--steering-service") {
                 try await taskUpdatesIntegration(fixture: URL(fileURLWithPath: fixture), service: URL(fileURLWithPath: service),
                                                  python: URL(fileURLWithPath: python), root: root)
+                try await multipleCodexAccounts(fixture: URL(fileURLWithPath: fixture), service: URL(fileURLWithPath: service),
+                                               python: URL(fileURLWithPath: python), root: root)
                 try await parallelTasks(fixture: URL(fileURLWithPath: fixture), service: URL(fileURLWithPath: service),
                                         python: URL(fileURLWithPath: python), root: root)
             }

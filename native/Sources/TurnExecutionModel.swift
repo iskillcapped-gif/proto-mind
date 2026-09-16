@@ -34,6 +34,7 @@ extension AppModel {
         let state = execution(for: conversationID)
         state.running = true
         do {
+            try await prepareConversationAccount(state)
             let description = try await state.client.request("describe", ["text": .string(text)])
             guard !description["blocked"].flag else { throw NativeError.message(description["notice"].text) }
             if description["operator"].flag && executions.values.contains(where: { $0 !== state && $0.running }) {

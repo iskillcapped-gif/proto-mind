@@ -5,6 +5,7 @@ final class BridgeClient: ObservableObject {
     @Published private(set) var connected = false
     @Published private(set) var turnOutstanding = false
     let configuration: LaunchConfiguration
+    let codexAccountID: UUID?
     var onEvent: ((JSONValue) -> Void)?
     private var process: Process?
     private var input: FileHandle?
@@ -16,7 +17,10 @@ final class BridgeClient: ObservableObject {
     private var generation = UUID()
     var connectionGeneration: UUID { generation }
 
-    init(configuration: LaunchConfiguration) { self.configuration = configuration }
+    init(configuration: LaunchConfiguration, codexAccountID: UUID? = nil) {
+        self.configuration = configuration
+        self.codexAccountID = codexAccountID
+    }
 
     func start() throws {
         guard !shuttingDown else { throw NativeError.message("Мост завершает работу. Перезапустите приложение; запросы не повторялись автоматически.") }
@@ -56,6 +60,7 @@ final class BridgeClient: ObservableObject {
         process.executableURL = configuration.python
         process.arguments = ["-u", "-m", "proto_mind.native_bridge", "--project-root", configuration.projectRoot.path,
                              "--state-dir", configuration.stateDirectory.path]
+        if let id = codexAccountID { process.arguments?.append(contentsOf: ["--codex-account", id.uuidString.lowercased()]) }
         if configuration.sourceRoot != nil {
             process.arguments?.append(contentsOf: ["--code-root", configuration.codeRoot.path])
         }

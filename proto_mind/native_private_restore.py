@@ -22,7 +22,7 @@ METHODS = {"private_backup_status", "private_backup_create", "private_backup_pre
 
 
 def without_authority(name: str, raw: bytes | None) -> bytes | None:
-    if raw is None or name == "native/codex_threads.json": return None
+    if raw is None or name == "native/codex_threads.json" or name.startswith("native/codex_account_threads/"): return None
     if name in {"native/preferences.json", "native/integrations.json", "core/context_injection.json"}:
         value = decode(raw)
         if not isinstance(value, dict): raise ValueError("Настройки в копии имеют неизвестный формат.")

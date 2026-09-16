@@ -65,7 +65,12 @@ struct WorkspaceView: View {
         .workspaceSheet(isPresented: $model.showPrivateBackup, onDismiss: {
             if model.quitAfterPrivateBackup { NSApp.terminate(nil) }
         }) { PrivateBackupView(app: model, backup: model.privateBackup) }
-        .workspaceSheet(isPresented: $model.showCodexUsage) { CodexUsageView(app: model, usage: model.codexUsage) }
+        .workspaceSheet(isPresented: $model.showCodexUsage, routingKey: "codexUsage") {
+            CodexUsageView(app: model, usage: (model.presentedCodexAccount ?? model.selectedCodexAccount).usage)
+        }
+        .workspaceSheet(isPresented: $model.showCodexAccounts, routingKey: "codexAccounts") {
+            CodexAccountsPage(app: model, conversationID: model.codexAccountsConversationID)
+        }
         .workspaceSheet(item: $model.sessionSpinePreview) { SessionSpinePreviewView(model: model, preview: $0) }
         .workspaceSheet(isPresented: $model.showContextDesk, routingKey: "contextDesk") { ContextDeskView(model: model) }
         .workspaceSheet(isPresented: $model.showPersonaInspector) { PersonaInspectorView(model: model) }

@@ -122,6 +122,7 @@ extension AppModel {
         if state.running { return try enqueueVoiceTaskUpdate(text, execution: state) }
         state.running = true
         do {
+            try await prepareConversationAccount(state)
             let description = try await state.client.request("describe", ["text": .string(text)])
             guard !description["blocked"].flag, !description["operator"].flag, !description["requires_confirmation"].flag else {
                 throw NativeError.message("Команды изменения самого ядра выполняются через текстовый интерфейс с его подтверждениями.")

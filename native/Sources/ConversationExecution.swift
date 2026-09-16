@@ -23,9 +23,9 @@ final class ConversationExecution: ObservableObject {
     @Published var updatesStopped = false
     var requestID: String?
 
-    init(conversationID: UUID, configuration: LaunchConfiguration) {
+    init(conversationID: UUID, configuration: LaunchConfiguration, codexAccountID: UUID? = nil) {
         self.conversationID = conversationID
-        client = BridgeClient(configuration: configuration)
+        client = BridgeClient(configuration: configuration, codexAccountID: codexAccountID)
     }
 
     func clearTurn() {
@@ -40,7 +40,7 @@ extension AppModel {
     var anyTaskRunning: Bool { executions.values.contains { $0.running || $0.client.turnOutstanding } || serviceClient.turnOutstanding }
     var globalBusy: Bool { operationBusy || anyTaskRunning || executions.values.contains { $0.sendingUpdate } }
     var canNavigateConversations: Bool {
-        !operationBusy && !connecting && !loadingDroppedAttachments && !loadingImagePreview && !loadingPDFPreview && !presentations.locked
+        !operationBusy && !loadingDroppedAttachments && !loadingImagePreview && !loadingPDFPreview && !presentations.locked
     }
     var busy: Bool {
         get { operationBusy || selectedExecution?.running == true }
@@ -49,7 +49,8 @@ extension AppModel {
 
     func execution(for id: UUID) -> ConversationExecution {
         if let existing = executions[id] { return existing }
-        let state = ConversationExecution(conversationID: id, configuration: serviceClient.configuration)
+        let accountID = conversations.first { $0.id == id }?.codexAccountID
+        let state = ConversationExecution(conversationID: id, configuration: serviceClient.configuration, codexAccountID: accountID)
         state.observation = state.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
         state.client.onEvent = { [weak self, weak state] event in
             guard let self, let state else { return }
@@ -79,6 +80,7 @@ extension AppModel {
         restoringAgentAccess.values.forEach { $0.cancel() }; restoringAgentAccess.removeAll()
         for state in executions.values { state.client.shutdown() }
         serviceClient.shutdown()
+        codexAccounts.shutdown()
     }
 
     func receiveExecutionEvent(_ event: JSONValue, state: ConversationExecution) {

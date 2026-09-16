@@ -80,6 +80,8 @@ struct Conversation: Codable, Identifiable, Equatable {
     var provider = "ollama"
     var model = ""
     var apiConnectionID: UUID?
+    var codexAccountID: UUID?
+    var codexSessionResetPending: Bool?
     var reasoningEffort = ""
     var autoSkillsEnabled = true
     var autoProjectRecallEnabled = true
@@ -97,7 +99,7 @@ struct Conversation: Codable, Identifiable, Equatable {
     init() {}
 
     enum CodingKeys: String, CodingKey {
-        case apiConnectionID
+        case apiConnectionID, codexAccountID, codexSessionResetPending
         case id, title, createdAt, updatedAt, messages, provider, model, reasoningEffort, autoSkillsEnabled, autoProjectRecallEnabled, memorySuggestionsEnabled, archived, draft, workspacePath, pendingFiles, pendingImages, pendingPDFs, pendingCriteria, draftContinuation, dismissedWorkSessionWarnings
     }
 
@@ -111,6 +113,8 @@ struct Conversation: Codable, Identifiable, Equatable {
         provider = try values.decode(String.self, forKey: .provider)
         model = try values.decode(String.self, forKey: .model)
         apiConnectionID = try values.decodeIfPresent(UUID.self, forKey: .apiConnectionID)
+        codexAccountID = try values.decodeIfPresent(UUID.self, forKey: .codexAccountID)
+        codexSessionResetPending = try values.decodeIfPresent(Bool.self, forKey: .codexSessionResetPending)
         reasoningEffort = try values.decodeIfPresent(String.self, forKey: .reasoningEffort) ?? ""
         autoSkillsEnabled = try values.decodeIfPresent(Bool.self, forKey: .autoSkillsEnabled) ?? true
         autoProjectRecallEnabled = try values.decodeIfPresent(Bool.self, forKey: .autoProjectRecallEnabled) ?? true

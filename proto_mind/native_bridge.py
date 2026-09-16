@@ -260,11 +260,26 @@ def describe_input(text: str) -> dict:
 
 class NativeBackend:
     def __init__(self, project_root: Path, state_dir: Path, *, subscription_factory=CodexSubscription,
-                 pdf_helper: Path | None = None) -> None:
+                 pdf_helper: Path | None = None, codex_account: str | None = None) -> None:
         self.root, self.state_dir = project_root.resolve(), state_dir.resolve()
+        # The launch-time account is immutable for this bridge. Core/history stay
+        # in their existing namespace; credentials and provider sessions do not.
+        if codex_account is not None:
+            if not isinstance(codex_account, str) or str(UUID(codex_account)) != codex_account:
+                raise ValueError("Invalid Codex account profile.")
+        self.subscription_state = (self.state_dir / "codex-accounts" / codex_account
+                                   if codex_account is not None else self.state_dir)
         self.pdf_helper = pdf_helper
-        self._subscription_factory = subscription_factory
-        self.subscription = subscription_factory(self.state_dir)
+        if codex_account is not None:
+            for path in (self.state_dir / "codex-accounts", self.subscription_state,
+                         self.state_dir / "codex_account_threads", self.state_dir / "codex_account_threads" / codex_account):
+                if path.is_symlink():
+                    raise ValueError("Codex account directories must not be symbolic links.")
+            self._subscription_factory = lambda state: subscription_factory(
+                state, thread_state_dir=self.state_dir / "codex_account_threads" / codex_account)
+        else:
+            self._subscription_factory = subscription_factory
+        self.subscription = self._subscription_factory(self.subscription_state)
         self._limits_read_lock = threading.Lock()
         self.sessions: dict[str, Coordinator] = {}
         self._native_learning_apply_used = False
@@ -1326,7 +1341,7 @@ class NativeBackend:
                 # A separate account-only connection cannot interrupt or wait on
                 # the live turn's RPC client. Only the full sheet inspects the
                 # reset journal; neither read can consume a credit.
-                reader = self._subscription_factory(self.state_dir)
+                reader = self._subscription_factory(self.subscription_state)
                 try:
                     store = CodexResetStore(self.state_dir) if method == "account_usage" else None
                     return read_usage(reader, store, include_activity=method == "account_usage")
@@ -1339,11 +1354,12 @@ class NativeBackend:
                 store = CodexResetStore(self.state_dir)
                 return consume_reset(self.subscription, store, params)
             finally: self.busy.release()
-        if method in {"account_login", "account_logout"}:
+        if method in {"account_login", "account_logout", "account_login_cancel"}:
             if self.closing.is_set() or not self.busy.acquire(blocking=False):
                 raise ValueError("Дождитесь завершения текущей работы перед сменой аккаунта.")
             try:
                 if method == "account_login": return self.subscription.login()
+                if method == "account_login_cancel": return self.subscription.cancel_login()
                 self.agent_grants.revoke()
                 return self.subscription.logout()
             finally: self.busy.release()
@@ -1498,10 +1514,11 @@ def main() -> None:
     parser.add_argument("--state-dir", type=Path, required=True)
     parser.add_argument("--code-root", type=Path, help="Read-only installed source, separate from writable project data")
     parser.add_argument("--pdf-helper", type=Path)
+    parser.add_argument("--codex-account", help="Private account UUID; omitted for the existing default login")
     args = parser.parse_args()
     if not ((args.code_root or args.project_root) / "proto_mind" / "main.py").is_file():
         parser.error("Project root does not contain Proto-Mind.")
-    backend = NativeBackend(args.project_root, args.state_dir, pdf_helper=args.pdf_helper)
+    backend = NativeBackend(args.project_root, args.state_dir, pdf_helper=args.pdf_helper, codex_account=args.codex_account)
     serve(backend, sys.stdin, sys.stdout)
 
 

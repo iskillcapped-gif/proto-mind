@@ -4,6 +4,43 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Multiple ChatGPT Accounts — Native 0.69.0
+
+Each conversation can select a named ChatGPT subscription account from its model
+menu, including companion conversations. Settings → Models manages sign-ins and
+names; the same page and account-specific usage screen retain their originating
+window. Existing conversations use the original main login. Additional profiles
+use the official Codex browser login with isolated CODEX_HOME, model catalogs,
+quota caches and provider-thread registries. Account names and IDs are UI
+preferences; no credentials are copied from another profile or into backups.
+
+An execution captures its immutable account before any await. Two accounts can
+run tasks concurrently; send, steering, Stop, voice and paired Telegram input
+keep the original execution. Sign-out closes only that account's idle bridges,
+without changing global cloud consent or another account's task. A running turn
+or pending steering receipt prevents account replacement. Switching an idle
+chat retains its local messages but clears model/access choices and persists a
+required local provider-session reset before the next message. Recent PM chat
+history then seeds a new provider session; an earlier account's stale thread
+cannot silently resume. A missing account label after restoring preferences
+recovers the exact account namespace instead of falling back to the main login.
+
+Provider bindings for additional profiles are inventoried in private backups and
+discarded as authority during restore. Credentials and provider rollouts remain
+excluded. PM memory, local history and other connected services are still shared
+within this installation; this is per-chat provider selection, not separate OS
+users or isolated PM memory profiles.
+
+Verification: 2,331 Python tests and 1,875 Native checks passed; the final
+steering-receipt guard also passed all 38 focused account/portable checks. Disposable
+integration accounts covered parallel execution, late quotas, exact steering and
+Stop, independent sign-out, draft/history reload and pending session reset.
+A separate QA application verified account creation/selection, preserved main
+login and nested account/usage pages in a companion window. The installed Codex
+CLI 0.153.4 also confirmed that a fresh extra profile is signed out and does not
+inherit an existing login; no model turn was sent. Two real signed-in accounts
+have not been exercised together. Portable distribution remains 0.66.1.
+
 ## Messengers and Remote Tasks — Native 0.68.0
 
 Telegram and WhatsApp web tabs use persistent, profile/service-scoped WebKit

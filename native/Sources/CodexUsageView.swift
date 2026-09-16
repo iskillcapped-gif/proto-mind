@@ -7,7 +7,7 @@ struct CodexUsageView: View {
     @State private var proposedReset: CodexResetAttempt?
 
     private var refreshBlocked: Bool {
-        usage.refreshing || usage.resetting || !app.cloudConsent || app.connecting || app.loginPending || app.privateBackupRestartRequired
+        usage.refreshing || usage.resetting || !app.cloudConsent || usage.authenticationPending(app: app) || app.privateBackupRestartRequired
     }
     private var resetBlocked: Bool { refreshBlocked || app.globalBusy || app.client.turnOutstanding }
 

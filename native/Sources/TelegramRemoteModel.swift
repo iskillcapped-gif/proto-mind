@@ -271,6 +271,7 @@ extension AppModel {
         chat.title = title.isEmpty ? "Telegram" : String(title.prefix(160))
         chat.workspacePath = original.workspacePath; chat.provider = original.provider
         chat.model = original.model; chat.reasoningEffort = original.reasoningEffort
+        chat.codexAccountID = original.codexAccountID; chat.apiConnectionID = original.apiConnectionID
         conversations.insert(chat, at: 0)
         guard persist() else { conversations.removeAll { $0.id == chat.id }; throw NativeError.message("Не удалось сохранить новый чат.") }
         return chat.id

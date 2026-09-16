@@ -226,34 +226,7 @@ struct NativeSettingsView: View {
     }
 
     private var accountSettings: some View {
-        Section(L10n.text("Аккаунт ChatGPT")) {
-            Button(L10n.text("Помощь с первым подключением…")) { model.showFirstLaunch = true }
-            HStack {
-                Label(model.account.isNull ? L10n.text("Вход ещё не проверен") : model.account["connected"].flag ? L10n.text("Подключено") : L10n.text("Не подключено"), systemImage: model.account["connected"].flag ? "checkmark.circle" : "person.crop.circle")
-                Spacer()
-                if model.connecting { ProgressView().controlSize(.small) }
-            }
-            if model.account["connected"].flag {
-                Text("\(model.account["email"].text) · \(model.account["plan"].text)").font(.caption).foregroundStyle(.secondary)
-            }
-            Button(L10n.text("Использование и лимиты Codex…")) { model.showCodexUsage = true }
-            HStack {
-                Button(L10n.text("Войти через ChatGPT…")) { Task { await model.login() } }
-                Button(L10n.text("Проверить вход")) { Task { await model.refreshAccount() } }
-                Spacer()
-                if model.account["connected"].flag { Button(L10n.text("Выйти")) { Task { await model.logout() } } }
-            }.disabled(model.globalBusy || model.connecting)
-            if model.loginPending {
-                Text(L10n.text("Завершите вход в браузере и нажмите «Проверить вход».")).font(.caption).foregroundStyle(.secondary)
-            }
-            Toggle(L10n.text("Разрешить облачную обработку"), isOn: $model.cloudConsent).disabled(model.globalBusy)
-            Text(L10n.text("Сообщения, выбранная память и прикреплённые материалы передаются OpenAI. Разрешение действует на этом Mac и сохраняется после перезапуска."))
-                .font(.caption).foregroundStyle(.secondary)
-            DisclosureGroup(L10n.text("Как работает подключение")) {
-                Text(L10n.text("Proto-Mind использует официальный Codex и отдельный профиль входа. API-ключ не нужен. Сессии продолжаются между сообщениями; при создании новой сессии добавляется до 12 локальных реплик. Данные входа и настройки Codex Desktop не используются."))
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-        }
+        CodexAccountSettings(app: model, accounts: model.codexAccounts, conversationID: model.selectedID)
     }
 
     private var personaSettings: some View {

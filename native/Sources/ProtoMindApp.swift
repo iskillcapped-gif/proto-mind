@@ -54,7 +54,7 @@ struct ProtoMindApp: App {
             CommandMenu("Proto-Mind") {
                 DesktopWindowCommands(desktop: model.desktop)
                 Divider()
-                Button(L10n.text("Использование Codex…")) { model.showCodexUsage = true }
+                Button(L10n.text("Использование Codex…")) { model.openCodexUsage() }
                 Button(L10n.text("Полная копия данных…")) { model.showPrivateBackup = true }
                     .disabled(model.globalBusy || model.client.turnOutstanding)
                 Button(L10n.text("Копии диалогов…")) { model.openHistoryBackups() }

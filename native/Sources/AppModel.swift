@@ -46,8 +46,11 @@ final class AppModel: ObservableObject {
     @Published var composer = "" { didSet { if !initializing { dictation.composerChanged() }; draftChanged() } }
     @Published var composerRevision = 0
     @Published var bootstrap: JSONValue = .null
-    @Published var account: JSONValue = .null
-    let codexUsage = CodexUsageModel()
+    let codexAccounts: CodexAccounts
+    private var accountsObservation: AnyCancellable?
+    var account: JSONValue { get { selectedCodexAccount.account } set { selectedCodexAccount.account = newValue } }
+    var codexUsage: CodexUsageModel { selectedCodexAccount.usage }
+    var presentedCodexAccount: CodexAccountConnection?
     let apiConnections: ModelAPIConnections
     let messengers: MessengerConnections
     let telegram: TelegramRemoteModel
@@ -66,21 +69,23 @@ final class AppModel: ObservableObject {
         didSet { if oldValue != showLiveVoice { desktop.setVoiceVisible(showLiveVoice, app: self) } }
     }
     @Published var showCodexUsage = false
-    @Published var models: [JSONValue] = []
+    @Published var showCodexAccounts = false
+    var codexAccountsConversationID: UUID?
+    var models: [JSONValue] { get { selectedCodexAccount.models } set { selectedCodexAccount.models = newValue } }
     @Published var modelSelectionNotice: String?
     @Published var codexThreadStatus: JSONValue = .null
     @Published var loadingCodexThreadStatus = false
     @Published var idleStatus = "Готов"
     @Published var operationBusy = false
     @Published var executions: [UUID: ConversationExecution] = [:]
-    @Published var connecting = false
+    var connecting: Bool { get { selectedCodexAccount.connecting } set { selectedCodexAccount.connecting = newValue } }
     @Published var cloudConsent = false {
         didSet {
             guard !initializing, !restoringPreferences else { return }
             do {
                 try savePreferences()
                 invalidateSessionSpinePilot()
-                if !cloudConsent { discardAgentGrants(); codexUsage.clear(); liveVoice.stop() }
+                if !cloudConsent { discardAgentGrants(); codexAccounts.clearUsage(); liveVoice.stop() }
             }
             catch {
                 restoringPreferences = true
@@ -106,7 +111,7 @@ final class AppModel: ObservableObject {
             }
         }
     }
-    @Published var loginPending = false
+    var loginPending: Bool { get { selectedCodexAccount.loginPending } set { selectedCodexAccount.loginPending = newValue } }
     @Published var error: String?
     @Published var historyPersistence = HistoryPersistenceState()
     @Published var showHistoryBackups = false
@@ -250,6 +255,7 @@ final class AppModel: ObservableObject {
         responseAttention = ResponseAttention(stateDirectory: configuration.stateDirectory, defaults: uiDefaults)
         sidebarProjectOrder = SidebarProjectOrder(stateDirectory: configuration.stateDirectory, defaults: uiDefaults)
         serviceClient = BridgeClient(configuration: configuration)
+        codexAccounts = CodexAccounts(configuration: configuration, defaults: uiDefaults, mainClient: serviceClient)
         store = historyStore ?? ChatStore(directory: configuration.stateDirectory)
         preferences = PreferenceStore(directory: configuration.stateDirectory)
         do {
@@ -288,6 +294,8 @@ final class AppModel: ObservableObject {
         }
         if !historyPersistence.blocksSubmission { responseAttention.prune(conversations) }
         attentionObservation = responseAttention.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }
+        accountsObservation = codexAccounts.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
+        for chat in conversations { _ = codexAccounts.connection(chat.codexAccountID) }
         initializing = false
     }
 
@@ -718,47 +726,6 @@ final class AppModel: ObservableObject {
         do { bootstrap = try await serviceClient.request("bootstrap") }
         catch { report(error) }
         await refreshWorkSessions()
-    }
-
-    func login() async {
-        guard !globalBusy, !connecting else { return }
-        closeIdleExecutionConnections()
-        connecting = true
-        codexUsage.clear()
-        defer { connecting = false }
-        do {
-            let result = try await serviceClient.request("account_login")
-            guard let url = URL(string: result["url"].text), url.scheme == "https",
-                  ["auth.openai.com", "chatgpt.com", "openai.com"].contains(url.host ?? "") else {
-                throw NativeError.message("Неожиданный адрес входа; браузер не открыт.")
-            }
-            loginPending = true
-            NSWorkspace.shared.open(url)
-        } catch { report(error) }
-    }
-
-    func refreshAccount() async {
-        guard !busy, !connecting else { return }
-        connecting = true
-        codexUsage.clear()
-        defer { connecting = false }
-        do {
-            account = try await serviceClient.request("account_status")
-            if account["connected"].flag {
-                loginPending = false
-                models = try await serviceClient.request("models")["models"].items
-            } else { models = [] }
-        } catch { report(error) }
-    }
-
-    func logout() async {
-        guard !globalBusy, !connecting else { return }
-        closeIdleExecutionConnections()
-        connecting = true
-        defer { connecting = false }
-        codexUsage.clear()
-        do { account = try await serviceClient.request("account_logout"); models = []; cloudConsent = false; loginPending = false }
-        catch { report(error) }
     }
 
     func showMessage(_ message: ChatMessage, in source: WorkspacePresentations? = nil) {

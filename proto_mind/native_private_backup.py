@@ -23,7 +23,7 @@ MAX_FILES = 50_000
 MAX_MANIFEST = 16 * 1024 * 1024
 NATIVE_ITEMS = {"conversations.json", "chat_objects", "history_backups", "preferences.json", "codex_threads.json",
                 "integrations.json", "work_sessions", "project_memory", "learning_history", "session_spine_identity",
-                "session_spine_store", "session_spine_intents"}
+                "session_spine_store", "session_spine_intents", "codex_account_threads"}
 NATIVE_FILES = {"conversations.json", "preferences.json", "codex_threads.json", "integrations.json"}
 EXCLUDED = "Входы и ключи сервисов, история провайдеров, исходные вложения, файлы рабочих проектов и другие резервные копии не входят в архив."
 

@@ -31,6 +31,7 @@ extension AppModel {
         var chat = Conversation()
         if let source = selected {
             chat.provider = source.provider; chat.model = source.model; chat.reasoningEffort = source.reasoningEffort
+            chat.codexAccountID = source.codexAccountID
             chat.workspacePath = source.workspacePath; chat.apiConnectionID = source.apiConnectionID
         } else if serviceClient.configuration.isPortable { chat.provider = "codex"; chat.model = "" }
         // A new conversation inherits a model and folder, never an authorization grant.
@@ -84,12 +85,12 @@ extension AppModel {
             conversations[index].model = ""; conversations[index].reasoningEffort = ""
         }
         if let model {
-            guard conversations[index].provider != "codex" || model.isEmpty || codexModels.contains(where: { $0.id == model }) else { return }
+            guard conversations[index].provider != "codex" || model.isEmpty || codexModels(for: id).contains(where: { $0.id == model }) else { return }
             conversations[index].model = model
             conversations[index].reasoningEffort = ""
         }
         if let effort {
-            let model = codexModels.first { conversations[index].model.isEmpty ? $0.isDefault : $0.id == conversations[index].model }
+            let model = codexModels(for: id).first { conversations[index].model.isEmpty ? $0.isDefault : $0.id == conversations[index].model }
             guard conversations[index].provider == "codex", effort.isEmpty || model?.efforts.contains(where: { $0.rawValue == effort }) == true else { return }
             conversations[index].reasoningEffort = effort
         }

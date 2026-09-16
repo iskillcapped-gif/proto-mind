@@ -157,11 +157,24 @@ final class CodexUsageModel: ObservableObject {
     private var lastLimitsAttempt: Date?
     private let limitsRequest: (AppModel) async throws -> JSONValue
     private let usageRequest: (AppModel) async throws -> JSONValue
+    let accountID: UUID?
+    private let client: BridgeClient?
 
     init(usageRequest: @escaping (AppModel) async throws -> JSONValue = { try await $0.serviceClient.request("account_usage") },
-         limitsRequest: @escaping (AppModel) async throws -> JSONValue = { try await $0.serviceClient.request("account_limits") }) {
-        self.usageRequest = usageRequest
-        self.limitsRequest = limitsRequest
+         limitsRequest: @escaping (AppModel) async throws -> JSONValue = { try await $0.serviceClient.request("account_limits") },
+         accountID: UUID? = nil, client: BridgeClient? = nil) {
+        self.accountID = accountID; self.client = client
+        if let client {
+            self.usageRequest = { _ in try await client.request("account_usage") }
+            self.limitsRequest = { _ in try await client.request("account_limits") }
+        } else {
+            self.usageRequest = usageRequest; self.limitsRequest = limitsRequest
+        }
+    }
+
+    func authenticationPending(app: AppModel) -> Bool {
+        let connection = app.codexAccounts.connection(accountID)
+        return connection.connecting || connection.loginPending
     }
 
     var displaySnapshot: CodexUsageSnapshot? {
@@ -182,8 +195,8 @@ final class CodexUsageModel: ObservableObject {
     }
 
     func refreshLimits(app: AppModel, minimumInterval: TimeInterval = 30, now: Date = .now) async {
-        guard !refreshingLimits, !refreshing, !resetting, app.cloudConsent, !app.connecting,
-              !app.loginPending, !app.privateBackupRestartRequired,
+        guard !refreshingLimits, !refreshing, !resetting, app.cloudConsent, !authenticationPending(app: app),
+              !app.privateBackupRestartRequired,
               lastLimitsAttempt.map({ now.timeIntervalSince($0) >= minimumInterval }) ?? true else { return }
         let requestGeneration = generation
         lastLimitsAttempt = now; refreshingLimits = true
@@ -193,7 +206,7 @@ final class CodexUsageModel: ObservableObject {
             // Leaving the foreground stops future polling, not the delivery of
             // an already completed, read-only request for the same account.
             guard requestGeneration == generation, app.cloudConsent,
-                  !app.connecting, !app.loginPending, !app.privateBackupRestartRequired else { return }
+                  !authenticationPending(app: app), !app.privateBackupRestartRequired else { return }
             acceptSummary(try CodexUsageSnapshot.parse(raw))
         } catch {
             guard requestGeneration == generation else { return }
@@ -212,7 +225,7 @@ final class CodexUsageModel: ObservableObject {
     }
 
     func consume(_ attempt: CodexResetAttempt, app: AppModel) async {
-        guard !refreshing, !resetting, !app.globalBusy, !app.connecting, !app.client.turnOutstanding,
+        guard !refreshing, !resetting, !app.globalBusy, !authenticationPending(app: app), !app.client.turnOutstanding,
               !app.privateBackupRestartRequired, let value = displaySnapshot, value.canReset,
               value.reset?.accountRef == attempt.accountRef,
               value.reset?.attemptKey == attempt.previousKey else { return }
@@ -220,7 +233,7 @@ final class CodexUsageModel: ObservableObject {
         resetting = true; app.busy = true; error = nil; resetMessage = nil
         defer { resetting = false; app.busy = false }
         do {
-            let result = try await app.serviceClient.request("account_reset", attempt.parameters)
+            let result = try await (client ?? app.serviceClient).request("account_reset", attempt.parameters)
             resetMessage = Self.message(for: result["outcome"].text)
             self.snapshot = result["usage"].isNull ? nil : try CodexUsageSnapshot.parse(result["usage"])
             acceptSummary(self.snapshot)
@@ -233,15 +246,14 @@ final class CodexUsageModel: ObservableObject {
     }
 
     func refresh(app: AppModel) async {
-        guard !refreshing, !resetting, app.cloudConsent, !app.connecting, !app.loginPending, !app.privateBackupRestartRequired else { return }
+        guard !refreshing, !resetting, app.cloudConsent, !authenticationPending(app: app), !app.privateBackupRestartRequired else { return }
         let requestGeneration = generation
         refreshing = true; error = nil; resetMessage = nil
         lastLimitsAttempt = .now
         defer { refreshing = false }
         do {
             let value = try await usageRequest(app)
-            guard requestGeneration == generation, app.cloudConsent, !app.connecting,
-                  !app.loginPending, !app.privateBackupRestartRequired else { return }
+            guard requestGeneration == generation, app.cloudConsent, !authenticationPending(app: app), !app.privateBackupRestartRequired else { return }
             snapshot = try CodexUsageSnapshot.parse(value)
             acceptSummary(snapshot)
             if let reset = snapshot?.reset, !reset.outcome.isEmpty { resetMessage = Self.message(for: reset.outcome) }

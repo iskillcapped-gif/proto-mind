@@ -19,13 +19,15 @@ struct ModelSelectionMenu: View {
     @State private var open = false
 
     private var isCodex: Bool { model.selected?.provider == "codex" }
+    private var accountPrefix: String { isCodex && model.codexAccounts.items.count > 1 ? model.selectedCodexAccount.shortName + " · " : "" }
     private var title: String {
-        isCodex ? "\(model.codexModelLabel) · \(model.reasoningEffortLabel)" : localModelLabel
+        isCodex ? "\(accountPrefix)\(model.codexModelLabel) · \(model.reasoningEffortLabel)" : localModelLabel
     }
     private var styledTitle: Text {
         let effort = Text(" · \(model.reasoningEffortLabel)").foregroundColor(.secondary)
+        let account = Text(accountPrefix).foregroundColor(.secondary)
         return isCodex
-            ? Text("\(model.codexModelLabel)\(effort)")
+            ? Text("\(account)\(model.codexModelLabel)\(effort)")
             : Text(localModelLabel)
     }
 
@@ -71,6 +73,9 @@ struct ModelSelectionChoices: View {
                         .disabled(model.connecting).help(L10n.text("Обновить доступные модели"))
                 }
             }.padding(.horizontal, 8).padding(.top, 6)
+            if isCodex, let id = model.selectedID {
+                ConversationAccountPicker(app: model, conversationID: id) { open = false }
+            }
             if isCodex {
                 HStack(spacing: 4) {
                     tab(L10n.text("Модель"), icon: "sparkle", id: "model")

@@ -10,7 +10,7 @@ struct SidebarMenuView: View {
     @State private var open = false
 
     private var canRefresh: Bool {
-        client.connected && !app.bootstrap.isNull && app.cloudConsent && !app.connecting
+        !app.bootstrap.isNull && app.cloudConsent && !app.connecting
             && !app.loginPending && !app.privateBackupRestartRequired
     }
     private var autoRefresh: Bool { canRefresh && scenePhase == .active }
@@ -39,7 +39,7 @@ struct SidebarMenuView: View {
         .composerPopover(isPresented: $open, width: columnWidth, confinedToColumn: true, columnWidth: columnWidth) {
             menuContent
         }
-        .task(id: autoRefresh) {
+        .task(id: app.selectedCodexAccount.id + String(autoRefresh)) {
             guard autoRefresh else { return }
             while !Task.isCancelled {
                 await usage.refreshLimits(app: app)
@@ -76,6 +76,7 @@ struct SidebarMenuView: View {
                     Spacer()
                     Text(L10n.text("Осталось")).font(.system(size: 10)).foregroundStyle(.secondary)
                 }
+                Text(app.selectedCodexAccount.label).font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(2)
                 let windows = SidebarQuotaSummary.windows(usage.displaySnapshot)
                 if windows.isEmpty {
                     Text(usage.refreshingLimits ? L10n.text("Обновляю…") : L10n.text("Данные пока недоступны"))
@@ -112,7 +113,7 @@ struct SidebarMenuView: View {
                 }
                 ComposerMenuRow(title: L10n.text("Лимиты"), icon: "gauge.with.dots.needle.50percent") {
                     open = false
-                    Task { @MainActor in await Task.yield(); app.showCodexUsage = true }
+                    Task { @MainActor in await Task.yield(); app.openCodexUsage() }
                 }
                 ComposerMenuRow(title: app.desktop.enabled ? L10n.text("Обычное окно") : L10n.text("Парящий режим"),
                                 icon: app.desktop.enabled ? "macwindow" : "cube.transparent") {

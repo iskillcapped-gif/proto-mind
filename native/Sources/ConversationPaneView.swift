@@ -172,8 +172,9 @@ struct ConversationPaneView: View {
 
     private func modelLabel(_ conversation: Conversation) -> String {
         if conversation.provider == "codex" {
-            let model = app.codexModels.first { conversation.model.isEmpty ? $0.isDefault : $0.id == conversation.model }
-            return model?.displayName ?? (conversation.model.isEmpty ? "ChatGPT" : conversation.model)
+            let model = app.codexModels(for: conversation.id).first { conversation.model.isEmpty ? $0.isDefault : $0.id == conversation.model }
+            let account = app.codexAccounts.items.count > 1 ? app.codexAccount(for: conversation.id).shortName + " · " : ""
+            return account + (model?.displayName ?? (conversation.model.isEmpty ? "ChatGPT" : conversation.model))
         }
         return conversation.model.isEmpty ? (conversation.provider == "mock" ? L10n.text("Тестовый режим") : "Ollama") : conversation.model
     }
@@ -221,12 +222,20 @@ private struct PaneModelChoices: View {
         VStack(alignment: .leading, spacing: 10) {
             Text(L10n.text("Модель диалога")).font(.system(size: 14, weight: .medium))
             if conversation.provider == "codex" {
-                ForEach(app.codexModels) { model in
+                ConversationAccountPicker(app: app, conversationID: conversation.id, chosen: close)
+                HStack {
+                    Button(L10n.text("Обновить доступные модели")) {
+                        let account = app.codexAccount(for: conversation.id)
+                        Task { await app.refreshAccount(account) }
+                    }.disabled(app.codexAccount(for: conversation.id).connecting)
+                    Spacer()
+                }.font(.caption)
+                ForEach(app.codexModels(for: conversation.id)) { model in
                     ComposerMenuRow(title: model.displayName, icon: conversation.model == model.id ? "checkmark" : "sparkle") {
                         app.configureConversation(conversation.id, model: model.id); close()
                     }
                 }
-                if let model = app.codexModels.first(where: { conversation.model.isEmpty ? $0.isDefault : $0.id == conversation.model }) {
+                if let model = app.codexModels(for: conversation.id).first(where: { conversation.model.isEmpty ? $0.isDefault : $0.id == conversation.model }) {
                     Picker(L10n.text("Усилие"), selection: Binding(get: { conversation.reasoningEffort }, set: { app.configureConversation(conversation.id, effort: $0) })) {
                         Text(L10n.text("Авто")).tag("")
                         ForEach(model.efforts) { Text($0.title).tag($0.rawValue) }

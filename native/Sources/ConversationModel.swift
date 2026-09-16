@@ -23,6 +23,7 @@ extension AppModel {
         sessionSpinePreview = nil
         flushDraft()
         var chat = Conversation()
+        chat.codexAccountID = selected?.codexAccountID
         if serviceClient.configuration.isPortable { chat.provider = "codex"; chat.model = "" }
         conversations.insert(chat, at: 0)
         selectedID = chat.id
@@ -190,8 +191,8 @@ extension AppModel {
         do {
             var params: [String: JSONValue] = ["conversation_id": .string(id.uuidString)]
             if let workspace { params["workspace_root"] = .string(workspace) }
-            let value = try await serviceClient.request("codex_thread_status", params)
-            guard selectedID == id, selected?.workspacePath == workspace, selected?.provider == "codex" else { return }
+            let value = try await codexAccount(for: id).client.request("codex_thread_status", params)
+            guard selectedID == id, selected?.workspacePath == workspace, selected?.provider == "codex", selected?.codexAccountID == conversation.codexAccountID else { return }
             guard value["schema"].text == "proto_mind.native_codex_threads.v1",
                   !value["linked"].isNull, !value["workspace_matches"].isNull else {
                 throw NativeError.message("Не удалось проверить локальную связь с сессией Codex.")
