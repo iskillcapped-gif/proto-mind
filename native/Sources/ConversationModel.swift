@@ -130,7 +130,7 @@ extension AppModel {
 
     var reasoningEffortLabel: String {
         let value = selected?.reasoningEffort ?? ""
-        if value.isEmpty { return selectedCodexModel?.defaultEffort?.title ?? "Авто" }
+        if value.isEmpty { return selectedCodexModel?.defaultEffort?.title ?? L10n.text("Авто") }
         return CodexReasoningEffort(rawValue: value)?.title ?? value
     }
 

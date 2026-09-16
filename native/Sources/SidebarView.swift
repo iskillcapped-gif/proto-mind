@@ -144,7 +144,7 @@ struct SidebarView: View {
         } label: {
             HStack(spacing: 8) {
                 if chat.archived { Image(systemName: "archivebox").font(.system(size: 12)).foregroundStyle(.secondary) }
-                Text(chat.title).font(.system(size: 14)).lineLimit(1)
+                Text(chat.displayTitle).font(.system(size: 14)).lineLimit(1)
                 Spacer(minLength: 0)
                 if isWorking {
                     WorkingIndicator()
@@ -154,8 +154,8 @@ struct SidebarView: View {
             }.padding(.leading, 30).padding(.trailing, 10).padding(.vertical, 9).frame(maxWidth: .infinity, alignment: .leading)
                 .background(model.selectedID == chat.id && model.section == .chat ? NativeTheme.selection : .clear,
                             in: RoundedRectangle(cornerRadius: 9))
-        }.buttonStyle(.nativeHover).disabled(presentationLocked || !model.canNavigateConversations).help(chat.title)
-            .accessibilityLabel(chat.title + (isWorking ? L10n.text(" · Выполняется задача") : ""))
+        }.buttonStyle(.nativeHover).disabled(presentationLocked || !model.canNavigateConversations).help(chat.displayTitle)
+            .accessibilityLabel(chat.displayTitle + (isWorking ? L10n.text(" · Выполняется задача") : ""))
             .contextMenu {
                 Button(L10n.text("Переименовать…")) { newTitle = chat.title; renaming = chat }
                 Button(chat.archived ? L10n.text("Вернуть из архива") : L10n.text("В архив")) { model.archiveConversation(chat.id, archived: !chat.archived) }

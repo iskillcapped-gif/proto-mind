@@ -261,7 +261,7 @@ private struct SidebarProjectHeading: View {
             .padding(.horizontal, 11).frame(height: 36).contentShape(Rectangle())
             .background(hovered ? Color.primary.opacity(0.035) : .clear, in: RoundedRectangle(cornerRadius: 7))
             .onHover { hovered = $0 }
-            .help((group.workspace ?? "Диалоги без папки проекта") + "\nПеретащите, чтобы изменить порядок проектов")
+            .help((group.workspace ?? L10n.pick("Диалоги без папки проекта", "Conversations without a project")) + L10n.pick("\nПеретащите, чтобы изменить порядок проектов", "\nDrag to reorder projects"))
             .onDrag {
                 let provider = NSItemProvider()
                 guard !app.operationBusy, !app.privateBackupRestartRequired else { return provider }
@@ -273,11 +273,11 @@ private struct SidebarProjectHeading: View {
                 SidebarProjectDragPreview(title: group.title, count: group.conversations.count)
             }
             .accessibilityElement(children: .combine)
-            .accessibilityAction(named: Text("Переместить проект выше")) { moveBy(-1) }
-            .accessibilityAction(named: Text("Переместить проект ниже")) { moveBy(1) }
+            .accessibilityAction(named: Text(L10n.pick("Переместить проект выше", "Move project up"))) { moveBy(-1) }
+            .accessibilityAction(named: Text(L10n.pick("Переместить проект ниже", "Move project down"))) { moveBy(1) }
             .contextMenu {
-                Button("Переместить выше") { moveBy(-1) }.disabled(neighbour(-1) == nil || app.operationBusy)
-                Button("Переместить ниже") { moveBy(1) }.disabled(neighbour(1) == nil || app.operationBusy)
+                Button(L10n.pick("Переместить выше", "Move up")) { moveBy(-1) }.disabled(neighbour(-1) == nil || app.operationBusy)
+                Button(L10n.pick("Переместить ниже", "Move down")) { moveBy(1) }.disabled(neighbour(1) == nil || app.operationBusy)
             }
     }
 

@@ -171,7 +171,7 @@ struct ConversationGroup: Identifiable {
             if let index = result.firstIndex(where: { $0.id == key }) {
                 result[index].conversations.append(chat)
             } else {
-                result.append(ConversationGroup(id: key, title: chat.workspacePath.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "Без рабочей папки",
+                result.append(ConversationGroup(id: key, title: chat.workspacePath.map { URL(fileURLWithPath: $0).lastPathComponent } ?? L10n.pick("Без рабочей папки", "Without a project"),
                                                 workspace: chat.workspacePath, conversations: [chat]))
             }
         }

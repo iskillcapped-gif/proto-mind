@@ -766,7 +766,7 @@ final class AppModel: ObservableObject {
         guard !busy else { return }
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.allowsMultipleSelection = false
-        panel.prompt = "Подключить только для чтения"
+        panel.prompt = L10n.pick("Подключить только для чтения", "Open for reading")
         panel.directoryURL = selected?.workspacePath.map { URL(fileURLWithPath: $0) } ?? client.configuration.projectRoot
         let conversationID = selectedID
         presentFilePicker(panel, in: source) { [weak self] response in

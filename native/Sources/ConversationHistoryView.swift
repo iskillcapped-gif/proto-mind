@@ -90,7 +90,7 @@ struct ConversationHistoryView: View {
         return Button { selectedID = chat.id } label: {
             VStack(alignment: .leading, spacing: 7) {
                 HStack {
-                    Text(chat.title).font(.system(size: 13, weight: .medium)).lineLimit(2)
+                    Text(chat.displayTitle).font(.system(size: 13, weight: .medium)).lineLimit(2)
                     Spacer(minLength: 0)
                     if chat.archived { Image(systemName: "archivebox").foregroundStyle(.secondary) }
                 }
@@ -102,7 +102,7 @@ struct ConversationHistoryView: View {
                 }.font(.system(size: 10)).foregroundStyle(.secondary)
             }.frame(maxWidth: .infinity, alignment: .leading).padding(12)
                 .background(selected?.id == chat.id ? NativeTheme.selection : .clear, in: RoundedRectangle(cornerRadius: 10))
-        }.accessibilityLabel(chat.title + (chat.archived ? L10n.text(", в архиве") : ""))
+        }.accessibilityLabel(chat.displayTitle + (chat.archived ? L10n.text(", в архиве") : ""))
     }
 
     private func detail(_ result: ConversationHistoryResult) -> some View {
@@ -117,7 +117,7 @@ struct ConversationHistoryView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text(chat.title).font(.title2.weight(.semibold)).textSelection(.enabled)
+                        Text(chat.displayTitle).font(.title2.weight(.semibold)).textSelection(.enabled)
                         Label(chat.workspacePath ?? L10n.text("Без папки проекта"), systemImage: "folder")
                             .font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
                         Text(chat.updatedAt.formatted(date: .long, time: .shortened)).font(.caption).foregroundStyle(.secondary)
