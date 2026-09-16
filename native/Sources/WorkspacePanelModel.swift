@@ -149,8 +149,10 @@ extension AppModel {
             if !companion.visible { desktop.companions.toggle(.first) }
             panel = companion.panel
         } else { panel = workspacePanel }
+        let document = ResponseDocument(text: message.text,
+            conversationTitle: conversations.first { $0.id == conversationID }?.displayTitle ?? "")
         panel.open(.answer(WorkspaceAnswerPreview(conversationID: conversationID, messageID: message.id,
-            title: L10n.pick("Результат", "Result"), text: message.text)))
+            title: document.title, text: document.text)))
     }
 
     func showProjectFiles(in panel: WorkspacePanelModel? = nil) {

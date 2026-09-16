@@ -479,6 +479,7 @@ struct MessageView: View {
     @State private var showRaw = false
     @State private var showLegacyActions = false
     @State private var showBrowserReference = false
+    @StateObject private var responseExport = ResponseExportModel()
 
     var body: some View {
         if message.role == "user" {
@@ -527,8 +528,7 @@ struct MessageView: View {
                 if conversationID == nil || conversationID == model.selectedID, let (report, text) = model.memorySuggestions(for: message) { MemorySuggestionCard(app: model, report: report, text: text) }
                 if let receipt = message.agentRun { CompletedFileChangesView(receipt: receipt, openLink: { openLink($0) }) }
                 HStack(spacing: 17) {
-                    Button { model.copy(message.text) } label: { Image(systemName: "doc.on.doc") }
-                        .help(L10n.text("Копировать ответ")).accessibilityLabel(L10n.text("Копировать ответ"))
+                    ResponseCopyButton { model.copy(message.text) }
                     if message.role == "assistant", let sourceID = conversationID ?? model.selectedID {
                         Button {
                             model.openAnswerBesideChat(message, conversationID: sourceID, sourcePanel: targetPanel)
@@ -536,32 +536,42 @@ struct MessageView: View {
                             .help(L10n.pick("Открыть ответ рядом", "Open response beside chat"))
                             .accessibilityLabel(L10n.pick("Открыть ответ рядом", "Open response beside chat"))
                     }
-                    if let conversationID, conversationID != model.selectedID {
-                        Button(L10n.text("Подробнее")) { model.select(conversationID); model.showMessage(message, in: presentations) }
-                    } else if message.hasResponseDetails || message.turnReference != nil {
+                    if message.role == "assistant" || message.hasResponseDetails || message.turnReference != nil {
                         Menu {
-                            if message.hasResponseDetails {
-                                Button(L10n.text("Об ответе"), systemImage: "info.circle") { model.showMessage(message, in: presentations) }
-                                Button(showRaw ? L10n.text("Скрыть исходный отчёт") : L10n.text("Исходный отчёт"), systemImage: "text.alignleft") { showRaw.toggle() }
+                            if message.role == "assistant" {
+                                Button(L10n.pick("Сохранить ответ…", "Save response…"), systemImage: "square.and.arrow.down") {
+                                    let sourceID = conversationID ?? model.selectedID
+                                    let title = model.conversations.first { $0.id == sourceID }?.displayTitle ?? ""
+                                    responseExport.save(ResponseDocument(text: message.text, conversationTitle: title), using: model, in: presentations)
+                                }
                             }
-                            if message.turnReference != nil {
-                                Button(L10n.text("Ход этой задачи"), systemImage: "clock.arrow.circlepath") { Task { await model.openWorkSession(for: message, in: presentations) } }
-                                    .disabled(model.busy || model.loadingWorkSessions)
-                                Button(L10n.text("Цепочка диалога · Session Spine"), systemImage: "point.3.connected.trianglepath.dotted") { Task { await model.openSessionSpine(for: message, in: presentations) } }
-                                    .disabled(model.busy || model.loadingWorkSessions || model.loadingSessionSpinePreview)
+                            if message.role == "assistant", message.hasResponseDetails || message.turnReference != nil { Divider() }
+                            if let conversationID, conversationID != model.selectedID {
+                                Button(L10n.text("Об ответе"), systemImage: "info.circle") {
+                                    model.select(conversationID); model.showMessage(message, in: presentations)
+                                }
+                            } else {
+                                if message.hasResponseDetails {
+                                    Button(L10n.text("Об ответе"), systemImage: "info.circle") { model.showMessage(message, in: presentations) }
+                                    Button(showRaw ? L10n.text("Скрыть исходный отчёт") : L10n.text("Исходный отчёт"), systemImage: "text.alignleft") { showRaw.toggle() }
+                                }
+                                if message.turnReference != nil {
+                                    Button(L10n.text("Ход этой задачи"), systemImage: "clock.arrow.circlepath") { Task { await model.openWorkSession(for: message, in: presentations) } }
+                                        .disabled(model.busy || model.loadingWorkSessions)
+                                    Button(L10n.text("Цепочка диалога · Session Spine"), systemImage: "point.3.connected.trianglepath.dotted") { Task { await model.openSessionSpine(for: message, in: presentations) } }
+                                        .disabled(model.busy || model.loadingWorkSessions || model.loadingSessionSpinePreview)
+                                }
                             }
                         } label: {
-                            Label {
-                                Text(L10n.text("Подробнее")).foregroundColor(.secondary)
-                            } icon: {
-                                Image(systemName: "ellipsis").foregroundColor(.secondary)
-                            }
+                            Image(systemName: "ellipsis").foregroundColor(.secondary).frame(width: 28, height: 28)
                         }
-                            .menuStyle(.borderlessButton).tint(.secondary).fixedSize().nativeHoverSurface().accessibilityLabel(L10n.text("Подробнее об ответе"))
+                            .menuStyle(.borderlessButton).menuIndicator(.hidden).tint(.secondary).fixedSize().nativeHoverSurface()
+                            .help(L10n.pick("Действия с ответом", "Response actions"))
+                            .accessibilityLabel(L10n.pick("Действия с ответом", "Response actions"))
                     }
                 }.buttonStyle(.nativeHover).font(.system(size: 13)).foregroundStyle(.secondary).padding(.top, 2)
                 if showRaw { Text(message.raw).font(.system(size: 11, design: .monospaced)).textSelection(.enabled) }
-            }.frame(maxWidth: .infinity, alignment: .leading)
+            }.frame(maxWidth: .infinity, alignment: .leading).responseExportFeedback(responseExport)
         }
     }
 

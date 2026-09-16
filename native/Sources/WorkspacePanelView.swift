@@ -164,28 +164,12 @@ struct WorkspacePanelView: View {
         case .browser(let browser): BrowserView(browser: browser, app: model, sourcePanel: panel)
         case .conversation(let id): ConversationPaneView(app: model, conversationID: id, panel: panel)
         case .terminal(let terminal): WorkspaceTerminalView(terminal: terminal)
-        case .answer(let answer):
-            VStack(spacing: 0) {
-                HStack {
-                    Text(answer.title).font(.callout).lineLimit(1)
-                    Spacer()
-                    Button { model.copy(answer.text) } label: { Image(systemName: "doc.on.doc") }
-                        .help(L10n.pick("Копировать ответ", "Copy response"))
-                    Button(L10n.pick("К диалогу", "Go to conversation")) { model.select(answer.conversationID) }
-                }.padding(12).workspacePanelHeader()
-                Divider().workspacePanelHeader()
-                ScrollView {
-                    MessageMarkdownView(text: answer.text, copy: model.copy, openLink: { url in
-                        if NativeBrowserURL.isWebURL(url) { panel.openBrowser(url) }
-                        else { model.openPanelFile(url, conversationID: answer.conversationID, panel: panel) }
-                    }).padding(24).frame(maxWidth: .infinity, alignment: .leading)
-                }
-            }
+        case .answer(let answer): WorkspaceAnswerView(model: model, panel: panel, answer: answer)
         }
     }
 
     private func title(_ tab: WorkspacePanelTab) -> String {
-        if case .conversation(let id) = tab.content { return model.conversations.first { $0.id == id }?.title ?? L10n.text("Диалог") }
+        if case .conversation(let id) = tab.content { return model.conversations.first { $0.id == id }?.displayTitle ?? L10n.text("Диалог") }
         return tab.title
     }
     private func close(_ tab: WorkspacePanelTab) {
@@ -199,6 +183,37 @@ struct WorkspacePanelView: View {
         model.presentFilePicker(picker, in: panel.presentations) { result in
             if result == .OK, let url = picker.url { panel.openTerminal(directory: directory, executable: url.path, arguments: []) }
         }
+    }
+}
+
+private struct WorkspaceAnswerView: View {
+    @ObservedObject var model: AppModel
+    let panel: WorkspacePanelModel
+    let answer: WorkspaceAnswerPreview
+    @Environment(\.workspacePresentations) private var presentations
+    @StateObject private var responseExport = ResponseExportModel()
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                Text(answer.title).font(.callout).lineLimit(1).help(answer.title)
+                Spacer(minLength: 0)
+                ResponseCopyButton { model.copy(answer.text) }
+                Button {
+                    responseExport.save(ResponseDocument(text: answer.text, conversationTitle: answer.title), using: model, in: presentations)
+                } label: { Image(systemName: "square.and.arrow.down").frame(width: 28, height: 28) }
+                    .help(L10n.pick("Сохранить ответ…", "Save response…"))
+                    .accessibilityLabel(L10n.pick("Сохранить ответ…", "Save response…"))
+                Button(L10n.pick("К диалогу", "Go to conversation")) { model.select(answer.conversationID) }
+            }.buttonStyle(.nativeHover).foregroundStyle(.secondary).padding(12).workspacePanelHeader()
+            Divider().workspacePanelHeader()
+            ScrollView {
+                MessageMarkdownView(text: answer.text, copy: model.copy, openLink: { url in
+                    if NativeBrowserURL.isWebURL(url) { panel.openBrowser(url) }
+                    else { model.openPanelFile(url, conversationID: answer.conversationID, panel: panel) }
+                }).padding(24).frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }.responseExportFeedback(responseExport)
     }
 }
 

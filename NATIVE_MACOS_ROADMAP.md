@@ -4,6 +4,23 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Response Actions — Native 0.66.1
+
+The reply footer uses a grey ellipsis without a text label or menu chevron.
+Its menu retains response details and exact task history, and adds Markdown
+export through a Save panel attached to the originating window. The saved
+snapshot contains only the chosen visible reply, never private receipts or the
+rest of the conversation; selecting another task cannot replace its text.
+Result panels offer the same Save action, meaningful heading/conversation titles
+and brief copy acknowledgement. Export failures stay in the source workspace.
+
+Verification: 520 focused Native interface checks passed, including exact UTF-8
+export snapshots, bounded filenames and failure preservation. The signed release
+was exercised in a disposable profile: chat and result-panel saves matched the
+reply bytes, switching tasks retained the original export, and cancelling wrote
+nothing. Copy acknowledgement, the ellipsis menu, a floating window's Save sheet,
+and its in-place response details were checked in the UI. No live model was used.
+
 ## Browser to Task — Native 0.66.0
 
 PM browser pages and selections can be explicitly handed to a chosen conversation.

@@ -96,6 +96,12 @@ capability improvements use the same source and can ship in both editions.
 
 The next useful candidate is original PDF viewing in the working panel, with clear page navigation and the existing explicit attachment controls. The current panel can inspect selected PDF text but does not render the original layout. Keep viewing separate from sending document contents. This candidate has not been started; the operator's larger functional expansion remains to be scoped.
 
+The September 16 interface pass also identified unread completed replies as a
+useful companion to concurrent tasks: mark them in the sidebar and optionally
+notify while the floating workspace is hidden. Current rows indicate running
+tasks and drafts, but do not track whether a background answer was read. This
+remains a candidate; OS notifications and their permissions are not enabled.
+
 ## Later Candidates
 
 The operator plans a substantial functional expansion and will supply its scope after interface work. Keep these options available without starting all of them now:

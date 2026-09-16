@@ -2,7 +2,7 @@
 
 Proto-Mind is a personal cognitive-agent architecture and native macOS workspace.
 
-**Portable beta for other users — 0.66.0 (90):** a separate Apple Silicon macOS
+**Portable beta for other users — 0.66.1 (91):** a separate Apple Silicon macOS
 application includes Python and Codex, a first-connection screen and its own
 per-user profile. It needs no source checkout, Homebrew or Node to launch.
 [Install and connect](INSTALL_MACOS.md) · [Build and distribution status](native/Distribution/README.md).
@@ -14,7 +14,9 @@ For current development guidance, see [`AGENTS.md`](AGENTS.md). The [current pri
 
 ## Native macOS Direction
 
-The current native workspace is **Native 0.66.0 / Browser to Task**, built with SwiftUI/AppKit over the existing Python cognitive core. It retains project memory, independent conversations, live steering and explicit Mac access. This development line is separate from the earlier submitted Build Week baseline.
+The current native workspace is **Native 0.66.1 / Response Actions**, built with SwiftUI/AppKit over the existing Python cognitive core. It retains project memory, independent conversations, live steering and explicit Mac access. This development line is separate from the earlier submitted Build Week baseline.
+
+**Response actions:** the quiet **…** menu under a reply keeps its details and adds **Save response…**. Save the chosen reply as Markdown from chat or its result panel; only the visible reply is exported, with its original formatting. Result tabs use the reply heading or conversation title. Copy briefly shows a checkmark.
 
 **Browser to Task:** open a PM browser page, optionally select a passage, and choose **Use in a task**. Review its bounded text snapshot, pick the exact conversation, and add an instruction. Existing draft text and attachments remain; sending uses the normal task or update pipeline. Voice can perform the same explicit handoff. Pages are reference data, with their URL and partial-capture marker saved in the user message; opening a page alone never sends it. Completed answers can open as Markdown documents beside the chat or in its originating companion. Main navigation, settings, model controls and voice support English/Russian, chosen at first launch or in Settings → Appearance; changing language requires restart. Technical core reports may remain Russian. [Demo walkthrough](native/Distribution/DemoProject/README.md) · [Launch kit](native/Distribution/CHALLENGE_LAUNCH.md).
 

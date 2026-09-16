@@ -91,6 +91,35 @@ extension NativeChecks {
         let message = ChatMessage(role: "assistant", text: "Ответ", notices: ["Служебное пояснение"])
         try check(message.hasResponseDetails && !ChatMessage(role: "assistant", text: "Ответ").hasResponseDetails,
                   "Moved notices remain reachable through details even without cognitive evidence")
+
+        let response = "# **План запуска**\n\nПервый шаг 💙\n\n```swift\nprint(\"готово\")\n```\n"
+        var source = ChatMessage(role: "assistant", text: response, raw: "PRIVATE RECEIPTS", notices: ["PRIVATE NOTICE"])
+        let document = ResponseDocument(text: source.text, conversationTitle: "Другой заголовок")
+        source.text = "A later reply must not replace the chosen export"
+        let exportDirectory = root.appendingPathComponent("reply-export")
+        try FileManager.default.createDirectory(at: exportDirectory, withIntermediateDirectories: true)
+        let destination = exportDirectory.appendingPathComponent(document.filename)
+        try "Previous file".write(to: destination, atomically: true, encoding: .utf8)
+        try document.write(to: destination)
+        try check(try Data(contentsOf: destination) == Data(response.utf8),
+                  "Saving a captured reply preserves exact Markdown and Unicode, excludes private receipts and replaces only the chosen file")
+        try check(document.title == "План запуска" && document.filename == "План запуска.md",
+                  "Result tabs and suggested filenames use the visible heading without Markdown emphasis")
+        let fenced = ResponseDocument(text: "```sh\n# Not a heading\n```", conversationTitle: "Настоящая задача")
+        try check(fenced.title == "Настоящая задача", "Code headings cannot rename a result tab")
+        for title in ["../../private/notes:plan\\draft\nnext", String(repeating: "💙", count: 100), "...", "\u{0000}"] {
+            let filename = ResponseDocument(text: "Plain response", conversationTitle: title).filename
+            try check(filename.utf8.count <= 163 && filename.hasSuffix(".md") && !filename.hasPrefix(".")
+                      && !filename.contains("/") && !filename.contains("\\") && !filename.contains(":"),
+                      "Suggested reply filename is a bounded visible component for \(title.debugDescription)")
+        }
+        do {
+            try document.write(to: exportDirectory)
+            throw NativeError.message("Saving over a directory must fail")
+        } catch {
+            try check((error as? CocoaError) != nil && (try Data(contentsOf: destination)) == Data(response.utf8),
+                      "A failed reply export leaves the previous saved reply intact")
+        }
         try check(!app.client.connected && !app.fullAccessEnabled && !FileManager.default.fileExists(atPath: root.appendingPathComponent("chat-ui").path),
                   "Chat presentation never starts providers, grants access or writes private state")
     }
