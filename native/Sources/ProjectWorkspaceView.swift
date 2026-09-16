@@ -4,6 +4,7 @@ struct ProjectWorkspaceView: View {
     @ObservedObject var model: AppModel
     var panel: WorkspacePanelModel? = nil
     @State private var search = ""
+    @FocusState private var searchFocused: Bool
     private var entries: [JSONValue] {
         model.workspaceListing["entries"].items.filter {
             search.isEmpty || $0["name"].text.localizedCaseInsensitiveContains(search)
@@ -27,8 +28,8 @@ struct ProjectWorkspaceView: View {
                 } label: { Image(systemName: "ellipsis") }
                     .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().disabled(!model.canEditMessageAttachments)
                     .accessibilityLabel("Действия с файлами")
-            }.padding(16)
-            Divider()
+            }.padding(16).workspacePanelHeader()
+            Divider().workspacePanelHeader()
             if let error = model.workspaceError {
                 Text(error).font(.callout).foregroundStyle(.orange).textSelection(.enabled).padding(14)
             }
@@ -50,10 +51,13 @@ struct ProjectWorkspaceView: View {
                         .disabled(["", "."].contains(model.workspaceListing["directory"].text) || !model.canEditMessageAttachments || model.loadingWorkspace)
                         .accessibilityLabel("Родительская папка")
                     TextField("Найти в этой папке", text: $search).textFieldStyle(.roundedBorder)
+                        .focused($searchFocused).workspaceChromeField($searchFocused)
+                        .onSubmit { searchFocused = false }.onExitCommand { searchFocused = false }
                     if !search.isEmpty { Button { search = "" } label: { Image(systemName: "xmark.circle.fill") }.accessibilityLabel("Очистить фильтр файлов") }
-                }.padding(12)
+                }.padding(12).workspacePanelHeader()
                 if !["", "."].contains(model.workspaceListing["directory"].text) {
                     Text(model.workspaceListing["directory"].text).font(.caption).foregroundStyle(.secondary).lineLimit(1).padding(.horizontal, 16).padding(.bottom, 8)
+                        .workspacePanelHeader()
                 }
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 2) {

@@ -5,6 +5,13 @@ struct DesktopCompanionView: View {
     @ObservedObject var app: AppModel
     @ObservedObject var owner: DesktopCompanionWindows
     @ObservedObject var surface: DesktopCompanion
+    @ObservedObject private var chrome: WorkspacePanelChrome
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOver
+
+    init(app: AppModel, owner: DesktopCompanionWindows, surface: DesktopCompanion) {
+        self.app = app; self.owner = owner; self.surface = surface
+        self.chrome = surface.chrome
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -20,6 +27,7 @@ struct DesktopCompanionView: View {
                     .help("Скрыть окно").accessibilityLabel("Скрыть · " + surface.id.title)
             }.frame(height: 34).foregroundStyle(.secondary).buttonStyle(.nativeHover)
                 .padding(.leading, surface.id == .second ? 32 : 16).padding(.trailing, 8).padding(.top, 4)
+                .workspacePanelHeader()
             WorkspacePanelView(model: app, panel: surface.panel, position: surface.id.position,
                 controls: WorkspacePanelControls(title: surface.id.title, activate: { owner.pinPreview() }, expand: { owner.toggleExpansion(surface.id) }))
         }
@@ -47,6 +55,8 @@ struct DesktopCompanionView: View {
         }
         .background(CompanionHoverRegion(owner: owner, id: surface.id))
         .environment(\.desktopGlass, true)
+        .environment(\.workspaceChrome, chrome)
+        .environment(\.workspaceChromeVisible, surface.expanded || chrome.visible || voiceOver)
         .onExitCommand {
             if surface.expanded { owner.toggleExpansion(surface.id) }
             else { owner.toggle(surface.id) }
@@ -124,11 +134,13 @@ struct CompanionDragArea: NSViewRepresentable {
         private var startPoint = NSPoint.zero
         private var startFrame = NSRect.zero
         private var dragged = false
+        private let chromeHold = UUID()
         override var mouseDownCanMoveWindow: Bool { false }
         override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
         override func resetCursorRects() { addCursorRect(bounds, cursor: .openHand) }
         override func mouseDown(with event: NSEvent) {
             owner?.pinPreview()
+            owner?.surface(id).chrome.hold(chromeHold, while: true)
             startPoint = DesktopPointer.screenLocation(of: event, in: window)
             startFrame = window?.frame ?? .zero; dragged = false
         }
@@ -143,6 +155,7 @@ struct CompanionDragArea: NSViewRepresentable {
         override func mouseUp(with event: NSEvent) {
             if dragged { owner?.endDrag(id) }
             dragged = false
+            owner?.surface(id).chrome.hold(chromeHold, while: false)
         }
     }
 }

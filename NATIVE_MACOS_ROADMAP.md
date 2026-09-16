@@ -4,6 +4,27 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Companion Controls on Hover — Native 0.65.5
+
+Compact floating companions now hide the complete top chrome when the pointer
+leaves: window controls, tabs, browser navigation/address, document/PDF controls,
+project-file navigation and conversation/terminal headers. Their content uses the
+freed height. Hover anywhere in the window restores all bars together. Expanded
+companions and ordinary workspace panels retain their controls.
+
+The views remain mounted, including WebKit and SwiftTerm surfaces. A short exit
+grace prevents flicker at the edge; address/filter editing, dragging and native
+popup menus hold the controls open until the interaction ends. Hiding a window
+clears transient holds. VoiceOver keeps controls visible; task errors remain
+available independently of the header.
+
+Verification: 437 interface checks and all 1,686 Native checks passed, including
+real WebKit/PTY geometry,
+independent upper/lower hover, rapid re-entry, interaction holds, expansion,
+detachment, folding/reopening, retained page state and terminal input. A disposable
+application build also checked the compact/expanded browser, retained page input,
+tab menu and return to the main workspace. No live model or microphone was used.
+
 ## Synchronized Cube Transitions — Native 0.65.4
 
 The chat and its companion windows now share one AppKit fade. The complete group

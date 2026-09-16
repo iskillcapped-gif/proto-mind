@@ -85,6 +85,7 @@ struct WorkspaceTerminalView: View {
                 Spacer()
                 if !terminal.running { Text(terminal.exitCode.map { "Завершено · \($0)" } ?? "Завершено") }
             }.font(.system(size: 11)).foregroundStyle(.secondary).padding(.horizontal, 12).padding(.vertical, 8)
+                .workspacePanelHeader()
             TerminalSurface(terminal: terminal).frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }

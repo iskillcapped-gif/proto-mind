@@ -34,6 +34,7 @@ struct ConversationPaneView: View {
                     Button { app.select(conversationID) } label: { Image(systemName: "arrow.up.left.square") }
                         .help("Открыть этот диалог в основном чате").accessibilityLabel("Открыть диалог в основном чате")
                 }.padding(.horizontal, 14).padding(.vertical, 8)
+                    .workspacePanelHeader()
                 ScrollViewReader { proxy in
                     ScrollView {
                         VStack(alignment: .leading, spacing: 24) {

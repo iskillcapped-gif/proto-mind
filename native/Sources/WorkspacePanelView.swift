@@ -52,8 +52,8 @@ struct WorkspacePanelView: View {
                 Menu { actions } label: { Image(systemName: "plus").frame(width: 26, height: 28) }
                     .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
                     .help("Добавить вкладку").accessibilityLabel("Добавить вкладку · " + (controls?.title ?? position.title))
-            }.padding(.horizontal, 9).frame(height: 40)
-            Divider().opacity(0.5)
+            }.padding(.horizontal, 9).frame(height: 40).workspacePanelHeader()
+            Divider().opacity(0.5).workspacePanelHeader()
             if let error = panel.error {
                 HStack(alignment: .top) {
                     Text(error).font(.system(size: 12)).textSelection(.enabled)
@@ -216,8 +216,8 @@ private struct WorkspaceTextView: View {
                 Button { model.attachWorkspaceText(file, in: panel) } label: { Image(systemName: "paperclip") }
                     .disabled(!canAttach).help("Прикрепить к сообщению").accessibilityLabel("Прикрепить файл к сообщению")
                 documentMenu(file.url, text: true)
-            }.padding(14)
-            Divider()
+            }.padding(14).workspacePanelHeader()
+            Divider().workspacePanelHeader()
             if markdown && !showSource {
                 ScrollView {
                     MessageMarkdownView(text: file.value["preview"].text, copy: model.copy, openLink: {
@@ -262,8 +262,8 @@ private struct WorkspaceImageView: View {
                         .help("Прикрепить к сообщению").accessibilityLabel("Прикрепить изображение к сообщению")
                 }
                 documentMenu(URL(fileURLWithPath: preview.source.path))
-            }.padding(14)
-            Divider()
+            }.padding(14).workspacePanelHeader()
+            Divider().workspacePanelHeader()
             Image(nsImage: preview.thumbnail).resizable().scaledToFit().padding(20)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .accessibilityLabel("Изображение \(preview.source.name)")
@@ -295,8 +295,8 @@ private struct WorkspacePDFView: View {
                         .help("Прикрепить выбранные страницы").accessibilityLabel("Прикрепить страницы PDF")
                 }
                 documentMenu(URL(fileURLWithPath: preview.source.path))
-            }.padding(14)
-            Divider()
+            }.padding(14).workspacePanelHeader()
+            Divider().workspacePanelHeader()
             HStack {
                 Text("Текст PDF").font(.caption).foregroundStyle(.secondary)
                 Spacer()
@@ -308,7 +308,7 @@ private struct WorkspacePDFView: View {
                     .disabled((preview.source.pages.last ?? page) >= total || model.loadingPDFPreview || !model.canEditMessageAttachments || !currentConversation)
                     .accessibilityLabel("Следующая страница PDF")
                 if model.loadingPDFPreview { ProgressView().controlSize(.small) }
-            }.padding(12)
+            }.padding(12).workspacePanelHeader()
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     ForEach(Array(preview.pages.enumerated()), id: \.offset) { _, value in

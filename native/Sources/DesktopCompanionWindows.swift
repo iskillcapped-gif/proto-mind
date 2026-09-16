@@ -7,6 +7,7 @@ import SwiftUI
 final class DesktopCompanion: ObservableObject, Identifiable {
     let id: DesktopCompanionID
     let panel = WorkspacePanelModel()
+    let chrome = WorkspacePanelChrome()
     @Published fileprivate(set) var visible = false
     @Published fileprivate(set) var docked = true
     @Published fileprivate(set) var expanded = false
@@ -174,6 +175,7 @@ final class DesktopCompanionWindows: ObservableObject {
 
     func updateHover(_ id: DesktopCompanionID, inside: Bool) {
         if inside { hovered.insert(id) } else { hovered.remove(id) }
+        surface(id).chrome.setHovered(inside)
         desktop?.updateCompanionHover(!hovered.isEmpty)
     }
 
@@ -316,6 +318,7 @@ final class DesktopCompanionWindows: ObservableObject {
 
     func shutdown() {
         for item in surfaces {
+            item.chrome.shutdown()
             storeFreeFrame(item); save(item)
             item.panel.closeAll()
             if let window = item.window { window.parent?.removeChildWindow(window) }
@@ -336,6 +339,7 @@ final class DesktopCompanionWindows: ObservableObject {
     }
 
     private func hideWindow(_ item: DesktopCompanion) {
+        item.chrome.reset()
         guard let window = item.window else { return }
         window.parent?.removeChildWindow(window)
         window.makeFirstResponder(nil); window.orderOut(nil)
@@ -371,6 +375,7 @@ final class DesktopCompanionWindows: ObservableObject {
             window.contentView = host
         }
         item.window = window
+        item.chrome.attach(to: window)
         return window
     }
 

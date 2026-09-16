@@ -266,6 +266,7 @@ extension NativeChecks {
                   "Shutdown releases both floating windows and their owned sessions")
         try await companionHoverRecovery(root: root)
         try await desktopWindowTransitions(root: root)
+        try await companionChrome(root: root)
     }
 }
 

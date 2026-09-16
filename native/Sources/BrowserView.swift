@@ -146,6 +146,8 @@ private struct NativeWebSurface: NSViewRepresentable {
 struct BrowserView: View {
     @ObservedObject var browser: NativeBrowserTab
     @FocusState private var addressFocused: Bool
+    @Environment(\.workspaceChrome) private var chrome
+    @Environment(\.isEnabled) private var enabled
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
@@ -161,15 +163,17 @@ struct BrowserView: View {
                     .help(browser.loading ? "Остановить загрузку" : "Обновить страницу")
                     .accessibilityLabel(browser.loading ? "Остановить загрузку" : "Обновить страницу")
                 TextField("Адрес сайта", text: $browser.address)
-                    .textFieldStyle(.roundedBorder).onSubmit { browser.navigate(browser.address) }
+                    .textFieldStyle(.roundedBorder).onSubmit { browser.navigate(browser.address); addressFocused = false }
                     .focused($addressFocused)
+                    .workspaceChromeField($addressFocused)
+                    .onExitCommand { addressFocused = false }
                     .accessibilityLabel("Адрес сайта")
                 Button {
                     if let url = browser.currentURL, NativeBrowserURL.isWebURL(url) { NSWorkspace.shared.open(url) }
                 } label: { Image(systemName: "arrow.up.right.square") }
                     .disabled(browser.currentURL == nil).help("Открыть во внешнем браузере").accessibilityLabel("Открыть во внешнем браузере")
-            }.padding(12)
-            Divider()
+            }.padding(12).workspacePanelHeader()
+            Divider().workspacePanelHeader()
             if let error = browser.error {
                 HStack(alignment: .top) {
                     Text(error).font(.caption).textSelection(.enabled)
@@ -191,7 +195,7 @@ struct BrowserView: View {
             .task {
                 // Wait until the newly selected tab's text field has joined the window.
                 await Task.yield()
-                if !Task.isCancelled && browser.currentURL == nil { addressFocused = true }
+                if !Task.isCancelled && enabled && browser.currentURL == nil && (chrome?.visible ?? true) { addressFocused = true }
             }
     }
 }
