@@ -268,6 +268,7 @@ extension NativeChecks {
         try await desktopWindowTransitions(root: root)
         try await companionChrome(root: root)
         try await companionPresentations(root: root)
+        try await regularCompanions(root: root)
     }
 }
 

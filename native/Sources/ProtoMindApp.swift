@@ -80,8 +80,8 @@ private struct DesktopWindowCommands: View {
         Button(L10n.text("Переключить парящий режим")) { desktop.toggleMode() }
             .keyboardShortcut("j", modifiers: [.command, .option])
         Button(L10n.text("Боковое окно 1")) { desktop.companions.toggle(.first) }
-            .keyboardShortcut("1", modifiers: [.command, .option]).disabled(!desktop.enabled)
+            .keyboardShortcut("1", modifiers: [.command, .option])
         Button(L10n.text("Боковое окно 2")) { desktop.companions.toggle(.second) }
-            .keyboardShortcut("2", modifiers: [.command, .option]).disabled(!desktop.enabled)
+            .keyboardShortcut("2", modifiers: [.command, .option])
     }
 }

@@ -55,6 +55,12 @@ final class DesktopPresentation: ObservableObject {
     @Published private(set) var sidebarTransparency: Double
     @Published private(set) var coreHovered = false
     private(set) weak var window: NSWindow?
+    private(set) var regularWorkspaceVisible = true
+    private var regularContentRect: NSRect?
+    var regularContentFrame: NSRect? {
+        guard !enabled, let rect = regularContentRect, let window else { return nil }
+        return window.convertToScreen(rect.intersection(window.contentLayoutRect))
+    }
     private(set) var corePanel: NSPanel?
     private(set) var voicePanel: DesktopVoicePanel?
     private weak var app: AppModel?
@@ -202,13 +208,19 @@ final class DesktopPresentation: ObservableObject {
     }
 
     func handleWorkspaceInteraction(_ event: NSEvent) {
-        guard previewing, let target = event.window,
+        guard let target = event.window,
               target === window || companions.owns(target) else { return }
         switch event.type {
         case .leftMouseDown, .rightMouseDown, .otherMouseDown, .keyDown:
             // Only intentional input pins a preview; ordering/focus notifications
             // also happen as a side effect of revealing an AppKit child window.
-            expand(animated: false)
+            if previewing { expand(animated: false) }
+            else if !enabled && !NSApp.isActive && presentsWindows {
+                // The retained panels remain nonactivating for cube previews.
+                // Intentional input in normal mode should activate their app.
+                NSApp.activate(ignoringOtherApps: true)
+                target.makeKeyAndOrderFront(nil)
+            }
         default: break
         }
     }
@@ -261,6 +273,8 @@ final class DesktopPresentation: ObservableObject {
         guard self.window !== window else { return }
         removeObservers()
         self.window = window; self.app = app
+        regularWorkspaceVisible = true
+        regularContentRect = nil
         companions.attach(desktop: self, app: app)
         app.presentations.window = window
         app.presentations.destination = { [weak self] in
@@ -280,6 +294,16 @@ final class DesktopPresentation: ObservableObject {
         observers.append(NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.recoverVisibleFrames() }
         })
+        for name in [NSWindow.willMiniaturizeNotification, NSWindow.willCloseNotification,
+                     NSWindow.didDeminiaturizeNotification, NSWindow.didBecomeMainNotification] {
+            observers.append(NotificationCenter.default.addObserver(forName: name, object: window, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    guard let self, !self.enabled, !self.changingWindow else { return }
+                    self.regularWorkspaceVisible = name == NSWindow.didDeminiaturizeNotification || name == NSWindow.didBecomeMainNotification
+                    self.companions.layout()
+                }
+            })
+        }
         // An approval can arrive while the workspace is folded away. Reveal its owner.
         observers.append(NotificationCenter.default.addObserver(forName: NSWindow.willBeginSheetNotification, object: window, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.expand(animated: false) }
@@ -289,17 +313,19 @@ final class DesktopPresentation: ObservableObject {
             return event
         }
         if defaults.bool(forKey: preferenceKey + ".enabled") { enable(animated: false) }
+        else { companions.layout() }
     }
 
     func toggleMode() { enabled ? restoreWindow() : enable() }
 
     func enable(animated: Bool = true) {
         guard !enabled, let window, let app, window.attachedSheet == nil else { return }
-        original = WindowAppearance(frame: window.frame, background: window.backgroundColor,
+        original = WindowAppearance(frame: companions.preferredWorkspaceFrame ?? window.frame, background: window.backgroundColor,
                                     opaque: window.isOpaque, level: window.level, collection: window.collectionBehavior,
                                     minimum: window.minSize, transparentTitlebar: window.titlebarAppearsTransparent,
                                     animationBehavior: window.animationBehavior)
         changingWindow = true
+        companions.prepareModeChange()
         enabled = true; expanded = true
         // SwiftUI owns its toolbar/background host. Keep the titled frame alive;
         // removing it while SwiftUI detaches that host raises an AppKit exception.
@@ -338,9 +364,28 @@ final class DesktopPresentation: ObservableObject {
         showWorkspace(preview: false, animated: animated)
     }
 
+    /// Explicit actions reveal the owning workspace in either presentation mode.
+    func revealWorkspace() {
+        if enabled { expand(animated: false); return }
+        guard let window else { return }
+        regularWorkspaceVisible = true
+        if presentsWindows {
+            NSApp.activate(ignoringOtherApps: true)
+            if window.isMiniaturized { window.deminiaturize(nil) }
+            window.makeKeyAndOrderFront(nil)
+        }
+        companions.layout()
+    }
+
+    func updateRegularContentRect(_ rect: NSRect, in source: NSWindow) {
+        guard source === window, !enabled, !rect.isEmpty, rect != regularContentRect else { return }
+        regularContentRect = rect
+        companions.layout()
+    }
+
     func revealMainContent() {
         companions.collapseDockedExpansion()
-        expand(animated: false)
+        revealWorkspace()
         if presentsWindows { window?.makeKeyAndOrderFront(nil) }
     }
 
@@ -433,7 +478,8 @@ final class DesktopPresentation: ObservableObject {
         cancelWindowTransition(); changingWindow = true
         saveWorkspaceFrame(force: true)
         enabled = false; expanded = false; previewing = false
-        companions.leaveFloatingMode()
+        companions.prepareModeChange()
+        regularWorkspaceVisible = true
         coreHovered = false; workspaceHovered = false; companionHovered = false; coreInteracting = false; hoverSuppressed = false
         corePanel?.orderOut(nil)
         window.alphaValue = 1
@@ -450,11 +496,15 @@ final class DesktopPresentation: ObservableObject {
         defaults.set(false, forKey: preferenceKey + ".enabled")
         changingWindow = false
         if presentsWindows { NSApp.activate(ignoringOtherApps: true); window.makeKeyAndOrderFront(nil) }
+        companions.layout()
         self.original = nil
     }
 
     func reopen() -> Bool {
-        guard enabled else { return false }
+        guard enabled else {
+            guard let window, !regularWorkspaceVisible || window.isMiniaturized else { return false }
+            revealWorkspace(); return true
+        }
         expand(); return true
     }
 
@@ -503,7 +553,8 @@ final class DesktopPresentation: ObservableObject {
     }
 
     private func recoverVisibleFrames() {
-        guard enabled, let window else { return }
+        guard let window else { return }
+        guard enabled else { companions.layout(); return }
         changingWindow = true
         let screens = NSScreen.screens.map(\.visibleFrame)
         for surface in [window, corePanel].compactMap({ $0 }) {

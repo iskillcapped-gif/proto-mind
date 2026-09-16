@@ -279,8 +279,7 @@ final class AppModel: ObservableObject {
         presentations.reveal = { [weak self] in
             guard let self else { return }
             self.dictation.stop()
-            if self.desktop.enabled { self.desktop.revealMainContent() }
-            else { self.desktop.window?.makeKeyAndOrderFront(nil) }
+            self.desktop.revealMainContent()
         }
         if !historyPersistence.blocksSubmission { responseAttention.prune(conversations) }
         attentionObservation = responseAttention.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }

@@ -22,7 +22,7 @@ struct WorkspaceView: View {
             if desktop.enabled { FloatingWorkspaceView(app: model, desktop: desktop) }
             else { regularWorkspace }
         }
-        .frame(minWidth: desktop.enabled ? desktop.companions.minimumWorkspaceWidth : 940,
+        .frame(minWidth: desktop.companions.minimumWorkspaceWidth,
                minHeight: desktop.enabled ? DesktopGeometry.minimumWorkspace.height : 640)
         .background(DesktopWindowAttachment(app: model, openSettings: { openSettings() }))
         .tint(NativeTheme.accent)
@@ -109,6 +109,7 @@ struct WorkspaceView: View {
                 WorkspaceContentHost(app: model, presentations: model.presentations)
             }
             .background(canvas)
+            .background(RegularWorkspaceContentRegion(desktop: desktop))
             .toolbar {
                 ToolbarItem(placement: .navigation) {
                     HStack(spacing: 9) {
@@ -127,6 +128,7 @@ struct WorkspaceView: View {
                             model.workspacePanels.toggle()
                         } label: { Image(systemName: "sidebar.right") }
                             .help(L10n.text("Две рабочие панели")).accessibilityLabel(L10n.text("Рабочие панели"))
+                        CompanionVisibilityMenu(owner: desktop.companions)
                     }
                 }
             }

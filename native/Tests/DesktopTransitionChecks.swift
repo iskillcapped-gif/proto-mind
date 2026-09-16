@@ -117,9 +117,10 @@ extension NativeChecks {
         try await Task.sleep(for: .milliseconds(40))
         desktop.restoreWindow()
         try await Task.sleep(for: .milliseconds(250))
-        try check(window.isVisible && window.alphaValue == 1 && !first.isVisible && !second.isVisible
+        try check(window.isVisible && window.alphaValue == 1 && first.isVisible && second.isVisible
+                  && first.alphaValue == 1 && second.alphaValue == 1 && first.level == .normal && second.level == .normal
                   && window.animationBehavior == .documentWindow && !desktop.enabled,
-                  "Returning to normal mode cancels the fade and restores native animation behavior")
+                  "Returning to normal mode cancels the fade and keeps all three windows visible at normal level")
         try check(app.selectedExecution?.running == true && app.composer == "Keep the draft while the windows fade"
                   && app.currentHistoryArchive.conversations == archive.conversations && !app.liveVoice.inCall,
                   "Window transitions preserve the running task, draft, history and microphone state")

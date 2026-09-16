@@ -100,6 +100,12 @@ struct NativeChecks {
             print("Native response/PDF checks: \(passed) OK")
             return
         }
+        if CommandLine.arguments.contains("--desktop-only") {
+            try await desktopPresentation(root: root)
+            try await desktopCompanions(root: root)
+            print("Native desktop checks: \(passed) OK")
+            return
+        }
         if CommandLine.arguments.contains("--interface-only") {
             try await sidebarProjectOrdering(root: root)
             try await composerDictation(root: root)

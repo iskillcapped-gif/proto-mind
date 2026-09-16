@@ -79,7 +79,7 @@ final class DesktopCompanionWindows: ObservableObject {
     }
     var minimumWorkspaceWidth: CGFloat {
         let count = surfaces.filter { $0.visible && $0.docked }.count
-        guard count > 0 else { return DesktopGeometry.minimumWorkspace.width }
+        guard count > 0 else { return desktop?.enabled == true ? DesktopGeometry.minimumWorkspace.width : 940 }
         let bounds = screen(for: desktop?.window?.frame ?? .zero)
         return min(640, max(1, bounds.width - DesktopCompanionGeometry.gap) * 0.52)
     }
@@ -99,7 +99,7 @@ final class DesktopCompanionWindows: ObservableObject {
 
     private func revealPresentation(_ id: DesktopCompanionID) {
         let item = surface(id)
-        guard item.visible, desktop?.enabled == true else { return }
+        guard item.visible else { return }
         app?.dictation.stop()
         if item.docked {
             for other in surfaces where other.id != id && other.docked && other.expanded {
@@ -107,7 +107,7 @@ final class DesktopCompanionWindows: ObservableObject {
             }
         }
         // Raise the source window without using revealMainContent, which folds it.
-        if desktop?.expanded != true || desktop?.previewing == true { desktop?.expand(animated: false) }
+        desktop?.revealWorkspace()
         layout()
         if presentsWindows { item.window?.makeKeyAndOrderFront(nil) }
     }
@@ -117,7 +117,7 @@ final class DesktopCompanionWindows: ObservableObject {
         item.visible.toggle()
         if !item.visible { item.expanded = false; item.panel.expanded = false; updateHover(id, inside: false) }
         save(item)
-        if item.visible { desktop?.expand(animated: false) }
+        if item.visible { desktop?.revealWorkspace() }
         layout()
         if item.visible && presentsWindows { item.window?.makeKeyAndOrderFront(nil) }
     }
@@ -148,7 +148,7 @@ final class DesktopCompanionWindows: ObservableObject {
             save(sibling)
         }
         // One layout applies both slots together, after clearing any covering expansion.
-        if desktop?.expanded != true || desktop?.previewing == true { desktop?.expand(animated: false) }
+        desktop?.revealWorkspace()
         layout()
         if presentsWindows { item.window?.makeKeyAndOrderFront(nil) }
     }
@@ -188,7 +188,7 @@ final class DesktopCompanionWindows: ObservableObject {
     }
 
     func parentChanged(resized: Bool = false) {
-        guard !layingOut, desktop?.enabled == true, let window = desktop?.window else { return }
+        guard !layingOut, let window = desktop?.window else { return }
         if workspaceHome != nil {
             workspaceHome?.origin = window.frame.origin
             workspaceHome?.size.height = window.frame.height
@@ -281,7 +281,11 @@ final class DesktopCompanionWindows: ObservableObject {
         guard !layingOut else { return }
         layingOut = true
         defer { layingOut = false }
-        guard let desktop, desktop.enabled, let workspace = desktop.window else {
+        guard let desktop, let workspace = desktop.window else {
+            for item in surfaces { hideWindow(item) }
+            return
+        }
+        if !desktop.enabled && !desktop.regularWorkspaceVisible {
             for item in surfaces { hideWindow(item) }
             return
         }
@@ -294,15 +298,16 @@ final class DesktopCompanionWindows: ObservableObject {
         let bounds = screen(for: workspace.frame)
         let row = DesktopCompanionGeometry.row(workspace: desired, widths: Dictionary(uniqueKeysWithValues: docked.map { ($0.id, $0.width) }), screen: bounds, topFraction: topFraction)
         lastRow = row
-        workspace.minSize = NSSize(width: min(DesktopGeometry.minimumWorkspace.width, row.workspace.width), height: min(DesktopGeometry.minimumWorkspace.height, bounds.height))
+        let minimumHeight: CGFloat = desktop.enabled ? DesktopGeometry.minimumWorkspace.height : 640
+        workspace.minSize = NSSize(width: min(minimumWorkspaceWidth, row.workspace.width), height: min(minimumHeight, bounds.height))
         if workspace.frame != row.workspace { workspace.setFrame(row.workspace, display: true) }
         if docked.isEmpty { workspaceHome = nil }
         let covering = docked.first { $0.expanded }?.id
         var prepared: [NSWindow] = []
         for item in surfaces {
-            let independent = !item.docked && keepDetachedVisible
+            let independent = desktop.enabled && !item.docked && keepDetachedVisible
             let finishingFade = desktop.hidingWorkspace && item.window?.isVisible == true
-            let shown = item.visible && (desktop.expanded || finishingFade || independent)
+            let shown = item.visible && (!desktop.enabled || desktop.expanded || finishingFade || independent)
                 && (!item.docked || covering == nil || covering == item.id)
             guard shown else {
                 hideWindow(item)
@@ -310,9 +315,12 @@ final class DesktopCompanionWindows: ObservableObject {
                 continue
             }
             let window = makeWindow(item)
+            window.isFloatingPanel = desktop.enabled
+            window.level = desktop.enabled ? .floating : workspace.level
+            window.collectionBehavior = desktop.enabled ? [.moveToActiveSpace, .fullScreenAuxiliary] : [.fullScreenAuxiliary]
             let target: NSRect
             if item.docked {
-                target = item.expanded ? row.expanded : row.panels[item.id]!
+                target = item.expanded ? row.expanded(content: desktop.regularContentFrame) : row.panels[item.id]!
                 window.minSize = NSSize(width: min(DesktopCompanionGeometry.minimum.width, target.width),
                                         height: min(DesktopCompanionGeometry.minimumStackHeight, target.height))
             }
@@ -325,7 +333,7 @@ final class DesktopCompanionWindows: ObservableObject {
             }
             if !item.dragging && window.frame != target { window.setFrame(target, display: true) }
             item.appliedSize = window.frame.size
-            if independent { window.animator().alphaValue = 1 }
+            if independent || !desktop.enabled { window.animator().alphaValue = 1 }
             else if !window.isVisible { window.animator().alphaValue = workspace.alphaValue }
             if presentsWindows && !window.isVisible {
                 window.contentView?.layoutSubtreeIfNeeded()
@@ -339,11 +347,13 @@ final class DesktopCompanionWindows: ObservableObject {
             for window in prepared where !window.isVisible { window.orderFrontRegardless() }
         }
         desktop.updateCompanionHover(!hovered.isEmpty)
-        if presentsWindows { desktop.corePanel?.orderFrontRegardless() }
+        if presentsWindows && desktop.enabled { desktop.corePanel?.orderFrontRegardless() }
     }
 
-    func leaveFloatingMode() {
-        for item in surfaces { hideWindow(item) }
+    /// Rebase docking onto the destination mode's workspace, retaining every tab,
+    /// local presentation and detached frame. No session is closed here.
+    func prepareModeChange() {
+        for item in surfaces { storeFreeFrame(item); hideWindow(item) }
         hovered.removeAll(); desktop?.updateCompanionHover(false)
         workspaceHome = nil; lastRow = nil
     }
@@ -362,7 +372,8 @@ final class DesktopCompanionWindows: ObservableObject {
     }
 
     private func canDock(_ frame: NSRect, id: DesktopCompanionID) -> Bool {
-        guard desktop?.enabled == true, desktop?.expanded == true, let workspace = desktop?.window else { return false }
+        guard let desktop, let workspace = desktop.window,
+              desktop.enabled ? desktop.expanded : desktop.regularWorkspaceVisible else { return false }
         if DesktopCompanionGeometry.shouldAttach(frame, beside: workspace.frame) { return true }
         let siblingID: DesktopCompanionID = id == .first ? .second : .first
         let sibling = surface(siblingID)

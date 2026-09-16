@@ -4,6 +4,36 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Companion Windows in Both Modes — Native 0.67.1
+
+The two separate companion windows now work in the regular workspace as well as
+cube mode. A compact overlapping-rectangles menu in the normal toolbar toggles
+each window; ⌘⌥1 / ⌘⌥2 work in either mode. Mode changes retain the same windows,
+tabs, live terminal processes, detached compact/expanded geometry and local
+presentation stacks. Attached surfaces reflow beside the destination workspace,
+keeping their upper/lower slots, gap and shared height split.
+
+Normal mode uses the ordinary application window level. Minimizing or closing
+the workspace hides both companions without changing their enabled preferences;
+restoring it brings them back. The optional independent detached-window setting
+continues to apply only to cube folding. Normal expansion measures the actual
+sidebar edge (including resize/hide) and excludes the native toolbar. Explicit
+main settings remain reachable by clearing covering companion expansions.
+Transparency, source-owned dialogs, file pickers, hover chrome and return-to-base
+use the same existing controls in both modes. No history schema or task permission
+changes are involved.
+
+Verification: **1,815 Native checks passed**, including **254 focused desktop
+checks**. Coverage includes normal-mode startup/restoration, both switching
+directions, attached movement, detached expansion, canonical reattachment,
+minimization/close notifications, a real disposable terminal retaining its PID,
+local presentation ownership, and unchanged draft/history/task state. A signed
+isolated release app verified the toolbar menu, keyboard toggles, a local browser
+page surviving repeated mode switches, the exposed regular toolbar/sidebar edge,
+and settings opening inside an expanded companion. No live provider or microphone
+was used. The operator's running application was not restarted; the portable
+installer remains the previously prepared 0.66.1 artifact.
+
 ## Unread Replies and PDF Pages — Native 0.67.0
 
 Completed model replies get an unread dot in the sidebar; interrupted requests get

@@ -383,13 +383,13 @@ struct DesktopAppearanceSettings: View {
     var body: some View {
         Section(L10n.text("Рабочие панели внутри окна")) {
             Toggle(L10n.text("Показывать нижнюю панель"), isOn: Binding(get: { panels.lowerEnabled }, set: panels.setLowerEnabled))
-            Text(L10n.text("По умолчанию справа одна панель. Вторая располагается под ней. Отдельные окна парящего режима включаются кнопками 1 и 2 слева от кубика."))
+            Text(L10n.text("По умолчанию справа одна панель. Вторая располагается под ней. Отдельные боковые окна доступны в обоих режимах: через кнопку в верхней панели или кнопки 1 и 2 у кубика."))
                 .font(.caption).foregroundStyle(.secondary)
         }
-        Section(L10n.text("Окна парящего режима")) {
+        Section(L10n.text("Боковые окна")) {
             Toggle(L10n.text("Оставлять отлепленные окна на экране"), isOn: Binding(
                 get: { companions.keepDetachedVisible }, set: companions.setKeepDetachedVisible))
-            Text(L10n.text("По умолчанию оба боковых окна появляются и скрываются вместе с чатом через кубик. Этот переключатель позволяет оставлять отлепленные окна видимыми."))
+            Text(L10n.text("В режиме кубика боковые окна появляются и скрываются вместе с чатом. Этот переключатель оставляет отлепленные окна видимыми. При смене режима открытые окна сохраняются."))
                 .font(.caption).foregroundStyle(.secondary)
         }
         Section(L10n.text("Прозрачность фона")) {
@@ -399,7 +399,7 @@ struct DesktopAppearanceSettings: View {
                 transparencySlider(L10n.text("Боковое ") + id.title.lowercased(), value: Binding(
                     get: { companions.surface(id).transparency }, set: { companions.setTransparency($0, for: id) }))
             }
-            Text(L10n.text("Слева — плотный фон, справа — прозрачный. Текст и кнопки остаются чёткими. Изменения видны сразу в парящем режиме и сохраняются после перезапуска."))
+            Text(L10n.text("Слева — плотный фон, справа — прозрачный. Текст и кнопки остаются чёткими. Прозрачность чата и колонки применяется в режиме кубика, боковых окон — в обоих режимах. Значения сохраняются после перезапуска."))
                 .font(.caption).foregroundStyle(.secondary)
             if reduceTransparency {
                 Label(L10n.text("В macOS включено уменьшение прозрачности. Фон остаётся непрозрачным, выбранные значения сохранены."), systemImage: "accessibility")

@@ -22,6 +22,15 @@ enum DesktopCompanionGeometry {
             let left = workspace.minX + DesktopGeometry.sidebarWidth(total: workspace.width) + 10
             return NSRect(x: left, y: workspace.minY, width: max(1, bounds.maxX - left), height: workspace.height)
         }
+        func expanded(content: NSRect?) -> NSRect {
+            guard let content, !content.isEmpty else { return expanded }
+            // The regular sidebar can be resized or hidden. Keep its actual edge
+            // and the native toolbar exposed instead of guessing a sidebar width.
+            let left = min(workspace.maxX - 1, max(workspace.minX, content.minX))
+            let bottom = max(workspace.minY, content.minY)
+            let top = min(workspace.maxY, content.maxY)
+            return NSRect(x: left, y: bottom, width: max(1, bounds.maxX - left), height: max(1, top - bottom))
+        }
         func moved(to origin: NSPoint) -> Row {
             let dx = origin.x - workspace.minX, dy = origin.y - workspace.minY
             return Row(workspace: workspace.offsetBy(dx: dx, dy: dy),
