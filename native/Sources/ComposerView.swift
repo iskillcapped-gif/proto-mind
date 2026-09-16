@@ -37,6 +37,10 @@ struct ComposerView: View {
                         .help(L10n.text("Оставить текст как самостоятельный новый запрос"))
                 }.font(.caption).foregroundStyle(.secondary).padding(.horizontal, 6)
             }
+            if let conversation = model.selected, conversation.messages.isEmpty, !conversation.archived {
+                ComposerProjectFolderButton(workspacePath: conversation.workspacePath) { model.chooseWorkspace() }
+                    .disabled(model.busy || model.loadingWorkspace)
+            }
             VStack(spacing: 0) {
                 if !model.pendingProjectNotes.isEmpty { PendingProjectNotesView(model: model) }
                 if model.pendingSkillTask != nil { PendingSkillTaskView(model: model) }

@@ -27,6 +27,7 @@ extension L10n {
         "Поиск диалогов · ⌘F": "Search conversations · ⌘F",
         "Поиск диалогов": "Search conversations",
         "Новый диалог": "New conversation",
+        "Новый чат": "New chat",
         "Очистить поиск": "Clear search",
         "История диалогов": "Conversation history",
         "Найти прошлую работу и продолжить": "Find earlier work and continue",

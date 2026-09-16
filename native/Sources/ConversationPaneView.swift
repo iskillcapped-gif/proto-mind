@@ -80,7 +80,15 @@ struct ConversationPaneView: View {
                             }
                         }
                 }
-                composer(conversation).padding(.horizontal, 12).padding(.bottom, 12)
+                VStack(alignment: .leading, spacing: 9) {
+                    if conversation.messages.isEmpty && !conversation.archived {
+                        ComposerProjectFolderButton(workspacePath: conversation.workspacePath) {
+                            app.choosePanelWorkspace(conversationID: conversationID, in: panel)
+                        }.disabled(running || app.operationBusy)
+                    }
+                    composer(conversation)
+                }.frame(maxWidth: NativeTheme.columnWidth).frame(maxWidth: .infinity)
+                    .padding(.horizontal, 12).padding(.bottom, 12)
             }
             .onAppear { draft = conversation.draft; revision += 1 }
             .onChange(of: conversation.draft) { _, next in
@@ -154,7 +162,6 @@ struct ConversationPaneView: View {
             }.padding(.horizontal, 10).padding(.bottom, 9)
         }.background(NativeTheme.composer, in: RoundedRectangle(cornerRadius: 18))
             .overlay(RoundedRectangle(cornerRadius: 18).stroke(NativeTheme.hairline))
-            .frame(maxWidth: NativeTheme.columnWidth).frame(maxWidth: .infinity)
     }
 
     private func send() {

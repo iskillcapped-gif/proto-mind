@@ -48,7 +48,7 @@ struct ProtoMindApp: App {
                 Button(L10n.text("Настройки…")) { model.openSettings() }.keyboardShortcut(",")
             }
             CommandGroup(replacing: .newItem) {
-                Button(L10n.text("Новый диалог")) { model.newConversation() }
+                Button(L10n.text("Новый чат")) { model.newConversation() }
                     .keyboardShortcut("n").disabled(!model.canNavigateConversations)
             }
             CommandMenu("Proto-Mind") {

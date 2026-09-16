@@ -4,6 +4,21 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## New Chat Project Folder — Native 0.67.2
+
+The sidebar and File menu now call the new-conversation action **Новый чат**
+(**New chat**). Empty, non-archived chats show **Папка проекта** directly above
+the composer, including cube mode and companion conversation panes. After a
+folder is chosen, its name appears in the same button; existing conversations
+keep their uncluttered composer. The controls reuse the established main/pane
+folder pickers and authorization behavior, without new persistence paths.
+
+Verification: **552 Native interface checks passed**. An isolated signed app
+verified the renamed action, folder selection and cancellation with a preserved
+draft, the chosen folder label, absence in a populated chat, cube-mode placement
+and folder selection from a companion chat. No live model or operator state was
+used. The developer bundle is 0.67.2 (94); the portable installer remains 0.66.1.
+
 ## Companion Windows in Both Modes — Native 0.67.1
 
 The two separate companion windows now work in the regular workspace as well as

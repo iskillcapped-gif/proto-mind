@@ -35,7 +35,7 @@ struct SidebarView: View {
                     }
                 Button { model.newConversation() } label: {
                     HStack {
-                        Label(L10n.text("Новый диалог"), systemImage: "square.and.pencil")
+                        Label(L10n.text("Новый чат"), systemImage: "square.and.pencil")
                         Spacer()
                         Text("⌘N").font(.system(size: 11)).foregroundStyle(.secondary)
                     }.font(.system(size: 14)).padding(.horizontal, 12).padding(.vertical, 10)

@@ -14,7 +14,9 @@ For current development guidance, see [`AGENTS.md`](AGENTS.md). The [current pri
 
 ## Native macOS Direction
 
-The current native workspace is **Native 0.67.1 / Companion Windows in Both Modes**, built with SwiftUI/AppKit over the existing Python cognitive core. It retains project memory, independent conversations, live steering and explicit Mac access. This development line is separate from the earlier submitted Build Week baseline.
+The current native workspace is **Native 0.67.2 / New Chat Project Folder**, built with SwiftUI/AppKit over the existing Python cognitive core. It retains project memory, independent conversations, live steering and explicit Mac access. This development line is separate from the earlier submitted Build Week baseline.
+
+**Starting a chat:** **Новый чат** in the sidebar (⌘N) creates a conversation. A **Папка проекта** button sits directly above the empty chat's composer, in the regular workspace, cube mode and companion chats. It shows the selected folder and remains available until the first message. Folder selection uses the existing picker and does not send the draft or enable Mac access.
 
 **New replies:** sidebar dots mark unread model replies; interrupted requests get an orange attention mark. The floating cube shows the number of conversations with unread results, independently of its active-task ring. Click the count to open a result. Marks survive restart and clear when the end of that reply is visible in an active workspace; passive cube previews do not mark it read. This is response/read status, not a claim that the task outcome was verified.
 
