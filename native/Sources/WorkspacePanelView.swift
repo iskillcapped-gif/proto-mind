@@ -39,7 +39,7 @@ struct WorkspacePanelView: View {
                                         }.frame(maxWidth: 170)
                                     }
                                     Button { close(tab) } label: { Image(systemName: "xmark").font(.system(size: 9)) }
-                                        .help("Закрыть вкладку").accessibilityLabel("Закрыть вкладку \(title(tab))")
+                                        .help(L10n.text("Закрыть вкладку")).accessibilityLabel(L10n.pick("Закрыть вкладку \(title(tab))", "Close tab \(title(tab))"))
                                 }.font(.system(size: 11)).padding(8)
                                     .background(panel.selectedID == tab.id ? NativeTheme.composer : .clear, in: RoundedRectangle(cornerRadius: 8))
                                     .id(tab.id)
@@ -51,7 +51,7 @@ struct WorkspacePanelView: View {
                 }
                 Menu { actions } label: { Image(systemName: "plus").frame(width: 26, height: 28) }
                     .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
-                    .help("Добавить вкладку").accessibilityLabel("Добавить вкладку · " + (controls?.title ?? position.title))
+                    .help(L10n.text("Добавить вкладку")).accessibilityLabel(L10n.text("Добавить вкладку · ") + (controls?.title ?? position.title))
             }.padding(.horizontal, 9).frame(height: 40).workspacePanelHeader()
             Divider().opacity(0.5).workspacePanelHeader()
             if let error = panel.error {
@@ -84,15 +84,15 @@ struct WorkspacePanelView: View {
                     .foregroundStyle(.primary.opacity(0.75)).frame(width: 27, height: 27)
                     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
             }.buttonStyle(.plain).padding(4).opacity(hovered ? 1 : 0).allowsHitTesting(hovered)
-                .help(panel.expanded ? "Вернуть две панели" : "Развернуть до боковой колонки")
-                .accessibilityLabel((panel.expanded ? "Свернуть · " : "Развернуть · ") + position.title)
+                .help(panel.expanded ? L10n.text("Вернуть две панели") : L10n.text("Развернуть до боковой колонки"))
+                .accessibilityLabel((panel.expanded ? L10n.text("Свернуть · ") : L10n.text("Развернуть · ")) + position.title)
                 .accessibilityHidden(!hovered)
             }
         }.onHover { hovered = $0 }
-        .workspaceConfirmationDialog("Закрыть терминал?", isPresented: $confirmTerminalClose, titleVisibility: .visible) {
-            Button("Закрыть терминал", role: .destructive) { confirmTerminalClose = false; if let id = terminalToClose { panel.close(id) }; terminalToClose = nil }
-            Button("Отмена", role: .cancel) { confirmTerminalClose = false; terminalToClose = nil }
-        } message: { Text("Это завершит терминальный сеанс этой вкладки. Задачи в диалогах PM продолжат работу.") }
+        .workspaceConfirmationDialog(L10n.text("Закрыть терминал?"), isPresented: $confirmTerminalClose, titleVisibility: .visible) {
+            Button(L10n.text("Закрыть терминал"), role: .destructive) { confirmTerminalClose = false; if let id = terminalToClose { panel.close(id) }; terminalToClose = nil }
+            Button(L10n.text("Отмена"), role: .cancel) { confirmTerminalClose = false; terminalToClose = nil }
+        } message: { Text(L10n.text("Это завершит терминальный сеанс этой вкладки. Задачи в диалогах PM продолжат работу.")) }
     }
 
     private func activate() {
@@ -101,27 +101,27 @@ struct WorkspacePanelView: View {
     private var directory: URL { model.selected?.workspacePath.map { URL(fileURLWithPath: $0) } ?? FileManager.default.homeDirectoryForCurrentUser }
 
     @ViewBuilder private var actions: some View {
-        Button("Новый диалог PM", systemImage: "bubble.left.and.bubble.right") { activate(); model.newPanelConversation(in: panel) }
-        Menu("Открыть диалог") {
+        Button(L10n.text("Новый диалог PM"), systemImage: "bubble.left.and.bubble.right") { activate(); model.newPanelConversation(in: panel) }
+        Menu(L10n.text("Открыть диалог")) {
             ForEach(model.listedConversations.filter { !$0.archived }.prefix(60)) { conversation in
-                Button(conversation.title) { activate(); panel.open(.conversation(conversation.id)) }
+                Button(conversation.displayTitle) { activate(); panel.open(.conversation(conversation.id)) }
             }
         }
-        Button("Браузер / веб-приложение", systemImage: "globe") { activate(); panel.openBrowser() }
-        Button("Терминал", systemImage: "terminal") { activate(); panel.openTerminal(directory: directory) }
-        Menu("Другой CLI") {
+        Button(L10n.text("Браузер / веб-приложение"), systemImage: "globe") { activate(); panel.openBrowser() }
+        Button(L10n.text("Терминал"), systemImage: "terminal") { activate(); panel.openTerminal(directory: directory) }
+        Menu(L10n.text("Другой CLI")) {
             Button("Claude Code") {
                 activate()
                 if let path = TerminalLaunch.executable("claude") { panel.openTerminal(directory: directory, executable: path, arguments: []) }
-                else { panel.error = "Claude Code не установлен. Установите CLI и войдите в свой аккаунт; затем откройте его здесь." }
+                else { panel.error = L10n.text("Claude Code не установлен. Установите CLI и войдите в свой аккаунт; затем откройте его здесь.") }
             }
-            Button("Выбрать исполняемый файл…") { chooseCLI() }
+            Button(L10n.text("Выбрать исполняемый файл…")) { chooseCLI() }
         }
         Divider()
-        Button("Открыть файл…", systemImage: "doc") { activate(); model.chooseWorkspaceDocument(in: panel) }.disabled(!model.canEditMessageAttachments)
-        Button("Файлы основного проекта", systemImage: "folder") { activate(); model.showProjectFiles(in: panel) }
+        Button(L10n.text("Открыть файл…"), systemImage: "doc") { activate(); model.chooseWorkspaceDocument(in: panel) }.disabled(!model.canEditMessageAttachments)
+        Button(L10n.text("Файлы основного проекта"), systemImage: "folder") { activate(); model.showProjectFiles(in: panel) }
         Divider()
-        Button(panel.expanded ? "Вернуть размер" : "Развернуть панель", systemImage: "arrow.up.left.and.arrow.down.right") {
+        Button(panel.expanded ? L10n.text("Вернуть размер") : L10n.text("Развернуть панель"), systemImage: "arrow.up.left.and.arrow.down.right") {
             if let controls { controls.expand() } else { model.workspacePanels.toggleExpansion(position) }
         }
     }
@@ -129,19 +129,19 @@ struct WorkspacePanelView: View {
     private var welcome: some View {
         ViewThatFits {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Откройте рядом").font(.system(size: 18, weight: .medium))
-                Text("Диалог, страницу или инструменты для работы.").font(.system(size: 12)).foregroundStyle(.secondary)
+                Text(L10n.text("Откройте рядом")).font(.system(size: 18, weight: .medium))
+                Text(L10n.text("Диалог, страницу или инструменты для работы.")).font(.system(size: 12)).foregroundStyle(.secondary)
                 HStack(spacing: 8) {
-                    launcher("Диалог PM", icon: "bubble.left.and.bubble.right") { model.newPanelConversation(in: panel) }
-                    launcher("Браузер", icon: "globe") { panel.openBrowser() }
-                    launcher("Терминал", icon: "terminal") { panel.openTerminal(directory: directory) }
+                    launcher(L10n.text("Диалог PM"), icon: "bubble.left.and.bubble.right") { model.newPanelConversation(in: panel) }
+                    launcher(L10n.text("Браузер"), icon: "globe") { panel.openBrowser() }
+                    launcher(L10n.text("Терминал"), icon: "terminal") { panel.openTerminal(directory: directory) }
                 }.padding(.top, 5)
             }.padding(24)
             VStack(spacing: 10) {
-                launcher("Диалог PM", icon: "bubble.left.and.bubble.right") { model.newPanelConversation(in: panel) }
+                launcher(L10n.text("Диалог PM"), icon: "bubble.left.and.bubble.right") { model.newPanelConversation(in: panel) }
                 HStack {
-                    launcher("Браузер", icon: "globe") { panel.openBrowser() }
-                    launcher("Терминал", icon: "terminal") { panel.openTerminal(directory: directory) }
+                    launcher(L10n.text("Браузер"), icon: "globe") { panel.openBrowser() }
+                    launcher(L10n.text("Терминал"), icon: "terminal") { panel.openTerminal(directory: directory) }
                 }
             }.padding(16)
         }.frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -161,14 +161,31 @@ struct WorkspacePanelView: View {
         case .text(let file): WorkspaceTextView(model: model, panel: panel, file: file)
         case .image(let image): WorkspaceImageView(model: model, panel: panel, preview: image)
         case .pdf(let pdf): WorkspacePDFView(model: model, panel: panel, preview: pdf, tabID: tab.id)
-        case .browser(let browser): BrowserView(browser: browser)
+        case .browser(let browser): BrowserView(browser: browser, app: model, sourcePanel: panel)
         case .conversation(let id): ConversationPaneView(app: model, conversationID: id, panel: panel)
         case .terminal(let terminal): WorkspaceTerminalView(terminal: terminal)
+        case .answer(let answer):
+            VStack(spacing: 0) {
+                HStack {
+                    Text(answer.title).font(.callout).lineLimit(1)
+                    Spacer()
+                    Button { model.copy(answer.text) } label: { Image(systemName: "doc.on.doc") }
+                        .help(L10n.pick("Копировать ответ", "Copy response"))
+                    Button(L10n.pick("К диалогу", "Go to conversation")) { model.select(answer.conversationID) }
+                }.padding(12).workspacePanelHeader()
+                Divider().workspacePanelHeader()
+                ScrollView {
+                    MessageMarkdownView(text: answer.text, copy: model.copy, openLink: { url in
+                        if NativeBrowserURL.isWebURL(url) { panel.openBrowser(url) }
+                        else { model.openPanelFile(url, conversationID: answer.conversationID, panel: panel) }
+                    }).padding(24).frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
         }
     }
 
     private func title(_ tab: WorkspacePanelTab) -> String {
-        if case .conversation(let id) = tab.content { return model.conversations.first { $0.id == id }?.title ?? "Диалог" }
+        if case .conversation(let id) = tab.content { return model.conversations.first { $0.id == id }?.title ?? L10n.text("Диалог") }
         return tab.title
     }
     private func close(_ tab: WorkspacePanelTab) {
@@ -178,7 +195,7 @@ struct WorkspacePanelView: View {
     private func chooseCLI() {
         activate()
         let picker = NSOpenPanel()
-        picker.canChooseDirectories = false; picker.allowsMultipleSelection = false; picker.prompt = "Запустить CLI"
+        picker.canChooseDirectories = false; picker.allowsMultipleSelection = false; picker.prompt = L10n.text("Запустить CLI")
         model.presentFilePicker(picker, in: panel.presentations) { result in
             if result == .OK, let url = picker.url { panel.openTerminal(directory: directory, executable: url.path, arguments: []) }
         }
@@ -189,7 +206,7 @@ private struct BrowserTabTitle: View {
     @ObservedObject var browser: NativeBrowserTab
     var titleChanged: () -> Void
     var body: some View {
-        Text(browser.title).lineLimit(1).help(browser.currentURL?.absoluteString ?? "Новая страница")
+        Text(browser.title).lineLimit(1).help(browser.currentURL?.absoluteString ?? L10n.text("Новая страница"))
             .onChange(of: browser.title) { _, _ in titleChanged() }
     }
 }
@@ -208,13 +225,13 @@ private struct WorkspaceTextView: View {
                 Text(file.path).font(.system(size: 12)).lineLimit(1).truncationMode(.middle).help(file.url.path)
                 Spacer(minLength: 0)
                 if markdown {
-                    Button(showSource ? "Просмотр" : "Исходник") { showSource.toggle() }.font(.caption)
+                    Button(showSource ? L10n.text("Просмотр") : L10n.text("Исходник")) { showSource.toggle() }.font(.caption)
                 }
                 Button { Task { await model.openWorkspaceEntry(.object(["path": .string(file.path), "directory": .bool(false)]), in: panel) } } label: {
                     Image(systemName: "arrow.clockwise")
-                }.disabled(!canAttach || model.loadingWorkspace).help("Обновить файл").accessibilityLabel("Обновить файл")
+                }.disabled(!canAttach || model.loadingWorkspace).help(L10n.text("Обновить файл")).accessibilityLabel(L10n.text("Обновить файл"))
                 Button { model.attachWorkspaceText(file, in: panel) } label: { Image(systemName: "paperclip") }
-                    .disabled(!canAttach).help("Прикрепить к сообщению").accessibilityLabel("Прикрепить файл к сообщению")
+                    .disabled(!canAttach).help(L10n.text("Прикрепить к сообщению")).accessibilityLabel(L10n.text("Прикрепить файл к сообщению"))
                 documentMenu(file.url, text: true)
             }.padding(14).workspacePanelHeader()
             Divider().workspacePanelHeader()
@@ -235,11 +252,11 @@ private struct WorkspaceTextView: View {
                 }
             }
             if file.value["truncated"].flag {
-                Text("Показаны первые 12 000 символов. Полный файл доступен через «Открыть».")
+                Text(L10n.text("Показаны первые 12 000 символов. Полный файл доступен через «Открыть»."))
                     .font(.caption).foregroundStyle(.secondary).padding(10)
             }
             if model.selectedID != file.conversationID || model.selected?.workspacePath != file.root {
-                Text("Файл открыт из другого диалога или папки.").font(.caption).foregroundStyle(.secondary).padding(10)
+                Text(L10n.text("Файл открыт из другого диалога или папки.")).font(.caption).foregroundStyle(.secondary).padding(10)
             }
         }.id(file.url.path)
     }
@@ -259,7 +276,7 @@ private struct WorkspaceImageView: View {
                         do { try model.attachImage(preview) } catch { panel.error = error.localizedDescription }
                     } label: { Image(systemName: "paperclip") }
                         .disabled(!model.canEditMessageAttachments || model.selectedID != preview.conversationID || model.selected?.archived == true)
-                        .help("Прикрепить к сообщению").accessibilityLabel("Прикрепить изображение к сообщению")
+                        .help(L10n.text("Прикрепить к сообщению")).accessibilityLabel(L10n.text("Прикрепить изображение к сообщению"))
                 }
                 documentMenu(URL(fileURLWithPath: preview.source.path))
             }.padding(14).workspacePanelHeader()
@@ -292,36 +309,36 @@ private struct WorkspacePDFView: View {
                         do { try model.attachPDF(preview) } catch { panel.error = error.localizedDescription }
                     } label: { Image(systemName: "paperclip") }
                         .disabled(!model.canEditMessageAttachments || model.loadingPDFPreview || !currentConversation || !preview.hasText || model.selected?.archived == true)
-                        .help("Прикрепить выбранные страницы").accessibilityLabel("Прикрепить страницы PDF")
+                        .help(L10n.text("Прикрепить выбранные страницы")).accessibilityLabel(L10n.text("Прикрепить страницы PDF"))
                 }
                 documentMenu(URL(fileURLWithPath: preview.source.path))
             }.padding(14).workspacePanelHeader()
             Divider().workspacePanelHeader()
             HStack {
-                Text("Текст PDF").font(.caption).foregroundStyle(.secondary)
+                Text(L10n.text("Текст PDF")).font(.caption).foregroundStyle(.secondary)
                 Spacer()
                 Button { changePage(page - 1) } label: { Image(systemName: "chevron.left") }
                     .disabled(page <= 1 || model.loadingPDFPreview || !model.canEditMessageAttachments || !currentConversation)
-                    .accessibilityLabel("Предыдущая страница PDF")
+                    .accessibilityLabel(L10n.text("Предыдущая страница PDF"))
                 Text("\(preview.source.pageLabel) / \(total)").font(.caption.monospacedDigit())
                 Button { changePage((preview.source.pages.last ?? page) + 1) } label: { Image(systemName: "chevron.right") }
                     .disabled((preview.source.pages.last ?? page) >= total || model.loadingPDFPreview || !model.canEditMessageAttachments || !currentConversation)
-                    .accessibilityLabel("Следующая страница PDF")
+                    .accessibilityLabel(L10n.text("Следующая страница PDF"))
                 if model.loadingPDFPreview { ProgressView().controlSize(.small) }
             }.padding(12).workspacePanelHeader()
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     ForEach(Array(preview.pages.enumerated()), id: \.offset) { _, value in
-                        Text(value["text"].text.isEmpty ? "На этой странице нет текстового слоя." : value["text"].text)
+                        Text(value["text"].text.isEmpty ? L10n.text("На этой странице нет текстового слоя.") : value["text"].text)
                             .font(NativeTheme.messageFont).lineSpacing(6).textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
                         if value["truncated"].flag {
-                            Text("Показано начало текста страницы.").font(.caption).foregroundStyle(.secondary)
+                            Text(L10n.text("Показано начало текста страницы.")).font(.caption).foregroundStyle(.secondary)
                         }
                     }
                 }.padding(24)
             }
-            Text("Оригинальное оформление — через «Открыть».").font(.caption).foregroundStyle(.secondary).padding(10)
+            Text(L10n.text("Оригинальное оформление — через «Открыть».")).font(.caption).foregroundStyle(.secondary).padding(10)
         }
     }
     private func changePage(_ next: Int) { Task { await model.refreshWorkspacePDF(preview, page: next, tabID: tabID, in: panel) } }
@@ -329,11 +346,11 @@ private struct WorkspacePDFView: View {
 
 private func documentMenu(_ url: URL, text: Bool = false) -> some View {
     Menu {
-        Button(text ? "Открыть в TextEdit" : "Открыть в Просмотре") {
+        Button(text ? L10n.text("Открыть в TextEdit") : L10n.text("Открыть в Просмотре")) {
             let application = URL(fileURLWithPath: text ? "/System/Applications/TextEdit.app" : "/System/Applications/Preview.app")
             NSWorkspace.shared.open([url], withApplicationAt: application, configuration: NSWorkspace.OpenConfiguration())
         }
-        Button("Показать в Finder") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
-    } label: { Label("Открыть", systemImage: "arrow.up.right.square") }
+        Button(L10n.text("Показать в Finder")) { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+    } label: { Label(L10n.text("Открыть"), systemImage: "arrow.up.right.square") }
         .menuStyle(.borderlessButton).fixedSize().font(.caption).help(url.path)
 }

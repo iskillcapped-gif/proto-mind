@@ -264,7 +264,7 @@ struct WorkspaceContentHost: View {
     @ObservedObject var app: AppModel
     @ObservedObject var presentations: WorkspacePresentations
     var body: some View {
-        WorkspacePresentationHost(presentations: presentations, backTitle: "К чату") {
+        WorkspacePresentationHost(presentations: presentations, backTitle: L10n.pick("К чату", "Back to chat")) {
             WorkspaceSplitView(model: app, panel: app.workspacePanel)
         }
     }
@@ -285,7 +285,7 @@ struct WorkspacePresentationHost<Content: View>: View {
                 VStack(spacing: 0) {
                     HStack {
                         Button { presentations.dismissTop() } label: {
-                            Label(presentations.pages.count == 1 ? backTitle : "Назад", systemImage: "chevron.left")
+                            Label(presentations.pages.count == 1 ? backTitle : L10n.pick("Назад", "Back"), systemImage: "chevron.left")
                         }.buttonStyle(.nativeHover).disabled(presentations.locked)
                         Spacer()
                     }.font(.system(size: 12)).foregroundStyle(.secondary).padding(.horizontal, 20).padding(.vertical, 12)

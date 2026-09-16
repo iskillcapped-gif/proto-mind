@@ -10,6 +10,13 @@ struct WorkspaceTextPreview {
     var url: URL { URL(fileURLWithPath: root).appendingPathComponent(path) }
 }
 
+struct WorkspaceAnswerPreview {
+    let conversationID: UUID
+    let messageID: UUID
+    let title: String
+    let text: String
+}
+
 struct WorkspacePanelTab: Identifiable {
     enum Content {
         case text(WorkspaceTextPreview)
@@ -18,6 +25,7 @@ struct WorkspacePanelTab: Identifiable {
         case browser(NativeBrowserTab)
         case conversation(UUID)
         case terminal(WorkspaceTerminal)
+        case answer(WorkspaceAnswerPreview)
     }
     let id: UUID
     var content: Content
@@ -26,9 +34,10 @@ struct WorkspacePanelTab: Identifiable {
         case .text(let file): return file.url.lastPathComponent
         case .image(let image): return image.source.name
         case .pdf(let pdf): return pdf.source.name
-        case .browser: return "Браузер"
-        case .conversation: return "Диалог PM"
-        case .terminal: return "Терминал"
+        case .browser: return L10n.text("Браузер")
+        case .conversation: return L10n.text("Диалог PM")
+        case .terminal: return L10n.text("Терминал")
+        case .answer(let answer): return answer.title
         }
     }
     var symbol: String {
@@ -39,6 +48,7 @@ struct WorkspacePanelTab: Identifiable {
         case .browser: return "globe"
         case .conversation: return "bubble.left.and.bubble.right"
         case .terminal: return "terminal"
+        case .answer: return "doc.text"
         }
     }
     var sourceKey: String? {
@@ -47,6 +57,7 @@ struct WorkspacePanelTab: Identifiable {
         case .image(let image): return "image:\(image.conversationID):\(image.source.path)"
         case .pdf(let pdf): return "pdf:\(pdf.conversationID):\(pdf.workspace ?? ""):\(pdf.source.path)"
         case .conversation(let id): return "conversation:\(id)"
+        case .answer(let answer): return "answer:\(answer.conversationID):\(answer.messageID)"
         case .browser, .terminal: return nil
         }
     }
@@ -129,6 +140,19 @@ final class WorkspacePanelModel: ObservableObject {
 }
 
 extension AppModel {
+    func openAnswerBesideChat(_ message: ChatMessage, conversationID: UUID, sourcePanel: WorkspacePanelModel? = nil) {
+        guard message.role == "assistant" else { return }
+        let panel: WorkspacePanelModel
+        if let sourcePanel { panel = sourcePanel }
+        else if desktop.enabled {
+            let companion = desktop.companions.surface(.first)
+            if !companion.visible { desktop.companions.toggle(.first) }
+            panel = companion.panel
+        } else { panel = workspacePanel }
+        panel.open(.answer(WorkspaceAnswerPreview(conversationID: conversationID, messageID: message.id,
+            title: L10n.pick("Результат", "Result"), text: message.text)))
+    }
+
     func showProjectFiles(in panel: WorkspacePanelModel? = nil) {
         section = .chat; (panel ?? workspacePanel).showFiles()
         Task { await refreshWorkspace() }
@@ -155,7 +179,7 @@ extension AppModel {
         guard canEditMessageAttachments, let conversationID = selectedID else { return }
         let picker = NSOpenPanel()
         picker.canChooseDirectories = false; picker.allowsMultipleSelection = false; picker.resolvesAliases = false
-        picker.prompt = "Открыть"
+        picker.prompt = L10n.text("Открыть")
         picker.message = "Текстовые файлы проекта, PNG, JPEG или PDF. Просмотр не прикрепляет файл к сообщению."
         picker.directoryURL = selected?.workspacePath.map { URL(fileURLWithPath: $0) }
         let completion: (NSApplication.ModalResponse) -> Void = { [weak self] response in

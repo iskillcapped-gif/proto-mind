@@ -24,18 +24,18 @@ struct DesktopCompanionView: View {
                 Button { owner.toggleExpansion(surface.id) } label: {
                     Image(systemName: surface.expanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
                         .frame(width: 26, height: 28)
-                }.help(surface.expanded ? "Вернуть миниатюру" : "Развернуть окно")
-                    .accessibilityLabel((surface.expanded ? "Миниатюра · " : "Развернуть окно · ") + surface.id.title)
+                }.help(surface.expanded ? L10n.text("Вернуть миниатюру") : L10n.text("Развернуть окно"))
+                    .accessibilityLabel((surface.expanded ? L10n.text("Миниатюра · ") : L10n.text("Развернуть окно · ")) + surface.id.title)
                 Button { owner.restoreBase(surface.id) } label: {
                     Image(systemName: "arrow.uturn.backward").frame(width: 26, height: 28)
-                }.help(surface.id == .first ? "Вернуть наверх справа · исходный размер" : "Вернуть вниз справа · исходный размер")
-                    .accessibilityLabel("Вернуть на место · " + surface.id.title)
+                }.help(surface.id == .first ? L10n.text("Вернуть наверх справа · исходный размер") : L10n.text("Вернуть вниз справа · исходный размер"))
+                    .accessibilityLabel(L10n.text("Вернуть на место · ") + surface.id.title)
                 Button { owner.toggle(surface.id) } label: { Image(systemName: "xmark").frame(width: 24, height: 28) }
-                    .help("Скрыть окно").accessibilityLabel("Скрыть · " + surface.id.title)
+                    .help(L10n.text("Скрыть окно")).accessibilityLabel(L10n.text("Скрыть · ") + surface.id.title)
             }.frame(height: 34).foregroundStyle(.secondary).buttonStyle(.nativeHover)
                 .padding(.leading, surface.id == .second ? 32 : 16).padding(.trailing, 8).padding(.top, 4)
                 .workspacePanelHeader()
-            WorkspacePresentationHost(presentations: presentations, backTitle: "К окну") {
+            WorkspacePresentationHost(presentations: presentations, backTitle: L10n.text("К окну")) {
                 WorkspacePanelView(model: app, panel: surface.panel, position: surface.id.position,
                     controls: WorkspacePanelControls(title: surface.id.title, activate: { owner.pinPreview() }, expand: { owner.toggleExpansion(surface.id) }))
             }
@@ -54,8 +54,8 @@ struct DesktopCompanionView: View {
         .overlay(alignment: surface.id == .first ? .bottom : .top) {
             if owner.hasStack {
                 CompanionSplitHandle(owner: owner).frame(height: 7).padding(.horizontal, 38)
-                    .help("Изменить высоту боковых окон")
-                    .accessibilityElement().accessibilityLabel("Высота боковых окон")
+                    .help(L10n.text("Изменить высоту боковых окон"))
+                    .accessibilityElement().accessibilityLabel(L10n.text("Высота боковых окон"))
                     .accessibilityValue("Верхнее окно \(Int(owner.topFraction * 100)) процентов")
                     .accessibilityAdjustableAction { direction in
                         owner.setTopFraction(owner.topFraction + (direction == .increment ? 0.05 : -0.05))
@@ -118,8 +118,8 @@ struct CompanionCornerControl: View {
         }.buttonStyle(.plain).padding(2)
             .onHover { hovered = $0 }
             .animation(reduceMotion ? nil : .easeOut(duration: 0.14), value: hovered)
-            .help(expanded ? "Вернуть размер" : "Развернуть окно")
-            .accessibilityLabel((expanded ? "Свернуть · " : "Развернуть · ") + title)
+            .help(expanded ? L10n.text("Вернуть размер") : L10n.text("Развернуть окно"))
+            .accessibilityLabel((expanded ? L10n.text("Свернуть · ") : L10n.text("Развернуть · ")) + title)
     }
     private struct CornerShape: Shape {
         func path(in rect: CGRect) -> Path {

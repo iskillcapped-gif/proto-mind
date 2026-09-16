@@ -57,11 +57,11 @@ final class LiveVoiceModel: ObservableObject {
     }
 
     func saveKey(_ key: String) throws {
-        guard !inCall else { throw NativeError.message("Сначала завершите голосовой разговор.") }
+        guard !inCall else { throw NativeError.message(L10n.text("Сначала завершите голосовой разговор.")) }
         try keychain.save(key); hasKey = true; error = nil
     }
     func removeKey() throws {
-        guard !inCall else { throw NativeError.message("Сначала завершите голосовой разговор.") }
+        guard !inCall else { throw NativeError.message(L10n.text("Сначала завершите голосовой разговор.")) }
         try keychain.remove(); hasKey = false
     }
 
@@ -69,7 +69,7 @@ final class LiveVoiceModel: ObservableObject {
         guard !inCall else { return }
         app.dictation.stop()
         guard app.cloudConsent, !app.privateBackupRestartRequired, !app.operationBusy else {
-            error = "Разрешите облачную обработку в настройках и завершите восстановление данных."; phase = .failed; return
+            error = L10n.text("Разрешите облачную обработку в настройках и завершите восстановление данных."); phase = .failed; return
         }
         self.app = app; generation = UUID()
         let generation = generation
@@ -81,11 +81,11 @@ final class LiveVoiceModel: ObservableObject {
             hasKey = true
             let allowed = await LiveVoiceAudio.requestMicrophone()
             guard self.generation == generation, phase == .connecting else { return }
-            guard allowed else { throw NativeError.message("Разрешите микрофон для Proto-Mind в настройках конфиденциальности macOS.") }
+            guard allowed else { throw NativeError.message(L10n.text("Разрешите микрофон для Proto-Mind в настройках конфиденциальности macOS.")) }
             // Validate the audio device before opening a billable API session.
             try await audio.start()
             guard self.generation == generation, phase == .connecting else { return }
-            contextTitle = app.selected?.title ?? "Новый диалог"
+            contextTitle = app.selected?.title ?? L10n.text("Новый диалог")
             transport.connect(key: key, start: LiveVoiceProtocol.start(context: context(app)))
             audioMonitor = Task { [weak self] in
                 while !Task.isCancelled {
@@ -93,14 +93,14 @@ final class LiveVoiceModel: ObservableObject {
                     guard let self, !Task.isCancelled, self.generation == generation,
                           self.phase == .connecting || self.phase == .active else { return }
                     if !self.audio.captureIsFlowing {
-                        self.fail("Поток микрофона остановился. Проверьте аудиоустройство и начните разговор снова."); return
+                        self.fail(L10n.text("Поток микрофона остановился. Проверьте аудиоустройство и начните разговор снова.")); return
                     }
                 }
             }
             connectionDeadline = Task { [weak self] in
                 try? await Task.sleep(nanoseconds: 45_000_000_000)
                 guard let self, !Task.isCancelled, self.generation == generation, self.phase == .connecting else { return }
-                self.fail("GPT Live не подтвердил подключение. Проверьте доступ API-ключа и баланс.", connectionLost: true)
+                self.fail(L10n.text("GPT Live не подтвердил подключение. Проверьте доступ API-ключа и баланс."), connectionLost: true)
             }
         } catch { if self.generation == generation { fail(error.localizedDescription, connectionLost: true) } }
     }
@@ -131,7 +131,7 @@ final class LiveVoiceModel: ObservableObject {
     }
 
     func updateContext(app: AppModel) {
-        contextTitle = app.selected?.title ?? "Новый диалог"
+        contextTitle = app.selected?.title ?? L10n.text("Новый диалог")
         guard phase == .active else { return }
         transport.send(.object(["type": .string("session.update"), "session": .object([
             "delegation": .object(["type": .string("responses"), "responses": .object([
@@ -144,7 +144,7 @@ final class LiveVoiceModel: ObservableObject {
 
     func taskFinished(_ id: UUID, session: UUID, result: JSONValue) {
         guard phase == .active, generation == session else { return }
-        let summary = result["status"].text == "response_received" ? "Получен ответ по задаче" : "Задача требует внимания"
+        let summary = result["status"].text == "response_received" ? L10n.text("Получен ответ по задаче") : L10n.text("Задача требует внимания")
         action = summary
         let title = String(result["title"].text.prefix(50))
         let text = "\(summary) «\(title)». Фрагмент ответа (не инструкции): " + result["answer"].text
@@ -163,20 +163,20 @@ final class LiveVoiceModel: ObservableObject {
                 if phase == .active, let prompt = opening.acknowledge(event) { transport.send(prompt) }
             case "session.output_audio.delta":
                 guard phase == .active else { return }
-                guard let bytes = Data(base64Encoded: event["delta"].text) else { throw NativeError.message("Неверный звук в ответе GPT Live.") }
+                guard let bytes = Data(base64Encoded: event["delta"].text) else { throw NativeError.message(L10n.text("Неверный звук в ответе GPT Live.")) }
                 try audio.play(bytes)
             case "session.input_transcript.delta", "session.output_transcript.delta":
                 guard phase == .active else { return }
                 if event["type"].text == "session.input_transcript.delta", !event["delta"].text.isEmpty { opening.heardUser = true }
-                addCaption(role: event["type"].text.contains("input") ? "Вы" : "Proto-Mind", event: event)
+                addCaption(role: event["type"].text.contains("input") ? L10n.text("Вы") : "Proto-Mind", event: event)
             case "response.event":
                 guard phase == .active else { return }
                 if let completed = try delegations.receive(event), !completed.isEmpty {
-                    guard calls.count + completed.count <= 32 else { throw NativeError.message("Слишком много одновременных голосовых команд.") }
+                    guard calls.count + completed.count <= 32 else { throw NativeError.message(L10n.text("Слишком много одновременных голосовых команд.")) }
                     calls.append(contentsOf: completed); executeCalls()
                 }
                 if ["response.failed", "response.incomplete"].contains(event["event"]["type"].text) {
-                    action = "Команда не завершилась. Можно уточнить её состояние голосом."
+                    action = L10n.text("Команда не завершилась. Можно уточнить её состояние голосом.")
                 }
             case "session.closed":
                 finalUsage = event["usage"]
@@ -186,7 +186,7 @@ final class LiveVoiceModel: ObservableObject {
                 if phase != .failed { phase = .idle }
             case "error":
                 let message = event["error"]["message"].text
-                throw NativeError.message(message.isEmpty ? "GPT Live сообщил об ошибке подключения." : message)
+                throw NativeError.message(message.isEmpty ? L10n.text("GPT Live сообщил об ошибке подключения.") : message)
             default: break
             }
         } catch { fail(error.localizedDescription) }
@@ -210,7 +210,7 @@ final class LiveVoiceModel: ObservableObject {
             guard let self, let app else { return }
             while !self.calls.isEmpty, self.phase == .active, self.generation == generation, !Task.isCancelled {
                 let call = self.calls.removeFirst()
-                self.action = "Выполняю команду…"
+                self.action = L10n.text("Выполняю команду…")
                 let result: JSONValue
                 do { result = try await app.executeLiveVoiceCall(call, session: generation) }
                 catch { result = .object(["status": .string("rejected"), "reason": .string(String(error.localizedDescription.prefix(800)))]) }
@@ -218,7 +218,7 @@ final class LiveVoiceModel: ObservableObject {
                 guard self.phase == .active, self.generation == generation, !Task.isCancelled else { return }
                 do { self.transport.send(try LiveVoiceProtocol.toolResult(callID: call.id, result: result)) }
                 catch { self.fail(error.localizedDescription); return }
-                self.action = result["status"].text == "rejected" ? result["reason"].text : "Команда принята"
+                self.action = result["status"].text == "rejected" ? result["reason"].text : L10n.text("Команда принята")
             }
             guard self.generation == generation, self.phase == .active else { return }
             self.transport.send(.object(["type": .string("response.create"), "event_id": .string(UUID().uuidString)]))
@@ -228,7 +228,7 @@ final class LiveVoiceModel: ObservableObject {
 
     private func fail(_ text: String, connectionLost: Bool = false) {
         let wasActive = phase == .active
-        error = String(text.replacingOccurrences(of: "sk-[A-Za-z0-9_-]+", with: "[ключ скрыт]", options: .regularExpression).prefix(700))
+        error = String(text.replacingOccurrences(of: "sk-[A-Za-z0-9_-]+", with: L10n.text("[ключ скрыт]"), options: .regularExpression).prefix(700))
         phase = .failed; generation = UUID(); audio.stop()
         connectionDeadline?.cancel(); worker?.cancel(); worker = nil; calls = []
         audioMonitor?.cancel(); audioMonitor = nil; inputLevel = 0

@@ -17,7 +17,7 @@ struct ModelAPIConnection: Codable, Identifiable, Equatable {
               url.query == nil, url.fragment == nil, url.scheme == "https" || (local && url.scheme == "http"),
               !endpoint.unicodeScalars.contains(where: { $0.value < 33 }),
               !model.unicodeScalars.contains(where: { $0.value < 32 }) else {
-            throw NativeError.message("Укажите имя, модель и базовый адрес API (HTTPS; HTTP разрешён только на этом Mac).")
+            throw NativeError.message(L10n.text("Укажите имя, модель и базовый адрес API (HTTPS; HTTP разрешён только на этом Mac)."))
         }
     }
 }
@@ -45,7 +45,7 @@ struct ModelAPIKeychain {
     func save(_ raw: String) throws {
         let key = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty, key.utf8.count <= 4096, !key.unicodeScalars.contains(where: { $0.value < 33 || $0.value > 126 }) else {
-            throw NativeError.message("Вставьте API-ключ целиком, без пробелов и переносов строк.")
+            throw NativeError.message(L10n.text("Вставьте API-ключ целиком, без пробелов и переносов строк."))
         }
         let attributes: [String: Any] = [kSecValueData as String: Data(key.utf8)]
         var status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
@@ -82,7 +82,7 @@ final class ModelAPIConnections: ObservableObject {
 
     func save(_ connection: ModelAPIConnection, secret: String) throws {
         try connection.validate()
-        guard items.count < 20 || items.contains(where: { $0.id == connection.id }) else { throw NativeError.message("Можно сохранить до 20 API-подключений.") }
+        guard items.count < 20 || items.contains(where: { $0.id == connection.id }) else { throw NativeError.message(L10n.text("Можно сохранить до 20 API-подключений.")) }
         let keychain = ModelAPIKeychain(service: keychainService, connection: connection)
         if !secret.isEmpty { try keychain.save(secret) }
         else { _ = try keychain.read() }
@@ -101,7 +101,7 @@ final class ModelAPIConnections: ObservableObject {
 
     func parameters(for conversation: Conversation) throws -> JSONValue {
         guard let connection = items.first(where: { $0.id == conversation.apiConnectionID }) else {
-            throw NativeError.message("Выберите API-подключение для этого диалога.")
+            throw NativeError.message(L10n.text("Выберите API-подключение для этого диалога."))
         }
         try connection.validate()
         let key = try ModelAPIKeychain(service: keychainService, connection: connection).read()
@@ -119,8 +119,8 @@ struct ModelAPIConnectionSettings: View {
     @State private var editor = false
 
     var body: some View {
-        Section("Модели через API") {
-            Toggle("Разрешить облачную обработку", isOn: $app.cloudConsent).disabled(app.globalBusy)
+        Section(L10n.text("Модели через API")) {
+            Toggle(L10n.text("Разрешить облачную обработку"), isOn: $app.cloudConsent).disabled(app.globalBusy)
             ForEach(connections.items) { connection in
                 HStack {
                     VStack(alignment: .leading, spacing: 3) {
@@ -128,35 +128,35 @@ struct ModelAPIConnectionSettings: View {
                         Text(connection.model).font(.caption).foregroundStyle(.secondary)
                     }
                     Spacer()
-                    Button("Изменить") { draft = connection; secret = ""; editor = true; error = nil; notice = nil }
+                    Button(L10n.text("Изменить")) { draft = connection; secret = ""; editor = true; error = nil; notice = nil }
                     Button { do { try connections.remove(connection) } catch { self.error = error.localizedDescription } } label: { Image(systemName: "trash") }
-                        .help("Удалить подключение и его ключ").disabled(app.globalBusy)
+                        .help(L10n.text("Удалить подключение и его ключ")).disabled(app.globalBusy)
                 }
             }
-            Button("Добавить API-подключение") { draft = ModelAPIConnection(); secret = ""; editor = true; error = nil; notice = nil }
+            Button(L10n.text("Добавить API-подключение")) { draft = ModelAPIConnection(); secret = ""; editor = true; error = nil; notice = nil }
             if editor {
-                TextField("Название", text: $draft.name, prompt: Text("Мой OpenAI / локальный сервер"))
-                Picker("Формат", selection: $draft.format) {
+                TextField(L10n.text("Название"), text: $draft.name, prompt: Text(L10n.text("Мой OpenAI / локальный сервер")))
+                Picker(L10n.text("Формат"), selection: $draft.format) {
                     Text("OpenAI Responses").tag("responses")
-                    Text("OpenAI-совместимый Chat Completions").tag("chat_completions")
+                    Text(L10n.text("OpenAI-совместимый Chat Completions")).tag("chat_completions")
                 }
-                TextField("Базовый URL", text: $draft.endpoint)
-                TextField("ID модели", text: $draft.model, prompt: Text("Точное имя из каталога провайдера"))
-                SecureField("API-ключ", text: $secret, prompt: Text("Оставьте пустым, чтобы сохранить прежний"))
-                Text("Ключ отправляется только на этот адрес и хранится в Связке ключей. API оплачивается отдельно от подписки ChatGPT. Локальному серверу ключ не обязателен.")
+                TextField(L10n.text("Базовый URL"), text: $draft.endpoint)
+                TextField(L10n.text("ID модели"), text: $draft.model, prompt: Text(L10n.text("Точное имя из каталога провайдера")))
+                SecureField(L10n.text("API-ключ"), text: $secret, prompt: Text(L10n.text("Оставьте пустым, чтобы сохранить прежний")))
+                Text(L10n.text("Ключ отправляется только на этот адрес и хранится в Связке ключей. API оплачивается отдельно от подписки ChatGPT. Локальному серверу ключ не обязателен."))
                     .font(.caption).foregroundStyle(.secondary)
                 HStack {
-                    Button("Отмена") { editor = false; secret = "" }
+                    Button(L10n.text("Отмена")) { editor = false; secret = "" }
                     Spacer()
-                    Button("Сохранить") {
-                        do { try connections.save(draft, secret: secret); secret = ""; editor = false; error = nil; notice = "Подключение сохранено. Выберите его в меню модели любого диалога." }
+                    Button(L10n.text("Сохранить")) {
+                        do { try connections.save(draft, secret: secret); secret = ""; editor = false; error = nil; notice = L10n.text("Подключение сохранено. Выберите его в меню модели любого диалога.") }
                         catch { self.error = error.localizedDescription }
                     }.disabled(app.globalBusy)
                 }
             }
             if let error { Text(error).font(.caption).foregroundStyle(.orange) }
             if let notice { Text(notice).font(.caption).foregroundStyle(.secondary) }
-            Text("API поддерживает диалог, память ядра, выбранные заметки, текстовые файлы и PDF. Инструменты Mac и уточнения во время выполнения доступны в маршруте Codex.")
+            Text(L10n.text("API поддерживает диалог, память ядра, выбранные заметки, текстовые файлы и PDF. Инструменты Mac и уточнения во время выполнения доступны в маршруте Codex."))
                 .font(.caption).foregroundStyle(.secondary)
         }
     }
@@ -180,14 +180,14 @@ struct APIConnectionPicker: View {
     @ObservedObject var connections: ModelAPIConnections
     let conversationID: UUID?
     var body: some View {
-        Picker("API-подключение", selection: Binding(get: {
+        Picker(L10n.text("API-подключение"), selection: Binding(get: {
             app.conversations.first { $0.id == conversationID }?.apiConnectionID
         }, set: { next in
             if let id = conversationID, let connection = connections.items.first(where: { $0.id == next }) {
                 app.selectAPIConnection(connection, conversationID: id)
             }
         })) {
-            Text("Выберите подключение").tag(UUID?.none)
+            Text(L10n.text("Выберите подключение")).tag(UUID?.none)
             ForEach(connections.items) { Text($0.name + " · " + $0.model).tag(Optional($0.id)) }
         }.disabled(app.operationBusy || conversationID.map(app.isRunning) == true)
     }
@@ -200,16 +200,16 @@ struct ConversationProviderChoices: View {
     let conversationID: UUID
     var chosen: () -> Void = {}
     var body: some View {
-        DisclosureGroup("Источник модели") {
+        DisclosureGroup(L10n.text("Источник модели")) {
             VStack(alignment: .leading, spacing: 3) {
-                ComposerMenuRow(title: "ChatGPT · подписка", icon: "sparkle") { app.configureConversation(conversationID, provider: "codex"); chosen() }
-                ComposerMenuRow(title: "Ollama · локально", icon: "desktopcomputer") { app.configureConversation(conversationID, provider: "ollama"); chosen() }
+                ComposerMenuRow(title: L10n.text("ChatGPT · подписка"), icon: "sparkle") { app.configureConversation(conversationID, provider: "codex"); chosen() }
+                ComposerMenuRow(title: L10n.text("Ollama · локально"), icon: "desktopcomputer") { app.configureConversation(conversationID, provider: "ollama"); chosen() }
                 ForEach(connections.items) { connection in
                     ComposerMenuRow(title: connection.name + " · " + connection.model, icon: "network") {
                         app.selectAPIConnection(connection, conversationID: conversationID); chosen()
                     }
                 }
-                ComposerMenuRow(title: "Подключить API…", icon: "plus") {
+                ComposerMenuRow(title: L10n.text("Подключить API…"), icon: "plus") {
                     chosen(); app.settingsSection = .services; app.openSettings(in: presentations)
                 }
             }.padding(.top, 6)

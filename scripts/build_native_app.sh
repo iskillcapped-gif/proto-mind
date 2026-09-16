@@ -14,7 +14,7 @@ command -v swift >/dev/null || { echo "Install Apple Command Line Tools before b
 swift build "${PROTO_MIND_SWIFT_BUILD_ARGS[@]}" -c release --product ProtoMindNative
 swift build "${PROTO_MIND_SWIFT_BUILD_ARGS[@]}" -c release --product ProtoMindPDF
 BIN_DIR="$(swift build "${PROTO_MIND_SWIFT_BUILD_ARGS[@]}" -c release --show-bin-path)"
-APP_DIR="${PROJECT_DIR}/dist/Proto-Mind Native.app"
+APP_DIR="${PROTO_MIND_NATIVE_OUTPUT:-${PROJECT_DIR}/dist/Proto-Mind Native.app}"
 CONTENTS="${APP_DIR}/Contents"
 mkdir -p "${CONTENTS}/MacOS" "${CONTENTS}/Resources"
 cp "${BIN_DIR}/ProtoMindNative" "${CONTENTS}/MacOS/ProtoMindNative"

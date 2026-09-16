@@ -9,7 +9,7 @@ enum DictationLanguage: String, CaseIterable, Identifiable {
         case .russian: return "Русский"
         case .ukrainian: return "Українська"
         case .english: return "English"
-        case .system: return "Язык системы"
+        case .system: return L10n.text("Язык системы")
         }
     }
     var locale: Locale { self == .system ? .current : Locale(identifier: rawValue) }

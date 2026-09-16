@@ -107,7 +107,7 @@ extension NativeChecks {
 
         let normalBrowser = NativeBrowserTab()
         normalBrowser.webView.loadHTMLString("<title>Normal fixture</title>", baseURL: URL(string: "https://normal.example.invalid/"))
-        let normalHost = NSHostingView(rootView: BrowserView(browser: normalBrowser))
+        let normalHost = NSHostingView(rootView: BrowserView(browser: normalBrowser, app: app))
         normalHost.sizingOptions = []
         normalHost.frame = NSRect(x: 0, y: 0, width: 500, height: 400)
         defer { normalBrowser.close() }

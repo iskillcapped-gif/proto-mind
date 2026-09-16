@@ -27,8 +27,8 @@ struct LiveVoiceButton: View {
                 .foregroundStyle(voice.inCall ? NativeTheme.accent : .secondary)
                 .frame(width: 30, height: 32)
         }.buttonStyle(.nativeHover)
-            .help(voice.connected ? "Голосовой разговор подключён" : voice.inCall ? "Подключение голосового разговора" : "Поговорить с Proto-Mind")
-            .accessibilityLabel("Голос Proto-Mind")
+            .help(voice.connected ? L10n.text("Голосовой разговор подключён") : voice.inCall ? L10n.text("Подключение голосового разговора") : L10n.text("Поговорить с Proto-Mind"))
+            .accessibilityLabel(L10n.text("Голос Proto-Mind"))
     }
 }
 
@@ -42,26 +42,26 @@ struct LiveVoiceView: View {
             HStack {
                 Image(systemName: "waveform").font(.system(size: 24)).foregroundStyle(NativeTheme.accent)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Голос Proto-Mind").font(.system(size: 18, weight: .semibold))
+                    Text(L10n.text("Голос Proto-Mind")).font(.system(size: 18, weight: .semibold))
                     Text("GPT Live 1").font(.caption).foregroundStyle(.secondary)
                 }
                 DesktopWindowDragArea().frame(maxWidth: .infinity).frame(height: 34)
                 Button {
                     app.showLiveVoice = false; app.settingsSection = .voice; openSettings()
                 } label: { Image(systemName: "gearshape") }
-                    .buttonStyle(.nativeHover).help("Настройки голоса")
+                    .buttonStyle(.nativeHover).help(L10n.text("Настройки голоса"))
                 Button { app.showLiveVoice = false } label: { Image(systemName: "chevron.down") }
-                    .buttonStyle(.nativeHover).help("Свернуть разговор")
+                    .buttonStyle(.nativeHover).help(L10n.text("Свернуть разговор"))
             }
             Group {
-                Label(voice.contextTitle.isEmpty ? app.selected?.title ?? "Новый диалог" : voice.contextTitle,
+                Label(voice.contextTitle.isEmpty ? app.selected?.displayTitle ?? L10n.text("Новый диалог") : voice.contextTitle,
                       systemImage: "folder").font(.callout).lineLimit(2).foregroundStyle(.secondary)
                 if voice.captions.isEmpty {
                     VStack(alignment: .leading, spacing: 14) {
-                        Text("Обсудим и сделаем").font(.system(size: 23, weight: .medium))
-                        Text("«Открой проект…»\n«Создай задачу…»\n«Добавь к текущей задаче…»\n«Как продвигается работа?»")
+                        Text(L10n.text("Обсудим и сделаем")).font(.system(size: 23, weight: .medium))
+                        Text(L10n.text("«Открой проект…»\n«Создай задачу…»\n«Добавь к текущей задаче…»\n«Как продвигается работа?»"))
                             .font(.system(size: 15)).lineSpacing(8).foregroundStyle(.secondary)
-                        Text("Работа выполняется выбранной моделью и с доступом соответствующего диалога.")
+                        Text(L10n.text("Работа выполняется выбранной моделью и с доступом соответствующего диалога."))
                             .font(.caption).foregroundStyle(.secondary)
                     }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                 } else {
@@ -89,20 +89,20 @@ struct LiveVoiceView: View {
             if voice.inCall {
                 HStack(spacing: 8) {
                     Image(systemName: voice.muted ? "mic.slash" : "mic")
-                    Text(voice.muted ? "Микрофон выключен" : voice.connected ? "Слушаю" : "Подключаюсь…")
+                    Text(voice.muted ? L10n.text("Микрофон выключен") : voice.connected ? L10n.text("Слушаю") : L10n.text("Подключаюсь…"))
                     Spacer()
                     HStack(alignment: .center, spacing: 3) {
                         ForEach(0..<8) { index in
                             Capsule().fill(!voice.muted && voice.inputLevel > Double(index) / 8 ? Color.primary : Color.secondary.opacity(0.2))
                                 .frame(width: 3, height: 6 + Double(index % 4) * 3)
                         }
-                    }.accessibilityLabel("Уровень микрофона").accessibilityValue("\(Int(voice.inputLevel * 100))%")
+                    }.accessibilityLabel(L10n.text("Уровень микрофона")).accessibilityValue("\(Int(voice.inputLevel * 100))%")
                 }.font(.caption).foregroundStyle(.secondary)
             }
             HStack(spacing: 12) {
                 if voice.inCall {
                     Button { voice.toggleMute() } label: {
-                        Label(voice.muted ? "Включить микрофон" : "Микрофон", systemImage: voice.muted ? "mic.slash" : "mic")
+                        Label(voice.muted ? L10n.text("Включить микрофон") : L10n.text("Микрофон"), systemImage: voice.muted ? "mic.slash" : "mic")
                     }.disabled(!voice.connected)
                     Spacer()
                     if let started = voice.startedAt {
@@ -110,17 +110,17 @@ struct LiveVoiceView: View {
                             Text(duration(context.date.timeIntervalSince(started))).monospacedDigit().font(.caption).foregroundStyle(.secondary)
                         }
                     }
-                    Button(voice.phase == .closing ? "Завершаю…" : "Завершить") { voice.stop() }
+                    Button(voice.phase == .closing ? L10n.text("Завершаю…") : L10n.text("Завершить")) { voice.stop() }
                         .tint(.red).disabled(voice.phase == .closing)
                 } else {
                     Button { app.presentLiveVoice(openSettings: { openSettings() }) } label: {
-                        Label("Начать разговор", systemImage: "waveform").frame(maxWidth: .infinity)
+                        Label(L10n.text("Начать разговор"), systemImage: "waveform").frame(maxWidth: .infinity)
                     }.buttonStyle(.borderedProminent).disabled(!voice.hasKey || !app.cloudConsent || app.operationBusy)
                 }
             }.controlSize(.large)
             Text(voice.inCall
-                 ? "Можно свернуть и продолжать говорить. «Завершить» отключает голос; рабочие задачи продолжаются."
-                 : "Микрофон и речь передаются OpenAI. $0,05/мин разговора + обработка команд API; отдельно от подписки ChatGPT.")
+                 ? L10n.text("Можно свернуть и продолжать говорить. «Завершить» отключает голос; рабочие задачи продолжаются.")
+                 : L10n.text("Микрофон и речь передаются OpenAI. $0,05/мин разговора + обработка команд API; отдельно от подписки ChatGPT."))
                 .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }.padding(22).padding(.top, 14)
             .frame(minWidth: 350, idealWidth: 410, maxWidth: .infinity, minHeight: 440, idealHeight: 545, maxHeight: .infinity)
@@ -139,32 +139,32 @@ struct LiveVoiceKeySettings: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label(voice.hasKey ? "API-ключ сохранён" : "Подключите OpenAI API", systemImage: voice.hasKey ? "key.fill" : "key")
+            Label(voice.hasKey ? L10n.text("API-ключ сохранён") : L10n.text("Подключите OpenAI API"), systemImage: voice.hasKey ? "key.fill" : "key")
                 .font(.headline)
-            SecureField(voice.hasKey ? "Новый ключ для замены" : "API-ключ OpenAI", text: $key)
-                .textFieldStyle(.roundedBorder).disabled(voice.inCall).accessibilityLabel("API-ключ OpenAI")
+            SecureField(voice.hasKey ? L10n.text("Новый ключ для замены") : L10n.text("API-ключ OpenAI"), text: $key)
+                .textFieldStyle(.roundedBorder).disabled(voice.inCall).accessibilityLabel(L10n.text("API-ключ OpenAI"))
             HStack {
-                Button("Сохранить ключ") {
-                    do { try voice.saveKey(key); key = ""; message = "Ключ сохранён в Связке ключей macOS."; failed = false }
+                Button(L10n.text("Сохранить ключ")) {
+                    do { try voice.saveKey(key); key = ""; message = L10n.text("Ключ сохранён в Связке ключей macOS."); failed = false }
                     catch { message = error.localizedDescription; failed = true }
                 }.disabled(key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || voice.inCall)
                 if voice.hasKey {
-                    Button("Удалить") {
-                        do { try voice.removeKey(); message = "Ключ удалён с этого Mac."; failed = false }
+                    Button(L10n.text("Удалить")) {
+                        do { try voice.removeKey(); message = L10n.text("Ключ удалён с этого Mac."); failed = false }
                         catch { message = error.localizedDescription; failed = true }
                     }.disabled(voice.inCall)
                 }
             }
             if let message { Text(message).font(.caption).foregroundStyle(failed ? Color.orange : .secondary) }
-            Text("Ключ хранится на этом Mac, отдельно от истории и резервных копий. Разговор включается только по кнопке; после запуска приложения микрофон выключен.")
+            Text(L10n.text("Ключ хранится на этом Mac, отдельно от истории и резервных копий. Разговор включается только по кнопке; после запуска приложения микрофон выключен."))
                 .font(.caption).foregroundStyle(.secondary)
-            Text("Во время разговора OpenAI получает звук, названия проектов и результаты запрошенных задач.")
+            Text(L10n.text("Во время разговора OpenAI получает звук, названия проектов и результаты запрошенных задач."))
                 .font(.caption).foregroundStyle(.secondary)
-            Text("Голос: GPT Live 1 · команды: GPT-5.6 Luna. Работа над проектами использует модель выбранной задачи и её память.")
+            Text(L10n.text("Голос: GPT Live 1 · команды: GPT-5.6 Luna. Работа над проектами использует модель выбранной задачи и её память."))
                 .font(.caption).foregroundStyle(.secondary)
-            Text("Реплики разговора видны до следующего звонка. Поручения и уточнения сохраняются в истории соответствующих задач; аудиозапись на диск не ведётся.")
+            Text(L10n.text("Реплики разговора видны до следующего звонка. Поручения и уточнения сохраняются в истории соответствующих задач; аудиозапись на диск не ведётся."))
                 .font(.caption).foregroundStyle(.secondary)
-            Link("Открыть API-ключи OpenAI", destination: URL(string: "https://platform.openai.com/api-keys")!)
+            Link(L10n.text("Открыть API-ключи OpenAI"), destination: URL(string: "https://platform.openai.com/api-keys")!)
                 .font(.callout)
         }
     }

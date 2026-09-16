@@ -3,7 +3,7 @@ import SwiftUI
 
 enum ModelSelectionPresentation {
     @MainActor static func localLabel(_ model: AppModel) -> String {
-        if model.selected?.provider == "mock" { return "Тестовый режим" }
+        if model.selected?.provider == "mock" { return L10n.text("Тестовый режим") }
         let selected = model.selected?.model ?? ""
         return selected.isEmpty ? model.providerLabel : selected
     }
@@ -39,7 +39,7 @@ struct ModelSelectionMenu: View {
                 .frame(minWidth: 70, idealWidth: ModelSelectionPresentation.width(for: title), maxWidth: ModelSelectionPresentation.width(for: title), minHeight: 32)
                 .contentShape(Rectangle())
         }.buttonStyle(.nativeHover).fixedSize(horizontal: false, vertical: true).help(title).disabled(model.busy)
-            .accessibilityLabel(isCodex ? "Модель \(model.codexModelLabel), усилие \(model.reasoningEffortLabel)" : "Модель \(localModelLabel)")
+            .accessibilityLabel(isCodex ? L10n.pick("Модель \(model.codexModelLabel), усилие \(model.reasoningEffortLabel)", "Model \(model.codexModelLabel), effort \(model.reasoningEffortLabel)") : L10n.pick("Модель \(localModelLabel)", "Model \(localModelLabel)"))
             .composerPopover(isPresented: $open, width: 326, trailing: true) {
                 ModelSelectionChoices(model: model, open: $open, openSettings: openSettings)
             }
@@ -61,25 +61,25 @@ struct ModelSelectionChoices: View {
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(isCodex ? "ChatGPT" : model.providerLabel).font(.system(size: 14, weight: .semibold))
-                    Text("Для этого диалога").font(.system(size: 11)).foregroundStyle(.secondary)
+                    Text(L10n.text("Для этого диалога")).font(.system(size: 11)).foregroundStyle(.secondary)
                 }
                 Spacer()
                 if isCodex {
                     Button { Task { await model.refreshAccount() } } label: {
                         Image(systemName: "arrow.clockwise").frame(width: 28, height: 28)
                     }.buttonStyle(.nativeHover).foregroundStyle(.secondary)
-                        .disabled(model.connecting).help("Обновить доступные модели")
+                        .disabled(model.connecting).help(L10n.text("Обновить доступные модели"))
                 }
             }.padding(.horizontal, 8).padding(.top, 6)
             if isCodex {
                 HStack(spacing: 4) {
-                    tab("Модель", icon: "sparkle", id: "model")
-                    tab("Усилие", icon: "slider.horizontal.3", id: "effort")
+                    tab(L10n.text("Модель"), icon: "sparkle", id: "model")
+                    tab(L10n.text("Усилие"), icon: "slider.horizontal.3", id: "effort")
                 }.padding(4).background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 11))
             }
             VStack(spacing: 3) {
                 if isCodex && section == "effort" {
-                    choice("По умолчанию", subtitle: model.selectedCodexModel?.defaultEffort?.title,
+                    choice(L10n.text("По умолчанию"), subtitle: model.selectedCodexModel?.defaultEffort?.title,
                            selected: (model.selected?.reasoningEffort ?? "").isEmpty) {
                         model.setReasoningEffort(""); open = false
                     }
@@ -90,10 +90,10 @@ struct ModelSelectionChoices: View {
                     }
                     if let selected = model.selected?.reasoningEffort, !selected.isEmpty,
                        !model.availableReasoningEfforts.contains(where: { $0.rawValue == selected }) {
-                        Text("Выбранное усилие сейчас недоступно").font(.caption).foregroundStyle(.secondary).padding(10)
+                        Text(L10n.text("Выбранное усилие сейчас недоступно")).font(.caption).foregroundStyle(.secondary).padding(10)
                     }
                 } else if isCodex {
-                    choice("Автоматически", subtitle: "По умолчанию для аккаунта", selected: (model.selected?.model ?? "").isEmpty) {
+                    choice(L10n.text("Автоматически"), subtitle: L10n.text("По умолчанию для аккаунта"), selected: (model.selected?.model ?? "").isEmpty) {
                         model.setModel(""); open = false
                     }
                     ForEach(model.codexModels) { item in
@@ -112,7 +112,7 @@ struct ModelSelectionChoices: View {
             if let id = model.selectedID {
                 ConversationProviderChoices(app: model, connections: model.apiConnections, conversationID: id) { open = false }
             }
-            ComposerMenuRow(title: "Настройки модели", icon: "slider.horizontal.3") {
+            ComposerMenuRow(title: L10n.text("Настройки модели"), icon: "slider.horizontal.3") {
                 open = false
                 Task { @MainActor in await Task.yield(); model.settingsSection = .models; openSettings() }
             }.foregroundStyle(.secondary)
@@ -159,8 +159,8 @@ struct CodexModelPicker: View {
     @ObservedObject var model: AppModel
 
     var body: some View {
-        Picker("Модель Codex", selection: Binding(get: { model.selected?.model ?? "" }, set: model.setModel)) {
-            Text("По умолчанию для аккаунта").tag("")
+        Picker(L10n.text("Модель Codex"), selection: Binding(get: { model.selected?.model ?? "" }, set: model.setModel)) {
+            Text(L10n.text("По умолчанию для аккаунта")).tag("")
             ForEach(model.codexModels) { item in Text(item.displayName).tag(item.id) }
             if let selected = model.selected?.model, !selected.isEmpty, model.selectedCodexModel == nil {
                 Text("\(selected) · недоступна").tag(selected)
@@ -173,8 +173,8 @@ struct CodexEffortPicker: View {
     @ObservedObject var model: AppModel
 
     var body: some View {
-        Picker("Усилие рассуждения", selection: Binding(get: { model.selected?.reasoningEffort ?? "" }, set: model.setReasoningEffort)) {
-            Text(model.selectedCodexModel?.defaultEffort.map { "По умолчанию · \($0.title)" } ?? "По умолчанию").tag("")
+        Picker(L10n.text("Усилие рассуждения"), selection: Binding(get: { model.selected?.reasoningEffort ?? "" }, set: model.setReasoningEffort)) {
+            Text(model.selectedCodexModel?.defaultEffort.map { "По умолчанию · \($0.title)" } ?? L10n.text("По умолчанию")).tag("")
             ForEach(model.availableReasoningEfforts) { effort in Text(effort.title).tag(effort.rawValue) }
             if let selected = model.selected?.reasoningEffort, !selected.isEmpty,
                !model.availableReasoningEfforts.contains(where: { $0.rawValue == selected }) {

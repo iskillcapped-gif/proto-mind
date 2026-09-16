@@ -40,17 +40,17 @@ struct WorkspaceView: View {
         }
         .workspaceSheet(item: $model.pendingAction) { action in
             VStack(alignment: .leading, spacing: 20) {
-                Label("Подтвердить команду", systemImage: "hand.raised").font(.title2.weight(.semibold))
-                Text("Эта команда меняет состояние или требует повышенного внимания. Модель не запрашивала её выполнение: ниже именно ваш ввод.")
+                Label(L10n.text("Подтвердить команду"), systemImage: "hand.raised").font(.title2.weight(.semibold))
+                Text(L10n.text("Эта команда меняет состояние или требует повышенного внимания. Модель не запрашивала её выполнение: ниже именно ваш ввод."))
                     .foregroundStyle(.secondary)
                 ScrollView { Text(action.text).font(.system(.body, design: .monospaced)).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) }
                     .frame(maxHeight: 100).padding(12).background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
                 Text(action.summary).font(.callout).textSelection(.enabled)
-                Text("Внутренние approval/token/preview-гейты Proto-Mind по-прежнему действуют.").font(.caption).foregroundStyle(.secondary)
+                Text(L10n.text("Внутренние approval/token/preview-гейты Proto-Mind по-прежнему действуют.")).font(.caption).foregroundStyle(.secondary)
                 HStack {
-                    Button("Отмена") { model.pendingAction = nil }.keyboardShortcut(.cancelAction)
+                    Button(L10n.text("Отмена")) { model.pendingAction = nil }.keyboardShortcut(.cancelAction)
                     Spacer()
-                    Button("Выполнить мой ввод") { Task { await model.confirmPending() } }.buttonStyle(.borderedProminent).nativeHoverSurface()
+                    Button(L10n.text("Выполнить мой ввод")) { Task { await model.confirmPending() } }.buttonStyle(.borderedProminent).nativeHoverSurface()
                 }
             }.padding(28).workspacePageSize(width: 560)
         }
@@ -100,7 +100,7 @@ struct WorkspaceView: View {
                         Text(error).font(.callout).textSelection(.enabled)
                         Spacer()
                         if model.computerUsePermissionIssue {
-                            Button("Открыть Automation") { model.openAutomationSettings() }
+                            Button(L10n.text("Открыть Automation")) { model.openAutomationSettings() }
                                 .buttonStyle(.bordered).nativeHoverSurface()
                         }
                         Button { model.clearError() } label: { Image(systemName: "xmark") }.buttonStyle(.nativeHover)
@@ -121,12 +121,12 @@ struct WorkspaceView: View {
                 ToolbarItem(placement: .primaryAction) {
                     HStack(spacing: 8) {
                         Button { model.openWorkSessions() } label: { Image(systemName: "clock.arrow.circlepath") }
-                            .accessibilityLabel("Журнал работы")
-                            .help("Журнал работы и ручное продолжение")
+                            .accessibilityLabel(L10n.text("Журнал работы"))
+                            .help(L10n.text("Журнал работы и ручное продолжение"))
                         Button {
                             model.workspacePanels.toggle()
                         } label: { Image(systemName: "sidebar.right") }
-                            .help("Две рабочие панели").accessibilityLabel("Рабочие панели")
+                            .help(L10n.text("Две рабочие панели")).accessibilityLabel(L10n.text("Рабочие панели"))
                     }
                 }
             }
@@ -137,12 +137,12 @@ struct WorkspaceView: View {
 
     private var sectionTitle: String {
         switch model.section {
-        case .chat: return model.selected?.title ?? "Диалог"
-        case .commands: return "Команды"
-        case .overview: return "Диагностика"
-        case .workspace: return "Папка проекта"
+        case .chat: return model.selected?.displayTitle ?? L10n.text("Диалог")
+        case .commands: return L10n.text("Команды")
+        case .overview: return L10n.text("Диагностика")
+        case .workspace: return L10n.text("Папка проекта")
         case .github: return "GitHub"
-        case .memory, .goals, .skills: return model.section.libraryCollection?.title ?? "Библиотека"
+        case .memory, .goals, .skills: return model.section.libraryCollection?.title ?? L10n.text("Библиотека")
         }
     }
 }
@@ -192,7 +192,7 @@ struct WorkspaceSplitView: View {
                             panels.horizontalFraction = WorkspacePanelLayout.width(total: geometry.size.width,
                                 fraction: (columnStart ?? 0.48) - drag.translation.width / available) / available
                         }.onEnded { _ in columnStart = nil })
-                        .accessibilityLabel("Ширина рабочих панелей")
+                        .accessibilityLabel(L10n.text("Ширина рабочих панелей"))
                         .accessibilityAdjustableAction { direction in
                             panels.horizontalFraction = min(0.8, max(0.2, panels.horizontalFraction + (direction == .increment ? 0.05 : -0.05)))
                         }
@@ -203,7 +203,7 @@ struct WorkspaceSplitView: View {
                             if rowStart == nil { rowStart = panels.verticalFraction }
                             panels.verticalFraction = min(0.8, max(0.2, (rowStart ?? 0.5) + drag.translation.height / max(1, geometry.size.height)))
                         }.onEnded { _ in rowStart = nil })
-                        .accessibilityLabel("Высота рабочих панелей")
+                        .accessibilityLabel(L10n.text("Высота рабочих панелей"))
                         .accessibilityAdjustableAction { direction in
                             panels.verticalFraction = min(0.8, max(0.2, panels.verticalFraction + (direction == .increment ? 0.05 : -0.05)))
                         }
@@ -315,7 +315,7 @@ private struct ChatView: View {
                                         .padding(.vertical, 8)
                                     }
                                     .buttonStyle(.nativeHover)
-                                    .help("История хранится полностью; загружается только следующая часть интерфейса")
+                                    .help(L10n.text("История хранится полностью; загружается только следующая часть интерфейса"))
                                 }
                                 ForEach(renderedMessages) { message in
                                     VStack(alignment: .leading, spacing: 16) {
@@ -330,9 +330,9 @@ private struct ChatView: View {
                                             in: RoundedRectangle(cornerRadius: 10))
                                 }
                                 if renderedMessages.endIndex < model.messages.count {
-                                    Button("Показать следующие сообщения") { loadLater(using: proxy) }
+                                    Button(L10n.text("Показать следующие сообщения")) { loadLater(using: proxy) }
                                         .font(.system(size: 12)).frame(maxWidth: .infinity).padding(.vertical, 8)
-                                        .accessibilityLabel("Показать следующие сообщения")
+                                        .accessibilityLabel(L10n.text("Показать следующие сообщения"))
                                 }
                                 if model.selectedExecution?.running == true {
                                     VStack(alignment: .leading, spacing: 20) {
@@ -389,7 +389,7 @@ private struct ChatView: View {
                                 } label: {
                                     Image(systemName: "arrow.down").font(.system(size: 15)).frame(width: 34, height: 34)
                                         .background(NativeTheme.composer, in: Circle()).overlay(Circle().stroke(hairline))
-                                }.buttonStyle(.nativeHover).help("К последнему сообщению").padding(.bottom, 8)
+                                }.buttonStyle(.nativeHover).help(L10n.text("К последнему сообщению")).padding(.bottom, 8)
                             }
                         }
                 }
@@ -478,14 +478,21 @@ struct MessageView: View {
     @Environment(\.workspacePresentations) private var presentations
     @State private var showRaw = false
     @State private var showLegacyActions = false
+    @State private var showBrowserReference = false
 
     var body: some View {
         if message.role == "user" {
             HStack(alignment: .top) {
                 Spacer(minLength: 65)
                 VStack(alignment: .leading, spacing: 10) {
-                    Text(message.text).font(NativeTheme.messageFont).lineSpacing(6).textSelection(.enabled)
+                    Text(BrowserReferencePresentation(message.text)?.instruction ?? message.text).font(NativeTheme.messageFont).lineSpacing(6).textSelection(.enabled)
                         .help(message.createdAt.formatted(date: .omitted, time: .shortened))
+                    if let page = BrowserReferencePresentation(message.text) {
+                        DisclosureGroup(L10n.pick("Материал из браузера", "Browser reference"), isExpanded: $showBrowserReference) {
+                            Text(page.source).font(.caption).textSelection(.enabled).foregroundStyle(.secondary)
+                            ScrollView { Text(page.content).font(.system(size: 12)).textSelection(.enabled) }.frame(maxHeight: 220)
+                        }.font(.caption).foregroundStyle(.secondary)
+                    }
                     attachments
                 }
                 .padding(.horizontal, 18).padding(.vertical, 13)
@@ -497,12 +504,12 @@ struct MessageView: View {
                 if let work = message.workLog, work["schema"].text == "proto_mind.native_work_log.v1" {
                     WorkTimelineView(log: work, agentReceipt: message.agentRun ?? .null)
                 } else if let receipt = message.agentRun, !receipt.isNull {
-                    DisclosureGroup("Действия инструментов", isExpanded: $showLegacyActions) {
+                    DisclosureGroup(L10n.text("Действия инструментов"), isExpanded: $showLegacyActions) {
                         AgentActivityView(items: receipt["items"].items, receipt: receipt).padding(.top, 8)
                     }.font(.system(size: 13)).foregroundStyle(.secondary)
                 }
                 if message.role == "report" {
-                    Label(message.isError ? "Нужна проверка" : "Локальное ядро", systemImage: message.isError ? "exclamationmark.circle" : "command")
+                    Label(message.isError ? L10n.text("Нужна проверка") : L10n.text("Локальное ядро"), systemImage: message.isError ? "exclamationmark.circle" : "command")
                         .font(.system(size: 12)).foregroundStyle(message.isError ? Color.orange : .secondary)
                     Text(message.text).font(NativeTheme.codeFont).textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -511,7 +518,7 @@ struct MessageView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 if message.agentRun?["computer_use_cleanup"]["status"].text == "unconfirmed" {
-                    Label("Не удалось подтвердить отключение Computer Use. Если управление осталось активно, остановите его в панели Computer Use.",
+                    Label(L10n.text("Не удалось подтвердить отключение Computer Use. Если управление осталось активно, остановите его в панели Computer Use."),
                           systemImage: "exclamationmark.triangle")
                         .font(.system(size: 12)).foregroundStyle(.orange)
                         .fixedSize(horizontal: false, vertical: true)
@@ -521,29 +528,36 @@ struct MessageView: View {
                 if let receipt = message.agentRun { CompletedFileChangesView(receipt: receipt, openLink: { openLink($0) }) }
                 HStack(spacing: 17) {
                     Button { model.copy(message.text) } label: { Image(systemName: "doc.on.doc") }
-                        .help("Копировать ответ").accessibilityLabel("Копировать ответ")
+                        .help(L10n.text("Копировать ответ")).accessibilityLabel(L10n.text("Копировать ответ"))
+                    if message.role == "assistant", let sourceID = conversationID ?? model.selectedID {
+                        Button {
+                            model.openAnswerBesideChat(message, conversationID: sourceID, sourcePanel: targetPanel)
+                        } label: { Image(systemName: "rectangle.trailinghalf.inset.filled") }
+                            .help(L10n.pick("Открыть ответ рядом", "Open response beside chat"))
+                            .accessibilityLabel(L10n.pick("Открыть ответ рядом", "Open response beside chat"))
+                    }
                     if let conversationID, conversationID != model.selectedID {
-                        Button("Подробнее") { model.select(conversationID); model.showMessage(message, in: presentations) }
+                        Button(L10n.text("Подробнее")) { model.select(conversationID); model.showMessage(message, in: presentations) }
                     } else if message.hasResponseDetails || message.turnReference != nil {
                         Menu {
                             if message.hasResponseDetails {
-                                Button("Об ответе", systemImage: "info.circle") { model.showMessage(message, in: presentations) }
-                                Button(showRaw ? "Скрыть исходный отчёт" : "Исходный отчёт", systemImage: "text.alignleft") { showRaw.toggle() }
+                                Button(L10n.text("Об ответе"), systemImage: "info.circle") { model.showMessage(message, in: presentations) }
+                                Button(showRaw ? L10n.text("Скрыть исходный отчёт") : L10n.text("Исходный отчёт"), systemImage: "text.alignleft") { showRaw.toggle() }
                             }
                             if message.turnReference != nil {
-                                Button("Ход этой задачи", systemImage: "clock.arrow.circlepath") { Task { await model.openWorkSession(for: message, in: presentations) } }
+                                Button(L10n.text("Ход этой задачи"), systemImage: "clock.arrow.circlepath") { Task { await model.openWorkSession(for: message, in: presentations) } }
                                     .disabled(model.busy || model.loadingWorkSessions)
-                                Button("Цепочка диалога · Session Spine", systemImage: "point.3.connected.trianglepath.dotted") { Task { await model.openSessionSpine(for: message, in: presentations) } }
+                                Button(L10n.text("Цепочка диалога · Session Spine"), systemImage: "point.3.connected.trianglepath.dotted") { Task { await model.openSessionSpine(for: message, in: presentations) } }
                                     .disabled(model.busy || model.loadingWorkSessions || model.loadingSessionSpinePreview)
                             }
                         } label: {
                             Label {
-                                Text("Подробнее").foregroundColor(.secondary)
+                                Text(L10n.text("Подробнее")).foregroundColor(.secondary)
                             } icon: {
                                 Image(systemName: "ellipsis").foregroundColor(.secondary)
                             }
                         }
-                            .menuStyle(.borderlessButton).tint(.secondary).fixedSize().nativeHoverSurface().accessibilityLabel("Подробнее об ответе")
+                            .menuStyle(.borderlessButton).tint(.secondary).fixedSize().nativeHoverSurface().accessibilityLabel(L10n.text("Подробнее об ответе"))
                     }
                 }.buttonStyle(.nativeHover).font(.system(size: 13)).foregroundStyle(.secondary).padding(.top, 2)
                 if showRaw { Text(message.raw).font(.system(size: 11, design: .monospaced)).textSelection(.enabled) }
@@ -573,14 +587,14 @@ struct MessageView: View {
                     Label("\(image["name"].text) · \(image["width"].integer) × \(image["height"].integer)", systemImage: "photo")
                         .font(.caption).foregroundStyle(.secondary)
                 }.buttonStyle(.nativeHover).disabled(model.busy || model.loadingImagePreview)
-                    .help("Локальный просмотр исходного файла с проверкой SHA-256. Изображение не отправляется повторно.")
+                    .help(L10n.text("Локальный просмотр исходного файла с проверкой SHA-256. Изображение не отправляется повторно."))
             }
             ForEach(Array((message.pdfContext ?? []).enumerated()), id: \.offset) { _, pdf in
                 Button { if let conversationID, conversationID != model.selectedID { model.select(conversationID) }; Task { await model.previewPDF(pdf["path"].text, expected: pdf, canAttach: false, inWorkspacePanel: true, targetPanel: targetPanel) } } label: {
                     Label("\(pdf["name"].text) · стр. \(pdf["pages"].items.map { String($0["number"].integer) }.joined(separator: ", "))", systemImage: "doc.richtext")
                         .font(.caption).foregroundStyle(.secondary)
                 }.buttonStyle(.nativeHover).disabled(!model.canReceiveAttachments)
-                    .help("Локально прочитать выбранные страницы с проверкой SHA-256; без повторной отправки")
+                    .help(L10n.text("Локально прочитать выбранные страницы с проверкой SHA-256; без повторной отправки"))
             }
         }
     }
@@ -705,7 +719,7 @@ struct NativeComposer: NSViewRepresentable {
         editor.isAutomaticQuoteSubstitutionEnabled = false
         editor.registerForDraggedTypes([.fileURL])
         editor.delegate = context.coordinator
-        editor.setAccessibilityLabel("Сообщение Proto-Mind")
+        editor.setAccessibilityLabel(L10n.text("Сообщение Proto-Mind"))
         scroll.documentView = editor
         return scroll
     }

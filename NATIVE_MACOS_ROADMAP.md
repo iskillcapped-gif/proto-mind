@@ -4,6 +4,33 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Browser to Task — Native 0.66.0
+
+PM browser pages and selections can be explicitly handed to a chosen conversation.
+An isolated WebKit read captures bounded text and its exact URL, excludes form
+controls/editable regions, and rejects navigation or closure during capture.
+The local preview adds the source to the existing draft; sending remains explicit.
+Quoted page data is marked untrusted and uses the existing history, permissions
+and steering contracts. Voice has exact browser/task routing with the same bounded
+snapshot; ordinary browsing does not share page text with a model.
+
+Completed replies open as transient Markdown documents beside chat, retaining their
+original conversation for file links. Companion actions stay in their source panel.
+English/Russian main UI and voice use a profile-specific language preference; a
+restart applies it without changing stored messages or provider identifiers.
+Technical core reports may still be Russian.
+
+The portable release includes a fictional Northstar project and a two-minute
+recording guide. It contains no account or pre-generated model answer. A real
+model recording, second-Mac trial and Product Hunt submission remain separate.
+
+Verification: 1,762 Native checks passed, including real WebKit selection/filtering,
+bounded capture, exact destination/draft preservation, first-send history, injected
+save failure and recovery, voice routing without a live API call, and language
+isolation. Five portable Python checks passed. A disposable app verified English
+after restart, browser capture, normal Mock submission, collapsed source evidence
+and answers beside chat. No personal account, live model or microphone was used.
+
 ## Panel Drafts — Native 0.65.7
 
 Opening **Диалог PM** in an internal or floating panel creates only a provisional

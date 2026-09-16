@@ -29,7 +29,7 @@ final class ProjectMemoryModel: ObservableObject, Identifiable {
     var current: Bool { app.projectMemory?.id == id && app.selectedID == scope.conversationID && app.selected?.workspacePath == scope.workspace }
     var locked: Bool { !current || app.globalBusy || app.client.turnOutstanding || loading || saving }
     var note: JSONValue { .object(["kind": .string(noteKind), "content": .string(content.trimmingCharacters(in: .whitespacesAndNewlines)),
-                                 "basis": .string(basis.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Добавлено пользователем в память проекта." : basis.trimmingCharacters(in: .whitespacesAndNewlines)), "supersedes_id": .string(supersedesID)]) }
+                                 "basis": .string(basis.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? L10n.text("Добавлено пользователем в память проекта.") : basis.trimmingCharacters(in: .whitespacesAndNewlines)), "supersedes_id": .string(supersedesID)]) }
     func invalidate() { preview = nil; statePreview = nil }
     func close() { guard !saving else { return }; if current { app.projectMemory = nil } }
     func refresh(recall: Bool = false, offset: Int = 0) async {
@@ -91,8 +91,8 @@ final class ProjectMemoryModel: ObservableObject, Identifiable {
                 if !replaced.isEmpty { app.removeProjectNoteSelections(replaced) }
                 app.invalidateContextPreview()
                 content = ""; basis = ""; supersedesID = ""; query = ""
-                notice = replaced.isEmpty ? "Заметка сохранена в памяти проекта." : "Изменения сохранены. Прежняя версия осталась в истории."
-                app.status = "Заметка проекта сохранена; модели не отправлялась"
+                notice = replaced.isEmpty ? L10n.text("Заметка сохранена в памяти проекта.") : L10n.text("Изменения сохранены. Прежняя версия осталась в истории.")
+                app.status = L10n.text("Заметка проекта сохранена; модели не отправлялась")
             }
         } catch { if current { self.error = "\(error.localizedDescription) Проверьте список перед повтором." } }
         app.busy = false; saving = false
@@ -142,7 +142,7 @@ final class ProjectMemoryModel: ObservableObject, Identifiable {
             if current {
                 if saved.archived { app.removeProjectNoteSelections(saved.id) }
                 app.invalidateContextPreview()
-                notice = saved.archived ? "Заметка убрана из памяти проекта. Вернуть её можно в истории." : "Заметка снова доступна в памяти проекта."
+                notice = saved.archived ? L10n.text("Заметка убрана из памяти проекта. Вернуть её можно в истории.") : L10n.text("Заметка снова доступна в памяти проекта.")
             }
         } catch { if current { self.error = "\(error.localizedDescription) Проверьте список перед повтором." } }
         app.busy = false; saving = false
@@ -164,10 +164,10 @@ final class ProjectMemoryModel: ObservableObject, Identifiable {
         guard !locked, let detail, detail.active, issues.isEmpty, app.selected?.archived == false else { return }
         var selected = app.projectNoteSelections[scope.conversationID] ?? []
         selected.removeAll { $0.id == detail.id }
-        guard selected.count < 5 else { error = "Можно выбрать не больше пяти заметок для одного сообщения."; return }
+        guard selected.count < 5 else { error = L10n.text("Можно выбрать не больше пяти заметок для одного сообщения."); return }
         selected.append(detail); app.projectNoteSelections[scope.conversationID] = selected
         app.invalidateContextPreview()
-        app.status = "Заметка выбрана только для следующего сообщения; отправьте его вручную"
+        app.status = L10n.text("Заметка выбрана только для следующего сообщения; отправьте его вручную")
         app.section = .chat; close()
     }
 }
@@ -180,7 +180,7 @@ extension AppModel {
     var pendingProjectNotes: [ProjectNote] { selectedID.map { projectNoteSelections[$0] ?? [] } ?? [] }
     func openProjectMemory() async {
         guard !globalBusy, !client.turnOutstanding, let selected, let workspace = selected.workspacePath else {
-            error = "Сначала выберите рабочую папку диалога."; return
+            error = L10n.text("Сначала выберите рабочую папку диалога."); return
         }
         let panel = ProjectMemoryModel(app: self, scope: ProjectMemoryScope(conversationID: selected.id, workspace: workspace))
         projectMemory = panel; await panel.refresh()

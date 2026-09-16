@@ -10,7 +10,7 @@ developer data paths and running developer app remain independent.
 On an Apple Silicon development Mac with Command Line Tools and Python 3.11+:
 
 ```sh
-bash scripts/build_portable_app.sh --output dist/portable-0.62.0
+bash scripts/build_portable_app.sh --output dist/portable-0.66.0
 ```
 
 Choose a new output directory each time; the builder refuses to overwrite a
@@ -29,7 +29,7 @@ dependency notices come from the matching full standalone archive.
 Every build signs the nested executable code, verifies the completed bundle,
 then starts its own Python bridge with a disposable empty profile. A missing
 module or failed bootstrap stops packaging. Output contains `Proto-Mind.app`,
-the DMG, installation notes, and a DMG SHA-256 file. Nothing is uploaded.
+the DMG, installation notes, a synthetic demo project, and a DMG SHA-256 file. Nothing is uploaded.
 
 ## Storage and first launch
 
@@ -57,7 +57,7 @@ bash scripts/test_native.sh --portable-only
 python3 -m unittest proto_mind.tests.test_native_portable
 bash scripts/run_tests.sh
 bash scripts/test_native.sh
-python3 scripts/verify_portable_app.py 'dist/portable-0.62.0/Proto-Mind.app' --account-probe
+python3 scripts/verify_portable_app.py 'dist/portable-0.66.0/Proto-Mind.app' --account-probe
 ```
 
 Also move a packaged app to a path containing spaces and exercise first launch,

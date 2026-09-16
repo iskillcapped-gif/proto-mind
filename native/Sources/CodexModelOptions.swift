@@ -5,14 +5,14 @@ enum CodexReasoningEffort: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .none: return "Без рассуждения"
-        case .minimal: return "Минимальное"
-        case .low: return "Лёгкое"
-        case .medium: return "Среднее"
-        case .high: return "Высокое"
-        case .xhigh: return "Очень высокое"
-        case .max: return "Макс."
-        case .ultra: return "Ультра"
+        case .none: return L10n.text("Без рассуждения")
+        case .minimal: return L10n.text("Минимальное")
+        case .low: return L10n.text("Лёгкое")
+        case .medium: return L10n.text("Среднее")
+        case .high: return L10n.text("Высокое")
+        case .xhigh: return L10n.text("Очень высокое")
+        case .max: return L10n.text("Макс.")
+        case .ultra: return L10n.text("Ультра")
         }
     }
 }

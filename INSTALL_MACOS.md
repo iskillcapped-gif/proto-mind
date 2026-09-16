@@ -1,7 +1,9 @@
 # Proto-Mind for macOS — beta
 
 Requires an **Apple Silicon Mac (M1 or newer), macOS 14 or newer**. Intel Macs
-are not supported by this package. The interface is currently in Russian.
+are not supported by this package. The main workflow is available in English and Russian. Choose a language in
+the welcome screen or Settings → Appearance, then restart to apply it.
+Technical core reports may still contain Russian.
 
 ## Install and connect
 
@@ -23,6 +25,17 @@ macOS may block a downloaded copy. The release does not yet provide the normal
 verified installation experience for the public. Do not disable Gatekeeper or
 other system protections. A Developer ID-signed and notarized release is a
 separate distribution step requiring Apple Developer Program membership.
+
+## Browser material and results
+
+Open a page in a panel, optionally select a passage, then choose **Use in a task**.
+Review the captured text and destination, add it to a draft and send. The source
+link and bounded text snapshot are saved in the message. Forms, images and
+embedded frames are excluded; no page is continuously shared. The same explicit
+workflow is available by voice. A completed response can be opened beside chat.
+
+The DMG includes `DemoProject`, a fictional brief and a walkthrough. It contains
+no account, API key or pre-generated answer.
 
 ## Optional features
 

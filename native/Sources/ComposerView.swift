@@ -15,14 +15,14 @@ struct ComposerView: View {
         VStack(alignment: .leading, spacing: 9) {
             if model.selected?.archived == true {
                 HStack {
-                    Label("Диалог в архиве", systemImage: "archivebox")
+                    Label(L10n.text("Диалог в архиве"), systemImage: "archivebox")
                     Spacer()
-                    Button("Вернуть к диалогам") { if let id = model.selectedID { model.archiveConversation(id, archived: false) } }
+                    Button(L10n.text("Вернуть к диалогам")) { if let id = model.selectedID { model.archiveConversation(id, archived: false) } }
                 }.font(.caption).foregroundStyle(.secondary)
             }
             if model.selected?.provider == "codex" && !model.cloudConsent {
                 Button { model.settingsSection = .models; openSettings() } label: {
-                    Label("Подключите ChatGPT в настройках, чтобы начать", systemImage: "person.crop.circle.badge.plus")
+                    Label(L10n.text("Подключите ChatGPT в настройках, чтобы начать"), systemImage: "person.crop.circle.badge.plus")
                         .font(.system(size: 12)).foregroundStyle(NativeTheme.accent)
                 }.buttonStyle(.nativeHover)
             }
@@ -31,10 +31,10 @@ struct ComposerView: View {
             }
             if model.selected?.draftContinuation != nil {
                 HStack(spacing: 8) {
-                    Label("Продолжение предыдущей задачи", systemImage: "clock.arrow.circlepath")
+                    Label(L10n.text("Продолжение предыдущей задачи"), systemImage: "clock.arrow.circlepath")
                     Spacer()
-                    Button("Отвязать") { model.clearContinuation() }.disabled(model.busy)
-                        .help("Оставить текст как самостоятельный новый запрос")
+                    Button(L10n.text("Отвязать")) { model.clearContinuation() }.disabled(model.busy)
+                        .help(L10n.text("Оставить текст как самостоятельный новый запрос"))
                 }.font(.caption).foregroundStyle(.secondary).padding(.horizontal, 6)
             }
             VStack(spacing: 0) {
@@ -45,7 +45,7 @@ struct ComposerView: View {
                 if let files = model.selected?.pendingFiles, !files.isEmpty { fileAttachments(files) }
                 ZStack(alignment: .topLeading) {
                     if model.composer.isEmpty {
-                        Text(model.canUpdateTask ? "Уточнение к текущей задаче…" : "Сообщение Proto-Mind…").font(NativeTheme.messageFont).foregroundStyle(.secondary.opacity(0.7))
+                        Text(model.canUpdateTask ? L10n.text("Уточнение к текущей задаче…") : L10n.text("Сообщение Proto-Mind…")).font(NativeTheme.messageFont).foregroundStyle(.secondary.opacity(0.7))
                             .padding(.horizontal, 17).padding(.top, 16)
                     }
                     NativeComposer(text: $model.composer, revision: model.composerRevision, enabled: model.selected?.archived != true,
@@ -91,15 +91,15 @@ struct ComposerView: View {
 
     private var attachmentMenu: some View {
         Button { attachmentsOpen.toggle() } label: { Image(systemName: "plus").font(.system(size: 18)).frame(width: 28, height: 32) }
-            .buttonStyle(.nativeHover).help("Добавить вложение").accessibilityLabel("Добавить вложение")
+            .buttonStyle(.nativeHover).help(L10n.text("Добавить вложение")).accessibilityLabel(L10n.text("Добавить вложение"))
             .disabled(!model.canReceiveAttachments)
             .composerPopover(isPresented: $attachmentsOpen, width: 245) {
                 VStack(spacing: 2) {
-                    attachment("Изображение…", icon: "photo", action: model.chooseImage)
-                    attachment("Страницы PDF…", icon: "doc.richtext", action: model.choosePDF)
-                    attachment("Файл проекта…", icon: "doc.text") { model.showProjectFiles() }
+                    attachment(L10n.text("Изображение…"), icon: "photo", action: model.chooseImage)
+                    attachment(L10n.text("Страницы PDF…"), icon: "doc.richtext", action: model.choosePDF)
+                    attachment(L10n.text("Файл проекта…"), icon: "doc.text") { model.showProjectFiles() }
                     Divider().padding(.vertical, 4)
-                    attachment("Заметка проекта…", icon: "brain.head.profile") { Task { await model.openProjectMemory() } }
+                    attachment(L10n.text("Заметка проекта…"), icon: "brain.head.profile") { Task { await model.openProjectMemory() } }
                         .disabled(model.busy)
                 }.padding(6)
             }
@@ -119,36 +119,36 @@ struct ComposerView: View {
                 if let count = model.selected?.pendingCriteria.count, count > 0 { Text("\(count)").font(.system(size: 10, weight: .medium)) }
             }.font(.system(size: 15)).frame(minWidth: 28, minHeight: 32)
         }.disabled(model.busy || model.selected?.archived == true)
-            .help("Контекст, критерии, память и навыки").accessibilityLabel("Настройки запроса")
+            .help(L10n.text("Контекст, критерии, память и навыки")).accessibilityLabel(L10n.text("Настройки запроса"))
             .composerPopover(isPresented: $optionsOpen, width: 320) {
                 VStack(alignment: .leading, spacing: 16) {
-                    Text("Настройки запроса").font(.system(size: 15, weight: .semibold))
+                    Text(L10n.text("Настройки запроса")).font(.system(size: 15, weight: .semibold))
                     Button { openOption { model.showContextDesk = true } } label: {
-                        option("Контекст запроса", detail: "Что увидит модель перед отправкой", icon: "doc.text.magnifyingglass")
+                        option(L10n.text("Контекст запроса"), detail: L10n.text("Что увидит модель перед отправкой"), icon: "doc.text.magnifyingglass")
                     }
                     Button { openOption { model.showTaskCriteria = true } } label: {
-                        option("Критерии результата", detail: model.selected?.pendingCriteria.isEmpty != false ? "Как проверить, что задача решена" : "Задано: \(model.selected?.pendingCriteria.count ?? 0)", icon: "checklist")
+                        option(L10n.text("Критерии результата"), detail: model.selected?.pendingCriteria.isEmpty != false ? L10n.text("Как проверить, что задача решена") : "Задано: \(model.selected?.pendingCriteria.count ?? 0)", icon: "checklist")
                     }
                     if model.selected?.provider == "codex" {
                         Divider()
-                        DisclosureGroup("Навыки") {
+                        DisclosureGroup(L10n.text("Навыки")) {
                             VStack(alignment: .leading, spacing: 10) {
-                                Toggle("Подбирать автоматически", isOn: Binding(get: { model.selected?.autoSkillsEnabled != false }, set: model.setAutoSkillsEnabled))
-                                Text("Короткий запрос модели для подбора навыков").font(.caption).foregroundStyle(.secondary)
-                                if model.pendingSkillTask != nil { Button("Убрать ручной выбор", action: model.removeSkillTask) }
-                                Button("Встроенный набор…") { openOption { starterSkillsOpen = true } }
-                                Button("Личная библиотека…") { openOption { Task { await model.showLibrary(.skills) } } }
+                                Toggle(L10n.text("Подбирать автоматически"), isOn: Binding(get: { model.selected?.autoSkillsEnabled != false }, set: model.setAutoSkillsEnabled))
+                                Text(L10n.text("Короткий запрос модели для подбора навыков")).font(.caption).foregroundStyle(.secondary)
+                                if model.pendingSkillTask != nil { Button(L10n.text("Убрать ручной выбор"), action: model.removeSkillTask) }
+                                Button(L10n.text("Встроенный набор…")) { openOption { starterSkillsOpen = true } }
+                                Button(L10n.text("Личная библиотека…")) { openOption { Task { await model.showLibrary(.skills) } } }
                             }.padding(.top, 10)
                         }
-                        DisclosureGroup("Память проекта") {
+                        DisclosureGroup(L10n.text("Память проекта")) {
                             VStack(alignment: .leading, spacing: 10) {
-                                Toggle("Вспоминать автоматически", isOn: Binding(get: { model.selected?.autoProjectRecallEnabled != false }, set: model.setAutoProjectRecallEnabled))
-                                Toggle("Предлагать новые заметки", isOn: Binding(get: { model.selected?.memorySuggestionsEnabled != false }, set: model.setMemorySuggestionsEnabled))
-                                Text("Только сохранённые заметки этой папки. Новые записи — после вашего подтверждения.").font(.caption).foregroundStyle(.secondary)
-                                Button("Заметки проекта…") { openOption { Task { await model.openProjectMemory() } } }
+                                Toggle(L10n.text("Вспоминать автоматически"), isOn: Binding(get: { model.selected?.autoProjectRecallEnabled != false }, set: model.setAutoProjectRecallEnabled))
+                                Toggle(L10n.text("Предлагать новые заметки"), isOn: Binding(get: { model.selected?.memorySuggestionsEnabled != false }, set: model.setMemorySuggestionsEnabled))
+                                Text(L10n.text("Только сохранённые заметки этой папки. Новые записи — после вашего подтверждения.")).font(.caption).foregroundStyle(.secondary)
+                                Button(L10n.text("Заметки проекта…")) { openOption { Task { await model.openProjectMemory() } } }
                             }.padding(.top, 10)
                         }
-                        Text("Выбор сохраняется для этого диалога. Заметки можно проверить в контексте запроса.")
+                        Text(L10n.text("Выбор сохраняется для этого диалога. Заметки можно проверить в контексте запроса."))
                             .font(.caption).foregroundStyle(.secondary)
                     }
                 }.padding(20).font(NativeTheme.interfaceFont).buttonStyle(.nativeHover)
@@ -177,15 +177,15 @@ struct ComposerView: View {
                 Image(systemName: "stop.fill").font(.system(size: 12)).foregroundStyle(NativeTheme.canvas)
                     .frame(width: 32, height: 32).background(Color.primary, in: Circle())
             }.buttonStyle(.nativeHover).keyboardShortcut(desktopGlass ? nil : KeyboardShortcut.cancelAction)
-                .help("Запросить остановку Codex. Локальные операции завершаются без прерывания; выполненные действия не откатываются.")
-                .accessibilityLabel("Запросить остановку")
+                .help(L10n.text("Запросить остановку Codex. Локальные операции завершаются без прерывания; выполненные действия не откатываются."))
+                .accessibilityLabel(L10n.text("Запросить остановку"))
         } else {
             Button { Task { await model.submit() } } label: {
                 Image(systemName: "arrow.up").font(.system(size: 16, weight: .semibold)).foregroundStyle(NativeTheme.canvas)
                     .frame(width: 32, height: 32).background(NativeTheme.accent.opacity(cannotSend ? 0.28 : 1), in: Circle())
-            }.buttonStyle(.nativeHover).disabled(cannotSend).accessibilityLabel(model.busy ? "Отправить уточнение" : "Отправить сообщение")
-                .help(model.historyPersistence.blocksSubmission ? "Сначала восстановите сохранение истории"
-                      : model.busy ? (desktopGlass ? "Добавить к текущей задаче · Return. Свернуть · Esc" : "Добавить к текущей задаче · Return. Остановить · Esc") : "Отправить · Return")
+            }.buttonStyle(.nativeHover).disabled(cannotSend).accessibilityLabel(model.busy ? L10n.text("Отправить уточнение") : L10n.text("Отправить сообщение"))
+                .help(model.historyPersistence.blocksSubmission ? L10n.text("Сначала восстановите сохранение истории")
+                      : model.busy ? (desktopGlass ? L10n.text("Добавить к текущей задаче · Return. Свернуть · Esc") : L10n.text("Добавить к текущей задаче · Return. Остановить · Esc")) : L10n.text("Отправить · Return"))
         }
     }
 
@@ -197,9 +197,9 @@ struct ComposerView: View {
                         Image(systemName: "doc.text")
                         Text(URL(fileURLWithPath: file["path"].text).lastPathComponent).lineLimit(1)
                         Button { model.removePendingFile(file["path"].text) } label: { Image(systemName: "xmark") }
-                            .buttonStyle(.nativeHover).disabled(!model.canEditMessageAttachments).help("Убрать вложение")
+                            .buttonStyle(.nativeHover).disabled(!model.canEditMessageAttachments).help(L10n.text("Убрать вложение"))
                     }.font(.system(size: 11)).padding(8).background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
-                        .help(file["path"].text + " · до 6 000 символов для следующего сообщения")
+                        .help(file["path"].text + L10n.text(" · до 6 000 символов для следующего сообщения"))
                 }
             }
         }.frame(height: 46).scrollIndicators(.hidden).padding(.horizontal, 12).padding(.top, 10)
@@ -216,25 +216,25 @@ struct ComposerAccessMenu: View {
             HStack(spacing: 5) {
                 Image(systemName: model.fullAccessEnabled ? "exclamationmark.shield" : "lock.shield")
                 if !compact {
-                    Text(model.fullAccessEnabled ? "Доступ к Mac" : "Только чат")
+                    Text(model.fullAccessEnabled ? L10n.text("Доступ к Mac") : L10n.text("Только чат"))
                     Image(systemName: "chevron.up").font(.system(size: 9, weight: .semibold))
                 }
             }.font(.system(size: 12)).padding(.horizontal, compact ? 0 : 5).frame(minWidth: 28, minHeight: 32)
         }.buttonStyle(.nativeHover).fixedSize()
             .foregroundStyle(model.fullAccessEnabled ? Color.orange : .secondary)
             .disabled(model.busy || model.selected?.archived == true)
-            .accessibilityLabel(model.fullAccessEnabled ? "Полный доступ к Mac включён" : "Только чат, инструменты выключены")
-            .help(model.fullAccessEnabled ? "Полный доступ к Mac. Stop и Esc не откатывают изменения." : "Модель отвечает без инструментов. Доступ к Mac включается отдельно.")
+            .accessibilityLabel(model.fullAccessEnabled ? L10n.text("Полный доступ к Mac включён") : L10n.text("Только чат, инструменты выключены"))
+            .help(model.fullAccessEnabled ? L10n.text("Полный доступ к Mac. Stop и Esc не откатывают изменения.") : L10n.text("Модель отвечает без инструментов. Доступ к Mac включается отдельно."))
             .composerPopover(isPresented: $open, width: 285) {
                 VStack(alignment: .leading, spacing: 6) {
                     if model.fullAccessEnabled {
-                        Text(model.computerUseAvailable ? "Файлы, терминал, интернет и экран доступны" : "Файлы, терминал и интернет доступны")
+                        Text(model.computerUseAvailable ? L10n.text("Файлы, терминал, интернет и экран доступны") : L10n.text("Файлы, терминал и интернет доступны"))
                             .font(.system(size: 12)).foregroundStyle(.secondary).padding(10)
-                        ComposerMenuRow(title: "Выключить доступ к Mac", icon: "lock.shield") {
+                        ComposerMenuRow(title: L10n.text("Выключить доступ к Mac"), icon: "lock.shield") {
                             open = false; Task { await model.disableAgentAccess() }
                         }
                     } else {
-                        ComposerMenuRow(title: "Разрешить доступ к Mac…", icon: "exclamationmark.shield") {
+                        ComposerMenuRow(title: L10n.text("Разрешить доступ к Mac…"), icon: "exclamationmark.shield") {
                             open = false
                             Task { @MainActor in await Task.yield(); model.requestAgentAccess() }
                         }

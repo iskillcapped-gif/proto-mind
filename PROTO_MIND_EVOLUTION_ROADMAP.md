@@ -1,6 +1,6 @@
 # Proto-Mind: Current Direction
 
-Updated: 2026-09-15. Current release: Native **0.62.0 (76)**.
+Updated: 2026-09-16. Current release: Native **0.66.0 (90)**.
 
 Proto-Mind is a personal macOS assistant. The immediate goal is a dependable, approachable application that can support the operator's planned expansion. The everyday layout, working panel and conversation polish are delivered. On September 5 the operator requested useful service connections, starting with GitHub. GitHub, complete local private-state backups, subscription usage with explicit earned resets, Full Mac access without a selected project, live text/attachment updates to running Codex tasks and a sidebar-confined limits menu with explicit account identity are now delivered. Reply typography and parallel conversations are also implemented; memory and continuity workflows remain available.
 
@@ -69,7 +69,15 @@ Release 0.57.1 removes the short Codex turn timers and total action cutoff for n
 
 Release 0.58.0 adds GPT Live 1 voice with a separate OpenAI API key, native audio and Responses-backed command routing. Voice can manage known projects and existing/new tasks while the task model keeps its own memory and permissions. Full Mac selection is remembered per dialog/workspace; bridge tokens remain temporary. Stopping voice does not stop work. A local/free voice alternative and permanent conversational voice memory remain separate future work. VIREN continues as an independent project. See the [release contract](NATIVE_MACOS_ROADMAP.md#live-voice--native-0580).
 
-## Current Priority: First Installation For Other Users
+## Current Priority: Challenge Demonstration And First Installation
+
+Native 0.66.0 connects the floating workspace into one demonstrable flow:
+browser page/selection → exact task → live correction → answer beside chat →
+project memory reused in another conversation. English/Russian main UI and voice,
+an updated portable beta, and a fictional project/recording guide support that flow.
+[Launch kit](native/Distribution/CHALLENGE_LAUNCH.md) records the remaining media and
+submission steps. Record actual model work, then test the release on a second Mac
+and finish the public product listing; do not equate synthetic QA with a live demo.
 
 The operator chose portability before the launch website or further features.
 The 0.62.0 beta packages Python/Codex, separates installed code from a user's
@@ -78,8 +86,8 @@ workspace. The developer installation stays independent. [Installation](INSTALL_
 and [release workflow](native/Distribution/README.md) describe the artifact and
 its boundaries. Developer ID/notarization and a second-Mac test remain before
 public distribution; the operator does not currently have Apple Developer
-Program membership. No public upload, website or Product Hunt submission has
-been made by this work.
+Program membership. The separate VIRENCORE website exists; this release work does
+not upload the beta or submit a Product Hunt entry.
 
 This packaging boundary does not freeze the product: future UI, memory and
 capability improvements use the same source and can ship in both editions.

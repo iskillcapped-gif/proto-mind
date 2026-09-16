@@ -28,24 +28,24 @@ struct SidebarView: View {
                     Text("Proto-Mind").font(.system(size: 20, weight: .semibold))
                     Spacer()
                     Button { searchVisible.toggle(); searchFocused = searchVisible } label: { Image(systemName: "magnifyingglass") }
-                        .foregroundStyle(.secondary).help("Поиск диалогов · ⌘F").accessibilityLabel("Поиск диалогов")
+                        .foregroundStyle(.secondary).help(L10n.text("Поиск диалогов · ⌘F")).accessibilityLabel(L10n.text("Поиск диалогов"))
                 }.padding(.horizontal, 19).padding(.top, 19).padding(.bottom, 20)
                     .background {
                         Button("") { searchVisible = true; searchFocused = true }.keyboardShortcut("f").hidden().accessibilityHidden(true)
                     }
                 Button { model.newConversation() } label: {
                     HStack {
-                        Label("Новый диалог", systemImage: "square.and.pencil")
+                        Label(L10n.text("Новый диалог"), systemImage: "square.and.pencil")
                         Spacer()
                         Text("⌘N").font(.system(size: 11)).foregroundStyle(.secondary)
                     }.font(.system(size: 14)).padding(.horizontal, 12).padding(.vertical, 10)
                 }.buttonStyle(.nativeHover).disabled(presentationLocked || !model.canNavigateConversations).padding(.horizontal, 12)
                 if searchVisible || !model.conversationSearch.isEmpty { HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                    TextField("Поиск диалогов", text: $model.conversationSearch).textFieldStyle(.plain).focused($searchFocused)
+                    TextField(L10n.text("Поиск диалогов"), text: $model.conversationSearch).textFieldStyle(.plain).focused($searchFocused)
                     if !model.conversationSearch.isEmpty {
                         Button { model.conversationSearch = "" } label: { Image(systemName: "xmark.circle.fill") }
-                            .buttonStyle(.plain).foregroundStyle(.secondary).accessibilityLabel("Очистить поиск")
+                            .buttonStyle(.plain).foregroundStyle(.secondary).accessibilityLabel(L10n.text("Очистить поиск"))
                     }
                 }.font(.system(size: 12)).padding(10).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 9))
                     .padding(.horizontal, 12).padding(.top, 12).padding(.bottom, 8)
@@ -55,39 +55,39 @@ struct SidebarView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
                         Button { model.openConversationHistory() } label: {
-                            Label("История диалогов", systemImage: "clock.arrow.circlepath").font(.system(size: 14))
+                            Label(L10n.text("История диалогов"), systemImage: "clock.arrow.circlepath").font(.system(size: 14))
                                 .frame(maxWidth: .infinity, alignment: .leading).padding(10)
-                        }.buttonStyle(.nativeHover).help("Найти прошлую работу и продолжить")
-                        navigation("Файлы проекта", icon: "folder", section: .workspace)
+                        }.buttonStyle(.nativeHover).help(L10n.text("Найти прошлую работу и продолжить"))
+                        navigation(L10n.text("Файлы проекта"), icon: "folder", section: .workspace)
                         Button { navigate { model.workspacePanel.showBrowser() } } label: {
-                            Label("Браузер", systemImage: "globe").font(.system(size: 14))
+                            Label(L10n.text("Браузер"), systemImage: "globe").font(.system(size: 14))
                                 .frame(maxWidth: .infinity, alignment: .leading).padding(10)
                         }.buttonStyle(.nativeHover)
                         navigation("GitHub", icon: "point.3.connected.trianglepath.dotted", section: .github)
                         DisclosureGroup(isExpanded: $libraryExpanded) {
                             Button { Task { await model.openProjectMemory() } } label: {
-                                Label("Память проекта", systemImage: "brain.head.profile").font(.system(size: 14))
+                                Label(L10n.text("Память проекта"), systemImage: "brain.head.profile").font(.system(size: 14))
                                     .frame(maxWidth: .infinity, alignment: .leading).padding(10)
                             }.buttonStyle(.nativeHover).disabled(model.busy || model.selected?.workspacePath == nil)
-                                .help(model.selected?.workspacePath == nil ? "Сначала выберите папку проекта" : "Текущие заметки и история этой папки")
+                                .help(model.selected?.workspacePath == nil ? L10n.text("Сначала выберите папку проекта") : L10n.text("Текущие заметки и история этой папки"))
                             ForEach(LibraryCollection.allCases) { collection in
-                                navigation(collection == .memory ? "Общая память" : collection.title, icon: collection.symbol, section: collection.section)
+                                navigation(collection == .memory ? L10n.text("Общая память") : collection.title, icon: collection.symbol, section: collection.section)
                             }
                         } label: {
-                            Label("Библиотека", systemImage: "books.vertical").font(.system(size: 14)).padding(.vertical, 8)
+                            Label(L10n.text("Библиотека"), systemImage: "books.vertical").font(.system(size: 14)).padding(.vertical, 8)
                         }.padding(.horizontal, 10)
                         HStack {
-                            Text(model.showArchived ? "Архив диалогов" : "Диалоги").font(.system(size: 11, weight: .semibold))
+                            Text(model.showArchived ? L10n.text("Архив диалогов") : L10n.text("Диалоги")).font(.system(size: 11, weight: .semibold))
                             Spacer()
                             Button { model.showArchived.toggle() } label: {
                                 Image(systemName: model.showArchived ? "tray.full" : "archivebox")
-                            }.help(model.showArchived ? "Вернуться к диалогам" : "Открыть архив")
-                                .accessibilityLabel(model.showArchived ? "Вернуться к диалогам" : "Архив диалогов")
+                            }.help(model.showArchived ? L10n.text("Вернуться к диалогам") : L10n.text("Открыть архив"))
+                                .accessibilityLabel(model.showArchived ? L10n.text("Вернуться к диалогам") : L10n.text("Архив диалогов"))
                         }.foregroundStyle(.secondary).padding(.horizontal, 11).padding(.top, 24).padding(.bottom, 4)
                         LazyVStack(alignment: .leading, spacing: 3) {
                             SidebarProjectsView(app: model, order: model.sidebarProjectOrder, drag: projectDrag, row: conversationRow)
                             if model.visibleConversations.isEmpty {
-                                Text(model.conversationSearch.isEmpty ? "Здесь появятся ваши диалоги" : "Ничего не найдено")
+                                Text(model.conversationSearch.isEmpty ? L10n.text("Здесь появятся ваши диалоги") : L10n.text("Ничего не найдено"))
                                     .font(.system(size: 12)).foregroundStyle(.secondary).padding(12)
                             }
                         }
@@ -99,13 +99,13 @@ struct SidebarView: View {
                     LiveVoiceButton(app: model, voice: model.liveVoice)
                     Button { toolsOpen.toggle() } label: {
                         Image(systemName: "ellipsis").frame(width: 28, height: 32)
-                    }.buttonStyle(.nativeHover).help("Команды, диагностика и копии").accessibilityLabel("Инструменты")
+                    }.buttonStyle(.nativeHover).help(L10n.text("Команды, диагностика и копии")).accessibilityLabel(L10n.text("Инструменты"))
                         .composerPopover(isPresented: $toolsOpen, width: min(245, max(1, geometry.size.width - 24)), trailing: true) {
                             VStack(spacing: 2) {
-                                ComposerMenuRow(title: "Команды", icon: "command") { toolsOpen = false; navigate { model.section = .commands } }
-                                ComposerMenuRow(title: "Диагностика", icon: "waveform.path.ecg") { toolsOpen = false; navigate { model.section = .overview } }
+                                ComposerMenuRow(title: L10n.text("Команды"), icon: "command") { toolsOpen = false; navigate { model.section = .commands } }
+                                ComposerMenuRow(title: L10n.text("Диагностика"), icon: "waveform.path.ecg") { toolsOpen = false; navigate { model.section = .overview } }
                                 Divider().padding(.vertical, 4)
-                                ComposerMenuRow(title: "Копии и восстановление", icon: "clock.arrow.circlepath") {
+                                ComposerMenuRow(title: L10n.text("Копии и восстановление"), icon: "clock.arrow.circlepath") {
                                     toolsOpen = false
                                     Task { @MainActor in await Task.yield(); model.openHistoryBackups() }
                                 }.disabled(model.globalBusy || model.client.turnOutstanding)
@@ -117,12 +117,12 @@ struct SidebarView: View {
                 .background { if !desktopGlass { SidebarMaterial().ignoresSafeArea() } }
                 .workspaceSheet(item: $renaming) { chat in
                     VStack(alignment: .leading, spacing: 18) {
-                        Text("Название диалога").font(.title3.weight(.semibold))
-                        TextField("Название", text: $newTitle).textFieldStyle(.roundedBorder)
+                        Text(L10n.text("Название диалога")).font(.title3.weight(.semibold))
+                        TextField(L10n.text("Название"), text: $newTitle).textFieldStyle(.roundedBorder)
                         HStack {
-                            Button("Отмена") { renaming = nil }.keyboardShortcut(.cancelAction)
+                            Button(L10n.text("Отмена")) { renaming = nil }.keyboardShortcut(.cancelAction)
                             Spacer()
-                            Button("Сохранить") { model.renameConversation(chat.id, title: newTitle); renaming = nil }
+                            Button(L10n.text("Сохранить")) { model.renameConversation(chat.id, title: newTitle); renaming = nil }
                                 .keyboardShortcut(.defaultAction).disabled(newTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || newTitle.count > 120)
                         }
                     }.padding(24).workspacePageSize(width: 400)
@@ -149,16 +149,16 @@ struct SidebarView: View {
                 if isWorking {
                     WorkingIndicator()
                 } else if !chat.draft.isEmpty {
-                    Image(systemName: "pencil").font(.system(size: 10)).foregroundStyle(.secondary).help("Есть черновик")
+                    Image(systemName: "pencil").font(.system(size: 10)).foregroundStyle(.secondary).help(L10n.text("Есть черновик"))
                 }
             }.padding(.leading, 30).padding(.trailing, 10).padding(.vertical, 9).frame(maxWidth: .infinity, alignment: .leading)
                 .background(model.selectedID == chat.id && model.section == .chat ? NativeTheme.selection : .clear,
                             in: RoundedRectangle(cornerRadius: 9))
         }.buttonStyle(.nativeHover).disabled(presentationLocked || !model.canNavigateConversations).help(chat.title)
-            .accessibilityLabel(chat.title + (isWorking ? " · Выполняется задача" : ""))
+            .accessibilityLabel(chat.title + (isWorking ? L10n.text(" · Выполняется задача") : ""))
             .contextMenu {
-                Button("Переименовать…") { newTitle = chat.title; renaming = chat }
-                Button(chat.archived ? "Вернуть из архива" : "В архив") { model.archiveConversation(chat.id, archived: !chat.archived) }
+                Button(L10n.text("Переименовать…")) { newTitle = chat.title; renaming = chat }
+                Button(chat.archived ? L10n.text("Вернуть из архива") : L10n.text("В архив")) { model.archiveConversation(chat.id, archived: !chat.archived) }
                     .disabled(model.isRunning(chat.id) || model.operationBusy)
             }
     }

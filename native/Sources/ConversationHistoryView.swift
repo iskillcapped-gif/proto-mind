@@ -21,32 +21,32 @@ struct ConversationHistoryView: View {
             let split = compact ? AnyLayout(VStackLayout(spacing: 0)) : AnyLayout(HStackLayout(spacing: 0))
         VStack(spacing: 0) {
             HStack {
-                Label("История диалогов", systemImage: "clock.arrow.circlepath").font(.title3.weight(.semibold))
+                Label(L10n.text("История диалогов"), systemImage: "clock.arrow.circlepath").font(.title3.weight(.semibold))
                 Spacer()
                 Button { model.showConversationHistory = false } label: { Image(systemName: "xmark") }
-                    .keyboardShortcut(.cancelAction).accessibilityLabel("Закрыть историю")
+                    .keyboardShortcut(.cancelAction).accessibilityLabel(L10n.text("Закрыть историю"))
             }.padding(20)
             (compact ? AnyLayout(VStackLayout(spacing: 10)) : AnyLayout(HStackLayout(spacing: 14))) {
                 HStack {
                     Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                    TextField("Название, текст или папка проекта", text: $query).textFieldStyle(.plain).focused($searchFocused)
+                    TextField(L10n.text("Название, текст или папка проекта"), text: $query).textFieldStyle(.plain).focused($searchFocused)
                     if !query.isEmpty {
                         Button { query = "" } label: { Image(systemName: "xmark.circle.fill") }
-                            .foregroundStyle(.secondary).accessibilityLabel("Очистить поиск в истории")
+                            .foregroundStyle(.secondary).accessibilityLabel(L10n.text("Очистить поиск в истории"))
                     }
                 }.padding(10).background(NativeTheme.composer, in: RoundedRectangle(cornerRadius: 9))
-                Picker("Показать", selection: $scope) {
+                Picker(L10n.text("Показать"), selection: $scope) {
                     ForEach(ConversationHistoryScope.allCases) { Text($0.title).tag($0) }
                 }.pickerStyle(.segmented).labelsHidden().frame(width: compact ? nil : 225)
             }.padding(.horizontal, 20).padding(.bottom, 16)
             Divider()
             if searching {
-                ProgressView("Поиск в сохранённых диалогах…").frame(maxWidth: .infinity, maxHeight: .infinity)
+                ProgressView(L10n.text("Поиск в сохранённых диалогах…")).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if results.isEmpty {
                 VStack(spacing: 12) {
                     Image(systemName: "text.magnifyingglass").font(.system(size: 28)).foregroundStyle(.secondary)
-                    Text(query.isEmpty ? "Здесь появится ваша переписка" : "Совпадений нет")
-                    Text("Можно искать слова из сообщений, название диалога или папку проекта.")
+                    Text(query.isEmpty ? L10n.text("Здесь появится ваша переписка") : L10n.text("Совпадений нет"))
+                    Text(L10n.text("Можно искать слова из сообщений, название диалога или папку проекта."))
                         .font(.callout).foregroundStyle(.secondary)
                 }.frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
@@ -55,7 +55,7 @@ struct ConversationHistoryView: View {
                         LazyVStack(spacing: 5) {
                             ForEach(results.prefix(visibleLimit)) { result in row(result) }
                             if visibleLimit < results.count {
-                                Button("Показать ещё") { visibleLimit += 60 }.padding(12)
+                                Button(L10n.text("Показать ещё")) { visibleLimit += 60 }.padding(12)
                             }
                         }.padding(12)
                     }.frame(width: compact ? nil : 285, height: compact ? min(170, geometry.size.height * 0.28) : nil)
@@ -65,9 +65,9 @@ struct ConversationHistoryView: View {
             }
             Divider()
             HStack {
-                Text(searching ? "Поиск…" : "Диалогов: \(results.count)")
+                Text(searching ? L10n.text("Поиск…") : "Диалогов: \(results.count)")
                 Spacer()
-                Text("Поиск на этом Mac · без запроса к модели")
+                Text(L10n.text("Поиск на этом Mac · без запроса к модели"))
             }.font(.caption).foregroundStyle(.secondary).padding(16)
         }
         }.workspacePageSize(width: 900, height: 690).workspaceBackground(NativeTheme.canvas)
@@ -98,11 +98,11 @@ struct ConversationHistoryView: View {
                 HStack {
                     Text(chat.updatedAt.formatted(date: .abbreviated, time: .omitted))
                     Spacer()
-                    if !chat.draft.isEmpty { Label("Черновик", systemImage: "pencil") }
+                    if !chat.draft.isEmpty { Label(L10n.text("Черновик"), systemImage: "pencil") }
                 }.font(.system(size: 10)).foregroundStyle(.secondary)
             }.frame(maxWidth: .infinity, alignment: .leading).padding(12)
                 .background(selected?.id == chat.id ? NativeTheme.selection : .clear, in: RoundedRectangle(cornerRadius: 10))
-        }.accessibilityLabel(chat.title + (chat.archived ? ", в архиве" : ""))
+        }.accessibilityLabel(chat.title + (chat.archived ? L10n.text(", в архиве") : ""))
     }
 
     private func detail(_ result: ConversationHistoryResult) -> some View {
@@ -118,7 +118,7 @@ struct ConversationHistoryView: View {
                 VStack(alignment: .leading, spacing: 20) {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(chat.title).font(.title2.weight(.semibold)).textSelection(.enabled)
-                        Label(chat.workspacePath ?? "Без папки проекта", systemImage: "folder")
+                        Label(chat.workspacePath ?? L10n.text("Без папки проекта"), systemImage: "folder")
                             .font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
                         Text(chat.updatedAt.formatted(date: .long, time: .shortened)).font(.caption).foregroundStyle(.secondary)
                     }
@@ -127,22 +127,22 @@ struct ConversationHistoryView: View {
                             Text("Совпадение \(matchIndex + 1) из \(result.matches.count)").font(.callout.weight(.medium))
                             Spacer()
                             Button { matchIndex -= 1 } label: { Image(systemName: "chevron.up") }
-                                .disabled(matchIndex == 0).accessibilityLabel("Предыдущее совпадение")
+                                .disabled(matchIndex == 0).accessibilityLabel(L10n.text("Предыдущее совпадение"))
                             Button { matchIndex += 1 } label: { Image(systemName: "chevron.down") }
-                                .disabled(matchIndex + 1 >= result.matches.count).accessibilityLabel("Следующее совпадение")
+                                .disabled(matchIndex + 1 >= result.matches.count).accessibilityLabel(L10n.text("Следующее совпадение"))
                         }
                         messagePreview(match)
-                        Button("Открыть это сообщение") { model.returnToConversation(chat.id, messageID: match.id) }
+                        Button(L10n.text("Открыть это сообщение")) { model.returnToConversation(chat.id, messageID: match.id) }
                             .disabled(!model.canNavigateConversations)
                         Divider()
                     }
-                    if let lastRequest { messagePreview(lastRequest, title: "Последний запрос") }
-                    if let lastReply { messagePreview(lastReply, title: lastReply.isError ? "Последний ответ: ошибка" : "Последний ответ") }
-                    if lastRequest != nil && lastReply == nil { Text("Ответ на последний запрос не сохранён.").font(.callout).foregroundStyle(.secondary) }
-                    if lastRequest == nil && lastReply == nil { Text("Сообщений пока нет.").foregroundStyle(.secondary) }
+                    if let lastRequest { messagePreview(lastRequest, title: L10n.text("Последний запрос")) }
+                    if let lastReply { messagePreview(lastReply, title: lastReply.isError ? L10n.text("Последний ответ: ошибка") : L10n.text("Последний ответ")) }
+                    if lastRequest != nil && lastReply == nil { Text(L10n.text("Ответ на последний запрос не сохранён.")).font(.callout).foregroundStyle(.secondary) }
+                    if lastRequest == nil && lastReply == nil { Text(L10n.text("Сообщений пока нет.")).foregroundStyle(.secondary) }
                     if !chat.draft.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {
-                            Label("Сохранённый черновик", systemImage: "pencil").font(.callout.weight(.medium))
+                            Label(L10n.text("Сохранённый черновик"), systemImage: "pencil").font(.callout.weight(.medium))
                             Text(String(chat.draft.prefix(1200))).textSelection(.enabled).foregroundStyle(.secondary)
                         }
                     }
@@ -150,10 +150,10 @@ struct ConversationHistoryView: View {
                         Label(error, systemImage: "exclamationmark.circle").font(.callout).foregroundStyle(.orange).textSelection(.enabled)
                     }
                     if let message = continuationMessage, message.role == "assistant", !message.isError, message.turnReference != nil {
-                        Button("Подготовить продолжение от ответа") {
+                        Button(L10n.text("Подготовить продолжение от ответа")) {
                             Task { await model.prepareHistoryContinuation(messageID: message.id, conversationID: chat.id) }
                         }.disabled(model.busy || chat.archived || model.client.turnOutstanding)
-                        Text("Откроется черновик с проверенным фрагментом прошлой работы. Следующую цель допишите перед отправкой; прежние вложения нужно выбрать заново.")
+                        Text(L10n.text("Откроется черновик с проверенным фрагментом прошлой работы. Следующую цель допишите перед отправкой; прежние вложения нужно выбрать заново."))
                             .font(.caption).foregroundStyle(.secondary)
                     }
                 }.padding(24).frame(maxWidth: .infinity, alignment: .leading)
@@ -161,15 +161,15 @@ struct ConversationHistoryView: View {
             Divider()
             HStack(spacing: 12) {
                 if chat.archived {
-                    Button("Вернуть из архива") { model.archiveConversation(chat.id, archived: false) }
+                    Button(L10n.text("Вернуть из архива")) { model.archiveConversation(chat.id, archived: false) }
                         .disabled(model.operationBusy || model.isRunning(chat.id))
                     Spacer()
-                    Button("Открыть диалог") { model.returnToConversation(chat.id) }
+                    Button(L10n.text("Открыть диалог")) { model.returnToConversation(chat.id) }
                         .disabled(!model.canNavigateConversations)
                 } else {
-                    Text("Ваш черновик сохранится").font(.caption).foregroundStyle(.secondary)
+                    Text(L10n.text("Ваш черновик сохранится")).font(.caption).foregroundStyle(.secondary)
                     Spacer()
-                    Button(chat.draft.isEmpty ? "Продолжить диалог" : "К черновику") { model.returnToConversation(chat.id) }
+                    Button(chat.draft.isEmpty ? L10n.text("Продолжить диалог") : L10n.text("К черновику")) { model.returnToConversation(chat.id) }
                         .buttonStyle(.borderedProminent).disabled(!model.canNavigateConversations)
                 }
             }.padding(16)
@@ -179,13 +179,13 @@ struct ConversationHistoryView: View {
     private func messagePreview(_ message: ChatMessage, title: String? = nil) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text(title ?? (message.role == "user" ? "Ваше сообщение" : message.isError ? "Ошибка" : "Ответ"))
+                Text(title ?? (message.role == "user" ? L10n.text("Ваше сообщение") : message.isError ? L10n.text("Ошибка") : L10n.text("Ответ")))
                     .font(.callout.weight(.medium))
                 Spacer()
                 Text(message.createdAt.formatted(date: .abbreviated, time: .shortened)).font(.caption).foregroundStyle(.secondary)
             }
             Text(String(message.searchableText.prefix(3000))).font(.system(size: 13)).lineSpacing(4).textSelection(.enabled)
-            if message.searchableText.count > 3000 { Text("Фрагмент · полный текст в диалоге").font(.caption).foregroundStyle(.secondary) }
+            if message.searchableText.count > 3000 { Text(L10n.text("Фрагмент · полный текст в диалоге")).font(.caption).foregroundStyle(.secondary) }
         }.frame(maxWidth: .infinity, alignment: .leading).padding(14)
             .background(NativeTheme.composer, in: RoundedRectangle(cornerRadius: 12))
     }

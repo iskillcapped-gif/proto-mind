@@ -23,11 +23,11 @@ struct CodexUsageSnapshot: Decodable {
         let resetsAt: Double?
         var id: String { kind }
         var title: String {
-            guard let minutes = windowMinutes else { return kind == "primary" ? "Основной лимит" : "Дополнительный лимит" }
+            guard let minutes = windowMinutes else { return kind == "primary" ? L10n.text("Основной лимит") : L10n.text("Дополнительный лимит") }
             if minutes == 10080 { return "Неделя" }
-            if minutes % 1440 == 0 { return "\(minutes / 1440) дн." }
-            if minutes % 60 == 0 { return "\(minutes / 60) ч" }
-            return "\(minutes) мин"
+            if minutes % 1440 == 0 { return L10n.pick("\(minutes / 1440) дн.", "\(minutes / 1440) d") }
+            if minutes % 60 == 0 { return L10n.pick("\(minutes / 60) ч", "\(minutes / 60) h") }
+            return L10n.pick("\(minutes) мин", "\(minutes) min")
         }
         var remaining: Double? {
             guard let value = remainingPercent, value.isFinite, (0...100).contains(value) else { return nil }

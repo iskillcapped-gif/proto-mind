@@ -12,13 +12,13 @@ enum NativeBrowserURL {
         let value = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !value.isEmpty, value.utf8.count <= 8192,
               !value.unicodeScalars.contains(where: { $0.value < 32 || $0.value == 127 }),
-              !value.contains(" ") else { throw NativeError.message("Введите адрес сайта, например https://example.com.") }
+              !value.contains(" ") else { throw NativeError.message(L10n.text("Введите адрес сайта, например https://example.com.")) }
         let hasScheme = value.contains("://") || value.lowercased().hasPrefix("about:")
             || value.lowercased().hasPrefix("javascript:") || value.lowercased().hasPrefix("data:")
             || value.lowercased().hasPrefix("file:") || value.lowercased().hasPrefix("mailto:")
         let candidate = hasScheme ? value : "https://" + value
         guard let url = URL(string: candidate), isWebURL(url) else {
-            throw NativeError.message("Здесь открываются адреса http и https. Локальные файлы открывайте через «Файлы».")
+            throw NativeError.message(L10n.text("Здесь открываются адреса http и https. Локальные файлы открывайте через «Файлы»."))
         }
         return url
     }
@@ -26,9 +26,12 @@ enum NativeBrowserURL {
 
 @MainActor
 final class NativeBrowserTab: NSObject, ObservableObject, WKNavigationDelegate, WKUIDelegate {
+    let id = UUID()
+    private(set) var navigationRevision = 0
+    private(set) var closed = false
     let webView: WKWebView
     @Published var address = ""
-    @Published private(set) var title = "Новая страница"
+    @Published private(set) var title = L10n.text("Новая страница")
     @Published private(set) var currentURL: URL?
     @Published private(set) var loading = false
     @Published private(set) var canGoBack = false
@@ -63,7 +66,7 @@ final class NativeBrowserTab: NSObject, ObservableObject, WKNavigationDelegate, 
                 self.currentURL = nextURL
                 self.address = nextURL?.absoluteString ?? ""
             }
-            self.title = self.webView.title?.isEmpty == false ? self.webView.title! : nextURL?.host ?? "Новая страница"
+            self.title = self.webView.title?.isEmpty == false ? self.webView.title! : nextURL?.host ?? L10n.text("Новая страница")
             self.loading = self.webView.isLoading
             self.canGoBack = self.webView.canGoBack
             self.canGoForward = self.webView.canGoForward
@@ -79,9 +82,14 @@ final class NativeBrowserTab: NSObject, ObservableObject, WKNavigationDelegate, 
     }
 
     func close() {
+        closed = true; navigationRevision += 1
         webView.stopLoading()
         observations = []; openTab = nil
         webView.navigationDelegate = nil; webView.uiDelegate = nil
+    }
+
+    func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+        navigationRevision += 1
     }
 
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
@@ -93,12 +101,12 @@ final class NativeBrowserTab: NSObject, ObservableObject, WKNavigationDelegate, 
         }
         guard let url = navigationAction.request.url, NativeBrowserURL.isWebURL(url) else {
             decisionHandler(.cancel)
-            error = "Этот адрес не открывается во встроенном браузере."
+            error = L10n.text("Этот адрес не открывается во встроенном браузере.")
             return
         }
         guard !navigationAction.shouldPerformDownload else {
             decisionHandler(.cancel)
-            error = "Для скачивания откройте страницу во внешнем браузере."
+            error = L10n.text("Для скачивания откройте страницу во внешнем браузере.")
             return
         }
         decisionHandler(.allow)
@@ -108,7 +116,7 @@ final class NativeBrowserTab: NSObject, ObservableObject, WKNavigationDelegate, 
                  decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
         if navigationResponse.canShowMIMEType { decisionHandler(.allow) }
         else {
-            error = "Этот файл можно скачать во внешнем браузере."
+            error = L10n.text("Этот файл можно скачать во внешнем браузере.")
             decisionHandler(.cancel)
         }
     }
@@ -120,7 +128,7 @@ final class NativeBrowserTab: NSObject, ObservableObject, WKNavigationDelegate, 
         if (error as NSError).code != NSURLErrorCancelled { self.error = error.localizedDescription }
     }
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
-        error = "Страница остановилась. Нажмите «Обновить», чтобы загрузить её заново."
+        error = L10n.text("Страница остановилась. Нажмите «Обновить», чтобы загрузить её заново.")
     }
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
                  for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
@@ -145,6 +153,11 @@ private struct NativeWebSurface: NSViewRepresentable {
 
 struct BrowserView: View {
     @ObservedObject var browser: NativeBrowserTab
+    @ObservedObject var app: AppModel
+    var sourcePanel: WorkspacePanelModel? = nil
+    @State private var snapshot: BrowserPageSnapshot?
+    @State private var snapshotDestination: UUID?
+    @State private var capturing = false
     @FocusState private var addressFocused: Bool
     @Environment(\.workspaceChrome) private var chrome
     @Environment(\.isEnabled) private var enabled
@@ -152,26 +165,40 @@ struct BrowserView: View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
                 Button { browser.webView.goBack() } label: { Image(systemName: "chevron.left") }
-                    .disabled(!browser.canGoBack).help("Назад").accessibilityLabel("Назад")
+                    .disabled(!browser.canGoBack).help(L10n.text("Назад")).accessibilityLabel(L10n.text("Назад"))
                 Button { browser.webView.goForward() } label: { Image(systemName: "chevron.right") }
-                    .disabled(!browser.canGoForward).help("Вперёд").accessibilityLabel("Вперёд")
+                    .disabled(!browser.canGoForward).help(L10n.text("Вперёд")).accessibilityLabel(L10n.text("Вперёд"))
                 Button {
                     if browser.loading { browser.webView.stopLoading() }
                     else if let url = browser.currentURL { browser.navigate(url.absoluteString) }
                     else { browser.navigate(browser.address) }
                 } label: { Image(systemName: browser.loading ? "xmark" : "arrow.clockwise") }
-                    .help(browser.loading ? "Остановить загрузку" : "Обновить страницу")
-                    .accessibilityLabel(browser.loading ? "Остановить загрузку" : "Обновить страницу")
-                TextField("Адрес сайта", text: $browser.address)
+                    .help(browser.loading ? L10n.text("Остановить загрузку") : L10n.text("Обновить страницу"))
+                    .accessibilityLabel(browser.loading ? L10n.text("Остановить загрузку") : L10n.text("Обновить страницу"))
+                TextField(L10n.text("Адрес сайта"), text: $browser.address)
                     .textFieldStyle(.roundedBorder).onSubmit { browser.navigate(browser.address); addressFocused = false }
                     .focused($addressFocused)
                     .workspaceChromeField($addressFocused)
                     .onExitCommand { addressFocused = false }
-                    .accessibilityLabel("Адрес сайта")
+                    .accessibilityLabel(L10n.text("Адрес сайта"))
+                Button {
+                    guard !capturing else { return }
+                    capturing = true
+                    snapshotDestination = app.selectedID
+                    Task { @MainActor in
+                        defer { capturing = false }
+                        do { snapshot = try await browser.capturePage() }
+                        catch { browser.error = error.localizedDescription }
+                    }
+                } label: {
+                    Image(systemName: capturing ? "hourglass" : "text.badge.plus")
+                }.disabled(capturing || browser.loading || browser.currentURL == nil)
+                    .help(L10n.pick("Передать страницу или выделение в задачу", "Use this page or selection in a task"))
+                    .accessibilityLabel(L10n.pick("Передать в задачу", "Use in a task"))
                 Button {
                     if let url = browser.currentURL, NativeBrowserURL.isWebURL(url) { NSWorkspace.shared.open(url) }
                 } label: { Image(systemName: "arrow.up.right.square") }
-                    .disabled(browser.currentURL == nil).help("Открыть во внешнем браузере").accessibilityLabel("Открыть во внешнем браузере")
+                    .disabled(browser.currentURL == nil).help(L10n.text("Открыть во внешнем браузере")).accessibilityLabel(L10n.text("Открыть во внешнем браузере"))
             }.padding(12).workspacePanelHeader()
             Divider().workspacePanelHeader()
             if let error = browser.error {
@@ -184,14 +211,17 @@ struct BrowserView: View {
             if browser.currentURL == nil && !browser.loading {
                 VStack(spacing: 14) {
                     Image(systemName: "globe").font(.system(size: 34, weight: .light))
-                    Text("Откройте страницу рядом с разговором").font(.headline)
-                    Text("Введите адрес выше или нажмите ссылку в ответе.\nСтраницы не добавляются в запрос к модели.\nВходы на сайты сохраняются только до закрытия вкладки.")
+                    Text(L10n.text("Откройте страницу рядом с разговором")).font(.headline)
+                    Text(L10n.pick("Введите адрес выше или нажмите ссылку в ответе.\nПередайте текст кнопкой «В задачу» или голосом.\nВходы на сайты сохраняются только до закрытия вкладки.", "Enter an address above or follow a link in a reply.\nUse the page in a task with the toolbar button or your voice.\nWebsite sessions last until the tab closes."))
                         .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
                 }.padding(24).frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             NativeWebSurface(browser: browser).id(ObjectIdentifier(browser))
                 .frame(maxWidth: .infinity, maxHeight: browser.currentURL == nil && !browser.loading ? 0 : .infinity)
         }.background(NativeTheme.canvas)
+            .workspaceSheet(item: $snapshot) { value in
+                BrowserContextView(app: app, snapshot: value, sourcePanel: sourcePanel, destination: snapshotDestination)
+            }
             .task {
                 // Wait until the newly selected tab's text field has joined the window.
                 await Task.yield()

@@ -5,7 +5,7 @@ import SwiftUI
 enum WorkspacePanelPosition: String, CaseIterable, Identifiable {
     case upper, lower
     var id: String { rawValue }
-    var title: String { self == .upper ? "Верхняя панель" : "Нижняя панель" }
+    var title: String { self == .upper ? L10n.text("Верхняя панель") : L10n.text("Нижняя панель") }
 }
 
 /// Layout ownership is independent of the documents, terminals and conversations it displays.

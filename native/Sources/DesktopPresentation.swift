@@ -232,7 +232,7 @@ final class DesktopPresentation: ObservableObject {
         else {
             panel = DesktopVoicePanel(contentRect: NSRect(x: 0, y: 0, width: 410, height: 545),
                                       styleMask: [.titled, .closable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
-            panel.title = "Голос Proto-Mind"; panel.titleVisibility = .hidden; panel.titlebarAppearsTransparent = true
+            panel.title = L10n.text("Голос Proto-Mind"); panel.titleVisibility = .hidden; panel.titlebarAppearsTransparent = true
             panel.isReleasedWhenClosed = false; panel.isFloatingPanel = true; panel.hidesOnDeactivate = false
             panel.isOpaque = false; panel.backgroundColor = .clear; panel.hasShadow = true
             panel.level = .floating; panel.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
@@ -519,7 +519,7 @@ final class DesktopPresentation: ObservableObject {
         if let corePanel { return corePanel }
         let panel = DesktopCorePanel(contentRect: NSRect(origin: .zero, size: DesktopGeometry.coreSize),
                                      styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
-        panel.title = "Ядро Proto-Mind"
+        panel.title = L10n.text("Ядро Proto-Mind")
         panel.setAccessibilitySubrole(.floatingWindow)
         panel.isFloatingPanel = true; panel.hidesOnDeactivate = false
         panel.isOpaque = false; panel.backgroundColor = .clear; panel.hasShadow = false
@@ -609,15 +609,15 @@ final class DesktopCoreDragView: NSView {
         desktop?.beginCoreInteraction()
         defer { desktop?.endCoreInteraction() }
         let menu = NSMenu()
-        let toggle = NSMenuItem(title: desktop?.previewing == true ? "Оставить открытым" : desktop?.expanded == true ? "Свернуть в ядро" : "Открыть Proto-Mind", action: #selector(toggleWorkspace), keyEquivalent: "")
+        let toggle = NSMenuItem(title: desktop?.previewing == true ? L10n.text("Оставить открытым") : desktop?.expanded == true ? L10n.text("Свернуть в ядро") : L10n.text("Открыть Proto-Mind"), action: #selector(toggleWorkspace), keyEquivalent: "")
         toggle.target = self; menu.addItem(toggle)
-        let voice = NSMenuItem(title: "Голос Proto-Mind", action: #selector(openVoice), keyEquivalent: "")
+        let voice = NSMenuItem(title: L10n.text("Голос Proto-Mind"), action: #selector(openVoice), keyEquivalent: "")
         voice.target = self; menu.addItem(voice)
-        for (title, action) in [("Боковое окно 1", #selector(toggleFirstCompanion)), ("Боковое окно 2", #selector(toggleSecondCompanion))] {
+        for (title, action) in [(L10n.text("Боковое окно 1"), #selector(toggleFirstCompanion)), (L10n.text("Боковое окно 2"), #selector(toggleSecondCompanion))] {
             let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
             item.target = self; menu.addItem(item)
         }
-        let restore = NSMenuItem(title: "Обычное окно", action: #selector(restoreWorkspace), keyEquivalent: "")
+        let restore = NSMenuItem(title: L10n.text("Обычное окно"), action: #selector(restoreWorkspace), keyEquivalent: "")
         restore.target = self; menu.addItem(restore)
         NSMenu.popUpContextMenu(menu, with: event, for: self)
     }
@@ -628,17 +628,17 @@ final class DesktopCoreDragView: NSView {
     @objc private func toggleSecondCompanion() { desktop?.companions.toggle(.second) }
     override func isAccessibilityElement() -> Bool { true }
     override func accessibilityRole() -> NSAccessibility.Role? { .button }
-    override func accessibilityLabel() -> String? { "Ядро Proto-Mind" }
-    override func accessibilityHelp() -> String? { "Наведите курсор, чтобы заглянуть в чат и боковую панель. Нажмите, чтобы оставить открытыми, ещё раз — свернуть. Перетащите в удобное место." }
+    override func accessibilityLabel() -> String? { L10n.text("Ядро Proto-Mind") }
+    override func accessibilityHelp() -> String? { L10n.text("Наведите курсор, чтобы заглянуть в чат и боковую панель. Нажмите, чтобы оставить открытыми, ещё раз — свернуть. Перетащите в удобное место.") }
     override func accessibilityPerformPress() -> Bool { toggleWorkspace(); return true }
     override func accessibilityCustomActions() -> [NSAccessibilityCustomAction]? {
-        [NSAccessibilityCustomAction(name: "Голос Proto-Mind", handler: { [weak self] in
+        [NSAccessibilityCustomAction(name: L10n.text("Голос Proto-Mind"), handler: { [weak self] in
             guard let desktop = self?.desktop else { return false }; desktop.openVoice(); return true
-        }), NSAccessibilityCustomAction(name: "Обычное окно", handler: { [weak self] in
+        }), NSAccessibilityCustomAction(name: L10n.text("Обычное окно"), handler: { [weak self] in
             guard let desktop = self?.desktop else { return false }; desktop.restoreWindow(); return true
-        }), NSAccessibilityCustomAction(name: "Боковое окно 1", handler: { [weak self] in
+        }), NSAccessibilityCustomAction(name: L10n.text("Боковое окно 1"), handler: { [weak self] in
             guard let desktop = self?.desktop else { return false }; desktop.companions.toggle(.first); return true
-        }), NSAccessibilityCustomAction(name: "Боковое окно 2", handler: { [weak self] in
+        }), NSAccessibilityCustomAction(name: L10n.text("Боковое окно 2"), handler: { [weak self] in
             guard let desktop = self?.desktop else { return false }; desktop.companions.toggle(.second); return true
         })]
     }

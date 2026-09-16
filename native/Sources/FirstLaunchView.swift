@@ -25,58 +25,59 @@ struct FirstLaunchView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Добро пожаловать в Proto-Mind").font(.title2.weight(.semibold))
-                Text("Подключим вашу модель — и можно начинать.").foregroundStyle(.secondary)
+                Text(L10n.text("Добро пожаловать в Proto-Mind")).font(.title2.weight(.semibold))
+                Text(L10n.text("Подключим вашу модель — и можно начинать.")).foregroundStyle(.secondary)
             }
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
+                    InterfaceLanguagePicker(configuration: model.serviceClient.configuration)
                     VStack(alignment: .leading, spacing: 8) {
-                        Label(model.bootstrap.isNull ? "Проверяем локальное ядро…" : "Локальное ядро готово",
+                        Label(model.bootstrap.isNull ? L10n.text("Проверяем локальное ядро…") : L10n.text("Локальное ядро готово"),
                               systemImage: model.bootstrap.isNull ? "circle.dotted" : "checkmark.circle")
                             .font(.headline)
-                        Text("Диалоги и память сохраняются на этом Mac. У каждого пользователя — свой профиль; замена приложения при обновлении его не удаляет.")
+                        Text(L10n.text("Диалоги и память сохраняются на этом Mac. У каждого пользователя — свой профиль; замена приложения при обновлении его не удаляет."))
                             .foregroundStyle(.secondary)
                         if model.bootstrap.isNull {
-                            Button("Повторить проверку") { Task { await model.refresh() } }.disabled(model.globalBusy)
+                            Button(L10n.text("Повторить проверку")) { Task { await model.refresh() } }.disabled(model.globalBusy)
                         }
                     }
                     Divider()
                     VStack(alignment: .leading, spacing: 10) {
-                        Label("Ваш аккаунт ChatGPT", systemImage: model.account["connected"].flag ? "checkmark.circle" : "person.crop.circle")
+                        Label(L10n.text("Ваш аккаунт ChatGPT"), systemImage: model.account["connected"].flag ? "checkmark.circle" : "person.crop.circle")
                             .font(.headline)
-                        Text("Для текстовых задач нужен аккаунт с доступом к Codex. Встроенный Codex использует вашу подписку; API-ключ для этого не нужен.")
+                        Text(L10n.text("Для текстовых задач нужен аккаунт с доступом к Codex. Встроенный Codex использует вашу подписку; API-ключ для этого не нужен."))
                             .foregroundStyle(.secondary)
                         if model.account["connected"].flag {
                             Text(model.account["email"].text + " · " + model.account["plan"].text)
                                 .textSelection(.enabled)
-                            Text(model.models.isEmpty ? "Пока не удалось получить доступные модели. Проверьте вход ещё раз." : "Доступные модели получены.")
+                            Text(model.models.isEmpty ? L10n.text("Пока не удалось получить доступные модели. Проверьте вход ещё раз.") : L10n.text("Доступные модели получены."))
                                 .font(.callout).foregroundStyle(.secondary)
                         }
                         HStack {
-                            Button(model.account["connected"].flag ? "Другой аккаунт…" : "Войти через ChatGPT…") {
+                            Button(model.account["connected"].flag ? L10n.text("Другой аккаунт…") : L10n.text("Войти через ChatGPT…")) {
                                 Task { await model.login() }
                             }
-                            Button("Проверить вход") { Task { await model.refreshAccount() } }
+                            Button(L10n.text("Проверить вход")) { Task { await model.refreshAccount() } }
                             if model.connecting { ProgressView().controlSize(.small) }
                         }.disabled(model.globalBusy || model.connecting)
                         if model.loginPending {
-                            Text("Завершите вход в браузере и вернитесь сюда. Если окно не обновилось, нажмите «Проверить вход».")
+                            Text(L10n.text("Завершите вход в браузере и вернитесь сюда. Если окно не обновилось, нажмите «Проверить вход»."))
                                 .font(.callout).foregroundStyle(.secondary)
                         }
                     }
                     Divider()
                     VStack(alignment: .leading, spacing: 8) {
-                        Toggle("Разрешить облачную обработку", isOn: $model.cloudConsent).disabled(model.globalBusy)
-                        Text("При отправке задачи сообщения, выбранная память и вложения передаются OpenAI. Вход в аккаунт сам по себе этого разрешения не даёт.")
+                        Toggle(L10n.text("Разрешить облачную обработку"), isOn: $model.cloudConsent).disabled(model.globalBusy)
+                        Text(L10n.text("При отправке задачи сообщения, выбранная память и вложения передаются OpenAI. Вход в аккаунт сам по себе этого разрешения не даёт."))
                             .font(.callout).foregroundStyle(.secondary)
                     }
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Остальное — когда понадобится").font(.headline)
-                        Text("Голос подключается в настройках с вашим OpenAI API-ключом и отдельной оплатой API. Доступ к файлам и Mac включается в диалоге.")
+                        Text(L10n.text("Остальное — когда понадобится")).font(.headline)
+                        Text(L10n.text("Голос подключается в настройках с вашим OpenAI API-ключом и отдельной оплатой API. Доступ к файлам и Mac включается в диалоге."))
                         if !model.computerUseAvailable {
-                            Text("Для управления экраном дополнительно нужен подписанный сервис Computer Use из Codex Desktop. Без него доступны чат и работа с файлами и командами при разрешённом доступе к Mac.")
+                            Text(L10n.text("Для управления экраном дополнительно нужен подписанный сервис Computer Use из Codex Desktop. Без него доступны чат и работа с файлами и командами при разрешённом доступе к Mac."))
                         }
-                        Text("Можно начать и с локальной моделью Ollama — выберите её в настройках после закрытия этого окна.")
+                        Text(L10n.text("Можно начать и с локальной моделью Ollama — выберите её в настройках после закрытия этого окна."))
                     }.font(.callout).foregroundStyle(.secondary)
                     if let error = model.error {
                         Label(error, systemImage: "exclamationmark.circle").foregroundStyle(.orange).textSelection(.enabled)
@@ -84,9 +85,9 @@ struct FirstLaunchView: View {
                 }.frame(maxWidth: .infinity, alignment: .leading)
             }
             HStack {
-                Button("Настрою позже") { model.showFirstLaunch = false }
+                Button(L10n.text("Настрою позже")) { model.showFirstLaunch = false }
                 Spacer()
-                Button("Начать работу") { model.showFirstLaunch = false }
+                Button(L10n.text("Начать работу")) { model.showFirstLaunch = false }
                     .buttonStyle(.borderedProminent).disabled(!ready || model.connecting)
             }
         }.padding(28).workspacePageSize(width: 650, height: 730)

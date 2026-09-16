@@ -24,7 +24,13 @@ final class NativeAppDelegate: NSObject, NSApplicationDelegate {
 @main
 struct ProtoMindApp: App {
     @NSApplicationDelegateAdaptor(NativeAppDelegate.self) private var delegate
-    @StateObject private var model = AppModel()
+    @StateObject private var model: AppModel
+
+    init() {
+        let configuration = LaunchConfiguration.load()
+        L10n.language = InterfaceLanguage.saved(configuration)
+        _model = StateObject(wrappedValue: AppModel(configuration: configuration))
+    }
 
     var body: some Scene {
         WindowGroup("Proto-Mind") {
@@ -39,29 +45,29 @@ struct ProtoMindApp: App {
         .windowToolbarStyle(.unifiedCompact)
         .commands {
             CommandGroup(replacing: .appSettings) {
-                Button("Настройки…") { model.openSettings() }.keyboardShortcut(",")
+                Button(L10n.text("Настройки…")) { model.openSettings() }.keyboardShortcut(",")
             }
             CommandGroup(replacing: .newItem) {
-                Button("Новый диалог") { model.newConversation() }
+                Button(L10n.text("Новый диалог")) { model.newConversation() }
                     .keyboardShortcut("n").disabled(!model.canNavigateConversations)
             }
             CommandMenu("Proto-Mind") {
                 DesktopWindowCommands(desktop: model.desktop)
                 Divider()
-                Button("Использование Codex…") { model.showCodexUsage = true }
-                Button("Полная копия данных…") { model.showPrivateBackup = true }
+                Button(L10n.text("Использование Codex…")) { model.showCodexUsage = true }
+                Button(L10n.text("Полная копия данных…")) { model.showPrivateBackup = true }
                     .disabled(model.globalBusy || model.client.turnOutstanding)
-                Button("Копии диалогов…") { model.openHistoryBackups() }
+                Button(L10n.text("Копии диалогов…")) { model.openHistoryBackups() }
                     .disabled(model.globalBusy || model.client.turnOutstanding)
-                Button("Каталог команд") { model.section = .commands }
+                Button(L10n.text("Каталог команд")) { model.section = .commands }
                     .keyboardShortcut("k")
-                Button("Файлы проекта") { model.showProjectFiles() }
+                Button(L10n.text("Файлы проекта")) { model.showProjectFiles() }
                     .keyboardShortcut("o", modifiers: [.command, .shift])
-                Button("Новая страница в панели") { model.workspacePanel.openBrowser() }
+                Button(L10n.text("Новая страница в панели")) { model.workspacePanel.openBrowser() }
                     .keyboardShortcut("t", modifiers: [.command, .option])
-                Button("Инспектор ответа") { model.showInspector.toggle() }
+                Button(L10n.text("Инспектор ответа")) { model.showInspector.toggle() }
                     .keyboardShortcut("i", modifiers: [.command, .option])
-                Button("Обновить обзор") { Task { await model.refresh() } }
+                Button(L10n.text("Обновить обзор")) { Task { await model.refresh() } }
                     .disabled(model.busy)
             }
         }
@@ -71,11 +77,11 @@ struct ProtoMindApp: App {
 private struct DesktopWindowCommands: View {
     @ObservedObject var desktop: DesktopPresentation
     var body: some View {
-        Button("Переключить парящий режим") { desktop.toggleMode() }
+        Button(L10n.text("Переключить парящий режим")) { desktop.toggleMode() }
             .keyboardShortcut("j", modifiers: [.command, .option])
-        Button("Боковое окно 1") { desktop.companions.toggle(.first) }
+        Button(L10n.text("Боковое окно 1")) { desktop.companions.toggle(.first) }
             .keyboardShortcut("1", modifiers: [.command, .option]).disabled(!desktop.enabled)
-        Button("Боковое окно 2") { desktop.companions.toggle(.second) }
+        Button(L10n.text("Боковое окно 2")) { desktop.companions.toggle(.second) }
             .keyboardShortcut("2", modifiers: [.command, .option]).disabled(!desktop.enabled)
     }
 }

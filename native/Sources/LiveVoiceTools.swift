@@ -79,36 +79,60 @@ extension AppModel {
             return .object(["status": .string("cancellation_requested"), "notice": result["notice"], "conversation_id": .string(id.uuidString)])
         case "send_task_message":
             let id = try voiceConversationID(args)
-            let text = args["text"].text.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !text.isEmpty, text.unicodeScalars.count <= 20_000,
-                  !historyPersistence.blocksSubmission, !store.writeBlocked else { throw NativeError.message("Сообщение пустое, слишком большое или история требует восстановления.") }
-            let state = execution(for: id)
-            if state.running { return try enqueueVoiceTaskUpdate(text, execution: state) }
-            state.running = true
-            do {
-                let description = try await state.client.request("describe", ["text": .string(text)])
-                guard !description["blocked"].flag, !description["operator"].flag, !description["requires_confirmation"].flag else {
-                    throw NativeError.message("Команды изменения самого ядра выполняются через текстовый интерфейс с его подтверждениями.")
-                }
-                try await ensureAgentAccess(for: state)
-                try Task.checkCancellation()
-                guard cloudConsent, !operationBusy, conversations.contains(where: { $0.id == id && !$0.archived }) else {
-                    throw NativeError.message("Условия запуска изменились. Задача не запускалась.")
-                }
-                let lastMessageBefore = conversations.first { $0.id == id }?.messages.last?.id
-                Task { @MainActor in
-                    await perform(text, execution: state, confirmed: false, operatorInput: false, useDraft: false)
-                    if var result = try? liveVoiceTaskStatus(id) {
-                        if conversations.first(where: { $0.id == id })?.messages.last?.id == lastMessageBefore {
-                            result = .object(["status": .string("needs_attention"), "answer": .string("Запрос не удалось сохранить или запустить. Проверьте сообщение об ошибке в приложении.")])
-                        }
-                        liveVoice.taskFinished(id, session: session, result: result)
-                    }
-                }
-                return .object(["status": .string("preparing"), "conversation_id": .string(id.uuidString)])
-            } catch { state.running = false; throw error }
+            return try await sendLiveVoiceTaskMessage(args["text"].text, id: id, session: session)
+        case "list_browser_pages":
+            return .object(["pages": .array(browserPages.map { item in
+                .object(["browser_id": .string(item.browser.id.uuidString), "title": .string(item.browser.title),
+                    "url": .string(item.browser.currentURL?.absoluteString ?? ""),
+                    "selected": .bool(item.panel.selected.map { if case .browser(let browser) = $0.content { return browser === item.browser }; return false } ?? false)])
+            })])
+        case "send_browser_page":
+            let id = try voiceConversationID(args)
+            guard let browserID = UUID(uuidString: args["browser_id"].text),
+                  let browser = browserPages.first(where: { $0.browser.id == browserID })?.browser else {
+                throw NativeError.message(L10n.pick("Вкладка браузера уже закрыта. Обновите список страниц.", "That browser tab is closed. List the pages again."))
+            }
+            let snapshot = try await browser.capturePage()
+            guard cloudConsent, !operationBusy, !privateBackupRestartRequired,
+                  conversations.contains(where: { $0.id == id && !$0.archived }) else {
+                throw NativeError.message(L10n.pick("Условия отправки изменились. Страница не отправлена.", "The destination changed. The page was not sent."))
+            }
+            let message = try snapshot.message(instruction: args["text"].text)
+            return try await sendLiveVoiceTaskMessage(message, id: id, session: session)
         default: throw NativeError.message("Неизвестная голосовая команда.")
         }
+    }
+
+    /// Explicit voice input carries its own context and never consumes the editor.
+    private func sendLiveVoiceTaskMessage(_ supplied: String, id: UUID, session: UUID) async throws -> JSONValue {
+        let text = supplied.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, text.unicodeScalars.count <= 20_000,
+              !historyPersistence.blocksSubmission, !store.writeBlocked else { throw NativeError.message("Сообщение пустое, слишком большое или история требует восстановления.") }
+        let state = execution(for: id)
+        if state.running { return try enqueueVoiceTaskUpdate(text, execution: state) }
+        state.running = true
+        do {
+            let description = try await state.client.request("describe", ["text": .string(text)])
+            guard !description["blocked"].flag, !description["operator"].flag, !description["requires_confirmation"].flag else {
+                throw NativeError.message("Команды изменения самого ядра выполняются через текстовый интерфейс с его подтверждениями.")
+            }
+            try await ensureAgentAccess(for: state)
+            try Task.checkCancellation()
+            guard cloudConsent, !operationBusy, conversations.contains(where: { $0.id == id && !$0.archived }) else {
+                throw NativeError.message("Условия запуска изменились. Задача не запускалась.")
+            }
+            let lastMessageBefore = conversations.first { $0.id == id }?.messages.last?.id
+            Task { @MainActor in
+                await perform(text, execution: state, confirmed: false, operatorInput: false, useDraft: false)
+                if var result = try? liveVoiceTaskStatus(id) {
+                    if conversations.first(where: { $0.id == id })?.messages.last?.id == lastMessageBefore {
+                        result = .object(["status": .string("needs_attention"), "answer": .string("Запрос не удалось сохранить или запустить. Проверьте сообщение об ошибке в приложении.")])
+                    }
+                    liveVoice.taskFinished(id, session: session, result: result)
+                }
+            }
+            return .object(["status": .string("preparing"), "conversation_id": .string(id.uuidString)])
+        } catch { state.running = false; throw error }
     }
 
     private func voiceConversationID(_ args: JSONValue) throws -> UUID {

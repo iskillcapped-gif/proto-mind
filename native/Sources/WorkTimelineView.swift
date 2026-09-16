@@ -16,24 +16,24 @@ enum WorkLogEventGate {
 enum WorkLogPresentation {
     static func duration(_ milliseconds: Int) -> String {
         let seconds = max(0, milliseconds) / 1000
-        if seconds < 1 { return "менее секунды" }
-        if seconds < 60 { return "\(seconds) с" }
-        if seconds < 3600 { return "\(seconds / 60) мин \(seconds % 60) с" }
-        return "\(seconds / 3600) ч \((seconds % 3600) / 60) мин"
+        if seconds < 1 { return L10n.text("менее секунды") }
+        if seconds < 60 { return L10n.pick("\(seconds) с", "\(seconds)s") }
+        if seconds < 3600 { return L10n.pick("\(seconds / 60) мин \(seconds % 60) с", "\(seconds / 60)m \(seconds % 60)s") }
+        return L10n.pick("\(seconds / 3600) ч \((seconds % 3600) / 60) мин", "\(seconds / 3600)h \((seconds % 3600) / 60)m")
     }
 
     static func title(_ log: JSONValue, live: Bool) -> String {
         if live {
             switch log["stage"].text {
-            case "connecting": return "Подключаюсь"
-            case "answering": return "Пишу ответ"
-            default: return "Работаю"
+            case "connecting": return L10n.text("Подключаюсь")
+            case "answering": return L10n.text("Пишу ответ")
+            default: return L10n.text("Работаю")
             }
         }
         switch log["status"].text {
-        case "completed": return "Ответ получен · \(duration(log["elapsed_ms"].integer))"
-        case "interrupted": return "Остановлено · \(duration(log["elapsed_ms"].integer))"
-        default: return "Ход не завершён · \(duration(log["elapsed_ms"].integer))"
+        case "completed": return L10n.pick("Ответ получен · ", "Response received · ") + duration(log["elapsed_ms"].integer)
+        case "interrupted": return L10n.pick("Остановлено · ", "Stopped · ") + duration(log["elapsed_ms"].integer)
+        default: return L10n.pick("Ход не завершён · ", "Turn incomplete · ") + duration(log["elapsed_ms"].integer)
         }
     }
 }
@@ -59,12 +59,12 @@ enum WorkTimelinePresentation {
 
     static func toolSummary(_ kinds: Set<String>, live: Bool) -> String {
         var parts: [String] = []
-        if kinds.contains("fileChange") { parts.append(live ? "Редактирует файлы" : "Редактирование файлов") }
-        if kinds.contains("commandExecution") { parts.append(live ? "выполняет команды" : "команды в терминале") }
-        if kinds.contains("webSearch") { parts.append(live ? "ищет в интернете" : "поиск в интернете") }
-        if kinds.contains("computerUse") { parts.append(live ? "работает с приложениями" : "работа с приложениями") }
-        if kinds.contains("imageView") { parts.append(live ? "смотрит изображения" : "просмотр изображений") }
-        let text = parts.isEmpty ? "Действия инструментов" : parts.joined(separator: ", ")
+        if kinds.contains("fileChange") { parts.append(live ? L10n.text("Редактирует файлы") : L10n.text("Редактирование файлов")) }
+        if kinds.contains("commandExecution") { parts.append(live ? L10n.text("выполняет команды") : L10n.text("команды в терминале")) }
+        if kinds.contains("webSearch") { parts.append(live ? L10n.text("ищет в интернете") : L10n.text("поиск в интернете")) }
+        if kinds.contains("computerUse") { parts.append(live ? L10n.text("работает с приложениями") : L10n.text("работа с приложениями")) }
+        if kinds.contains("imageView") { parts.append(live ? L10n.text("смотрит изображения") : L10n.text("просмотр изображений")) }
+        let text = parts.isEmpty ? L10n.text("Действия инструментов") : parts.joined(separator: ", ")
         return text.prefix(1).uppercased() + text.dropFirst()
     }
 
@@ -101,7 +101,7 @@ struct WorkTimelineView: View {
                 }.font(.system(size: 12)).foregroundStyle(.secondary).contentShape(Rectangle())
             }.buttonStyle(.nativeHover).accessibilityElement(children: .ignore)
                 .accessibilityAddTraits(.isButton)
-                .accessibilityLabel("Ход работы: " + WorkLogPresentation.title(log, live: live))
+                .accessibilityLabel(L10n.text("Ход работы: ") + WorkLogPresentation.title(log, live: live))
             if isExpanded {
                 VStack(alignment: .leading, spacing: 22) {
                     ForEach(WorkTimelinePresentation.sections(entries)) { section in
@@ -112,7 +112,7 @@ struct WorkTimelineView: View {
                         } else if let entry = section.entries.first { row(entry) }
                     }
                     if log["truncated"].flag {
-                        Text("Показана часть хода работы").font(.caption).foregroundStyle(.tertiary)
+                        Text(L10n.text("Показана часть хода работы")).font(.caption).foregroundStyle(.tertiary)
                     }
                 }
             } else if live, let latest = entries.last(where: { $0["kind"].text == "commentary" }), !latest["text"].text.isEmpty {
@@ -126,7 +126,7 @@ struct WorkTimelineView: View {
         case "commentary":
             MessageMarkdownView(text: entry["text"].text, copy: { NSPasteboard.general.clearContents(); NSPasteboard.general.setString($0, forType: .string) })
         case "plan":
-            DisclosureGroup("План работы") {
+            DisclosureGroup(L10n.text("План работы")) {
                 VStack(alignment: .leading, spacing: 8) {
                     if !entry["text"].text.isEmpty { Text(entry["text"].text) }
                     ForEach(Array(entry["steps"].items.prefix(12).enumerated()), id: \.offset) { _, step in
@@ -135,7 +135,7 @@ struct WorkTimelineView: View {
                 }.padding(.top, 8).textSelection(.enabled)
             }.font(.system(size: 13)).foregroundStyle(.secondary)
         case "context_compaction":
-            Label("Сжатие контекста", systemImage: "rectangle.compress.vertical").font(.system(size: 12)).foregroundStyle(.tertiary)
+            Label(L10n.text("Сжатие контекста"), systemImage: "rectangle.compress.vertical").font(.system(size: 12)).foregroundStyle(.tertiary)
         default: EmptyView()
         }
     }

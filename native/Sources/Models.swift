@@ -71,6 +71,7 @@ struct ChatMessage: Codable, Identifiable, Equatable {
 }
 
 struct Conversation: Codable, Identifiable, Equatable {
+    var displayTitle: String { title == "Новый диалог" ? L10n.text("Новый диалог") : title }
     var id = UUID()
     var title = "Новый диалог"
     var createdAt = Date()

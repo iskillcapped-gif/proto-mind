@@ -21,9 +21,9 @@ struct SidebarMenuView: View {
                 HStack(spacing: 10) {
                     Image(systemName: "line.3.horizontal").font(.system(size: 16)).foregroundStyle(.secondary)
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Меню").font(.system(size: 13))
+                        Text(L10n.text("Меню")).font(.system(size: 13))
                         HStack(spacing: 4) {
-                            Text(open ? "Настройки и лимиты" : compactLabel).lineLimit(1).minimumScaleFactor(0.85)
+                            Text(open ? L10n.text("Настройки и лимиты") : compactLabel).lineLimit(1).minimumScaleFactor(0.85)
                             if !open, stale(at: context.date), !SidebarQuotaSummary.windows(usage.displaySnapshot).isEmpty {
                                 Image(systemName: "clock").font(.system(size: 9))
                             }
@@ -32,9 +32,9 @@ struct SidebarMenuView: View {
                     Spacer(minLength: 0)
                     Image(systemName: "chevron.up").font(.system(size: 9)).foregroundStyle(.secondary)
                 }.padding(10).contentShape(Rectangle())
-            }.buttonStyle(.nativeHover).accessibilityLabel("Меню")
-                .accessibilityValue("\(compactLabel)\(stale(at: context.date) ? ", требуется обновление" : "")")
-                .help("Настройки и лимиты Codex. Показан остаток лимитов аккаунта.")
+            }.buttonStyle(.nativeHover).accessibilityLabel(L10n.text("Меню"))
+                .accessibilityValue("\(compactLabel)\(stale(at: context.date) ? L10n.pick(", требуется обновление", ", refresh needed") : "")")
+                .help(L10n.text("Настройки и лимиты Codex. Показан остаток лимитов аккаунта."))
         }
         .composerPopover(isPresented: $open, width: columnWidth, confinedToColumn: true, columnWidth: columnWidth) {
             menuContent
@@ -57,11 +57,11 @@ struct SidebarMenuView: View {
     }
 
     private var compactLabel: String {
-        guard let value = usage.displaySnapshot else { return "Лимиты Codex · —" }
-        guard value.connected else { return "Нет входа в ChatGPT" }
+        guard let value = usage.displaySnapshot else { return L10n.text("Лимиты Codex · —") }
+        guard value.connected else { return L10n.text("Нет входа в ChatGPT") }
         let windows = SidebarQuotaSummary.windows(value)
-        guard !windows.isEmpty else { return "Лимиты Codex · —" }
-        return "Осталось " + windows.map { "\($0.title) \($0.remainingLabel)" }.joined(separator: " · ")
+        guard !windows.isEmpty else { return L10n.text("Лимиты Codex · —") }
+        return L10n.text("Осталось ") + windows.map { "\($0.title) \($0.remainingLabel)" }.joined(separator: " · ")
     }
 
     private func stale(at date: Date) -> Bool {
@@ -72,13 +72,13 @@ struct SidebarMenuView: View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
-                    Text("Лимиты Codex").font(.system(size: 12, weight: .medium))
+                    Text(L10n.text("Лимиты Codex")).font(.system(size: 12, weight: .medium))
                     Spacer()
-                    Text("Осталось").font(.system(size: 10)).foregroundStyle(.secondary)
+                    Text(L10n.text("Осталось")).font(.system(size: 10)).foregroundStyle(.secondary)
                 }
                 let windows = SidebarQuotaSummary.windows(usage.displaySnapshot)
                 if windows.isEmpty {
-                    Text(usage.refreshingLimits ? "Обновляю…" : "Данные пока недоступны")
+                    Text(usage.refreshingLimits ? L10n.text("Обновляю…") : L10n.text("Данные пока недоступны"))
                         .font(.system(size: 12)).foregroundStyle(.secondary)
                 } else {
                     ForEach(windows) { window in
@@ -101,20 +101,20 @@ struct SidebarMenuView: View {
                     }
                 }
                 if stale(at: Date()), !windows.isEmpty {
-                    Label("Данные устарели", systemImage: "clock").font(.system(size: 10)).foregroundStyle(.secondary)
+                    Label(L10n.text("Данные устарели"), systemImage: "clock").font(.system(size: 10)).foregroundStyle(.secondary)
                 }
             }.padding(16)
             Divider().padding(.horizontal, 10)
             VStack(spacing: 2) {
-                ComposerMenuRow(title: "Настройки", icon: "gearshape") {
+                ComposerMenuRow(title: L10n.text("Настройки"), icon: "gearshape") {
                     open = false
                     Task { @MainActor in await Task.yield(); openSettings() }
                 }
-                ComposerMenuRow(title: "Лимиты", icon: "gauge.with.dots.needle.50percent") {
+                ComposerMenuRow(title: L10n.text("Лимиты"), icon: "gauge.with.dots.needle.50percent") {
                     open = false
                     Task { @MainActor in await Task.yield(); app.showCodexUsage = true }
                 }
-                ComposerMenuRow(title: app.desktop.enabled ? "Обычное окно" : "Парящий режим",
+                ComposerMenuRow(title: app.desktop.enabled ? L10n.text("Обычное окно") : L10n.text("Парящий режим"),
                                 icon: app.desktop.enabled ? "macwindow" : "cube.transparent") {
                     open = false
                     Task { @MainActor in await Task.yield(); app.desktop.toggleMode() }

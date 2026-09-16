@@ -6,13 +6,13 @@ enum NativeSettingsSection: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .models: return "Модели"
-        case .voice: return "Голос"
-        case .appearance: return "Оформление"
-        case .persona: return "Общение"
-        case .services: return "Подключения"
-        case .data: return "Данные и копии"
-        case .advanced: return "Дополнительно"
+        case .models: return L10n.text("Модели")
+        case .voice: return L10n.text("Голос")
+        case .appearance: return L10n.text("Оформление")
+        case .persona: return L10n.text("Общение")
+        case .services: return L10n.text("Подключения")
+        case .data: return L10n.text("Данные и копии")
+        case .advanced: return L10n.text("Дополнительно")
         }
     }
     var symbol: String {
@@ -28,13 +28,13 @@ enum NativeSettingsSection: String, CaseIterable, Identifiable {
     }
     var subtitle: String {
         switch self {
-        case .models: return "Выберите, с какой моделью продолжить этот диалог."
-        case .voice: return "Диктовка сообщений и голосовой разговор."
-        case .appearance: return "Прозрачность парящего рабочего пространства."
-        case .persona: return "Характер общения и использование памяти."
-        case .services: return "Сервисы, которыми вы пользуетесь в работе."
-        case .data: return "Ваши диалоги и способы их восстановить."
-        case .advanced: return "Доступ, сессии и технические сведения."
+        case .models: return L10n.text("Выберите, с какой моделью продолжить этот диалог.")
+        case .voice: return L10n.text("Диктовка сообщений и голосовой разговор.")
+        case .appearance: return L10n.text("Прозрачность парящего рабочего пространства.")
+        case .persona: return L10n.text("Характер общения и использование памяти.")
+        case .services: return L10n.text("Сервисы, которыми вы пользуетесь в работе.")
+        case .data: return L10n.text("Ваши диалоги и способы их восстановить.")
+        case .advanced: return L10n.text("Доступ, сессии и технические сведения.")
         }
     }
 }
@@ -61,7 +61,7 @@ struct NativeSettingsView: View {
                     }.fixedSize(horizontal: false, vertical: true)
                 } else {
                     VStack(alignment: .leading, spacing: 5) {
-                        Text("Настройки").font(.system(size: 17, weight: .semibold))
+                        Text(L10n.text("Настройки")).font(.system(size: 17, weight: .semibold))
                             .padding(.horizontal, 12).padding(.top, 20).padding(.bottom, 18)
                         ForEach(NativeSettingsSection.allCases) { section in sectionButton(section) }
                         Spacer(minLength: 0)
@@ -80,19 +80,19 @@ struct NativeSettingsView: View {
             }
         }.workspaceBackground(NativeTheme.canvas)
         .font(NativeTheme.interfaceFont).buttonStyle(.nativeHover).tint(NativeTheme.accent)
-        .navigationTitle("Настройки Proto-Mind")
+        .navigationTitle(L10n.text("Настройки Proto-Mind"))
         .task(id: codexThreadTaskID) { await model.refreshCodexThreadStatus() }
-        .workspaceConfirmationDialog("Начать новую сессию ChatGPT?", isPresented: $confirmCodexThreadReset, titleVisibility: .visible) {
-            Button("Начать новую сессию", role: .destructive) { confirmCodexThreadReset = false; Task { await model.resetCodexThread() } }
-            Button("Отмена", role: .cancel) { confirmCodexThreadReset = false }
+        .workspaceConfirmationDialog(L10n.text("Начать новую сессию ChatGPT?"), isPresented: $confirmCodexThreadReset, titleVisibility: .visible) {
+            Button(L10n.text("Начать новую сессию"), role: .destructive) { confirmCodexThreadReset = false; Task { await model.resetCodexThread() } }
+            Button(L10n.text("Отмена"), role: .cancel) { confirmCodexThreadReset = false }
         } message: {
-            Text("Следующее сообщение начнёт новую сессию модели. Диалоги Proto-Mind и прежние записи Codex сохранятся. Полный доступ к Mac будет выключен.")
+            Text(L10n.text("Следующее сообщение начнёт новую сессию модели. Диалоги Proto-Mind и прежние записи Codex сохранятся. Полный доступ к Mac будет выключен."))
         }
-        .workspaceConfirmationDialog("Включить Brother?", isPresented: $confirmPersonaActivation, titleVisibility: .visible) {
-            Button("Проверить и включить") { confirmPersonaActivation = false; Task { await model.confirmPersonaActivation() } }
-            Button("Отмена", role: .cancel) { confirmPersonaActivation = false; model.cancelPersonaActivation() }
+        .workspaceConfirmationDialog(L10n.text("Включить Brother?"), isPresented: $confirmPersonaActivation, titleVisibility: .visible) {
+            Button(L10n.text("Проверить и включить")) { confirmPersonaActivation = false; Task { await model.confirmPersonaActivation() } }
+            Button(L10n.text("Отмена"), role: .cancel) { confirmPersonaActivation = false; model.cancelPersonaActivation() }
         } message: {
-            Text("Совместимость будет проверена повторно. Изменение действует со следующего сообщения и не добавляет доступа к файлам или инструментам.")
+            Text(L10n.text("Совместимость будет проверена повторно. Изменение действует со следующего сообщения и не добавляет доступа к файлам или инструментам."))
         }
     }
 
@@ -112,25 +112,28 @@ struct NativeSettingsView: View {
                         modelSettings
                         if model.selected?.provider == "codex" { accountSettings }
                     case .voice:
-                        Section("Диктовка") { DictationSettings(dictation: model.dictation) }
-                        Section("Голосовой разговор") {
-                            Toggle("Разрешить обработку в OpenAI", isOn: $model.cloudConsent).disabled(model.globalBusy)
-                            Text("Кнопка голосовой волны рядом с «Меню» сразу начинает разговор. После запуска приложения голос остаётся выключенным.")
+                        Section(L10n.text("Диктовка")) { DictationSettings(dictation: model.dictation) }
+                        Section(L10n.text("Голосовой разговор")) {
+                            Toggle(L10n.text("Разрешить обработку в OpenAI"), isOn: $model.cloudConsent).disabled(model.globalBusy)
+                            Text(L10n.text("Кнопка голосовой волны рядом с «Меню» сразу начинает разговор. После запуска приложения голос остаётся выключенным."))
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                         Section { LiveVoiceKeySettings(voice: model.liveVoice) }
-                        Section("Использование API") {
-                            Text("GPT Live 1: $0,05 за минуту подключённого разговора. Обработка команд GPT-5.6 Luna оплачивается дополнительно по тарифу API. Подписка ChatGPT не оплачивает этот голосовой канал.")
+                        Section(L10n.text("Использование API")) {
+                            Text(L10n.text("GPT Live 1: $0,05 за минуту подключённого разговора. Обработка команд GPT-5.6 Luna оплачивается дополнительно по тарифу API. Подписка ChatGPT не оплачивает этот голосовой канал."))
                                 .font(.callout).foregroundStyle(.secondary)
                         }
                     case .appearance:
+                        Section(L10n.text("Language / Язык")) {
+                            InterfaceLanguagePicker(configuration: model.serviceClient.configuration)
+                        }
                         DesktopAppearanceSettings(desktop: model.desktop, panels: model.workspacePanels, companions: model.desktop.companions)
                     case .persona:
                         personaSettings
-                        Section("Память и навыки") {
-                            Text("Заметки проекта и автоматический подбор навыков настраиваются для каждого диалога через кнопку рядом с вложениями.")
+                        Section(L10n.text("Память и навыки")) {
+                            Text(L10n.text("Заметки проекта и автоматический подбор навыков настраиваются для каждого диалога через кнопку рядом с вложениями."))
                                 .font(.callout).foregroundStyle(.secondary)
-                            Text("Перед отправкой можно посмотреть, какие сведения попадут в запрос, в разделе «Контекст запроса».")
+                            Text(L10n.text("Перед отправкой можно посмотреть, какие сведения попадут в запрос, в разделе «Контекст запроса»."))
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                     case .services:
@@ -142,9 +145,9 @@ struct NativeSettingsView: View {
                         accessSettings
                         if model.selected?.provider == "codex" { sessionSettings }
                         spineSettings
-                        Section("О приложении") {
-                            LabeledContent("Версия", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Локальная сборка")
-                            DisclosureGroup("Технические сведения") {
+                        Section(L10n.text("О приложении")) {
+                            LabeledContent(L10n.text("Версия"), value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? L10n.text("Локальная сборка"))
+                            DisclosureGroup(L10n.text("Технические сведения")) {
                                 Text("Python: \(model.client.configuration.python.path)\nПроект: \(model.client.configuration.projectRoot.path)")
                                     .font(.caption.monospaced()).textSelection(.enabled)
                                 Text("Управление экраном: \(model.computerUseAvailable ? model.computerUseVersion : "недоступно")")
@@ -160,122 +163,122 @@ struct NativeSettingsView: View {
     }
 
     private var modelSettings: some View {
-        Section("В этом диалоге") {
-            Text(model.selected?.title ?? "Новый диалог").font(.callout.weight(.medium)).lineLimit(2)
-            Picker("Источник модели", selection: Binding(get: { model.selected?.provider ?? "ollama" }, set: model.setProvider)) {
-                Text("ChatGPT · по подписке").tag("codex")
-                Text("Ollama · на этом Mac").tag("ollama")
-                Text("Модель через API").tag("api")
-                Text("Тестовый режим · без модели").tag("mock")
+        Section(L10n.text("В этом диалоге")) {
+            Text(model.selected?.displayTitle ?? L10n.text("Новый диалог")).font(.callout.weight(.medium)).lineLimit(2)
+            Picker(L10n.text("Источник модели"), selection: Binding(get: { model.selected?.provider ?? "ollama" }, set: model.setProvider)) {
+                Text(L10n.text("ChatGPT · по подписке")).tag("codex")
+                Text(L10n.text("Ollama · на этом Mac")).tag("ollama")
+                Text(L10n.text("Модель через API")).tag("api")
+                Text(L10n.text("Тестовый режим · без модели")).tag("mock")
             }.disabled(model.globalBusy)
             if model.selected?.provider == "api" {
                 APIConnectionPicker(app: model, connections: model.apiConnections, conversationID: model.selectedID)
-                Toggle("Разрешить облачную обработку", isOn: $model.cloudConsent).disabled(model.globalBusy)
-                Button("Настроить API-подключения") { model.settingsSection = .services }
+                Toggle(L10n.text("Разрешить облачную обработку"), isOn: $model.cloudConsent).disabled(model.globalBusy)
+                Button(L10n.text("Настроить API-подключения")) { model.settingsSection = .services }
             } else if model.selected?.provider == "ollama" {
-                TextField("Модель Ollama", text: Binding(get: { model.selected?.model ?? "" }, set: model.setModel), prompt: Text(model.bootstrap["ollama_model"].text))
+                TextField(L10n.text("Модель Ollama"), text: Binding(get: { model.selected?.model ?? "" }, set: model.setModel), prompt: Text(model.bootstrap["ollama_model"].text))
                     .disabled(model.globalBusy)
-                Text("Сообщения обрабатываются локально. Для работы запустите Ollama на этом Mac.")
+                Text(L10n.text("Сообщения обрабатываются локально. Для работы запустите Ollama на этом Mac."))
                     .font(.caption).foregroundStyle(.secondary)
                 HStack {
-                    Button("Проверить подключение") { Task { await model.checkOllama() } }.disabled(model.globalBusy)
+                    Button(L10n.text("Проверить подключение")) { Task { await model.checkOllama() } }.disabled(model.globalBusy)
                     Spacer()
                     if !model.ollamaStatus.isNull {
-                        Label(model.ollamaStatus["connected"].flag ? "Доступна" : "Недоступна", systemImage: model.ollamaStatus["connected"].flag ? "checkmark.circle" : "exclamationmark.circle")
+                        Label(model.ollamaStatus["connected"].flag ? L10n.text("Доступна") : L10n.text("Недоступна"), systemImage: model.ollamaStatus["connected"].flag ? "checkmark.circle" : "exclamationmark.circle")
                             .font(.caption).foregroundStyle(.secondary)
                     }
                 }
                 if !model.ollamaStatus["models"].items.isEmpty {
-                    Menu("Установленные модели") {
+                    Menu(L10n.text("Установленные модели")) {
                         ForEach(model.ollamaStatus["models"].items.map(\.text), id: \.self) { name in Button(name) { model.setModel(name) } }
                     }.disabled(model.globalBusy)
                 }
             } else if model.selected?.provider == "codex" {
-                Picker("Модель", selection: Binding(get: { model.selected?.model ?? "" }, set: model.setModel)) {
-                    Text("По умолчанию для аккаунта").tag("")
+                Picker(L10n.text("Модель"), selection: Binding(get: { model.selected?.model ?? "" }, set: model.setModel)) {
+                    Text(L10n.text("По умолчанию для аккаунта")).tag("")
                     ForEach(model.codexModels) { item in Text(item.displayName).tag(item.id) }
                     if let selected = model.selected?.model, !selected.isEmpty, model.selectedCodexModel == nil {
                         Text("\(selected) · недоступна").tag(selected)
                     }
                 }.disabled(model.globalBusy)
-                Picker("Глубина рассуждения", selection: Binding(get: { model.selected?.reasoningEffort ?? "" }, set: model.setReasoningEffort)) {
-                    Text(model.selectedCodexModel?.defaultEffort.map { "По умолчанию · \($0.title)" } ?? "По умолчанию").tag("")
+                Picker(L10n.text("Глубина рассуждения"), selection: Binding(get: { model.selected?.reasoningEffort ?? "" }, set: model.setReasoningEffort)) {
+                    Text(model.selectedCodexModel?.defaultEffort.map { "По умолчанию · \($0.title)" } ?? L10n.text("По умолчанию")).tag("")
                     ForEach(model.availableReasoningEfforts) { effort in Text(effort.title).tag(effort.rawValue) }
                     if let selected = model.selected?.reasoningEffort, !selected.isEmpty, !model.availableReasoningEfforts.contains(where: { $0.rawValue == selected }) {
                         Text("\(selected) · недоступно").tag(selected)
                     }
                 }.disabled(model.globalBusy)
                 HStack {
-                    Button("Обновить список") { Task { await model.refreshAccount() } }
+                    Button(L10n.text("Обновить список")) { Task { await model.refreshAccount() } }
                     Spacer()
-                    Button("Сбросить выбор") { model.resetCodexSelection() }
+                    Button(L10n.text("Сбросить выбор")) { model.resetCodexSelection() }
                 }.disabled(model.globalBusy || model.connecting)
-                Text("Выбор сохраняется для этого диалога. Доступные модели и уровни зависят от аккаунта.")
+                Text(L10n.text("Выбор сохраняется для этого диалога. Доступные модели и уровни зависят от аккаунта."))
                     .font(.caption).foregroundStyle(.secondary)
                 if let note = model.modelSelectionWarning ?? model.modelSelectionNotice { Text(note).font(.caption).foregroundStyle(.orange) }
             } else {
-                Text("Этот режим проверяет приложение без запроса к модели. Он не выполняет задачи и не анализирует сообщения.")
+                Text(L10n.text("Этот режим проверяет приложение без запроса к модели. Он не выполняет задачи и не анализирует сообщения."))
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
     }
 
     private var accountSettings: some View {
-        Section("Аккаунт ChatGPT") {
-            Button("Помощь с первым подключением…") { model.showFirstLaunch = true }
+        Section(L10n.text("Аккаунт ChatGPT")) {
+            Button(L10n.text("Помощь с первым подключением…")) { model.showFirstLaunch = true }
             HStack {
-                Label(model.account.isNull ? "Вход ещё не проверен" : model.account["connected"].flag ? "Подключено" : "Не подключено", systemImage: model.account["connected"].flag ? "checkmark.circle" : "person.crop.circle")
+                Label(model.account.isNull ? L10n.text("Вход ещё не проверен") : model.account["connected"].flag ? L10n.text("Подключено") : L10n.text("Не подключено"), systemImage: model.account["connected"].flag ? "checkmark.circle" : "person.crop.circle")
                 Spacer()
                 if model.connecting { ProgressView().controlSize(.small) }
             }
             if model.account["connected"].flag {
                 Text("\(model.account["email"].text) · \(model.account["plan"].text)").font(.caption).foregroundStyle(.secondary)
             }
-            Button("Использование и лимиты Codex…") { model.showCodexUsage = true }
+            Button(L10n.text("Использование и лимиты Codex…")) { model.showCodexUsage = true }
             HStack {
-                Button("Войти через ChatGPT…") { Task { await model.login() } }
-                Button("Проверить вход") { Task { await model.refreshAccount() } }
+                Button(L10n.text("Войти через ChatGPT…")) { Task { await model.login() } }
+                Button(L10n.text("Проверить вход")) { Task { await model.refreshAccount() } }
                 Spacer()
-                if model.account["connected"].flag { Button("Выйти") { Task { await model.logout() } } }
+                if model.account["connected"].flag { Button(L10n.text("Выйти")) { Task { await model.logout() } } }
             }.disabled(model.globalBusy || model.connecting)
             if model.loginPending {
-                Text("Завершите вход в браузере и нажмите «Проверить вход».").font(.caption).foregroundStyle(.secondary)
+                Text(L10n.text("Завершите вход в браузере и нажмите «Проверить вход».")).font(.caption).foregroundStyle(.secondary)
             }
-            Toggle("Разрешить облачную обработку", isOn: $model.cloudConsent).disabled(model.globalBusy)
-            Text("Сообщения, выбранная память и прикреплённые материалы передаются OpenAI. Разрешение действует на этом Mac и сохраняется после перезапуска.")
+            Toggle(L10n.text("Разрешить облачную обработку"), isOn: $model.cloudConsent).disabled(model.globalBusy)
+            Text(L10n.text("Сообщения, выбранная память и прикреплённые материалы передаются OpenAI. Разрешение действует на этом Mac и сохраняется после перезапуска."))
                 .font(.caption).foregroundStyle(.secondary)
-            DisclosureGroup("Как работает подключение") {
-                Text("Proto-Mind использует официальный Codex и отдельный профиль входа. API-ключ не нужен. Сессии продолжаются между сообщениями; при создании новой сессии добавляется до 12 локальных реплик. Данные входа и настройки Codex Desktop не используются.")
+            DisclosureGroup(L10n.text("Как работает подключение")) {
+                Text(L10n.text("Proto-Mind использует официальный Codex и отдельный профиль входа. API-ключ не нужен. Сессии продолжаются между сообщениями; при создании новой сессии добавляется до 12 локальных реплик. Данные входа и настройки Codex Desktop не используются."))
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
     }
 
     private var personaSettings: some View {
-        Section("Характер общения · Brother") {
-            LabeledContent("Состояние", value: model.personaEnabled ? "Включён" : "Обычный режим")
-            Text("Brother задаёт устойчивый характер общения и использует память, уже выбранную ядром для ответа.")
+        Section(L10n.text("Характер общения · Brother")) {
+            LabeledContent(L10n.text("Состояние"), value: model.personaEnabled ? L10n.text("Включён") : L10n.text("Обычный режим"))
+            Text(L10n.text("Brother задаёт устойчивый характер общения и использует память, уже выбранную ядром для ответа."))
                 .font(.callout).foregroundStyle(.secondary)
             if model.personaEnabled {
-                Button("Вернуться к обычному режиму") { model.disablePersona() }.disabled(model.globalBusy)
+                Button(L10n.text("Вернуться к обычному режиму")) { model.disablePersona() }.disabled(model.globalBusy)
             } else {
-                Button(model.loadingPersonaReadiness ? "Проверяем совместимость…" : "Проверить и включить…") {
+                Button(model.loadingPersonaReadiness ? L10n.text("Проверяем совместимость…") : L10n.text("Проверить и включить…")) {
                     Task { if await model.preparePersonaActivation() { confirmPersonaActivation = true } }
                 }.disabled(model.globalBusy || model.loadingPersonaReadiness || !["codex", "ollama"].contains(model.selected?.provider ?? ""))
-                if model.selected?.provider == "mock" { Text("Выберите ChatGPT или Ollama для включения Brother.").font(.caption).foregroundStyle(.secondary) }
+                if model.selected?.provider == "mock" { Text(L10n.text("Выберите ChatGPT или Ollama для включения Brother.")).font(.caption).foregroundStyle(.secondary) }
             }
-            Text("Изменение действует со следующего сообщения. Оно не даёт дополнительных разрешений и не стирает прежнюю историю модели.")
+            Text(L10n.text("Изменение действует со следующего сообщения. Оно не даёт дополнительных разрешений и не стирает прежнюю историю модели."))
                 .font(.caption).foregroundStyle(.secondary)
-            DisclosureGroup("Сведения о проверке") {
+            DisclosureGroup(L10n.text("Сведения о проверке")) {
                 if let readiness = model.personaReadiness {
                     Text("Состояние: \(readiness.status)\nПроверка: \(readiness.value["activation_fingerprint"].text)")
                         .font(.caption.monospaced()).textSelection(.enabled)
-                } else { Text("Проверка ещё не выполнялась.").font(.caption).foregroundStyle(.secondary) }
+                } else { Text(L10n.text("Проверка ещё не выполнялась.")).font(.caption).foregroundStyle(.secondary) }
                 if let receipt = model.lastPersonaTurnReceipt {
                     Text("Последний ответ: \(receipt.snapshotHash)\nЗаписей памяти: \(receipt.selectedMemoryCount)\nКвитанция: \(receipt.receiptHash)")
                         .font(.caption.monospaced()).textSelection(.enabled)
                 }
-                Text("Persona не меняет Context Injection, не создаёт скрытых записей и проверяет совместимость перед каждым ответом.")
+                Text(L10n.text("Persona не меняет Context Injection, не создаёт скрытых записей и проверяет совместимость перед каждым ответом."))
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
@@ -283,27 +286,27 @@ struct NativeSettingsView: View {
 
     private var dataSettings: some View {
         Group {
-            Section("Все локальные данные") {
-                Text("Диалоги, память, журнал работы и настройки — в одной копии с проверкой файлов и восстановлением.")
+            Section(L10n.text("Все локальные данные")) {
+                Text(L10n.text("Диалоги, память, журнал работы и настройки — в одной копии с проверкой файлов и восстановлением."))
                     .font(.callout).foregroundStyle(.secondary)
-                Button("Полная копия данных…") { model.showPrivateBackup = true }.buttonStyle(.borderedProminent)
+                Button(L10n.text("Полная копия данных…")) { model.showPrivateBackup = true }.buttonStyle(.borderedProminent)
                     .disabled(model.globalBusy || model.client.turnOutstanding)
             }
-            Section("Копии диалогов") {
-                Text("Сохраните отдельную копию или вернитесь к предыдущему состоянию истории.")
+            Section(L10n.text("Копии диалогов")) {
+                Text(L10n.text("Сохраните отдельную копию или вернитесь к предыдущему состоянию истории."))
                     .font(.callout).foregroundStyle(.secondary)
-                Button("Копии и восстановление…") { model.openHistoryBackups() }.buttonStyle(.borderedProminent)
+                Button(L10n.text("Копии и восстановление…")) { model.openHistoryBackups() }.buttonStyle(.borderedProminent)
                     .disabled(model.globalBusy || model.client.turnOutstanding)
-                Text("В копию входят сообщения, черновики и настройки диалогов. Память, журнал задач, облачные сессии и исходные вложения хранятся отдельно.")
+                Text(L10n.text("В копию входят сообщения, черновики и настройки диалогов. Память, журнал задач, облачные сессии и исходные вложения хранятся отдельно."))
                     .font(.caption).foregroundStyle(.secondary)
             }
-            Section("На этом Mac") {
-                Text("Диалоги хранятся в приватной папке приложения. Локальные снимки помогают восстановить историю, а копия на другом диске — защититься от потери данных.")
+            Section(L10n.text("На этом Mac")) {
+                Text(L10n.text("Диалоги хранятся в приватной папке приложения. Локальные снимки помогают восстановить историю, а копия на другом диске — защититься от потери данных."))
                     .font(.callout).foregroundStyle(.secondary)
-                DisclosureGroup("Расположение данных") {
+                DisclosureGroup(L10n.text("Расположение данных")) {
                     Text(model.client.configuration.stateDirectory.path).font(.caption.monospaced()).textSelection(.enabled)
-                    Button("Показать в Finder") { NSWorkspace.shared.activateFileViewerSelecting([model.client.configuration.stateDirectory]) }
-                    Text("В профиле Codex могут храниться полные сообщения и вывод инструментов. Папка содержит личные данные и не предназначена для публикации.")
+                    Button(L10n.text("Показать в Finder")) { NSWorkspace.shared.activateFileViewerSelecting([model.client.configuration.stateDirectory]) }
+                    Text(L10n.text("В профиле Codex могут храниться полные сообщения и вывод инструментов. Папка содержит личные данные и не предназначена для публикации."))
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
@@ -311,50 +314,50 @@ struct NativeSettingsView: View {
     }
 
     private var accessSettings: some View {
-        Section("Доступ к Mac") {
-            Label(model.fullAccessEnabled ? "Полный доступ включён" : "Только чат · инструменты выключены", systemImage: model.fullAccessEnabled ? "exclamationmark.shield" : "lock.shield")
+        Section(L10n.text("Доступ к Mac")) {
+            Label(model.fullAccessEnabled ? L10n.text("Полный доступ включён") : L10n.text("Только чат · инструменты выключены"), systemImage: model.fullAccessEnabled ? "exclamationmark.shield" : "lock.shield")
                 .foregroundStyle(model.fullAccessEnabled ? Color.orange : .primary)
-            Text("Доступ включается отдельно для диалога возле поля сообщения и сохраняется после перезапуска. Он разрешает работу с файлами, терминалом и интернетом, а при доступности — управление экраном. Смена папки или провайдера отключает его.")
+            Text(L10n.text("Доступ включается отдельно для диалога возле поля сообщения и сохраняется после перезапуска. Он разрешает работу с файлами, терминалом и интернетом, а при доступности — управление экраном. Смена папки или провайдера отключает его."))
                 .font(.caption).foregroundStyle(.secondary)
             if model.fullAccessEnabled {
-                Button("Выключить доступ") { Task { await model.disableAgentAccess() } }.disabled(model.globalBusy)
+                Button(L10n.text("Выключить доступ")) { Task { await model.disableAgentAccess() } }.disabled(model.globalBusy)
             }
-            DisclosureGroup("Ограничения и журнал действий") {
-                Text("Доступ охватывает весь Mac в пределах прав пользователя. Экран может обрабатываться OpenAI. Остановка не откатывает уже выполненные действия. В журнале управления экраном остаются тип действия и приложение, без скриншотов, координат и введённого текста. Это не полный аудит.")
+            DisclosureGroup(L10n.text("Ограничения и журнал действий")) {
+                Text(L10n.text("Доступ охватывает весь Mac в пределах прав пользователя. Экран может обрабатываться OpenAI. Остановка не откатывает уже выполненные действия. В журнале управления экраном остаются тип действия и приложение, без скриншотов, координат и введённого текста. Это не полный аудит."))
                     .font(.caption).foregroundStyle(.secondary)
-                Text("Подключается только проверенная служба OpenAI Computer Use. Прочие MCP, hooks и субагенты выключены. Зависший вызов ограничен 30 секундами и не повторяется автоматически под другим именем приложения.")
+                Text(L10n.text("Подключается только проверенная служба OpenAI Computer Use. Прочие MCP, hooks и субагенты выключены. Зависший вызов ограничен 30 секундами и не повторяется автоматически под другим именем приложения."))
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
     }
 
     private var sessionSettings: some View {
-        Section("Сессия модели") {
+        Section(L10n.text("Сессия модели")) {
             Label(model.codexThreadLabel, systemImage: model.codexThreadStatus["linked"].flag ? "link" : "bubble.left")
             if model.loadingCodexThreadStatus { ProgressView().controlSize(.small) }
             if !model.codexThreadStatus["notice"].text.isEmpty { Text(model.codexThreadStatus["notice"].text).font(.caption).foregroundStyle(.secondary) }
             HStack {
-                Button("Обновить статус") { Task { await model.refreshCodexThreadStatus() } }
+                Button(L10n.text("Обновить статус")) { Task { await model.refreshCodexThreadStatus() } }
                 Spacer()
-                Button("Начать заново…", role: .destructive) { confirmCodexThreadReset = true }
+                Button(L10n.text("Начать заново…"), role: .destructive) { confirmCodexThreadReset = true }
                     .disabled(!model.codexThreadStatus["linked"].flag && !model.codexThreadStatus["refresh_required"].flag && !model.codexThreadStatus["legacy_binding"].flag)
             }.disabled(model.globalBusy || model.loadingCodexThreadStatus)
-            DisclosureGroup("Технические сведения о сессии") {
-                Text("Для чата и полного доступа создаются разные сессии Codex. Следующие сообщения продолжают соответствующую сессию. Обновление инструкций может начать новую сессию, сохраняя прежнюю историю.")
+            DisclosureGroup(L10n.text("Технические сведения о сессии")) {
+                Text(L10n.text("Для чата и полного доступа создаются разные сессии Codex. Следующие сообщения продолжают соответствующую сессию. Обновление инструкций может начать новую сессию, сохраняя прежнюю историю."))
                     .font(.caption).foregroundStyle(.secondary)
                 Text("Последний режим: \(model.codexThreadStatus["last_mode"].text)\nМодель: \(model.codexThreadStatus["last_model"].text)\nДоступные режимы: \(model.codexThreadStatus["available_modes"].items.map(\.text).joined(separator: ", "))")
                     .font(.caption.monospaced()).textSelection(.enabled)
-                if model.codexThreadStatus["legacy_binding"].flag { Text("Старая сессия сохранена, но не возобновляется автоматически.").font(.caption).foregroundStyle(.orange) }
+                if model.codexThreadStatus["legacy_binding"].flag { Text(L10n.text("Старая сессия сохранена, но не возобновляется автоматически.")).font(.caption).foregroundStyle(.orange) }
             }
         }
     }
 
     private var spineSettings: some View {
         Section {
-            DisclosureGroup("Цепочка диалога · Session Spine") {
-                Label(model.sessionSpineWriterReceipt != nil ? "Один ход записан" : model.sessionSpinePilotArmed ? "Ход подготовлен до перезапуска" : "Запись не включена", systemImage: "point.3.connected.trianglepath.dotted")
+            DisclosureGroup(L10n.text("Цепочка диалога · Session Spine")) {
+                Label(model.sessionSpineWriterReceipt != nil ? L10n.text("Один ход записан") : model.sessionSpinePilotArmed ? L10n.text("Ход подготовлен до перезапуска") : L10n.text("Запись не включена"), systemImage: "point.3.connected.trianglepath.dotted")
                     .font(.callout)
-                Text("Экспериментальная связь ответа с сохранёнными данными о его выполнении. Открывается из меню «Подробнее» под связанным ответом.")
+                Text(L10n.text("Экспериментальная связь ответа с сохранёнными данными о его выполнении. Открывается из меню «Подробнее» под связанным ответом."))
                     .font(.caption).foregroundStyle(.secondary)
                 if let readiness = model.sessionSpineReadiness {
                     Text("Состояние: \(readiness.state)\nIdentity: \(readiness.identityState)\nКандидат: \(readiness.candidateHash)")
@@ -362,9 +365,9 @@ struct NativeSettingsView: View {
                 }
                 if model.sessionSpinePilotArmed {
                     if let rehearsal = model.sessionSpineAcceptance { Text("P2k: \(rehearsal.state) · \(rehearsal.rehearsalHash)").font(.caption.monospaced()).textSelection(.enabled) }
-                    Button("Отменить подготовку") { model.revokeSessionSpinePilot() }.disabled(model.globalBusy)
+                    Button(L10n.text("Отменить подготовку")) { model.revokeSessionSpinePilot() }.disabled(model.globalBusy)
                 }
-                Text("P2j/P2k действуют только до перезапуска и ничего не записывают. P2l требует новой проверки, подтверждения и точной фразы для одного связанного хода. Старые ответы без Turn Lineage не переносятся. Существующие ошибки требуют ручной проверки; автоматического ремонта нет.")
+                Text(L10n.text("P2j/P2k действуют только до перезапуска и ничего не записывают. P2l требует новой проверки, подтверждения и точной фразы для одного связанного хода. Старые ответы без Turn Lineage не переносятся. Существующие ошибки требуют ручной проверки; автоматического ремонта нет."))
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
@@ -378,38 +381,38 @@ struct DesktopAppearanceSettings: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     var body: some View {
-        Section("Рабочие панели внутри окна") {
-            Toggle("Показывать нижнюю панель", isOn: Binding(get: { panels.lowerEnabled }, set: panels.setLowerEnabled))
-            Text("По умолчанию справа одна панель. Вторая располагается под ней. Отдельные окна парящего режима включаются кнопками 1 и 2 слева от кубика.")
+        Section(L10n.text("Рабочие панели внутри окна")) {
+            Toggle(L10n.text("Показывать нижнюю панель"), isOn: Binding(get: { panels.lowerEnabled }, set: panels.setLowerEnabled))
+            Text(L10n.text("По умолчанию справа одна панель. Вторая располагается под ней. Отдельные окна парящего режима включаются кнопками 1 и 2 слева от кубика."))
                 .font(.caption).foregroundStyle(.secondary)
         }
-        Section("Окна парящего режима") {
-            Toggle("Оставлять отлепленные окна на экране", isOn: Binding(
+        Section(L10n.text("Окна парящего режима")) {
+            Toggle(L10n.text("Оставлять отлепленные окна на экране"), isOn: Binding(
                 get: { companions.keepDetachedVisible }, set: companions.setKeepDetachedVisible))
-            Text("По умолчанию оба боковых окна появляются и скрываются вместе с чатом через кубик. Этот переключатель позволяет оставлять отлепленные окна видимыми.")
+            Text(L10n.text("По умолчанию оба боковых окна появляются и скрываются вместе с чатом через кубик. Этот переключатель позволяет оставлять отлепленные окна видимыми."))
                 .font(.caption).foregroundStyle(.secondary)
         }
-        Section("Прозрачность фона") {
-            transparencySlider("Окно чата", value: Binding(get: { desktop.chatTransparency }, set: desktop.setChatTransparency))
-            transparencySlider("Левая колонка", value: Binding(get: { desktop.sidebarTransparency }, set: desktop.setSidebarTransparency))
+        Section(L10n.text("Прозрачность фона")) {
+            transparencySlider(L10n.text("Окно чата"), value: Binding(get: { desktop.chatTransparency }, set: desktop.setChatTransparency))
+            transparencySlider(L10n.text("Левая колонка"), value: Binding(get: { desktop.sidebarTransparency }, set: desktop.setSidebarTransparency))
             ForEach(DesktopCompanionID.allCases) { id in
-                transparencySlider("Боковое " + id.title.lowercased(), value: Binding(
+                transparencySlider(L10n.text("Боковое ") + id.title.lowercased(), value: Binding(
                     get: { companions.surface(id).transparency }, set: { companions.setTransparency($0, for: id) }))
             }
-            Text("Слева — плотный фон, справа — прозрачный. Текст и кнопки остаются чёткими. Изменения видны сразу в парящем режиме и сохраняются после перезапуска.")
+            Text(L10n.text("Слева — плотный фон, справа — прозрачный. Текст и кнопки остаются чёткими. Изменения видны сразу в парящем режиме и сохраняются после перезапуска."))
                 .font(.caption).foregroundStyle(.secondary)
             if reduceTransparency {
-                Label("В macOS включено уменьшение прозрачности. Фон остаётся непрозрачным, выбранные значения сохранены.", systemImage: "accessibility")
+                Label(L10n.text("В macOS включено уменьшение прозрачности. Фон остаётся непрозрачным, выбранные значения сохранены."), systemImage: "accessibility")
                     .font(.caption).foregroundStyle(.secondary)
             }
-            Button("Вернуть исходную прозрачность") {
+            Button(L10n.text("Вернуть исходную прозрачность")) {
                 desktop.setChatTransparency(DesktopGlassAppearance.chatDefault)
                 desktop.setSidebarTransparency(DesktopGlassAppearance.sidebarDefault)
                 for id in DesktopCompanionID.allCases { companions.setTransparency(DesktopGlassAppearance.chatDefault, for: id) }
             }
         }
         if !desktop.enabled {
-            Section { Button("Включить парящий режим") { desktop.enable() } }
+            Section { Button(L10n.text("Включить парящий режим")) { desktop.enable() } }
         }
     }
 

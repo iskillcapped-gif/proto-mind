@@ -13,9 +13,9 @@ struct DictationButton: View {
                 .frame(width: 28, height: 32)
         }.buttonStyle(.nativeHover)
             .disabled(!dictation.active && !dictation.canStart(app: app))
-            .help(voice.inCall ? "Завершите голосовой разговор, чтобы диктовать текст"
-                  : dictation.active ? "Закончить диктовку" : "Диктовать сообщение · " + dictation.language.title)
-            .accessibilityLabel(dictation.active ? "Закончить диктовку" : "Диктовка сообщения")
+            .help(voice.inCall ? L10n.text("Завершите голосовой разговор, чтобы диктовать текст")
+                  : dictation.active ? L10n.text("Закончить диктовку") : L10n.text("Диктовать сообщение · ") + dictation.language.title)
+            .accessibilityLabel(dictation.active ? L10n.text("Закончить диктовку") : L10n.text("Диктовка сообщения"))
     }
 }
 
@@ -27,8 +27,8 @@ struct DictationStatusView: View {
             HStack(spacing: 8) {
                 if dictation.active {
                     Image(systemName: "mic.fill")
-                    Text(dictation.phase == .preparing ? "Подключаю микрофон…"
-                         : dictation.phase == .finishing ? "Завершаю диктовку…" : "Слушаю · " + dictation.language.title)
+                    Text(dictation.phase == .preparing ? L10n.text("Подключаю микрофон…")
+                         : dictation.phase == .finishing ? L10n.text("Завершаю диктовку…") : L10n.text("Слушаю · ") + dictation.language.title)
                     Spacer(minLength: 4)
                     HStack(spacing: 3) {
                         ForEach(0..<6) { index in
@@ -40,7 +40,7 @@ struct DictationStatusView: View {
                     Text(error).fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 0)
                     Button { dictation.clearError() } label: { Image(systemName: "xmark") }
-                        .buttonStyle(.nativeHover).accessibilityLabel("Скрыть сообщение о диктовке")
+                        .buttonStyle(.nativeHover).accessibilityLabel(L10n.text("Скрыть сообщение о диктовке"))
                 }
             }.font(.system(size: 11)).foregroundStyle(.secondary).padding(.horizontal, 16).padding(.vertical, 8)
         }
@@ -51,12 +51,12 @@ struct DictationSettings: View {
     @ObservedObject var dictation: DictationModel
 
     var body: some View {
-        Picker("Язык", selection: Binding(get: { dictation.language }, set: dictation.setLanguage)) {
+        Picker(L10n.text("Язык"), selection: Binding(get: { dictation.language }, set: dictation.setLanguage)) {
             ForEach(DictationLanguage.allCases) { Text($0.title).tag($0) }
         }
-        Text("Микрофон в поле сообщения набирает текст. Отправляете его вы; API-ключ и лимиты ChatGPT для диктовки не нужны.")
+        Text(L10n.text("Микрофон в поле сообщения набирает текст. Отправляете его вы; API-ключ и лимиты ChatGPT для диктовки не нужны."))
             .font(.callout).foregroundStyle(.secondary)
-        Text("Распознавание выполняет Apple: на устройстве, если язык поддерживает этот режим, иначе — на серверах Apple. Аудиозапись в Proto-Mind не сохраняется.")
+        Text(L10n.text("Распознавание выполняет Apple: на устройстве, если язык поддерживает этот режим, иначе — на серверах Apple. Аудиозапись в Proto-Mind не сохраняется."))
             .font(.caption).foregroundStyle(.secondary)
     }
 }

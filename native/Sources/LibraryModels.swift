@@ -7,16 +7,16 @@ enum LibraryCollection: String, Codable, CaseIterable, Identifiable {
         switch self { case .memory: return .memory; case .goals: return .goals; case .skills: return .skills }
     }
     var title: String {
-        switch self { case .memory: return "Память"; case .goals: return "Цели"; case .skills: return "Навыки" }
+        switch self { case .memory: return L10n.text("Память"); case .goals: return L10n.text("Цели"); case .skills: return L10n.text("Навыки") }
     }
     var symbol: String {
         switch self { case .memory: return "brain"; case .goals: return "scope"; case .skills: return "books.vertical" }
     }
     var subtitle: String {
         switch self {
-        case .memory: return "Долговременная и рабочая память. Поиск не изменяет записи."
-        case .goals: return "Фокус и состояния целей. Никакого автоматического планирования."
-        case .skills: return "Сохранённые описания и процедуры. Просмотр не запускает навык."
+        case .memory: return L10n.text("Долговременная и рабочая память. Поиск не изменяет записи.")
+        case .goals: return L10n.text("Фокус и состояния целей. Никакого автоматического планирования.")
+        case .skills: return L10n.text("Сохранённые описания и процедуры. Просмотр не запускает навык.")
         }
     }
     var manualDoctor: String {
@@ -28,7 +28,7 @@ enum LibraryFilter: String, Codable, CaseIterable, Identifiable {
     case current, history, all
     var id: String { rawValue }
     var title: String {
-        switch self { case .current: return "Текущие"; case .history: return "История"; case .all: return "Все" }
+        switch self { case .current: return L10n.text("Текущие"); case .history: return L10n.text("История"); case .all: return L10n.text("Все") }
     }
 }
 
@@ -46,8 +46,8 @@ struct LibrarySource: Decodable, Identifiable, Equatable {
     var title: String { Self.title(store) }
     static func title(_ store: String) -> String {
         switch store {
-        case "persistent": return "Долговременная память"
-        case "working": return "Рабочая память"
+        case "persistent": return L10n.text("Долговременная память")
+        case "working": return L10n.text("Рабочая память")
         case "goals": return "Goal Stack"
         case "skills": return "Skill Library"
         default: return store
@@ -74,18 +74,18 @@ struct LibraryItem: Decodable, Identifiable, Equatable {
 
     var stateLabel: String {
         switch status {
-        case "active": return "Активно"
-        case "paused": return "На паузе"
-        case "completed": return "Завершено"
-        case "cancelled": return "Отменено"
-        case "superseded": return "Заменено"
-        case "inactive": return "Неактивно"
-        case "archived": return "В архиве"
-        default: return "Статус неизвестен"
+        case "active": return L10n.text("Активно")
+        case "paused": return L10n.text("На паузе")
+        case "completed": return L10n.text("Завершено")
+        case "cancelled": return L10n.text("Отменено")
+        case "superseded": return L10n.text("Заменено")
+        case "inactive": return L10n.text("Неактивно")
+        case "archived": return L10n.text("В архиве")
+        default: return L10n.text("Статус неизвестен")
         }
     }
     var priorityLabel: String {
-        switch priority { case "high": return "Высокий"; case "normal": return "Обычный"; case "low": return "Низкий"; default: return "Неизвестно" }
+        switch priority { case "high": return L10n.text("Высокий"); case "normal": return L10n.text("Обычный"); case "low": return L10n.text("Низкий"); default: return L10n.text("Неизвестно") }
     }
 }
 
@@ -112,7 +112,7 @@ enum LocalKnowledgeEnvelope {
               local["store_mutation"] == .bool(false),
               local["model_dispatch"] == .bool(false),
               let structured = root["structuredContent"], !structured.isNull else {
-            throw NativeError.message("Неожиданный локальный capability-конверт. Данные не изменены.")
+            throw NativeError.message(L10n.text("Неожиданный локальный capability-конверт. Данные не изменены."))
         }
         return structured
     }
@@ -141,7 +141,7 @@ struct LibraryPage: Decodable {
               page.totalRecords >= 0, page.currentRecords >= 0, page.currentRecords <= page.totalRecords,
               page.matchingRecords >= 0, page.omittedRecords >= 0,
               Set(page.items.map(\.id)).count == page.items.count else {
-            throw NativeError.message("Неожиданный контракт просмотра. Данные не изменены.")
+            throw NativeError.message(L10n.text("Неожиданный контракт просмотра. Данные не изменены."))
         }
         return page
     }
@@ -153,7 +153,7 @@ struct LibraryBlock: Decodable, Identifiable {
     var truncated: Bool
     var id: String { key }
     var title: String {
-        switch key { case "content": return "Содержание"; case "title", "name": return "Название"; case "description": return "Описание"; case "summary": return "Кратко"; case "body": return "Текст навыка"; default: return key }
+        switch key { case "content": return L10n.text("Содержание"); case "title", "name": return L10n.text("Название"); case "description": return L10n.text("Описание"); case "summary": return L10n.text("Кратко"); case "body": return L10n.text("Текст навыка"); default: return key }
     }
 }
 
@@ -162,13 +162,13 @@ struct LibraryField: Decodable, Identifiable {
     var value: String
     var id: String { key }
     var title: String {
-        ["id": "ID записи", "source": "Источник", "type": "Тип", "category": "Категория",
-         "importance": "Важность", "confidence": "Сохранённая уверенность", "weight": "Вес",
-         "timestamp": "Дата записи", "created_at": "Создано", "updated_at": "Обновлено",
-         "last_used": "Последнее использование", "usage_count": "Счётчик использований",
-         "last_used_at": "Последнее использование", "uses": "Счётчик использований",
-         "superseded_by": "Заменено записью", "superseded_at": "Дата замены", "superseded_reason": "Причина замены",
-         "provenance": "Схема происхождения", "lifecycle": "Схема жизненного цикла"][key] ?? key
+        ["id": L10n.text("ID записи"), "source": L10n.text("Источник"), "type": L10n.text("Тип"), "category": L10n.text("Категория"),
+         "importance": L10n.text("Важность"), "confidence": L10n.text("Сохранённая уверенность"), "weight": L10n.text("Вес"),
+         "timestamp": L10n.text("Дата записи"), "created_at": L10n.text("Создано"), "updated_at": L10n.text("Обновлено"),
+         "last_used": L10n.text("Последнее использование"), "usage_count": L10n.text("Счётчик использований"),
+         "last_used_at": L10n.text("Последнее использование"), "uses": L10n.text("Счётчик использований"),
+         "superseded_by": L10n.text("Заменено записью"), "superseded_at": L10n.text("Дата замены"), "superseded_reason": L10n.text("Причина замены"),
+         "provenance": L10n.text("Схема происхождения"), "lifecycle": L10n.text("Схема жизненного цикла")][key] ?? key
     }
 }
 
@@ -234,7 +234,7 @@ struct LibraryDetail: Decodable {
               detail.blocks.count <= 3, detail.blocks.allSatisfy({ $0.text.count <= 24_000 }),
               Set(detail.fields.map(\.id)).count == detail.fields.count,
               Set(detail.blocks.map(\.id)).count == detail.blocks.count else {
-            throw NativeError.message("Неожиданный контракт карточки. Данные не изменены.")
+            throw NativeError.message(L10n.text("Неожиданный контракт карточки. Данные не изменены."))
         }
         return detail
     }
@@ -348,7 +348,7 @@ struct NativeMemoryWorkshop: Decodable {
               report.commands.episodes == "/experience episodes",
               report.commands.learningStatus == "/experience learning status",
               report.commands.learningDoctor == "/experience learning doctor" else {
-            throw NativeError.message("Неожиданный контракт Memory Workshop. Ничего не выполнено.")
+            throw NativeError.message(L10n.text("Неожиданный контракт Memory Workshop. Ничего не выполнено."))
         }
         return report
     }
