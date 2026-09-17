@@ -2,7 +2,7 @@
 
 Requires an **Apple Silicon Mac (M1 or newer), macOS 14 or newer**. Intel Macs
 are not supported by this package. The main workflow is available in English and Russian. Choose a language in
-the welcome screen or Settings → Appearance, then restart to apply it.
+the welcome screen or Settings → Appearance; the interface updates immediately.
 Technical core reports may still contain Russian.
 
 ## Install and connect
@@ -21,10 +21,17 @@ are not needed to run the app. Developer tools needed by your own projects
 are still separate installations.
 
 **This build is locally signed for beta testing, without Apple notarization.**
-macOS may block a downloaded copy. The release does not yet provide the normal
-verified installation experience for the public. Do not disable Gatekeeper or
-other system protections. A Developer ID-signed and notarized release is a
-separate distribution step requiring Apple Developer Program membership.
+macOS may block a downloaded copy because the developer cannot be verified.
+If you trust this beta, first try opening the copied app, then go to
+**System Settings → Privacy & Security → Open Anyway** for Proto-Mind and confirm
+the system prompt yourself. This makes an exception for this app only; do not
+disable Gatekeeper or other system protections. If macOS reports malware or a
+damaged app, stop instead of overriding that warning.
+
+See [Apple's instructions](https://support.apple.com/en-us/102445). A Developer
+ID-signed and notarized release is a separate distribution step. This beta has
+been checked locally with a disposable profile; a second-Mac trial is still
+pending.
 
 ## Browser material and results
 

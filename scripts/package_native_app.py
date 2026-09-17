@@ -195,7 +195,6 @@ def package(root: Path, binaries: Path, output: Path, cache: Path, identity: str
         sign_app(app, identity)
         smoke_runtime(app)
         shutil.copy2(root / "INSTALL_MACOS.md", release / "START_HERE.md")
-        shutil.copy2(root / "native/Distribution/CHALLENGE_LAUNCH.md", release / "CHALLENGE_LAUNCH.md")
         shutil.copytree(root / "native/Distribution/DemoProject", release / "DemoProject",
                         ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
         (release / "Applications").symlink_to("/Applications")

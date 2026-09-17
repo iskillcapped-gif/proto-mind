@@ -10,7 +10,7 @@ developer data paths and running developer app remain independent.
 On an Apple Silicon development Mac with Command Line Tools and Python 3.11+:
 
 ```sh
-bash scripts/build_portable_app.sh --output dist/portable-0.66.1
+bash scripts/build_portable_app.sh --output dist/portable-0.71.0
 ```
 
 Choose a new output directory each time; the builder refuses to overwrite a
@@ -57,7 +57,7 @@ bash scripts/test_native.sh --portable-only
 python3 -m unittest proto_mind.tests.test_native_portable
 bash scripts/run_tests.sh
 bash scripts/test_native.sh
-python3 scripts/verify_portable_app.py 'dist/portable-0.66.1/Proto-Mind.app' --account-probe
+python3 scripts/verify_portable_app.py 'dist/portable-0.71.0/Proto-Mind.app' --account-probe
 ```
 
 Also move a packaged app to a path containing spaces and exercise first launch,
@@ -67,12 +67,18 @@ passes afterward; the read-only bundle must not gain private stores or caches.
 A local isolated profile is useful evidence but does not replace a test on a
 second physical Mac or the oldest supported macOS.
 
-## Public distribution gate
+## Beta distribution and Apple verification
 
 The default `--sign-identity -` creates an **ad-hoc beta**, not an Apple-verified
 download. No Developer ID certificate is currently available on the operator's
-Mac. A public release needs Apple Developer Program membership, a Developer ID
-Application certificate, hardened runtime signing, notarization and stapling.
+Mac. The owner authorized an explicitly labelled public beta for the challenge.
+The download must identify it as not notarized, include its SHA-256 and current
+installation instructions, and keep the second-Mac validation gap visible.
+The private launch-preparation checklist is not included in the DMG.
+
+An Apple-verified release requires Apple Developer Program membership, a
+Developer ID Application certificate, hardened runtime signing, notarization
+and stapling. These are pending, not prerequisites we claim this beta has met.
 
 The builder accepts `--sign-identity 'Developer ID Application: …'` and signs
 inside out with the runtime option and timestamp. This path requires its own
@@ -81,7 +87,8 @@ Python extension loading. It has not been exercised with a Developer ID.
 Do not label an output notarized merely because local codesign verification
 passed. Submit the finished DMG using `notarytool` and a local keychain profile,
 staple Apple's accepted ticket, then test the quarantined download on a clean
-Mac before publishing. Never put signing credentials in this repository.
+Mac before describing it as Apple-verified. Never put signing credentials in
+this repository.
 
 References: [Apple Developer ID](https://developer.apple.com/developer-id/),
 [notarization workflow](https://developer.apple.com/documentation/security/customizing-the-notarization-workflow),
