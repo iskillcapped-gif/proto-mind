@@ -13,7 +13,7 @@ GPT-6 Astra can execute tasks through the user's Codex subscription. The voice
 channel uses GPT Live 1 with a separate command dispatcher; API/local routes have
 different tool capabilities. Describe these accurately in the submission.
 
-## Product Hunt copy — draft for review
+## Product Hunt copy — saved for the scheduled launch
 
 **Name:** Proto-Mind
 
@@ -27,11 +27,10 @@ while work continues. Includes voice control and editable long-term memory.
 
 **Website:** https://virencore.com/
 
-**Suggested topics:** Productivity, Artificial Intelligence, Mac. Confirm the
-available topic names in the form; use at most three.
+**Saved topics:** Mac, Productivity, Artificial Intelligence.
 
-**Shoutouts:** select the actual ChatGPT, OpenAI and Codex product entries offered
-by the form. The contest guide specifically asks for the tools used in the build.
+**Saved shoutouts:** OpenAI Codex CLI, ChatGPT by OpenAI, OpenAI. Each has a saved
+explanation of its actual contribution; all three were checked on the product page.
 
 ### Maker's first comment
 
@@ -70,39 +69,63 @@ as proof that project-memory recall succeeded. The final narration was edited
 accordingly. Memory remains a product capability, separate from evidence of that
 specific run. A second-Mac trial is still outstanding.
 
-Product Hunt accepts a full YouTube video URL, not a direct MP4 upload. Upload the
-approved final video before scheduling and check its embed; it must not be private.
-Prepare at least two gallery images (1270×760 recommended) showing the actual UI,
-plus a square product thumbnail (240×240 recommended).
+Published unlisted on VIREN CORP: https://www.youtube.com/watch?v=nCSf04Z40yk.
+The official video readback confirms processing succeeded, unlisted visibility,
+embedding enabled, English captions and a custom thumbnail. Playback was checked
+inside the actual Product Hunt embed. The synthetic narration is disclosed.
 
-## Launch preparation — checked 17 September 2026
+Three real frames were extracted from the recordings, with unrelated desktop
+details cropped out: workspace, floating windows and the saved proposal. Product
+Hunt uses 1270×760 gallery images and a 240×240 product icon; the website uses
+separate 1800-pixel JPEGs. Sources, crops and outputs are recorded under
+`../../хакатон/скриншоты/README.md`.
 
-1. Finish a personal Product Hunt account under the maker's name. The official
-   help page allows immediate posting access for a new account after subscribing
-   to its newsletter; confirm this in the actual account after onboarding.
-2. Open the submission from the contest's **Submit now** link so the contest
-   parameter is retained: https://www.producthunt.com/posts/new?contest=gpt-6-astra-challenge&ref=contest_preview
-3. Fill the fields above, add the maker, screenshots, YouTube link and shoutouts.
-   Save a draft and review the actual preview before scheduling.
-4. Update the public website, downloadable build and install instructions to
-   agree with the demo. On 17 September, the live `/download/` page still showed
-   **0.62.0**, a Russian-only interface and **no public installer link**. Repository
-   docs list portable **0.66.1 (91)** versus development **0.71.0 (99)**; rebuilding,
-   checking and publishing the distribution are pending. Do not upload the
-   developer installation or any personal profile.
-5. Schedule **18 September 2026**. The contest guide specifies 12:01 AM Pacific
-   on the chosen date: **10:01 AM Kyiv time on 18 September**, using PDT (UTC−7)
-   and EEST (UTC+3). Confirm the chosen date in the final scheduling screen.
+## Publication receipts — verified 17 September 2026
 
-This file is local preparation, not evidence of publication. On 17 September,
-Google sign-in and onboarding completed for **Yurii Yaremenko**
-(`@yurii_yaremenko`, confirmed in **My details**); the authenticated
-account reached the **Submit a product** form. The maker approved the 16+ age
-declaration and the daily **The Leaderboard** newsletter. The Roundup and The
-Frontier were deselected before submitting onboarding.
+### Website and installer
 
-YouTube upload, the Product Hunt draft and launch scheduling remain pending.
-Record those outcomes only after completing them in the relevant account.
+- Live bilingual website: https://virencore.com/ and https://virencore.com/ru/.
+- Install instructions and current beta: https://virencore.com/download/.
+- Website commit: `c802d4d`; Cloudflare Pages production deployment:
+  `94909ca3-3da6-44a3-bd04-721222d0ca9c` at `2026-09-17T17:17:38.808872Z`.
+  Live checks returned HTTP 200 and matching local hashes for all 16 served files;
+  the missing route returned 404 and the www redirect retained path/query.
+- Public prerelease: https://github.com/iskillcapped-gif/proto-mind/releases/tag/v0.71.0-beta.
+  Native **0.71.0 (99)**, source `2590fb7810568606867f39f4c7c26689b16718bb`.
+- `Proto-Mind-0.71.0-arm64-beta.dmg`: **159,772,376 bytes**;
+  SHA-256 `ca0c7ce0a15a8d87de3f6742b0d4948bf272a4a5a59b7ac5b2b82987b53781ee`.
+  An anonymous download of the published asset matched both size and hash.
+- Portable checks covered the bundled runtimes, signatures, relocation, disposable
+  first launch, fresh-state persistence/backup and OAuth start/cancel. No live
+  model turn was needed. This is an **ad-hoc-signed, non-notarized beta** for Apple
+  Silicon / macOS 14+. A second physical Mac and its download-quarantine launch
+  remain untested; the download page states the distribution limitations.
+
+Local verification receipts: `../../dist/portable-0.71.0-public-download.json`,
+`../../хакатон/монтаж/youtube-published.json` and, in the separate website repo,
+`artifacts/launch-deployment-check.json`. No operator profile or credentials were
+included in the installer.
+
+### Product Hunt and challenge
+
+- Maker: **Yurii Yaremenko** (`@yurii_yaremenko`). Google sign-in and onboarding
+  completed with the maker's approval of the 16+ declaration and daily Leaderboard
+  newsletter. The other two newsletter choices remained off.
+- Product: https://www.producthunt.com/products/proto-mind?launch=proto-mind.
+- Dashboard: https://www.producthunt.com/products/proto-mind/proto-mind/prelaunch.
+- Saved and reviewed: copy above, three real screenshots, product icon, YouTube
+  embed, maker comment, three shoutouts, Free pricing and the three product topics.
+- The scheduling screen explicitly stated **September 18, 2026 at 12:01 AM PT
+  (10:01 AM GMT+3 / Kyiv)** for 24 hours. **Yes, join the GPT-6 Astra Challenge**
+  was selected and the required answer below submitted with the schedule.
+- After **Confirm scheduled date**, the pre-launch dashboard showed **Launch
+  status Scheduled**, a countdown of **13 hours : 28 minutes**, and completion
+  marks for shoutouts, video and the first comment. This confirms scheduling;
+  judging, featuring and any award outcome are not implied.
+
+### Submitted challenge answer (735 characters)
+
+Astra helped me expand an existing personal assistant into a floating Mac workspace I could actually use every day. Working through Codex, I could describe an interaction, test it in the app and iterate on the SwiftUI/AppKit and Python implementation: a hover-to-peek cube, detachable companion windows, parallel conversations, live task corrections, multiple ChatGPT accounts and voice control. That changed the ambition from a single chat window to a workspace around the user's desktop. Astra is also part of the product workflow: in the recorded demo, one request asks it to read a sample client brief and save a proposal while the interface is folded away. The result is a real project file to review, not just a generated answer.
 
 ### Official references
 
