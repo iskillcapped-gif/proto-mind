@@ -14,7 +14,7 @@ For current development guidance, see [`AGENTS.md`](AGENTS.md). The [current pri
 
 ## Native macOS Direction
 
-The current native workspace is **Native 0.71.0 / Shared Conversation Surfaces**, built with SwiftUI/AppKit over the existing Python cognitive core. It retains project memory, independent conversations, live steering and explicit Mac access. This development line is separate from the earlier submitted Build Week baseline.
+The current native workspace is **Native 0.71.1 / Glass Cube Icon**, built with SwiftUI/AppKit over the existing Python cognitive core. It retains the shared conversation surfaces, project memory, independent conversations, live steering and explicit Mac access. The Dock icon now uses a simpler glass cube with clear aqua/teal faces. This development line is separate from the earlier submitted Build Week baseline.
 
 **Workspace menus:** add-tab lists and their submenus stay within the originating panel; composer popups stay within their chat column or companion window. Long lists scroll inside the available area. Each internal panel also has an expand/restore button in its top bar. The complete **Источник модели** row toggles the provider list.
 

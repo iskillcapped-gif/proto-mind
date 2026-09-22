@@ -4,6 +4,19 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Glass Cube Dock Icon — Native 0.71.1
+
+The Native app icon is a new softly bevelled glass cube on a graphite tile.
+Broad aqua/teal faces replace the small glyphs and heavy metal frame, keeping
+the cube recognizable at Dock sizes. The 1024-pixel PNG and generation prompts
+live under `assets/`; the existing icon packager supplies standard macOS sizes.
+This is a local appearance update; the published 0.71.0 beta is unchanged.
+
+Verification: the five existing icon checks passed, including exact transparent
+corners, opaque center, dimensions and visible coverage. The ICNS representations
+and signed local application bundle are checked during packaging. No Python,
+conversation, permission or private-state behavior changed.
+
 ## Shared Conversation Surfaces — Native 0.71.0
 
 The main reader and all side PM tabs now use `ChatView` and `ComposerView`.
