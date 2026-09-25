@@ -232,6 +232,7 @@ extension AppModel {
         } catch { connection.error = error.localizedDescription }
     }
     func openCodexUsage(_ target: CodexAccountConnection? = nil) {
+        presentedUsageProvider = "codex"
         presentedCodexAccount = target ?? selectedCodexAccount
         showCodexUsage = true
     }

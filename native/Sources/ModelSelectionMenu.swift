@@ -15,21 +15,28 @@ enum ModelSelectionPresentation {
 
 struct ModelSelectionMenu: View {
     @ObservedObject var model: AppModel
+    @ObservedObject var claude: ClaudeAccountModel
     var conversationID: UUID? = nil
     private var context: ConversationComposerContext { ConversationComposerContext(app: model, id: conversationID ?? model.selectedID) }
     let openSettings: () -> Void
     @State private var open = false
+    init(model: AppModel, conversationID: UUID? = nil, openSettings: @escaping () -> Void) {
+        self.model = model; self.claude = model.claudeAccount; self.conversationID = conversationID; self.openSettings = openSettings
+    }
 
     private var isCodex: Bool { context.conversation?.provider == "codex" }
     private var accountPrefix: String { isCodex && model.codexAccounts.items.count > 1 ? model.codexAccount(for: context.id).shortName + " · " : "" }
     private var title: String {
-        isCodex ? "\(accountPrefix)\(context.modelLabel) · \(context.effortLabel)" : localModelLabel
+        isCodex ? "\(accountPrefix)\(context.modelLabel) · \(context.effortLabel)" : context.conversation?.provider == "claude"
+            ? "\(localModelLabel) · \(ClaudeSelection.effortTitle(context.conversation?.reasoningEffort ?? ""))" : localModelLabel
     }
     private var styledTitle: Text {
         let effort = Text(" · \(context.effortLabel)").foregroundColor(.secondary)
         let account = Text(accountPrefix).foregroundColor(.secondary)
         return isCodex
             ? Text("\(account)\(context.modelLabel)\(effort)")
+            : context.conversation?.provider == "claude"
+            ? Text("\(Text(localModelLabel))\(Text(" · " + ClaudeSelection.effortTitle(context.conversation?.reasoningEffort ?? "")).foregroundColor(.secondary))")
             : Text(localModelLabel)
     }
 
@@ -47,6 +54,9 @@ struct ModelSelectionMenu: View {
             .composerPopover(isPresented: $open, width: 326, trailing: true) {
                 ModelSelectionChoices(model: model, conversationID: context.id, open: $open, openSettings: openSettings)
             }
+            .task(id: context.conversation?.provider) {
+                if context.conversation?.provider == "claude" { await claude.refresh(app: model) }
+            }
     }
 
     private var localModelLabel: String { context.localLabel }
@@ -54,11 +64,16 @@ struct ModelSelectionMenu: View {
 
 struct ModelSelectionChoices: View {
     @ObservedObject var model: AppModel
+    @ObservedObject var claude: ClaudeAccountModel
     var conversationID: UUID? = nil
     private var context: ConversationComposerContext { ConversationComposerContext(app: model, id: conversationID ?? model.selectedID) }
     @Binding var open: Bool
     let openSettings: () -> Void
     @State private var section = "model"
+    init(model: AppModel, conversationID: UUID? = nil, open: Binding<Bool>, openSettings: @escaping () -> Void) {
+        self.model = model; self.claude = model.claudeAccount; self.conversationID = conversationID
+        self._open = open; self.openSettings = openSettings
+    }
     private var isCodex: Bool { context.conversation?.provider == "codex" }
     private var localModelLabel: String { context.localLabel }
 
@@ -75,6 +90,11 @@ struct ModelSelectionChoices: View {
                         Image(systemName: "arrow.clockwise").frame(width: 28, height: 28)
                     }.buttonStyle(.nativeHover).foregroundStyle(.secondary)
                         .disabled(model.connecting).help(L10n.text("Обновить доступные модели"))
+                } else if context.conversation?.provider == "claude" {
+                    Button { Task { await claude.refresh(app: model, minimumInterval: 0) } } label: {
+                        Image(systemName: "arrow.clockwise").frame(width: 28, height: 28)
+                    }.buttonStyle(.nativeHover).foregroundStyle(.secondary)
+                        .disabled(claude.refreshing || model.claudeAuthenticating).help(L10n.text("Обновить доступные модели"))
                 }
             }.padding(.horizontal, 8).padding(.top, 6)
             if isCodex, let id = context.id {
@@ -114,7 +134,7 @@ struct ModelSelectionChoices: View {
                         Text(L10n.format("\(selected) · недоступна")).font(.caption).foregroundStyle(.secondary).padding(10)
                     }
                 } else if context.conversation?.provider == "claude" {
-                    ClaudeModelControls(app: model, conversationID: context.id)
+                    ClaudeModelChoices(app: model, account: claude, conversationID: context.id) { open = false }
                     ComposerMenuRow(title: L10n.pick("Подключение Claude…", "Claude connection…"), icon: "person.crop.circle") {
                         open = false
                         Task { @MainActor in await Task.yield(); model.settingsSection = .services; openSettings() }

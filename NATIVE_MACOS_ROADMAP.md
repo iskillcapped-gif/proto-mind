@@ -4,6 +4,18 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Claude Models and Limits — Native 0.73.1
+
+The model menu displays versioned names from Claude Code's account catalog and
+stores an exact ID when a version is selected. Default/legacy aliases remain
+explicit; only observed effort levels are offered. Codex and Claude share a
+provider selector in the sidebar and Limits page, with remaining percentages,
+reset times and separate account identity. A bounded read-only CLI metadata
+worker and independent UI observation keep refreshes out of task/editor state.
+No model request, credentials extraction or paid extra-usage change is needed.
+Live Pro metadata was verified; real task acceptance remains separate.
+See [Claude connection contract](CLAUDE_CONNECTION.md).
+
 ## Claude Connection — Native 0.73.0
 
 Claude runs through a pinned official Agent SDK worker and unmodified Claude Code

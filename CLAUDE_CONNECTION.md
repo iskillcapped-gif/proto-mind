@@ -1,6 +1,6 @@
 # Claude in Proto-Mind
 
-Development release: **0.73.0 (102)**. This local integration runs Anthropic's
+Development release: **0.73.1 (103)**. This local integration runs Anthropic's
 official **Claude Agent SDK 0.2.159 / Claude Code 2.1.281**. PM is an independent
 application, not an Anthropic product. No account is included.
 
@@ -13,8 +13,9 @@ application, not an Anthropic product. No account is included.
    is also available in Claude Code and has separate API billing.
 3. Return to PM. Status refreshes when the CLI finishes, or use **Refresh**.
 4. In any main or side chat, select **Model source → Claude · Claude Code**.
-   Allow cloud processing. Use the account default, a documented model alias or
-   an exact model ID; availability and effort support are decided by Claude Code.
+   Allow cloud processing. Choose the account default or a version from the live Claude Code catalog.
+   Version choices store the exact model ID. A custom ID remains available under
+   the advanced model field; its availability is not inferred from its spelling.
 5. Enable **Mac access** separately for that conversation when you want tools.
    Start with a disposable project when checking real task execution.
 
@@ -43,11 +44,34 @@ sandbox. OpenAI's Computer Use helper is not supplied to Claude.
 For this first route, each request starts a new provider session with PM's
 bounded recent history (12 messages, up to 2000 characters each), selected
 context and current memory. Full provider-session continuation, live steering,
-Claude usage/reset display and multiple Claude logins are not implemented.
+Claude reset actions and multiple Claude logins are not implemented.
 Brother Persona and automatic skill selection remain Codex/Ollama-specific;
-Claude still gets core memory and explicit selected skill guidance. Sidebar
-Codex quotas refer to ChatGPT, not Claude. No automatic provider fallback or
+Claude still gets core memory and explicit selected skill guidance. The sidebar and Limits page separate Codex and Claude subscriptions. No automatic provider fallback or
 PM retry is performed after failure.
+
+## Model catalog and subscription limits
+
+From 0.73.1, the model menu uses Claude Code's initialization catalog, including
+its resolved model IDs and supported effort levels. Existing `opus`/`sonnet`
+aliases keep their behavior but show the version returned by the CLI. Selecting
+a version pins its exact ID. Account-default selection remains automatic. The
+menu preserves upstream model descriptions, including separate usage-credit
+requirements; listing a model is not a promise it is included in the plan.
+
+The sidebar and Limits page have Codex/Claude tabs. Both show remaining quota;
+the full page also shows used percentage and reset times. Only returned periods
+are shown, with a visible unavailable/stale state after a failure. Missing
+percentages never mean zero use or 100% remaining. Claude's `get_usage` control
+response uses percentages, unlike the fractional stream RateLimitEvent.
+
+A short-lived metadata worker runs the unmodified CLI without a model query or
+tools. It reads initialization data and the pinned CLI's `get_usage` control
+command; Python's SDK currently has no public wrapper for that command. The
+adapter fails visibly if it changes. No OAuth token, HTTP credential client,
+extra-usage purchase or reset mechanism is added. Account identity is rechecked
+after each read. Polling is throttled, quotas stay in memory, and auth/restore
+invalidate pending updates. Metadata has its own bridge queue and observable
+UI model; it never marks a conversation busy or replaces the editor.
 
 ## Ownership and packaging
 
@@ -75,8 +99,10 @@ Offline tests exercise the actual PM worker pipe with a synthetic SDK, including
 async SDK input, streaming, tool round trips, errors, cancellation, access
 gates, context, recall and durable turn receipts. They never use live credentials.
 The installed official SDK/CLI also completed initialization in a disposable
-signed-out profile without submitting a model query. Subscription sign-in and
-real coding tasks still require the operator's new account.
+signed-out profile without submitting a model query. On 2026-09-25 the operator
+signed in with Pro; a read-only live check then confirmed the CLI catalog and
+five-hour/weekly quotas, with no model query. Real coding-task acceptance remains
+a separate check.
 
 Release verification on 2026-09-25: **2372 Python tests and 1952 Native checks
 passed**. The local app and Apple Silicon portable DMG were built. The portable

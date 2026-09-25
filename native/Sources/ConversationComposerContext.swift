@@ -41,7 +41,10 @@ struct ConversationComposerContext {
         default: return L10n.text("Ollama · локально")
         }
     }
-    var localLabel: String { conversation?.provider == "mock" || conversation?.model.isEmpty != false ? providerLabel : conversation!.model }
+    var localLabel: String {
+        if conversation?.provider == "claude" { return app.claudeAccount.label(for: conversation?.model ?? "") }
+        return conversation?.provider == "mock" || conversation?.model.isEmpty != false ? providerLabel : conversation!.model
+    }
     var warning: String? {
         guard conversation?.provider == "codex", !models.isEmpty else { return nil }
         if conversation?.model.isEmpty == false && selectedModel == nil { return L10n.text("Сохранённая модель недоступна в текущем каталоге. Выберите другую: автоматической подмены не будет.") }

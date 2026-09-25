@@ -66,7 +66,7 @@ struct WorkspaceView: View {
             if model.quitAfterPrivateBackup { NSApp.terminate(nil) }
         }) { PrivateBackupView(app: model, backup: model.privateBackup) }
         .workspaceSheet(isPresented: $model.showCodexUsage, routingKey: "codexUsage") {
-            CodexUsageView(app: model, usage: (model.presentedCodexAccount ?? model.selectedCodexAccount).usage)
+            AccountUsageView(app: model, usage: (model.presentedCodexAccount ?? model.selectedCodexAccount).usage)
         }
         .workspaceSheet(isPresented: $model.showCodexAccounts, routingKey: "codexAccounts") {
             CodexAccountsPage(app: model, conversationID: model.codexAccountsConversationID)

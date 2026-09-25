@@ -110,6 +110,10 @@ extension AppModel {
         if selected?.provider == "codex", !value.isEmpty, !codexModels.contains(where: { $0.id == value }) { return }
         if selected?.model != value { invalidateSessionSpinePilot() }
         conversations[index].model = value
+        if selected?.provider == "claude", let option = claudeAccount.snapshot?.model(value),
+           !option.efforts.contains(conversations[index].reasoningEffort) {
+            conversations[index].reasoningEffort = ""
+        }
         pendingPersonaActivation = nil
         modelSelectionNotice = nil
         if selected?.provider == "codex", !conversations[index].reasoningEffort.isEmpty,

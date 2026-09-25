@@ -51,8 +51,8 @@ final class AppModel: ObservableObject {
     var account: JSONValue { get { selectedCodexAccount.account } set { selectedCodexAccount.account = newValue } }
     var codexUsage: CodexUsageModel { selectedCodexAccount.usage }
     var presentedCodexAccount: CodexAccountConnection?
-    @Published var claudeAccountStatus: JSONValue = .null
-    @Published var claudeAccountLoading = false
+    let claudeAccount: ClaudeAccountModel
+    var presentedUsageProvider = "codex"
     @Published var claudeAuthenticating = false
     @Published var claudeAuthenticationTerminal: WorkspaceTerminal?
     @Published var claudeAccountError: String?
@@ -93,7 +93,7 @@ final class AppModel: ObservableObject {
             do {
                 try savePreferences()
                 invalidateSessionSpinePilot()
-                if !cloudConsent { discardAgentGrants(); codexAccounts.clearUsage(); liveVoice.stop() }
+                if !cloudConsent { discardAgentGrants(); codexAccounts.clearUsage(); claudeAccount.clear(); liveVoice.stop() }
             }
             catch {
                 restoringPreferences = true
@@ -252,7 +252,8 @@ final class AppModel: ObservableObject {
 
     init(configuration: LaunchConfiguration = .load(), historyStore: ChatStore? = nil,
          uiDefaults: UserDefaults = .standard, dictationSpeech: DictationRecognizing? = nil,
-         telegram: TelegramRemoteModel? = nil) {
+         telegram: TelegramRemoteModel? = nil, claudeAccount: ClaudeAccountModel? = nil) {
+        self.claudeAccount = claudeAccount ?? ClaudeAccountModel()
         workspacePanels = WorkspacePanels(stateDirectory: configuration.stateDirectory, defaults: uiDefaults)
         apiConnections = ModelAPIConnections(stateDirectory: configuration.stateDirectory, defaults: uiDefaults)
         workspaceServices = WorkspaceServices(configuration: configuration, defaults: uiDefaults)

@@ -3,6 +3,7 @@ import SwiftUI
 struct CodexUsageView: View {
     @ObservedObject var app: AppModel
     @ObservedObject var usage: CodexUsageModel
+    var embedded = false
     @State private var confirmingReset = false
     @State private var proposedReset: CodexResetAttempt?
 
@@ -13,12 +14,12 @@ struct CodexUsageView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            HStack {
+            if !embedded { HStack {
                 Text(L10n.text("Использование Codex")).font(.system(size: 22, weight: .semibold))
                 Spacer()
                 Button { app.showCodexUsage = false } label: { Image(systemName: "xmark") }
                     .keyboardShortcut(.cancelAction).disabled(usage.resetting)
-            }
+            } }
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     if let value = usage.displaySnapshot {
@@ -93,7 +94,7 @@ struct CodexUsageView: View {
                 Button(L10n.text("Обновить")) { Task { await usage.refresh(app: app) } }
                     .disabled(refreshBlocked)
             }.font(.callout)
-        }.padding(24).workspacePageSize(width: 560, height: 610)
+        }.padding(embedded ? 0 : 24)
             .task { await usage.refresh(app: app) }
             .workspaceDismissDisabled(usage.resetting)
             .workspaceAlert(L10n.text("Использовать один сброс?"), isPresented: $confirmingReset, presenting: proposedReset) { attempt in

@@ -34,6 +34,13 @@ struct NativeChecks {
         if let fixture = LaunchConfiguration.argument("--fixture"), let python = LaunchConfiguration.argument("--python") {
             try await portableBridge(fixture: URL(fileURLWithPath: fixture), python: URL(fileURLWithPath: python), root: portableRoot)
         }
+        if CommandLine.arguments.contains("--claude-only"),
+           let fixture = LaunchConfiguration.argument("--fixture"), let python = LaunchConfiguration.argument("--python") {
+            try await claudeProvider(fixture: URL(fileURLWithPath: fixture), python: URL(fileURLWithPath: python), root: root)
+            try await claudeAccountControls(fixture: URL(fileURLWithPath: fixture), python: URL(fileURLWithPath: python), root: root)
+            print("Native Claude checks: \(passed) OK")
+            return
+        }
         if CommandLine.arguments.contains("--workspace-tools-only"),
            let fixture = LaunchConfiguration.argument("--fixture"), let python = LaunchConfiguration.argument("--python") {
             try await workspaceAgentTools(fixture: URL(fileURLWithPath: fixture), python: URL(fileURLWithPath: python), root: root)
@@ -809,6 +816,7 @@ struct NativeChecks {
         try await workspacePanelIntegration(fixture: fixture, python: python, root: root)
         try await workspaceAgentTools(fixture: fixture, python: python, root: root)
         try await claudeProvider(fixture: fixture, python: python, root: root)
+        try await claudeAccountControls(fixture: fixture, python: python, root: root)
         let app = AppModel(configuration: LaunchConfiguration(projectRoot: fixture, python: python, stateDirectory: root.appendingPathComponent("integration-state")))
         defer { app.shutdown() }
         await app.start()

@@ -155,6 +155,7 @@ class NativeMemoryStore(MemoryStore):
 from proto_mind.native_api import APITransport, NativeAPIReasoner, validate_connection
 from proto_mind.native_claude import ClaudeTransport, NativeClaudeReasoner, status as claude_status, authentication_command as claude_auth_command
 from proto_mind.native_claude_contract import validate_effort as claude_effort
+from proto_mind.native_claude_metadata import ClaudeMetadataReader
 
 
 class NativeOllamaReasoner(OllamaReasoner):
@@ -295,6 +296,7 @@ class NativeBackend:
         self.active_provider: str | None = None
         self.active_api: APITransport | None = None
         self.active_claude: ClaudeTransport | None = None
+        self.claude_metadata = ClaudeMetadataReader(self.state_dir)
         self.active_steering: LiveSteering | None = None
         self.workspace_tools: WorkspaceTools | None = None
         self.mcp_client = None
@@ -1449,6 +1451,8 @@ class NativeBackend:
             return {"models": self.subscription.models()}
         if method == "claude_status":
             return claude_status(self.state_dir)
+        if method == "claude_metadata":
+            return self.claude_metadata.read()
         if method == "claude_auth_command":
             if self.closing.is_set(): raise ValueError("Native disconnected.")
             return claude_auth_command(self.state_dir, params.get("operation"))
@@ -1512,12 +1516,14 @@ class NativeBackend:
         return {"cancel_requested": True, "notice": "Codex stop requested."}
 
     def close(self) -> None:
+        self.claude_metadata.close()
         if self.active_claude: self.active_claude.cancel()
         if self.active_api: self.active_api.cancel()
         self.agent_grants.revoke()
         self.subscription.close()
 
     def disconnect(self) -> None:
+        self.claude_metadata.close()
         if self.active_claude: self.active_claude.cancel()
         self.closing.set()
         if self.mcp_client is not None: self.mcp_client.close()
@@ -1542,7 +1548,7 @@ def serve(backend: NativeBackend, source, destination) -> None:
         try:
             # stdout redirection is process-wide. The account-only reader has
             # no console output and must not nest a redirect from another thread.
-            with (nullcontext() if message["method"] in {"account_limits", "account_usage", "steer"} | ATTACHMENT_READ_METHODS else redirect_stdout(sys.stderr)):
+            with (nullcontext() if message["method"] in {"account_limits", "account_usage", "claude_metadata", "steer"} | ATTACHMENT_READ_METHODS else redirect_stdout(sys.stderr)):
                 result = backend.dispatch(message["method"], message.get("params", {}), emit, request_id)
             emit({"id": request_id, "result": result})
         except Exception as exc:
@@ -1552,6 +1558,7 @@ def serve(backend: NativeBackend, source, destination) -> None:
 
     with (ThreadPoolExecutor(max_workers=1, thread_name_prefix="proto-native") as executor,
           ThreadPoolExecutor(max_workers=1, thread_name_prefix="proto-limits") as limits_executor,
+          ThreadPoolExecutor(max_workers=1, thread_name_prefix="proto-claude-metadata") as claude_executor,
           ThreadPoolExecutor(max_workers=1, thread_name_prefix="proto-steer") as steering_executor,
           ThreadPoolExecutor(max_workers=1, thread_name_prefix="proto-attachments") as attachment_executor):
         while True:
@@ -1578,7 +1585,7 @@ def serve(backend: NativeBackend, source, destination) -> None:
                     emit({"id": request_id, "result": backend.cancel(str(message.get("params", {}).get("request_id", "")))})
                 else:
                     target = (attachment_executor if message["method"] in ATTACHMENT_READ_METHODS else
-                              {"account_limits": limits_executor, "account_usage": limits_executor, "steer": steering_executor}.get(message["method"], executor))
+                              {"account_limits": limits_executor, "account_usage": limits_executor, "claude_metadata": claude_executor, "steer": steering_executor}.get(message["method"], executor))
                     target.submit(run, message)
             except (ValueError, TypeError) as exc:
                 emit({"id": request_id, "error": {"message": str(exc)[:200]}})

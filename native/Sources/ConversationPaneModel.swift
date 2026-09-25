@@ -90,6 +90,10 @@ extension AppModel {
         if let model {
             guard conversations[index].provider != "codex" || model.isEmpty || codexModels(for: id).contains(where: { $0.id == model }) else { return }
             conversations[index].model = model
+            if conversations[index].provider == "claude", let option = claudeAccount.snapshot?.model(model),
+               !option.efforts.contains(conversations[index].reasoningEffort) {
+                conversations[index].reasoningEffort = ""
+            }
             if conversations[index].provider == "codex" {
                 let option = codexModels(for: id).first { model.isEmpty ? $0.isDefault : $0.id == model }
                 if option?.efforts.contains(where: { $0.rawValue == conversations[index].reasoningEffort }) != true {
@@ -99,7 +103,8 @@ extension AppModel {
         }
         if let effort {
             let model = codexModels(for: id).first { conversations[index].model.isEmpty ? $0.isDefault : $0.id == conversations[index].model }
-            let valid = conversations[index].provider == "claude" ? ClaudeSelection.efforts.contains(effort)
+            let claudeEfforts = claudeAccount.snapshot?.model(conversations[index].model)?.efforts ?? ClaudeSelection.efforts
+            let valid = conversations[index].provider == "claude" ? (effort.isEmpty || claudeEfforts.contains(effort))
                 : conversations[index].provider == "codex" && (effort.isEmpty || model?.efforts.contains(where: { $0.rawValue == effort }) == true)
             guard valid else { return }
             conversations[index].reasoningEffort = effort

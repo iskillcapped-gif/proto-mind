@@ -17,9 +17,28 @@ class ToolResultBlock(SimpleNamespace): pass
 def create_sdk_mcp_server(**values): return values
 
 class ClaudeSDKClient:
-    def __init__(self, *, options): self.options = options
+    def __init__(self, *, options): self.options = options; self._query = self
     async def __aenter__(self): return self
     async def __aexit__(self, *_): pass
+    async def get_server_info(self):
+        return {'models': [
+            {'value':'default', 'resolvedModel':'claude-opus-5-5', 'displayName':'Default', 'description':'Opus 5.5', 'supportsEffort':True, 'supportedEffortLevels':['low','high']},
+            {'value':'opus', 'resolvedModel':'claude-opus-5-5', 'displayName':'Opus', 'description':'Opus 5.5', 'supportsEffort':True, 'supportedEffortLevels':['low','high']},
+            {'value':'haiku', 'resolvedModel':'claude-haiku-4-5-20251001', 'displayName':'Haiku'}
+        ], 'credential':'SECRET_NOT_METADATA'}
+    async def _send_control_request(self, request):
+        assert request == {'subtype':'get_usage'}
+        assert self.options.tools == [] and self.options.permission_mode == 'dontAsk'
+        assert self.options.strict_mcp_config and self.options.setting_sources == []
+        mode = Path(self.options.cwd, 'metadata-mode')
+        mode = mode.read_text() if mode.exists() else ''
+        if mode == 'hang': await asyncio.Event().wait()
+        if mode == 'unsupported': raise RuntimeError('SECRET unsupported control message')
+        return {'rate_limits_available':True, 'rate_limits': {
+            'five_hour':{'utilization':3,'resets_at':'2030-09-25T20:00:00+00:00'},
+            'seven_day':{'utilization':0,'resets_at':'2030-09-30T20:00:00Z'},
+            'extra_usage':{'is_enabled':False}, 'secret':'SECRET_NOT_METADATA'},
+            'session':{'transcript':'SECRET_NOT_METADATA'}}
     async def query(self, prompt):
         assert hasattr(prompt, '__aiter__'), 'SDK requires an async iterable, not a dict'
         messages = [item async for item in prompt]
