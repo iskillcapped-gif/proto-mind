@@ -4,6 +4,44 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Core Updates After Native 0.74.2 — September 26
+
+These changes are in the Python core only. A conversation picks them up when its
+bridge starts (a new conversation or an app restart); no Native rebuild is needed,
+and the app stays 0.74.2 (106).
+
+**Live check of 0.74.2.** After the operator restarted the app on 2026-09-25, the
+first Claude turn started a new session (`--session-id`), as the changed system
+prompt requires. Its system prompt had no Observer block. The turn message carried
+a `<proto_mind_turn_context>` block with a label that matched the message. The
+request that the usage limit had interrupted was in the bootstrap with its
+incomplete marker. The first resumed turn is the remaining live check.
+
+**Claude usage per turn.** Each completed Claude answer adds a content-free line
+to its response notes: model requests (and subagent requests), the largest
+context, cache reads/writes, uncached input and output with thinking. The worker
+counts requests by message ID because result totals can include earlier turns of
+a resumed session. Local transcripts showed that long tool-heavy turns spend most
+of the quota by re-reading their context on every request; details are in
+[Claude in Proto-Mind](CLAUDE_CONNECTION.md#model-catalog-and-subscription-limits).
+
+**Memory.** "Давай использовать X" / "let's use X" steers the current task and no
+longer becomes an automatic project decision that can replace a named earlier
+one; "мы решили", "we now use" and "переходим на" still do. Task descriptions that
+mention memory ("Посмотри модуль памяти. Что изменилось?", "Can you fix the
+failing test? What changed in memory?", long requests) are no longer labeled
+`memory_inventory`, which had doubled the records sent and could promote reused
+records. Explicit questions such as "что мы решили" keep the label.
+
+**Worktree tasks.** Project notes follow core memory: an isolated task in a
+registered linked Git worktree reads and saves its main checkout's notes. Receipts
+still name the task's own folder; a copied `.git` file keeps its own scope.
+
+Verification on 2026-09-26: **2421 Python tests passed** (2333 + 88) plus
+compileall; optional pytest is absent. New regressions reproduce each defect on
+the previous code. No Native check was needed because no Swift file changed.
+The usage line was checked with a synthetic SDK stream, not a live turn.
+
 ## Claude Continuity and Memory Bounds — Native 0.74.2
 
 Claude Code keeps a session's first system prompt when it resumes. PM put the
@@ -44,8 +82,8 @@ state; no model request was made. The 0.74.2 (106) bundle was built in a staging
 folder and installed by replacing its files in place while the app kept running.
 The previous 0.74.1 (105) bundle is kept beside it as
 `dist/Proto-Mind Native 0.74.1 (105).previous`. The new Native behavior starts
-after the operator restarts the app. A live Claude turn with this release has not
-been checked yet.
+after the operator restarts the app. The live check after that restart is recorded
+in the next section.
 
 ## Composer Stability — Native 0.74.1
 

@@ -107,6 +107,19 @@ after each read. Polling is throttled, quotas stay in memory, and auth/restore
 invalidate pending updates. Metadata has its own bridge queue and observable
 UI model; it never marks a conversation busy or replaces the editor.
 
+Each completed Claude answer adds one content-free line to **About this response
+→ Response notes** («Об ответе → Примечания к ответу»): model requests (including subagents), the largest context sent, and
+tokens read from cache, written to cache, uncached and output (with thinking).
+The worker counts each request by its message ID. It does not use the result
+message's totals: Claude Code saves a session's accumulated cost state, so after
+a resume they can include earlier turns. On 2026-09-25 local transcripts showed
+what two long tool-heavy turns consumed; the first ended at the five-hour limit.
+They made 113 and 154 requests, each re-reading a cached context of up to 366K
+tokens: 24–32M cache-read tokens per turn against 0.3M cache writes and
+0.14–0.17M output tokens (64–75% of them thinking).
+The CLI's auto-compaction window stays on its model-tuned `auto` setting, which
+it recommends for cost.
+
 ## Ownership and packaging
 
 The CLI owns authentication under `<native profile>/claude-profile` and its
