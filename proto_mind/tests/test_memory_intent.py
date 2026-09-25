@@ -84,3 +84,20 @@ class MemoryIntentTests(unittest.TestCase):
                      "Перевір код пам'яті. Що змінилося?"]:
             with self.subTest(text=text): self.assertNotEqual(Observer().analyze(text).query_type, "memory_inventory")
         self.assertEqual(Observer().analyze("Что ты помнишь о моих предпочтениях?").query_type, "memory_inventory")
+
+    def test_task_descriptions_that_mention_memory_are_not_memory_inventory(self):
+        for text in ["Посмотри модуль памяти. Что изменилось?",
+                     "Can you fix the failing test? What changed in memory?",
+                     "Брат, мы пофиксили баги. Пройдись посмотри ещё раз, что изменилось в памяти?",
+                     "Please open the memory store and check the current implementation. What changed?",
+                     "Брат, посмотри реальный код проекта, познакомься с архитектурой и предложи, как сделать PM лучше. "
+                     "Документацию сверяй с кодом. Нас интересуют: что уже сделано хорошо; слабые места; идеи про память "
+                     "и параллельные задачи. Какой этап ты бы выбрал?",
+                     "Нас интересует, что уже сделано хорошо и что стоит улучшить. Посмотри, как используется память "
+                     "в ядре, какие модули за неё отвечают, где хранятся данные и как работает синхронизация между окнами. "
+                     "Отдельно интересны параллельные задачи и взаимодействие моделей. Что бы ты выбрал?"]:
+            with self.subTest(text=text[:40]): self.assertNotEqual(Observer().analyze(text).query_type, "memory_inventory")
+        # Explicit questions about remembered decisions stay memory questions inside a work request.
+        for text in ["Посмотри, что мы решили про хранение памяти.", "Fix the bug. What did we decide about persistence?",
+                     "What storage system are we using now?", "Что изменилось в нашем решении по хранению памяти?"]:
+            with self.subTest(text=text): self.assertEqual(Observer().analyze(text).query_type, "memory_inventory")

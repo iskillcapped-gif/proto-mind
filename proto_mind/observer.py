@@ -202,6 +202,20 @@ class Observer:
         "переходимо на",
     )
 
+    # Generic state phrases that equally describe code under work.
+    WORK_STATE_MARKERS = frozenset({
+        "what changed", "current implementation", "currently have", "using now",
+        "что изменилось", "текущая реализация", "що змінилося", "поточна реалізація",
+    })
+    WORK_REQUEST = re.compile(
+        r"(?:^|[.!?\n;:]\s*)(?:(?:please|can you|could you|пожалуйста|можешь|давай|брат|будь ласка|можеш)[, ]+)*"
+        r"(?:fix|implement|refactor|debug|review|inspect|rewrite|build|test|look at|investigate|explore|analy[sz]e|"
+        r"audit|run|open|add|remove|update|continue|"
+        r"исправь|перепиши|реализуй|проверь код|изучи|проведи аудит|посмотри|глянь|пройдись|запусти|открой|"
+        r"сделай|добавь|удали|почини|пофикси|продолжай|приступай|разберись|проанализируй|"
+        r"виправ|реалізуй|перевір код|подивись|вивчи|відкрий|зроби|додай|видали|продовжуй|проаналізуй)\b")
+    MAX_INVENTORY_HEURISTIC_CHARS = 300
+
     def analyze(self, user_input: str) -> ObserverState:
         lowered = normalize_text(user_input)
         tags = self._extract_tags(lowered)
@@ -279,15 +293,15 @@ class Observer:
 
     def _is_memory_inventory_query(self, text: str) -> bool:
         # A coding/review request can mention memory or ask what changed. Those
-        # words describe the work, not a request to enumerate personal memory.
-        if re.search(r"(?:^|[.!?\n]\s*)(?:please\s+|пожалуйста[, ]+|будь ласка[, ]+)?"
-                     r"(?:fix|implement|refactor|debug|review|inspect|rewrite|build|test|"
-                     r"исправь|перепиши|реализуй|проверь код|изучи код|проведи аудит|"
-                     r"виправ|перепиши|реалізуй|перевір код)\b", text):
-            return False
-        if any(phrase in text for phrase in self.MEMORY_INVENTORY_MARKERS):
+        # words describe the work, not a request to enumerate personal memory;
+        # an explicit question about remembered decisions still counts.
+        work = bool(self.WORK_REQUEST.search(text))
+        if any(phrase in text for phrase in self.MEMORY_INVENTORY_MARKERS
+               if not (work and phrase in self.WORK_STATE_MARKERS)):
             return True
-
+        # Word-level matching fits a short question, not a task description.
+        if work or len(text) > self.MAX_INVENTORY_HEURISTIC_CHARS:
+            return False
         if not self._is_recall_question(text):
             return False
 
