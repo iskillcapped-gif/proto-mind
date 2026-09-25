@@ -104,6 +104,12 @@ struct WorkspaceService: Codable, Identifiable, Equatable {
         }
     }
 
+    /// A Settings check owns no task, so its bridge and server close when the check ends.
+    func checkTools(id: UUID) async throws -> Int {
+        defer { closeSessions { $0.service == id && $0.owner == nil && !active.contains($0) } }
+        return try await perform(id: id, operation: "list")["tools"].items.count
+    }
+
     func cancel(owner: UUID) {
         closeSessions { $0.owner == owner }
     }
@@ -169,7 +175,7 @@ struct WorkspaceServiceSettings: View {
             ForEach(services.items.filter(\.enabled)) { item in
                 Button(L10n.pick("Проверить инструменты · ", "Check tools · ") + item.name) {
                     Task {
-                        do { let result = try await services.perform(id: item.id, operation: "list"); notice = "\(item.name): \(result["tools"].items.count) " + L10n.pick("инструментов", "tools"); error = nil }
+                        do { let count = try await services.checkTools(id: item.id); notice = "\(item.name): \(count) " + L10n.pick("инструментов", "tools"); error = nil }
                         catch { self.error = error.localizedDescription }
                     }
                 }

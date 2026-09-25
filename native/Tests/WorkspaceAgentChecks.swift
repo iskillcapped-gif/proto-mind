@@ -155,6 +155,9 @@ extension NativeChecks {
         services.cancel(owner: b)
         do { _ = try await blocked.value; try check(false, "Cancelled MCP call must not report success") }
         catch { try check(true, "Stop closes an in-flight MCP transport without waiting for its tool") }
+        let listed = try await services.checkTools(id: service.id)
+        do { _ = try await services.perform(id: service.id, operation: "call", name: "next"); try check(false, "A Settings check must not leave its MCP session open") }
+        catch { try check(listed == 1 && error.localizedDescription.contains("List this service"), "A Settings tool check closes its own MCP session") }
         try services.remove(service)
     }
 
