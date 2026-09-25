@@ -116,4 +116,8 @@ Release 0.73.1 verification on 2026-09-25: **2379 Python tests and 1966 Native
 checks passed**. The versioned model menu and Claude quota page were rendered
 with disposable fixtures and visually inspected. The combined subscription
 page and the standalone Codex page both passed small-window layout checks.
-The local app was rebuilt; live Pro metadata was verified as described above.
+The local app was rebuilt and installed without restarting the running app;
+live Pro metadata was verified as described above. The 0.73.1 Apple Silicon
+portable DMG passed clean-profile bridge bootstrap and bundled document-runtime
+checks. Its metadata module matches the checked source, and its Claude CLI
+still matches the original signed binary.
