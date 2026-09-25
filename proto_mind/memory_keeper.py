@@ -18,6 +18,9 @@ from proto_mind.topic_utils import extract_topic_tags, topic_weight, weighted_to
 
 
 class MemoryKeeper:
+    # Automatic capture keeps short declarations. A longer message is usually a
+    # pasted report, log or document; storing it whole would crowd later prompts.
+    MAX_AUTOMATIC_CONTENT_CHARS = 2000
     OVERRIDE_MARKERS = (
         "actually",
         "instead",
@@ -244,9 +247,10 @@ class MemoryKeeper:
             phrase in lowered for phrase in self.DECISION_STORAGE_MARKERS
         ) and not self._is_recall_question(lowered)
         important_fact = any(phrase in lowered for phrase in self.IMPORTANT_FACT_MARKERS)
-        should_store = stable_preference or decision or important_fact
+        pasted = len(user_input.strip()) > self.MAX_AUTOMATIC_CONTENT_CHARS
+        should_store = (stable_preference or decision or important_fact) and not pasted
         preference_style_retrieval = observer_state.needs_memory and self._is_preference_style_query(observer_state)
-        if not should_store and observer_state.query_type == "project_context" and observer_state.importance_hint >= 0.8 and not preference_style_retrieval:
+        if not should_store and not pasted and observer_state.query_type == "project_context" and observer_state.importance_hint >= 0.8 and not preference_style_retrieval:
             should_store = True
 
         memory_type = "insight"
@@ -268,6 +272,7 @@ class MemoryKeeper:
             decision=decision,
             important_fact=important_fact,
             override_detected=override_detected,
+            pasted=pasted,
         )
         should_promote_existing = (
             not should_store
@@ -756,7 +761,10 @@ class MemoryKeeper:
         decision: bool,
         important_fact: bool,
         override_detected: bool,
+        pasted: bool = False,
     ) -> str:
+        if pasted:
+            return "Not stored because the message is too long to be one memory; ask to remember a short summary instead."
         if stable_preference:
             return "Stored because this is a stable preference."
         if decision and override_detected:

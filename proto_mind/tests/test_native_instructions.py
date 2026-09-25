@@ -213,10 +213,19 @@ class NativeInstructionContractTests(unittest.TestCase):
                     developer_instructions=CHAT_DEVELOPER_INSTRUCTIONS if provider == "codex" else None,
                     selected_memory=[record], correction_hints=[])
                 self.assertEqual(receipt["layer_count"], 2 if provider == "codex" else 1)
-                self.assertIn("[Local context truncated; do not infer omitted facts.]", prepared.text)
+                self.assertIn("[Memory record truncated; do not infer the omitted part.]", prepared.text)
+                self.assertNotIn("[Local context truncated", prepared.text)
                 if provider == "claude":
                     self.assertIn("truncated", prepared.turn_context)
                     self.assertNotIn("truncated", prepared.system_text)
+        # The whole-context bound remains a safety net for other oversized sections.
+        hints = ["Check " + "y" * 6000] * 5
+        for provider in ["api", "claude"]:
+            with self.subTest(provider=provider, section="hints"):
+                prepared = prepare_local_instructions(provider, self.observer, [], hints)
+                build_instruction_receipt(provider=provider, mode="chat", prepared=prepared,
+                                          developer_instructions=None, selected_memory=[], correction_hints=hints)
+                self.assertIn("[Local context truncated; do not infer omitted facts.]", prepared.text)
 
     def test_instruction_receipt_matches_projection_without_storing_instruction_content(self):
         prepared = self.prepared()

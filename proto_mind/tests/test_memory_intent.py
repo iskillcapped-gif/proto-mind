@@ -45,6 +45,16 @@ class MemoryIntentTests(unittest.TestCase):
         selected = self.keeper.retrieve(Observer().analyze("Что используем сейчас для хранения памяти?"))
         self.assertFalse(any(r.context_scope == "project-b" for r in selected))
 
+    def test_long_paste_is_not_captured_as_one_memory(self):
+        for text in ["Мы решили использовать SQLite для заказов. " + "Подробности отчёта. " * 1200,
+                     "Ключевой вывод: " + "строка журнала\n" * 1500]:
+            with self.subTest(text=text[:30]):
+                result = self.coordinator.handle(text)
+                self.assertFalse(result.memory_summary.should_store)
+                self.assertIn("too long", result.memory_summary.storage_rationale)
+        self.assertEqual(self.store.load_working_memory() + self.store.load_persistent_memory(), [])
+        self.assertTrue(self.coordinator.handle("Мы решили использовать SQLite для заказов.").memory_summary.should_store)
+
     def test_ambiguous_replacement_keeps_both_decisions_active(self):
         for text in ["Мы решили использовать JSON для настроек.", "Мы решили использовать JSON для экспорта."]:
             self.coordinator.handle(text)

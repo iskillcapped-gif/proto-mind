@@ -3,6 +3,8 @@ from __future__ import annotations
 from proto_mind.models import MemoryRecord, ObserverState
 from proto_mind.reasoners.base import BaseReasoner
 
+MEMORY_RECORD_CHARS = 3000
+
 
 class MockReasoner(BaseReasoner):
     backend_name = "mock"
@@ -104,9 +106,13 @@ class MockReasoner(BaseReasoner):
 
         lines = []
         for index, record in enumerate(retrieved_memory[:4], start=1):
+            # One long stored record must not crowd out the others or later context.
+            content = record.content
+            if len(content) > MEMORY_RECORD_CHARS:
+                content = content[:MEMORY_RECORD_CHARS] + " [Memory record truncated; do not infer the omitted part.]"
             lines.append(
                 f"{index}. type={record.type}; importance={record.importance:.2f}; "
-                f"usage_count={record.usage_count}; content={record.content}"
+                f"usage_count={record.usage_count}; content={content}"
             )
         return "\n".join(lines)
 
