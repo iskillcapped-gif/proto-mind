@@ -10,6 +10,8 @@ from proto_mind.native_computer_use import COMPUTER_USE_TOOLS, REQUIRED_COMPUTER
 
 
 SCHEMA = "proto_mind.native_agent_contract.v2"
+WORKSPACE_SCHEMA = "proto_mind.native_agent_contract.v3"
+WORKSPACE_CAPABILITIES = ["tasks", "questions", "browser", "project_memory", "documents", "mcp", "worktrees"]
 LEGACY_SCHEMA = "proto_mind.native_agent_contract.v1"
 PROVIDER = "codex_subscription"
 ACCESS_MODE = "full_access"
@@ -27,7 +29,7 @@ LEGACY_STOP_CONDITIONS = (*STOP_CONDITIONS[:3], "time_limit", "activity_limit", 
 def requested_contract_version(params: dict) -> int:
     # A still-running older Native client cannot read a v2 work-session contract.
     version = params.get("agent_contract_version", 1)
-    if type(version) is not int or version not in {1, 2}:
+    if type(version) is not int or version not in {1, 2, 3}:
         raise AgentContractError("Unsupported Native agent contract version.")
     return version
 
@@ -36,7 +38,7 @@ def execution_limits(version: int) -> dict:
     limits = {"max_seconds": 900 if version == 1 else None,
               "max_observed_items": 64 if version == 1 else None,
               "one_active_turn": True, "automatic_retry": False, "automatic_rollback": False}
-    if version == 2:
+    if version >= 2:
         limits["max_retained_items"] = MAX_RETAINED_ITEMS
     return limits
 
@@ -70,7 +72,7 @@ def build_agent_contract(workspace: Path, *, model: str, reasoning_effort: str,
                                or len(item) > 400 or "\x00" in item for item in items)):
         raise AgentContractError("Native agent success criteria are invalid.")
     contract = {
-        "schema": LEGACY_SCHEMA if version == 1 else SCHEMA,
+        "schema": {1: LEGACY_SCHEMA, 2: SCHEMA, 3: WORKSPACE_SCHEMA}[version],
         "provider": PROVIDER,
         "access_mode": ACCESS_MODE,
         "goal": "operator_supplied_foreground_task",
@@ -108,6 +110,8 @@ def build_agent_contract(workspace: Path, *, model: str, reasoning_effort: str,
         },
         "stop_conditions": list(LEGACY_STOP_CONDITIONS if version == 1 else STOP_CONDITIONS),
     }
+    if version == 3:
+        contract["tools"]["workspace"] = {"version": 1, "capabilities": list(WORKSPACE_CAPABILITIES)}
     validate_agent_contract(contract)
     return contract
 
@@ -120,7 +124,7 @@ def validate_agent_contract(contract: object) -> dict:
         "verification", "stop_conditions",
     }:
         raise AgentContractError("Invalid Native agent contract shape.")
-    if (contract["schema"] not in {LEGACY_SCHEMA, SCHEMA} or contract["provider"] != PROVIDER
+    if (contract["schema"] not in {LEGACY_SCHEMA, SCHEMA, WORKSPACE_SCHEMA} or contract["provider"] != PROVIDER
             or contract["access_mode"] != ACCESS_MODE
             or contract["goal"] != "operator_supplied_foreground_task"):
         raise AgentContractError("Native agent contract identity drifted.")
@@ -140,10 +144,17 @@ def validate_agent_contract(contract: object) -> dict:
     }:
         raise AgentContractError("Native agent input/output contract drifted.")
     tools = contract["tools"]
-    if not isinstance(tools, dict) or set(tools) != {
+    if not isinstance(tools, dict):
+        raise AgentContractError("Native agent tool contract is invalid.")
+    tool_keys = {
         "shell_and_files", "web_search", "computer_use",
         "computer_use_enabled_tools", "computer_use_required_tools",
-    }:
+    }
+    if contract["schema"] == WORKSPACE_SCHEMA:
+        tool_keys.add("workspace")
+        if tools.get("workspace") != {"version": 1, "capabilities": WORKSPACE_CAPABILITIES}:
+            raise AgentContractError("Native workspace tool authority drifted.")
+    if not isinstance(tools, dict) or set(tools) != tool_keys:
         raise AgentContractError("Native agent tool contract is invalid.")
     enabled = tools["computer_use"] is True
     expected_tools = sorted(COMPUTER_USE_TOOLS) if enabled else []

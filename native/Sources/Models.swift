@@ -79,6 +79,11 @@ struct Conversation: Codable, Identifiable, Equatable {
     var messages: [ChatMessage] = []
     var provider = "ollama"
     var model = ""
+    var apiWorkspaceToolsEnabled = false
+    var apiWorkspaceGeneration: String?
+    var workspaceQuestions: [WorkspaceAgentQuestion] = []
+    var workspaceParentID: UUID?
+    var workspaceContinuation: String?
     var apiConnectionID: UUID?
     var codexAccountID: UUID?
     var codexSessionResetPending: Bool?
@@ -99,7 +104,7 @@ struct Conversation: Codable, Identifiable, Equatable {
     init() {}
 
     enum CodingKeys: String, CodingKey {
-        case apiConnectionID, codexAccountID, codexSessionResetPending
+        case apiWorkspaceGeneration, workspaceParentID, workspaceContinuation, workspaceQuestions, apiWorkspaceToolsEnabled, apiConnectionID, codexAccountID, codexSessionResetPending
         case id, title, createdAt, updatedAt, messages, provider, model, reasoningEffort, autoSkillsEnabled, autoProjectRecallEnabled, memorySuggestionsEnabled, archived, draft, workspacePath, pendingFiles, pendingImages, pendingPDFs, pendingCriteria, draftContinuation, dismissedWorkSessionWarnings
     }
 
@@ -112,6 +117,16 @@ struct Conversation: Codable, Identifiable, Equatable {
         messages = try values.decode([ChatMessage].self, forKey: .messages)
         provider = try values.decode(String.self, forKey: .provider)
         model = try values.decode(String.self, forKey: .model)
+        apiWorkspaceToolsEnabled = try values.decodeIfPresent(Bool.self, forKey: .apiWorkspaceToolsEnabled) ?? false
+        apiWorkspaceGeneration = try values.decodeIfPresent(String.self, forKey: .apiWorkspaceGeneration)
+        workspaceQuestions = try values.decodeIfPresent([WorkspaceAgentQuestion].self, forKey: .workspaceQuestions) ?? []
+        workspaceParentID = try values.decodeIfPresent(UUID.self, forKey: .workspaceParentID)
+        workspaceContinuation = try values.decodeIfPresent(String.self, forKey: .workspaceContinuation)
+        guard (workspaceContinuation?.count ?? 0) <= 8000, workspaceParentID != id else { throw NativeError.message("Invalid task continuation.") }
+        guard workspaceQuestions.count <= 100, Set(workspaceQuestions.map(\.id)).count == workspaceQuestions.count,
+              workspaceQuestions.allSatisfy({ !$0.text.isEmpty && $0.text.count <= 2000 && $0.requestID.count <= 200 && $0.options.count <= 4 && $0.options.allSatisfy { !$0.isEmpty && $0.count <= 200 } && ($0.answer?.count ?? 0) <= 4000 }) else {
+            throw NativeError.message("Invalid saved task questions.")
+        }
         apiConnectionID = try values.decodeIfPresent(UUID.self, forKey: .apiConnectionID)
         codexAccountID = try values.decodeIfPresent(UUID.self, forKey: .codexAccountID)
         codexSessionResetPending = try values.decodeIfPresent(Bool.self, forKey: .codexSessionResetPending)

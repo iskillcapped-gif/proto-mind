@@ -91,12 +91,13 @@ def instruction_contract_hash(mode: str, developer_instructions: str) -> str:
     return hashlib.sha256(material).hexdigest()
 
 
-def current_instruction_contracts() -> dict[str, str]:
+def current_instruction_contracts(*, workspace_tools: bool = False) -> dict[str, str]:
     from proto_mind.native_agent import AGENT_INSTRUCTIONS
+    from proto_mind.native_workspace_tools import GUIDANCE
 
     return {
         "chat": instruction_contract_hash("chat", CHAT_DEVELOPER_INSTRUCTIONS),
-        "full_access": instruction_contract_hash("full_access", AGENT_INSTRUCTIONS),
+        "full_access": instruction_contract_hash("full_access", AGENT_INSTRUCTIONS + (GUIDANCE if workspace_tools else "")),
     }
 
 
@@ -362,6 +363,7 @@ class CodexRPC:
         self.lock = threading.Lock()
         self.sequence = 0
         self.closed = False
+        self.workspace_tools = None
         self.process = subprocess.Popen(
             codex_process_command(executable, home, workspace, full_access=full_access,
                                   computer_use_command=computer_use.get("command", "") if computer_use else ""), cwd=workspace,
@@ -372,8 +374,8 @@ class CodexRPC:
         self.reader.start()
         try:
             self.request("initialize", {"clientInfo": {
-                "name": "proto_mind_native", "title": "Proto-Mind Native", "version": "0.16.0",
-            }})
+                "name": "proto_mind_native", "title": "Proto-Mind Native", "version": "0.72.0",
+            }, "capabilities": {"experimentalApi": True}})
             self.notify("initialized", {})
             self.computer_use_tools = self._verify_computer_use() if computer_use else set()
         except Exception:
@@ -459,7 +461,10 @@ class CodexRPC:
                 message = json.loads(raw)
                 if not isinstance(message, dict):
                     raise ValueError("Invalid protocol message")
-                if "method" in message and "id" in message:
+                if ("id" in message and message.get("method") == "item/tool/call"
+                        and self.workspace_tools is not None):
+                    self.events.put_nowait({"method": "proto_mind/workspace_call", "params": message})
+                elif "method" in message and "id" in message:
                     self._send({"id": message["id"], "error": {
                         "code": -32601, "message": "Proto-Mind does not implement client-side tools or additional approval grants.",
                     }})
@@ -515,6 +520,7 @@ class CodexSubscription:
         self.rpc: CodexRPC | None = None
         self.active_turn: tuple[str, str] | None = None
         self.on_main_turn = None
+        self.workspace_tools = None
         self.last_thread_info: dict | None = None
         self.cancelled = threading.Event()
         self.pending_login_id: str | None = None
@@ -602,15 +608,17 @@ class CodexSubscription:
         self.last_thread_info = None
 
     def _set_main_turn(self, value):
+        if self.workspace_tools is not None:
+            self.workspace_tools.set_active(value)
         if self.on_main_turn is not None:
             self.on_main_turn(value, self.rpc)
         self.active_turn = value
 
-    def thread_status(self, conversation: object, workspace: object, *, mode: str | None = None) -> dict:
+    def thread_status(self, conversation: object, workspace: object, *, mode: str | None = None, workspace_tools: bool = False) -> dict:
         try:
             return self.threads.status(
                 conversation, workspace, mode=mode,
-                instruction_contracts=current_instruction_contracts(),
+                instruction_contracts=current_instruction_contracts(workspace_tools=workspace_tools),
             )
         except CodexThreadStoreError as exc:
             raise CodexConnectionError(str(exc)) from None
@@ -658,6 +666,9 @@ class CodexSubscription:
     def _provider_thread(self, rpc: CodexRPC, *, conversation: str, logical_workspace: dict | None,
                          runtime_workspace: Path, model: str, instructions: str,
                          developer_instructions: str, mode: str) -> tuple[str, bool]:
+        if mode == "full_access" and self.workspace_tools is not None:
+            from proto_mind.native_workspace_tools import GUIDANCE
+            developer_instructions += GUIDANCE
         contract_hash = instruction_contract_hash(mode, developer_instructions)
         try:
             binding = self.threads.binding(conversation, logical_workspace, mode=mode)
@@ -667,8 +678,12 @@ class CodexSubscription:
                   "sandbox": "danger-full-access" if mode == "full_access" else "read-only",
                   "approvalPolicy": "never", "baseInstructions": instructions,
                   "developerInstructions": developer_instructions}
+        start = {**common, "ephemeral": False}
+        if mode == "full_access" and self.workspace_tools is not None:
+            from proto_mind.native_workspace_tools import TOOLS
+            start["dynamicTools"] = TOOLS
         if binding is None:
-            result = rpc.request("thread/start", {**common, "ephemeral": False})
+            result = rpc.request("thread/start", start)
             provider_id = self._validate_thread_policy(result, None, runtime_workspace, mode)
             try:
                 row = self.threads.record_new(
@@ -680,7 +695,7 @@ class CodexSubscription:
             state = "started"
             previous_thread_id = None
         elif binding["instruction_contract_hash"] != contract_hash:
-            result = rpc.request("thread/start", {**common, "ephemeral": False})
+            result = rpc.request("thread/start", start)
             provider_id = self._validate_thread_policy(result, None, runtime_workspace, mode)
             try:
                 row = self.threads.refresh_contract(
@@ -904,6 +919,7 @@ class CodexSubscription:
                 executable, self.home, workspace, full_access=True,
                 computer_use=computer_use if computer_use.get("available") is True else None,
             )
+            self.rpc.workspace_tools = self.workspace_tools
             run.attach_runtime_inventory(self.rpc.computer_use_tools)
             run.publish()
             account = self.rpc.request("account/read", {"refreshToken": False}).get("account")

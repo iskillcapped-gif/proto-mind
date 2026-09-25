@@ -10,6 +10,8 @@ PYTHON_BIN="$(select_proto_mind_python "${PROJECT_DIR}")" || {
   exit 1
 }
 command -v swift >/dev/null || { echo "Install Apple Command Line Tools before building." >&2; exit 1; }
+DOCUMENT_PYTHON_VERSION="$("${PYTHON_BIN}" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
+"${PYTHON_BIN}" scripts/prepare_document_runtime.py --python "${PYTHON_BIN}" --destination "${PROJECT_DIR}/dist/document-runtime-${DOCUMENT_PYTHON_VERSION}"
 
 swift build "${PROTO_MIND_SWIFT_BUILD_ARGS[@]}" -c release --product ProtoMindNative
 swift build "${PROTO_MIND_SWIFT_BUILD_ARGS[@]}" -c release --product ProtoMindPDF

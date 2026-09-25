@@ -76,6 +76,7 @@ extension AppModel {
                 throw NativeError.message(L10n.text("У этой задачи нет активного запроса для остановки."))
             }
             closeTaskUpdateQueue(execution: state); persist()
+            stopWorkspaceTools(for: state)
             let result = try await state.client.request("cancel", ["request_id": .string(request)])
             return .object(["status": .string("cancellation_requested"), "notice": result["notice"], "conversation_id": .string(id.uuidString)])
         case "send_task_message":

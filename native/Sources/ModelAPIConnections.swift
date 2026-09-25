@@ -156,7 +156,7 @@ struct ModelAPIConnectionSettings: View {
             }
             if let error { Text(error).font(.caption).foregroundStyle(.orange) }
             if let notice { Text(notice).font(.caption).foregroundStyle(.secondary) }
-            Text(L10n.text("API поддерживает диалог, память ядра, выбранные заметки, текстовые файлы и PDF. Инструменты Mac и уточнения во время выполнения доступны в маршруте Codex."))
+            Text(L10n.pick("API поддерживает диалог и выбранный контекст. Инструменты PM включаются отдельно для каждого чата: задачи, браузер, документы и MCP. Управление Mac и уточнения во время выполнения остаются в маршруте Codex.", "API supports conversations and selected context. Enable PM tools per chat for tasks, browser, documents and MCP. Mac control and live steering use Codex."))
                 .font(.caption).foregroundStyle(.secondary)
         }
     }
@@ -167,6 +167,9 @@ extension AppModel {
         guard !operationBusy, !isRunning(conversationID), let index = conversations.firstIndex(where: { $0.id == conversationID }),
               !conversations[index].archived else { return }
         discardAgentGrants(for: conversationID)
+        if conversations[index].apiConnectionID != connection.id || conversations[index].provider != "api" {
+            conversations[index].apiWorkspaceToolsEnabled = false; conversations[index].apiWorkspaceGeneration = nil
+        }
         conversations[index].provider = "api"
         conversations[index].apiConnectionID = connection.id
         conversations[index].model = connection.model
@@ -208,6 +211,10 @@ struct ConversationProviderChoices: View {
                     ComposerMenuRow(title: connection.name + " · " + connection.model, icon: "network") {
                         app.selectAPIConnection(connection, conversationID: conversationID); chosen()
                     }
+                }
+                if let conversation = app.conversations.first(where: { $0.id == conversationID }), conversation.provider == "api" {
+                    Toggle(L10n.pick("Инструменты PM", "PM tools"), isOn: Binding(get: { app.apiWorkspaceToolsAllowed(conversation) }, set: { app.setAPIWorkspaceTools($0, id: conversationID) }))
+                        .font(.caption).padding(.horizontal, 8)
                 }
                 ComposerMenuRow(title: L10n.text("Подключить API…"), icon: "plus") {
                     chosen(); app.settingsSection = .services; app.openSettings(in: presentations)

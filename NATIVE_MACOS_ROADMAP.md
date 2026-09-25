@@ -4,6 +4,14 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Agent Workspace — Native 0.72.0
+
+The assistant can now operate PM's projects, tasks, browser and document panels through a shared, turn-bound tool channel. Codex Full Mac advertises the frozen v3 catalog; API conversations opt into completed Responses/Chat Completions calls separately. Exact request, source binding and permission-generation checks keep delayed work out of another conversation. User questions persist, and late answers route to the original chat without consuming its draft.
+
+Explicit MCP connections support stdio and Streamable HTTP, with bearer secrets in Keychain. Document libraries are hash-pinned and isolated; DOCX/XLSX/PPTX/PDF helpers use create-only atomic writes, Office previews use Quick Look and PDF images use the sandboxed page reader. Task delegation can use Git worktrees, with optional session-only one-turn child Mac access. Continuation remains an explicit user action. Native automatic skill selection is local and no longer requires an extra model request.
+
+The complete acceptance list, test evidence, setup instructions and current limitations are recorded in [Agent workspace upgrade](AGENT_WORKSPACE_UPGRADE.md). Existing chats need no migration. Their Full Mac provider session is refreshed once to install the tool catalog, using existing bounded local context. The existing public download is not changed by this local release.
+
 ## Glass Cube Dock Icon — Native 0.71.1
 
 The Native app icon is a new softly bevelled glass cube on a graphite tile.

@@ -133,6 +133,19 @@ def smoke_runtime(app: Path) -> None:
             raise ValueError("Packaged bridge failed to bootstrap a clean profile")
         if result["result"].get("operator_name") or (profile / "core").exists():
             raise ValueError("Bootstrap unexpectedly initialized or imported private core state")
+        # Exercise the isolated wheels with the bundled interpreter, not the
+        # developer's environment. Keep bytecode and every output out of the app.
+        run(python, "-c", """
+from proto_mind.native_documents import environment, make_document, inspect_bytes
+print('Document runtime:', environment()['packages'])
+samples = {'.docx': {'title':'Portable check','paragraphs':['Example']},
+           '.xlsx': {'sheets':[{'name':'Example','rows':[['Value',42]]}]},
+           '.pptx': {'slides':[{'title':'Example','bullets':['Portable check']}]}}
+for suffix, specification in samples.items():
+    data = make_document(suffix, specification)
+    assert inspect_bytes(data, suffix), suffix
+assert make_document('.pdf', {'title':'Portable check','paragraphs':['Example']}).startswith(b'%PDF-')
+""", env=env, cwd=profile, timeout=30)
 
 
 def package(root: Path, binaries: Path, output: Path, cache: Path, identity: str = "-") -> Path:
@@ -160,6 +173,8 @@ def package(root: Path, binaries: Path, output: Path, cache: Path, identity: str
         runtime = resources / "runtime"
         extract_runtime(archives["python"], runtime)
         extract_runtime(archives["codex"], runtime / "codex")
+        run(runtime / "python/bin/python3", root / "scripts/prepare_document_runtime.py", "--python", runtime / "python/bin/python3",
+            "--destination", resources / "core/document_packages")
         files = source_inventory(root)
         for relative in files:
             target = resources / "core" / relative
@@ -184,13 +199,17 @@ def package(root: Path, binaries: Path, output: Path, cache: Path, identity: str
             content = run("/usr/bin/tar", "-xOf", archives["python_licenses"], name, capture_output=True).stdout
             (licenses / ("Python-" + PurePosixPath(name).name)).write_bytes(content)
         shutil.copy2(root / "native/Distribution/THIRD_PARTY_NOTICES.md", licenses / "README.md")
+        shutil.copy2(root / "requirements-documents.txt", licenses / "document-requirements.txt")
         run("/bin/bash", root / "scripts/build_native_icon.sh", resources / "ProtoMindCube.icns")
         manifest = {"schema": 1, "version": plist["CFBundleShortVersionString"], "build": plist["CFBundleVersion"],
                     "platform": lock["platform"], "signing": "ad-hoc beta" if identity == "-" else "Developer ID; notarization pending",
                     "source_commit": run("git", "-C", root, "rev-parse", "HEAD", capture_output=True, text=True).stdout.strip(),
                     "source_dirty": bool(run("git", "-C", root, "status", "--porcelain", "--untracked-files=no", capture_output=True).stdout),
                     "native_source_files": {str(path.relative_to(root)): sha256(path) for path in sorted((root / "native/Sources").glob("*.swift"))},
-                    "source_files": {str(path): sha256(root / path) for path in files}, "runtimes": lock}
+                    "source_files": {str(path): sha256(root / path) for path in files}, "runtimes": lock,
+                    "document_runtime": {"requirements_sha256": sha256(root / "requirements-documents.txt"),
+                        "requirements": "Licenses/document-requirements.txt", "packages": "core/document_packages",
+                        "notice": "Wheel hashes are pinned. Package dist-info directories retain licenses and metadata. Installation inventory precedes Apple code signing."}}
         (resources / "distribution-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
         sign_app(app, identity)
         smoke_runtime(app)

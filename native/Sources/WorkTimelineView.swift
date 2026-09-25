@@ -61,6 +61,7 @@ enum WorkTimelinePresentation {
         var parts: [String] = []
         if kinds.contains("fileChange") { parts.append(live ? L10n.text("Редактирует файлы") : L10n.text("Редактирование файлов")) }
         if kinds.contains("commandExecution") { parts.append(live ? L10n.text("выполняет команды") : L10n.text("команды в терминале")) }
+        if kinds.contains("dynamicToolCall") { parts.append(L10n.pick("инструменты PM", "PM tools")) }
         if kinds.contains("webSearch") { parts.append(live ? L10n.text("ищет в интернете") : L10n.text("поиск в интернете")) }
         if kinds.contains("computerUse") { parts.append(live ? L10n.text("работает с приложениями") : L10n.text("работа с приложениями")) }
         if kinds.contains("imageView") { parts.append(live ? L10n.text("смотрит изображения") : L10n.text("просмотр изображений")) }

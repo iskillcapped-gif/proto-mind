@@ -9,8 +9,8 @@ struct NativeAutoSkillsReport: Equatable {
         switch state {
         case "ready": return L10n.text("Навыки · выбор при отправке")
         case "selecting": return L10n.text("Подбираю подходящий навык")
-        case "selected": return L10n.text("Навыки · ") + selected.map { $0["skill_name"].text }.joined(separator: ", ")
-        case "no_match": return L10n.text("Навыки · для этой задачи не нужны")
+        case "selected", "local_selected": return L10n.text("Навыки · ") + selected.map { $0["skill_name"].text }.joined(separator: ", ")
+        case "no_match", "local_no_match": return L10n.text("Навыки · для этой задачи не нужны")
         case "empty": return L10n.text("Навыки · нет активных проверенных процедур")
         case "unavailable": return L10n.text("Навыки · источники недоступны")
         default: return L10n.text("Подбор навыков не завершён")
@@ -27,7 +27,7 @@ struct NativeAutoSkillsReport: Equatable {
         let stores: Set<String> = ["skills.jsonl", "persistent_memory.json", "context_injection.json"]
         guard case .object(let raw) = value, Set(raw.keys) == fields,
               ["proto_mind.native_auto_skills.v1", "proto_mind.native_auto_skills.v2"].contains(value["schema"].text), UUID(uuidString: value["conversation_id"].text) != nil,
-              ["ready", "selecting", "selected", "no_match", "empty", "unavailable", "failed"].contains(value["state"].text),
+              ["ready", "selecting", "selected", "no_match", "local_selected", "local_no_match", "empty", "unavailable", "failed"].contains(value["state"].text),
               ["chat", "full_access"].contains(value["access_mode"].text),
               decisionHashValue(value["goal_sha256"].text), decisionHashValue(value["catalog_hash"].text),
               ["catalog_count", "eligible_count", "excluded_count"].allSatisfy({ Self.count(value[$0]) }),
@@ -81,8 +81,9 @@ struct NativeAutoSkillsReport: Equatable {
                   ["active_verified", "active_restored_verified"].contains(row["lifecycle_state"].text) else { throw Self.error() }
         }
         guard Set(selected.map { $0["skill_id"].text }).count == selected.count,
-              !selected.isEmpty == (value["state"] == .string("selected")),
-              !["ready", "empty", "unavailable"].contains(value["state"].text) || !attempted,
+              !selected.isEmpty == ["selected", "local_selected"].contains(value["state"].text),
+              !["ready", "empty", "unavailable", "local_selected", "local_no_match"].contains(value["state"].text) || !attempted,
+              !["local_selected", "local_no_match"].contains(value["state"].text) || (value["selector_model"].text.isEmpty && value["selector_effort"].text.isEmpty && checks.isEmpty),
               !["selecting", "selected", "no_match"].contains(value["state"].text) || attempted,
               !["selected", "no_match"].contains(value["state"].text) || !value["selector_model"].text.isEmpty else { throw Self.error() }
         if let run {

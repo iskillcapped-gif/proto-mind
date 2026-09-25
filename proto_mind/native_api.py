@@ -43,6 +43,9 @@ class APITransport:
         self.cancelled = threading.Event()
         self.http = None
         self.stream_socket = None
+        self.workspace_tools = None
+        self.on_activity = lambda _: None
+        self.on_progress = lambda _: None
 
     def cancel(self):
         self.cancelled.set()
@@ -54,6 +57,9 @@ class APITransport:
                 pass
 
     def answer(self, model: str, instructions: str, history: list, prompt: str, on_delta) -> str:
+        if self.workspace_tools is not None:
+            from proto_mind.native_api_tools import run_api_tools
+            return run_api_tools(self, model, instructions, history, prompt, on_delta)
         url = urlsplit(self.connection["endpoint"])
         responses = self.connection["format"] == "responses"
         messages = [*history, {"role": "user", "content": prompt}]

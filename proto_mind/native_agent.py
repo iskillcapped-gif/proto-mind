@@ -235,6 +235,14 @@ class AgentRun:
                 row["duration_ms"] = item["durationMs"]
             self.receipt.update(execution_may_have_occurred=True, computer_use_performed=True,
                                 screen_access_performed=True)
+        elif kind == "dynamicToolCall":
+            from proto_mind.native_workspace_tools import CATALOG
+            if item.get("tool") not in CATALOG or self.receipt.get("contract", {}).get("schema") != "proto_mind.native_agent_contract.v3":
+                raise CodexConnectionError("Unknown workspace tool activity.")
+            row["tool"] = item["tool"]
+            row["note"] = "Workspace operation; arguments and returned private content omitted."
+            if completed and item.get("success") is False: row["status"] = "failed"
+            self.receipt["execution_may_have_occurred"] = True
         elif kind == "plan":
             row["text"] = preview(item.get("text"), 3000)
         self.items[item_id] = row
@@ -352,6 +360,13 @@ def run_agent_turn(rpc, workspace: Path, thread_id: str, prompt: str,
                 raise CodexConnectionError("Legacy Native task limit reached. Restart the updated app for long-running tasks.")
             event = rpc.next_event(timeout=0.2)
             method, params = event.get("method", ""), event.get("params") or {}
+            if method == "proto_mind/workspace_call":
+                channel = getattr(rpc, "workspace_tools", None)
+                if channel is None:
+                    raise CodexConnectionError("Workspace tool channel is unavailable.")
+                result = channel.codex_call(params.get("params"))
+                rpc._send({"id": params["id"], "result": result})
+                continue
             if method == "proto_mind/tool_refused":
                 raise CodexConnectionError("An unsupported approval/tool request was declined. Inspect any earlier actions.")
             if params.get("threadId") != thread_id or params.get("turnId") not in {None, turn_id}:
@@ -359,7 +374,7 @@ def run_agent_turn(rpc, workspace: Path, thread_id: str, prompt: str,
             if method in {"item/started", "item/completed"}:
                 item = params.get("item") or {}
                 kind = item.get("type")
-                if kind in {"commandExecution", "fileChange", "imageView", "webSearch", "mcpToolCall", "plan"}:
+                if kind in {"commandExecution", "fileChange", "imageView", "webSearch", "mcpToolCall", "dynamicToolCall", "plan"}:
                     run.record(item, method == "item/completed")
                 elif kind not in {"userMessage", "agentMessage", "reasoning", "contextCompaction"}:
                     raise CodexConnectionError("Unexpected agent tool type; stopping. Earlier side effects are not undone.")

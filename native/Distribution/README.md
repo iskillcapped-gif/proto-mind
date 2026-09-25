@@ -10,14 +10,13 @@ developer data paths and running developer app remain independent.
 On an Apple Silicon development Mac with Command Line Tools and Python 3.11+:
 
 ```sh
-bash scripts/build_portable_app.sh --output dist/portable-0.71.0
+bash scripts/build_portable_app.sh --output dist/portable-0.72.0
 ```
 
 Choose a new output directory each time; the builder refuses to overwrite a
 previous release. It downloads only the pinned runtime/notice artifacts in
 `runtime-lock.json`, verifies their SHA-256 hashes, and caches them under
-`dist/runtime-cache/`. No `pip install`, npm environment or operator profile
-is copied into the product. Inspect `distribution-manifest.json` inside the
+`dist/runtime-cache/`. Document libraries are installed into the bundle with `pip --target`, using the exact wheel hashes in `requirements-documents.txt`. No installed Python/npm environment or operator profile is copied into the product. Inspect `distribution-manifest.json` inside the
 bundle for runtime provenance and source hashes.
 
 The source allowlist includes root Python modules, `reasoners/`, Persona's
@@ -57,7 +56,7 @@ bash scripts/test_native.sh --portable-only
 python3 -m unittest proto_mind.tests.test_native_portable
 bash scripts/run_tests.sh
 bash scripts/test_native.sh
-python3 scripts/verify_portable_app.py 'dist/portable-0.71.0/Proto-Mind.app' --account-probe
+python3 scripts/verify_portable_app.py 'dist/portable-0.72.0/Proto-Mind.app' --account-probe
 ```
 
 Also move a packaged app to a path containing spaces and exercise first launch,

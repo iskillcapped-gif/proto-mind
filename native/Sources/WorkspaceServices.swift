@@ -1,0 +1,161 @@
+import Foundation
+import SwiftUI
+
+struct WorkspaceService: Codable, Identifiable, Equatable {
+    var id = UUID()
+    var name = ""
+    var transport = "http"
+    var endpoint = "https://"
+    var command = ""
+    var arguments: [String] = []
+    var enabled = false
+    var usesToken = false
+
+    func validate() throws {
+        guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, name.count <= 80,
+              ["http", "stdio"].contains(transport), arguments.count <= 40,
+              arguments.allSatisfy({ $0.count <= 2048 && !$0.contains("\0") }) else { throw NativeError.message("Invalid MCP connection.") }
+        if transport == "http" {
+            guard let url = URL(string: endpoint), NativeBrowserURL.isWebURL(url), url.query == nil, url.fragment == nil,
+                  url.scheme == "https" || ["localhost", "127.0.0.1", "::1", "[::1]"].contains(url.host ?? "") else {
+                throw NativeError.message(L10n.pick("Укажите HTTPS-адрес MCP или HTTP на этом Mac.", "Enter an HTTPS MCP endpoint or HTTP on this Mac."))
+            }
+        } else {
+            guard command.hasPrefix("/"), command.count <= 4096, FileManager.default.isExecutableFile(atPath: command), !usesToken else {
+                throw NativeError.message(L10n.pick("Выберите абсолютный путь к программе MCP.", "Choose the absolute path of an MCP executable."))
+            }
+        }
+    }
+}
+
+@MainActor final class WorkspaceServices: ObservableObject {
+    @Published private(set) var items: [WorkspaceService] = []
+    private let defaults: UserDefaults
+    private let preference: String
+    private let keychainService: String
+    private let configuration: LaunchConfiguration
+    private var clients: [UUID: BridgeClient] = [:]
+    private var active: Set<UUID> = []
+    private var catalogs: [UUID: Set<String>] = [:]
+    private var owners: [UUID: UUID] = [:]
+
+    init(configuration: LaunchConfiguration, defaults: UserDefaults) {
+        self.configuration = configuration; self.defaults = defaults
+        let namespace = String(ChatHistoryFormat.hash(Data(configuration.stateDirectory.path.utf8)).prefix(20))
+        preference = "proto-mind.mcp." + namespace; keychainService = "local.proto-mind.mcp." + namespace
+        if let data = defaults.data(forKey: preference), let stored = try? JSONDecoder().decode([WorkspaceService].self, from: data),
+           stored.count <= 20, Set(stored.map(\.id)).count == stored.count { items = stored }
+    }
+
+    private func keychain(_ service: WorkspaceService) -> ModelAPIKeychain {
+        var binding = ModelAPIConnection(); binding.id = service.id; binding.name = service.name; binding.endpoint = service.endpoint
+        return ModelAPIKeychain(service: keychainService, connection: binding)
+    }
+
+    func save(_ service: WorkspaceService, token: String = "") throws {
+        try service.validate()
+        guard !active.contains(service.id), items.count < 20 || items.contains(where: { $0.id == service.id }) else { throw NativeError.message("MCP connection is busy or the list is full.") }
+        if service.usesToken {
+            if !token.isEmpty { try keychain(service).save(token) } else { _ = try keychain(service).read() }
+        }
+        let next = items.filter { $0.id != service.id } + [service]
+        defaults.set(try JSONEncoder().encode(next), forKey: preference); items = next
+        clients.removeValue(forKey: service.id)?.shutdown()
+        catalogs.removeValue(forKey: service.id)
+    }
+
+    func remove(_ service: WorkspaceService) throws {
+        guard !active.contains(service.id) else { throw NativeError.message("MCP connection is busy.") }
+        if service.usesToken { try keychain(service).remove() }
+        let next = items.filter { $0.id != service.id }
+        defaults.set(try JSONEncoder().encode(next), forKey: preference); items = next
+        clients.removeValue(forKey: service.id)?.shutdown()
+        catalogs.removeValue(forKey: service.id)
+    }
+
+    func perform(id: UUID, operation: String, name: String = "", arguments: JSONValue = .object([:]), cursor: String = "", owner: UUID? = nil) async throws -> JSONValue {
+        guard let service = items.first(where: { $0.id == id && $0.enabled }), !active.contains(id) else { throw NativeError.message("Enable an available MCP connection in Settings first.") }
+        try service.validate()
+        if operation == "call" && catalogs[id]?.contains(name) != true { throw NativeError.message("List this service's tools before calling one.") }
+        let token = service.usesToken ? try keychain(service).read() : ""
+        active.insert(id); owners[id] = owner
+        defer { active.remove(id); owners.removeValue(forKey: id) }
+        let client = clients[id] ?? BridgeClient(configuration: configuration); clients[id] = client
+        let result = try await client.request("workspace_mcp", ["connection": .object([
+            "transport": .string(service.transport), "endpoint": .string(service.endpoint), "command": .string(service.command),
+            "arguments": .array(service.arguments.map(JSONValue.string)), "secret": .string(token)]),
+            "operation": .string(operation), "name": .string(name), "arguments": arguments, "cursor": .string(cursor)])
+        guard items.contains(service) else { throw NativeError.message("MCP connection changed while the request was running.") }
+        if operation == "list" {
+            let names = Set(result["tools"].items.map { $0["name"].text }.filter { !$0.isEmpty && $0.count <= 200 })
+            catalogs[id] = (cursor.isEmpty ? [] : catalogs[id] ?? []).union(names)
+        }
+        return result
+    }
+
+    func cancel(owner: UUID) {
+        for id in owners.filter({ $0.value == owner }).map(\.key) { clients.removeValue(forKey: id)?.shutdown() }
+    }
+
+    func shutdown() { clients.values.forEach { $0.shutdown() }; clients.removeAll(); active.removeAll(); owners.removeAll() }
+}
+
+struct WorkspaceServiceSettings: View {
+    @ObservedObject var app: AppModel
+    @ObservedObject var services: WorkspaceServices
+    @State private var draft = WorkspaceService()
+    @State private var editing = false
+    @State private var token = ""
+    @State private var arguments = "[]"
+    @State private var error: String?
+    @State private var notice: String?
+
+    var body: some View {
+        Section("MCP") {
+            Text(L10n.pick("Подключите инструменты своих сервисов. Включённые подключения доступны задачам с инструментами PM и могут выполнять действия от вашего имени.", "Connect your services' tools. Enabled connections are available to tasks with PM tools and can act on your behalf.")).font(.caption).foregroundStyle(.secondary)
+            ForEach(services.items) { item in
+                HStack {
+                    Toggle(item.name, isOn: Binding(get: { item.enabled }, set: { enabled in
+                        var next = item; next.enabled = enabled
+                        do { try services.save(next) } catch { self.error = error.localizedDescription }
+                    }))
+                    Button(L10n.text("Изменить")) { draft = item; token = ""; arguments = (try? String(data: JSONEncoder().encode(item.arguments), encoding: .utf8)) ?? "[]"; editing = true }
+                    Button { do { try services.remove(item) } catch { self.error = error.localizedDescription } } label: { Image(systemName: "trash") }
+                }
+            }
+            Button(L10n.pick("Добавить MCP", "Add MCP")) { draft = WorkspaceService(); token = ""; arguments = "[]"; editing = true; error = nil; notice = nil }
+            if editing {
+                TextField(L10n.text("Название"), text: $draft.name)
+                Picker(L10n.pick("Подключение", "Connection"), selection: $draft.transport) { Text("Streamable HTTP").tag("http"); Text("Local stdio").tag("stdio") }
+                    .onChange(of: draft.transport) { _, value in if value == "stdio" { draft.usesToken = false } }
+                if draft.transport == "http" {
+                    TextField("MCP URL", text: $draft.endpoint)
+                    Toggle("Bearer token", isOn: $draft.usesToken)
+                    if draft.usesToken { SecureField(L10n.pick("Токен · хранится в Связке ключей", "Token · stored in Keychain"), text: $token) }
+                } else {
+                    TextField(L10n.pick("Путь к программе", "Executable path"), text: $draft.command)
+                    TextField(L10n.pick("Аргументы (JSON-массив)", "Arguments (JSON array)"), text: $arguments)
+                    Text(L10n.pick("Вход выполните средствами самого сервиса. Не помещайте ключи в аргументы.", "Sign in using the service's own tools. Keep keys out of arguments.")).font(.caption).foregroundStyle(.secondary)
+                }
+                Toggle(L10n.pick("Разрешить задачам использовать подключение", "Allow tasks to use this connection"), isOn: $draft.enabled)
+                HStack {
+                    Button(L10n.text("Сохранить")) {
+                        do { draft.arguments = try JSONDecoder().decode([String].self, from: Data(arguments.utf8)); try services.save(draft, token: token); token = ""; editing = false; error = nil }
+                        catch { self.error = error.localizedDescription }
+                    }
+                    Button(L10n.text("Отмена")) { token = ""; editing = false }
+                }
+            }
+            if let error { Text(error).font(.caption).foregroundStyle(.orange) }
+            if let notice { Text(notice).font(.caption).foregroundStyle(.secondary) }
+            ForEach(services.items.filter(\.enabled)) { item in
+                Button(L10n.pick("Проверить инструменты · ", "Check tools · ") + item.name) {
+                    Task {
+                        do { let result = try await services.perform(id: item.id, operation: "list"); notice = "\(item.name): \(result["tools"].items.count) " + L10n.pick("инструментов", "tools"); error = nil }
+                        catch { self.error = error.localizedDescription }
+                    }
+                }
+            }
+        }.disabled(app.globalBusy)
+    }
+}

@@ -1,10 +1,14 @@
 # Proto-Mind: Current Direction
 
-Updated: 2026-09-17. Current release: Native **0.71.0 (99)**.
+Updated: 2026-09-25. Current development release: Native **0.72.0 (101)**.
 
 Proto-Mind is a personal macOS assistant. The immediate goal is a dependable, approachable application that can support the operator's planned expansion. The everyday layout, working panel and conversation polish are delivered. On September 5 the operator requested useful service connections, starting with GitHub. GitHub, complete local private-state backups, subscription usage with explicit earned resets, Full Mac access without a selected project, live text/attachment updates to running Codex tasks and a sidebar-confined limits menu with explicit account identity are now delivered. Reply typography and parallel conversations are also implemented; memory and continuity workflows remain available.
 
 This is the current priority map. [AGENTS.md](AGENTS.md) describes how to work in the project; [Native releases](NATIVE_MACOS_ROADMAP.md) preserve delivered contracts and verification; [Architect Ledger](PROTO_MIND_ARCHITECT_LEDGER.md) preserves architectural evidence. Earlier versions of this document remain in Git history. Historical EV/P2 numbering and imported blueprints do not determine the next task.
+
+## Agent Workspace — September 25
+
+The agreed Codex-workspace comparison list is tracked in [Agent workspace upgrade](AGENT_WORKSPACE_UPGRADE.md): PM task tools, browser control, MCP connections and documents, worktree-backed subtasks, explicit API tool mode and local skill selection. The checklist is the source of delivery/verification status; earlier milestone narratives below retain their historical scope. Publishing the new portable download is a separate action.
 
 ## Foundation Completed
 

@@ -153,6 +153,7 @@ struct WorkspacePanelView: View {
         case .text(let file): WorkspaceTextView(model: model, panel: panel, file: file)
         case .image(let image): WorkspaceImageView(model: model, panel: panel, preview: image)
         case .pdf(let pdf): WorkspacePDFView(model: model, panel: panel, preview: pdf, tabID: tab.id).id(pdf.id)
+        case .document(let document): WorkspaceDocumentView(document: document)
         case .browser(let browser): BrowserView(browser: browser, app: model, sourcePanel: panel)
         case .conversation(let id): ConversationPaneView(app: model, conversationID: id, panel: panel)
         case .terminal(let terminal): WorkspaceTerminalView(terminal: terminal)

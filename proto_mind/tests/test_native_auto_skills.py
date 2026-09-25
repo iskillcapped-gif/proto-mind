@@ -67,6 +67,20 @@ class AutoSkillTests(TestCase):
     def send(self, **changes):
         return self.backend.process(self.params(**changes), lambda _: None, "automatic")
 
+    def test_local_selection_does_not_call_a_separate_model(self):
+        result = self.send(local_skill_selection=True)
+        self.assertEqual(self.backend.subscription.selections, [])
+        self.assertEqual(result["auto_skills"]["state"], "local_selected")
+        self.assertFalse(result["auto_skills"]["selector_attempted"])
+        self.assertEqual(result["auto_skills"]["selector_model"], "")
+        validate_auto_skills(result["auto_skills"])
+
+    def test_greeting_has_no_forced_local_skill(self):
+        result = self.send(text="Привет брат!", local_skill_selection=True)
+        self.assertEqual(result["auto_skills"]["state"], "local_no_match")
+        self.assertEqual(result["auto_skills"]["selected"], [])
+        self.assertEqual(self.backend.subscription.selections, [])
+
     def test_catalog_and_context_preview_read_only_without_provider_or_store_initialization(self):
         before = self.files()
         with patch("subprocess.Popen", side_effect=AssertionError("No process during preview")):

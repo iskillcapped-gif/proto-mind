@@ -25,6 +25,12 @@ final class ConversationExecution: ObservableObject {
     @Published var updateTarget: String?
     @Published var sendingUpdate = false
     @Published var updatesStopped = false
+    @Published var workspaceQuestions: [WorkspaceAgentQuestion] = []
+    var workspaceToolCalls: Set<String> = []
+    var workspaceToolsAllowed = false
+    var workspaceToolBinding: String?
+    var workspaceCreatedTasks: Set<UUID> = []
+    var workspaceWorker: BridgeClient?
     var requestID: String?
 
     init(conversationID: UUID, configuration: LaunchConfiguration, codexAccountID: UUID? = nil) {
@@ -33,6 +39,7 @@ final class ConversationExecution: ObservableObject {
     }
 
     func clearTurn() {
+        workspaceWorker?.shutdown(); workspaceWorker = nil; workspaceToolsAllowed = false
         running = false; stream = ""; requestID = nil; agentItems = []
         agentReceipt = .null; workLog = .null; startedAt = nil
         autoSkillsReport = nil; sourceMessageID = nil
@@ -55,6 +62,7 @@ extension AppModel {
         if let existing = executions[id] { return existing }
         let accountID = conversations.first { $0.id == id }?.codexAccountID
         let state = ConversationExecution(conversationID: id, configuration: serviceClient.configuration, codexAccountID: accountID)
+        state.workspaceQuestions = conversations.first { $0.id == id }?.workspaceQuestions ?? []
         state.observation = state.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
         state.client.onEvent = { [weak self, weak state] event in
             guard let self, let state else { return }
@@ -69,20 +77,21 @@ extension AppModel {
 
     func closeIdleExecutionConnections() {
         guard !globalBusy else { return }
-        for state in executions.values { state.client.shutdown() }
+        for state in executions.values { state.workspaceWorker?.shutdown(); state.client.shutdown() }
         executions.removeAll(); agentGrants.removeAll(); pendingAgentAccess = nil
         if let id = selectedID { _ = execution(for: id) }
     }
 
     func shutdown() {
         telegram.stop()
+        workspaceServices.shutdown()
         workspacePanels.closeAll()
         dictation.shutdown()
         presentations.shutdown()
         desktop.shutdown()
         liveVoice.shutdown()
         restoringAgentAccess.values.forEach { $0.cancel() }; restoringAgentAccess.removeAll()
-        for state in executions.values { state.client.shutdown() }
+        for state in executions.values { state.workspaceWorker?.shutdown(); state.client.shutdown() }
         serviceClient.shutdown()
         codexAccounts.shutdown()
     }
@@ -90,6 +99,7 @@ extension AppModel {
     func receiveExecutionEvent(_ event: JSONValue, state: ConversationExecution) {
         guard state.running, event["request_id"].text == state.requestID else { return }
         switch event["event"].text {
+        case "workspace_tool": receiveWorkspaceTool(event, state: state)
         case "answer_delta": state.stream += event["delta"].text
         case "answer_reset": state.stream = ""
         case "steering_ready": receiveTaskUpdateTarget(event, execution: state)

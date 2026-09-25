@@ -71,9 +71,18 @@ class NativeAgentContractTests(unittest.TestCase):
         self.assertEqual(before, json.dumps(value, sort_keys=True))
         self.assertEqual(contract.requested_contract_version({}), 1)
         self.assertEqual(contract.requested_contract_version({"agent_contract_version": 2}), 2)
-        for version in (None, True, "2", 0, 3):
+        for version in (None, True, "2", 0, 4):
             with self.subTest(version=version), self.assertRaises(contract.AgentContractError):
                 contract.requested_contract_version({"agent_contract_version": version})
+
+    def test_workspace_tools_require_the_explicit_v3_contract(self):
+        value = self.build(version=3)
+        self.assertEqual(value["schema"], "proto_mind.native_agent_contract.v3")
+        self.assertIn("documents", value["tools"]["workspace"]["capabilities"])
+        self.assertNotIn("workspace", self.build(version=2)["tools"])
+        self.assertIsNone(value["limits"]["max_seconds"])
+        changed = deepcopy(value); changed["tools"]["workspace"]["capabilities"].append("arbitrary_permission")
+        with self.assertRaises(contract.AgentContractError): contract.validate_agent_contract(changed)
 
     def test_runtime_inventory_must_remain_inside_verified_allowlist(self):
         frozen = self.build()

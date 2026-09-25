@@ -23,7 +23,7 @@ MAX_SELECTED = 2
 MAX_CHECKS = 4
 HISTORY_BOUNDARY = ("Earlier skill selections in conversation history are historical context, not an active selection for this turn. "
                     "Only procedure guidance attached to THIS turn applies, subordinate to the current user request and existing permissions.\n")
-STATES = {"ready", "selecting", "selected", "no_match", "empty", "unavailable", "failed"}
+STATES = {"ready", "selecting", "selected", "no_match", "local_selected", "local_no_match", "empty", "unavailable", "failed"}
 ID = re.compile(r"^[A-Za-z0-9_.:-]{1,200}$")
 REPORT_FIELDS = {"schema", "conversation_id", "workspace", "goal_sha256", "access_mode", "state",
                  "catalog_count", "eligible_count", "excluded_count", "catalog_truncated", "catalog_hash",
@@ -149,9 +149,10 @@ def validate_auto_skills(value: dict, record: dict | None = None) -> None:
                 or row["lifecycle_state"] not in {"active_verified", "active_restored_verified"}):
             raise ValueError("Invalid selected-skill provenance.")
         ids.append(row["skill_id"])
-    if (len(set(ids)) != len(ids) or len(selected) > value["catalog_count"] or bool(selected) != (value["state"] == "selected")
+    if (len(set(ids)) != len(ids) or len(selected) > value["catalog_count"] or bool(selected) != (value["state"] in {"selected", "local_selected"})
             or value["state"] in {"selecting", "selected", "no_match"} and not value["selector_attempted"]
-            or value["state"] in {"ready", "empty", "unavailable"} and value["selector_attempted"]
+            or value["state"] in {"ready", "empty", "unavailable", "local_selected", "local_no_match"} and value["selector_attempted"]
+            or value["state"] in {"local_selected", "local_no_match"} and (value["selector_model"] or value["selector_effort"] or checks)
             or value["state"] in {"selected", "no_match"} and not value["selector_model"]
             or value["state"] != "unavailable" and set(value["source_hashes"]) != set(STORES)):
         raise ValueError("Inconsistent automatic skill report state.")
@@ -239,8 +240,36 @@ class AutoSkills:
             emit({"event": "auto_skills", "report": deepcopy(self.report)})
             raise
 
+    def select_local(self, *, text: str, emit) -> None:
+        """Optional lexical suggestions: no provider turn, generated checks or permission changes."""
+        if self.report["state"] == "ready":
+            self.revalidate()
+            terms = set(re.findall(r"[a-zа-яё]{4,}", text.casefold()))
+            triggers = {
+                "builtin.project_orientation": {"overview", "orient", "structure", "architecture", "обзор", "архитект", "структур", "ознаком"},
+                "builtin.verified_change": {"implement", "refactor", "feature", "patch", "реализ", "добав", "измен", "рефактор", "сделай"},
+                "builtin.failure_diagnosis": {"error", "failure", "debug", "crash", "broken", "ошиб", "сбой", "падает", "неисправ", "почин", "баг"},
+                "builtin.work_handoff": {"handoff", "delegate", "передай", "передач", "делегир"},
+            }
+            ranked = []
+            for item in self.catalog:
+                key = item["skill_id"]
+                if key in triggers:
+                    score = sum(any(term.startswith(trigger) for term in terms) for trigger in triggers[key])
+                else:
+                    specific = set(re.findall(r"[a-zа-яё]{5,}", (item["name"] + " " + item["trigger"]).casefold()))
+                    score = max(0, len(terms & specific) - 1)
+                if score: ranked.append((-score, key))
+            selected = [key for _, key in sorted(ranked)[:MAX_SELECTED]]
+            self.report.update(state="local_selected" if selected else "local_no_match",
+                               selected=[deepcopy(self.rows[key]["reference"]) for key in selected],
+                               reason="Optional local keyword match; no separate model request. The main model must check relevance." if selected else
+                                      "No clear local procedure match; continuing without a separate model request.")
+        validate_auto_skills(self.report)
+        emit({"event": "auto_skills", "report": deepcopy(self.report)})
+
     def guidance(self) -> str:
-        if self.report["state"] != "selected":
+        if self.report["state"] not in {"selected", "local_selected"}:
             return ""
         payload = {"selected_procedures": [{"reference": row, "contract": self.rows[row["skill_id"]]["contract"]}
                                            for row in self.report["selected"]],

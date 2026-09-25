@@ -422,6 +422,16 @@ struct ChatView: View {
                         }
                 }
             }
+            if let state, state.workspaceQuestions.contains(where: { $0.answer == nil }) {
+                WorkspaceAgentQuestionsView(model: model, state: state).padding(.horizontal, inset)
+            }
+            if let id = conversationID ?? model.selectedID, let next = model.conversations.first(where: { $0.id == id })?.workspaceContinuation, state?.running != true {
+                HStack {
+                    Text(next).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                    Spacer()
+                    Button(L10n.pick("Продолжить задачу", "Continue task")) { Task { await model.resumeWorkspaceContinuation(id: id) } }
+                }.padding(12).background(NativeTheme.composer, in: RoundedRectangle(cornerRadius: 12)).padding(.horizontal, inset)
+            }
             ComposerView(model: model, conversationID: conversationID, panel: panel).padding(.horizontal, inset).padding(.top, 7).padding(.bottom, desktopGlass ? 18 : 8).background(desktopGlass ? Color.clear : canvas)
         }
         }.modifier(MainChatAttachmentDrop(model: model, enabled: panel == nil))

@@ -116,7 +116,7 @@ def public_work_log(value: dict) -> dict:
 
 
 def public_tool(value: dict) -> dict | None:
-    if value.get("kind") not in {"commandExecution", "fileChange", "imageView", "webSearch", "computerUse", "plan"} or not value.get("id"):
+    if value.get("kind") not in {"commandExecution", "fileChange", "imageView", "webSearch", "computerUse", "dynamicToolCall", "plan"} or not value.get("id"):
         return None
     row = _texts(value, {"id": 160, "kind": 40, "status": 40, "command": 800, "cwd": 1024,
                          "output_preview": 768, "diff_preview": 768, "path": 1024, "text": 768,
@@ -669,6 +669,8 @@ class WorkSession:
             row = public_tool(event.get("item", {}))
             if row is None:
                 return
+            if row["kind"] == "dynamicToolCall":
+                self.record["execution_may_have_occurred"] = True
             old = next((item for item in self.record["tools"] if item["id"] == row["id"]), None)
             if old == row:
                 return

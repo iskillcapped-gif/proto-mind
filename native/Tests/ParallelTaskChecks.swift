@@ -94,8 +94,9 @@ extension NativeChecks {
                   "History recovery and shutdown wait for a late steering receipt even after the answer finishes")
         await lateCorrection.value
         let completed = app.conversations.first(where: { $0.id == b })!
-        try check(completed.messages.last?.agentRun?["contract"]["schema"] == .string("proto_mind.native_agent_contract.v2")
-                  && completed.messages.last?.agentRun?["contract"]["limits"]["max_seconds"] == .null,
+        try check(completed.messages.last?.agentRun?["contract"]["schema"] == .string("proto_mind.native_agent_contract.v3")
+                  && completed.messages.last?.agentRun?["contract"]["limits"]["max_seconds"] == .null
+                  && completed.messages.last?.agentRun?["contract"]["tools"]["workspace"]["version"] == .number(1),
                   "Native explicitly requests the unlimited-duration contract and accepts its completed result")
         try check(completed.messages.last?.role == "assistant" && completed.messages.last?.text.contains("Уточнение только B") == true
                   && completed.messages.last?.text.contains("Уточнение только A") == false && !app.globalBusy

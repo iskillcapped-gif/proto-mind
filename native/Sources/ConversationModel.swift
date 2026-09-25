@@ -97,6 +97,7 @@ extension AppModel {
         invalidateSessionSpinePilot()
         pendingPersonaActivation = nil
         conversations[index].provider = value
+        conversations[index].apiWorkspaceToolsEnabled = false; conversations[index].apiWorkspaceGeneration = nil
         conversations[index].model = ""
         conversations[index].reasoningEffort = ""
         modelSelectionNotice = nil
@@ -191,7 +192,7 @@ extension AppModel {
         loadingCodexThreadStatus = true
         defer { if selectedID == id { loadingCodexThreadStatus = false } }
         do {
-            var params: [String: JSONValue] = ["conversation_id": .string(id.uuidString)]
+            var params: [String: JSONValue] = ["conversation_id": .string(id.uuidString), "workspace_tools_version": .number(1)]
             if let workspace { params["workspace_root"] = .string(workspace) }
             let value = try await codexAccount(for: id).client.request("codex_thread_status", params)
             guard selectedID == id, selected?.workspacePath == workspace, selected?.provider == "codex", selected?.codexAccountID == conversation.codexAccountID else { return }

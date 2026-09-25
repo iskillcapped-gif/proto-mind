@@ -113,6 +113,10 @@ extension AppModel {
         } else if useDraft && conversations[index].draft.trimmingCharacters(in: .whitespacesAndNewlines) == text {
             conversations[index].draft = ""; conversations[index].draftContinuation = nil
         }
+        state.workspaceQuestions = conversation.workspaceQuestions.filter { $0.answer == nil }
+        state.workspaceCreatedTasks = []
+        state.workspaceToolCalls = []; state.workspaceToolsAllowed = !operatorInput && (grant != nil || conversation.provider == "api" && apiWorkspaceToolsAllowed(conversation))
+        state.workspaceToolBinding = workspaceToolBinding(conversation)
         state.stream = ""; state.agentItems = []; state.agentReceipt = .null; state.workLog = .null; state.autoSkillsReport = nil
         state.startedAt = Date()
         state.status = grant == nil ? "Proto-Mind думает" : "Агент подключается · полный доступ + интернет"
@@ -138,7 +142,13 @@ extension AppModel {
                 "cloud_consent": .bool(cloudConsent), "history": .array(history),
                 "persona_enabled": .bool(usePersona),
             ]
-            if conversation.provider == "api" && !operatorInput { params["api_connection"] = try apiConnections.parameters(for: conversation) }
+            if conversation.provider == "api" && !operatorInput {
+                params["api_connection"] = try apiConnections.parameters(for: conversation)
+                if apiWorkspaceToolsAllowed(conversation) {
+                    params["api_workspace_tools"] = .bool(true)
+                    params["workspace_tools_version"] = .number(1)
+                }
+            }
             if confirmed { params["confirmed_text"] = .string(text) }
             if let requestedRunID {
                 params["run_id"] = .string(requestedRunID.uuidString)
@@ -147,9 +157,10 @@ extension AppModel {
                 params["pdfs"] = .array(pdfs)
                 params["project_memory"] = .array(projectNotes.map(\.selection))
                 params["auto_skills"] = .bool(automaticSkills)
+                params["local_skill_selection"] = .bool(true)
                 params["auto_project_recall"] = .bool(automaticRecall)
                 params["project_recall_algorithm"] = .string("local_content_terms_v3")
-                params["agent_contract_version"] = .number(2)
+                params["agent_contract_version"] = .number(grant == nil ? 2 : 3)
                 params["memory_suggestions"] = .bool(suggestMemory)
                 if let expectedProjectSnapshot, !expectedProjectSnapshot.isNull { params["expected_project_snapshot"] = expectedProjectSnapshot }
                 if let skillTask { params["skill_task"] = skillTask.selection }
@@ -157,6 +168,7 @@ extension AppModel {
                 if let continuation { params["continuation"] = continuation }
             }
             if let grant {
+                params["workspace_tools_version"] = .number(1)
                 params["access_mode"] = .string("full_access")
                 params["access_token"] = .string(grant.token)
                 if let workspace = grant.workspace { params["workspace_root"] = .string(workspace) }
@@ -256,7 +268,7 @@ extension AppModel {
                let failed = conversations[current].messages.firstIndex(where: { $0.id == userMessage.id }) {
                 conversations[current].messages[failed].isError = true
             }
-            let caution = grant == nil ? "" : L10n.text("\nДействия могли уже изменить файлы. Проверьте журнал и результат перед повтором; автоматического отката нет.")
+            let caution = grant == nil && !apiWorkspaceToolsAllowed(conversation) ? "" : L10n.text("\nДействия могли уже изменить файлы. Проверьте журнал и результат перед повтором; автоматического отката нет.")
             append(ChatMessage(role: "report", text: error.localizedDescription + caution, isError: true,
                                agentRun: state.agentReceipt.isNull ? nil : state.agentReceipt,
                                workLog: state.workLog.isNull ? nil : state.workLog, autoSkills: state.autoSkillsReport?.value), to: conversationID)
@@ -279,6 +291,7 @@ extension AppModel {
             state.status = "Запрос не завершён"
         }
         closeTaskUpdateQueue(execution: state)
+        stopWorkspaceTools(for: state)
         state.clearTurn()
         let saved = persist()
         telegram.taskEnded(app: self, id: conversationID, source: userMessage.id, saved: saved)
@@ -295,6 +308,7 @@ extension AppModel {
 
     func stop(conversationID: UUID) async {
         guard let state = executions[conversationID], state.running, let request = state.requestID else { return }
+        stopWorkspaceTools(for: state)
         closeTaskUpdateQueue(execution: state); persist()
         do { state.status = try await state.client.request("cancel", ["request_id": .string(request)])["notice"].text }
         catch { if selectedID == state.conversationID { report(error) } }

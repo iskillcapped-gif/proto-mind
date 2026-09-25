@@ -192,6 +192,7 @@ final class TelegramRemoteModel: ObservableObject {
                 guard let execution = app.executions[id], execution.running, let request = execution.requestID else { throw NativeError.message(L10n.text("В выбранной задаче сейчас нечего останавливать.")) }
                 app.closeTaskUpdateQueue(execution: execution)
                 guard app.persist() else { throw NativeError.message(L10n.text("Не удалось сохранить остановку. Проверьте PM.")) }
+                app.stopWorkspaceTools(for: execution)
                 _ = try await execution.client.request("cancel", ["request_id": .string(request)])
                 await reply(L10n.text("Остановка запрошена. Уже сделанные изменения сохраняются."), epoch: epoch)
             case .message(let text):

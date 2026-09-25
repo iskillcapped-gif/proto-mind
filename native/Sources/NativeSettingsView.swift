@@ -137,6 +137,7 @@ struct NativeSettingsView: View {
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                     case .services:
+                        WorkspaceServiceSettings(app: model, services: model.workspaceServices)
                         MessengerSettings(app: model, connections: model.messengers)
                         TelegramRemoteSettings(app: model, remote: model.telegram)
                         ModelAPIConnectionSettings(app: model, connections: model.apiConnections)
@@ -176,6 +177,10 @@ struct NativeSettingsView: View {
             if model.selected?.provider == "api" {
                 APIConnectionPicker(app: model, connections: model.apiConnections, conversationID: model.selectedID)
                 Toggle(L10n.text("Разрешить облачную обработку"), isOn: $model.cloudConsent).disabled(model.globalBusy)
+                Toggle(L10n.pick("Инструменты PM для этого чата", "PM tools for this chat"), isOn: Binding(get: { model.selected.map(model.apiWorkspaceToolsAllowed) ?? false }, set: { value in
+                    if let id = model.selectedID { model.setAPIWorkspaceTools(value, id: id) }
+                })).disabled(model.busy)
+                Text(L10n.pick("Модель сможет работать с задачами, проектной памятью и браузером PM. Нужна поддержка function calling; обращения к API оплачиваются по тарифу провайдера.", "The model can use PM tasks, project memory and browser tools. Requires function calling; API usage is billed by your provider.")).font(.caption).foregroundStyle(.secondary)
                 Button(L10n.text("Настроить API-подключения")) { model.settingsSection = .services }
             } else if model.selected?.provider == "ollama" {
                 TextField(L10n.text("Модель Ollama"), text: Binding(get: { model.selected?.model ?? "" }, set: model.setModel), prompt: Text(model.bootstrap["ollama_model"].text))
@@ -295,12 +300,19 @@ struct NativeSettingsView: View {
             Text(L10n.text("Доступ включается отдельно для диалога возле поля сообщения и сохраняется после перезапуска. Он разрешает работу с файлами, терминалом и интернетом, а при доступности — управление экраном. Смена папки или провайдера отключает его."))
                 .font(.caption).foregroundStyle(.secondary)
             if model.fullAccessEnabled {
+                Toggle(L10n.pick("Доступ к Mac для новых подзадач", "Mac access for new subtasks"), isOn: Binding(get: {
+                    model.selectedID.map { model.workspaceDelegationEnabled.contains($0) } ?? false
+                }, set: { enabled in
+                    guard let id = model.selectedID else { return }
+                    if enabled { model.workspaceDelegationEnabled.insert(id) } else { model.workspaceDelegationEnabled.remove(id) }
+                })).disabled(model.busy)
+                Text(L10n.pick("Только для одного запуска каждой подзадачи. Разрешение делегировать сбрасывается при перезапуске PM; слияние изменений не выполняется автоматически.", "For one run of each subtask. Delegation resets when PM restarts; changes are never merged automatically.")).font(.caption).foregroundStyle(.secondary)
                 Button(L10n.text("Выключить доступ")) { Task { await model.disableAgentAccess() } }.disabled(model.globalBusy)
             }
             DisclosureGroup(L10n.text("Ограничения и журнал действий")) {
                 Text(L10n.text("Доступ охватывает весь Mac в пределах прав пользователя. Экран может обрабатываться OpenAI. Остановка не откатывает уже выполненные действия. В журнале управления экраном остаются тип действия и приложение, без скриншотов, координат и введённого текста. Это не полный аудит."))
                     .font(.caption).foregroundStyle(.secondary)
-                Text(L10n.text("Подключается только проверенная служба OpenAI Computer Use. Прочие MCP, hooks и субагенты выключены. Зависший вызов ограничен 30 секундами и не повторяется автоматически под другим именем приложения."))
+                Text(L10n.pick("Управление Mac использует проверенную службу OpenAI. Дополнительные MCP подключаются отдельно; доступ новым подзадачам разрешается выше. Ошибки инструментов не вызывают автоматический повтор действий.", "Mac control uses the verified OpenAI service. Additional MCP connections are configured separately; new subtask access is enabled above. Tool failures never automatically replay actions."))
                     .font(.caption).foregroundStyle(.secondary)
             }
         }

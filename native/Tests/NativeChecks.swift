@@ -34,6 +34,12 @@ struct NativeChecks {
         if let fixture = LaunchConfiguration.argument("--fixture"), let python = LaunchConfiguration.argument("--python") {
             try await portableBridge(fixture: URL(fileURLWithPath: fixture), python: URL(fileURLWithPath: python), root: portableRoot)
         }
+        if CommandLine.arguments.contains("--workspace-tools-only"),
+           let fixture = LaunchConfiguration.argument("--fixture"), let python = LaunchConfiguration.argument("--python") {
+            try await workspaceAgentTools(fixture: URL(fileURLWithPath: fixture), python: URL(fileURLWithPath: python), root: root)
+            print("Native workspace tools checks: \(passed) OK")
+            return
+        }
         if CommandLine.arguments.contains("--portable-only") {
             print("Native portable checks: \(passed) OK")
             return
@@ -801,6 +807,7 @@ struct NativeChecks {
         try await workspacePanelsIntegration(fixture: fixture, python: python, root: root)
         try await browserContext(fixture: fixture, python: python, root: root)
         try await workspacePanelIntegration(fixture: fixture, python: python, root: root)
+        try await workspaceAgentTools(fixture: fixture, python: python, root: root)
         let app = AppModel(configuration: LaunchConfiguration(projectRoot: fixture, python: python, stateDirectory: root.appendingPathComponent("integration-state")))
         defer { app.shutdown() }
         await app.start()

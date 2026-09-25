@@ -52,6 +52,8 @@ final class AppModel: ObservableObject {
     var codexUsage: CodexUsageModel { selectedCodexAccount.usage }
     var presentedCodexAccount: CodexAccountConnection?
     let apiConnections: ModelAPIConnections
+    let workspaceServices: WorkspaceServices
+    @Published var workspaceDelegationEnabled: Set<UUID> = []
     let messengers: MessengerConnections
     let telegram: TelegramRemoteModel
     let liveVoice: LiveVoiceModel
@@ -248,6 +250,7 @@ final class AppModel: ObservableObject {
          telegram: TelegramRemoteModel? = nil) {
         workspacePanels = WorkspacePanels(stateDirectory: configuration.stateDirectory, defaults: uiDefaults)
         apiConnections = ModelAPIConnections(stateDirectory: configuration.stateDirectory, defaults: uiDefaults)
+        workspaceServices = WorkspaceServices(configuration: configuration, defaults: uiDefaults)
         messengers = MessengerConnections(profile: configuration.stateDirectory)
         self.telegram = telegram ?? TelegramRemoteModel(profile: configuration.stateDirectory)
         desktop = DesktopPresentation(stateDirectory: configuration.stateDirectory, defaults: uiDefaults)
@@ -351,6 +354,7 @@ final class AppModel: ObservableObject {
         if let pendingSkillTask = preparedSkillTasks[id] { params["skill_task"] = pendingSkillTask.selection }
         if context.fullAccess, let grant = agentGrants[conversation.id] {
             params["access_token"] = .string(grant.token)
+            params["workspace_tools_version"] = .number(1)
         }
         return params
     }

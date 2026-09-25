@@ -43,7 +43,7 @@ struct NativeWorkSession: Identifiable, Equatable {
                   skill["criteria_sha256"] == value["success_criteria"]["sha256"] else { throw skillTaskError() }
         }
         if !value["agent_contract"].isNull {
-            guard ["proto_mind.native_agent_contract.v1", "proto_mind.native_agent_contract.v2"].contains(value["agent_contract"]["schema"].text),
+            guard ["proto_mind.native_agent_contract.v1", "proto_mind.native_agent_contract.v2", "proto_mind.native_agent_contract.v3"].contains(value["agent_contract"]["schema"].text),
                   value["agent_contract_hash"].text.count == 64,
                   value["agent_contract"]["provider"].text == "codex_subscription",
                   value["agent_contract"]["access_mode"].text == "full_access" else {

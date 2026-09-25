@@ -84,6 +84,7 @@ extension AppModel {
             discardAgentGrants(for: id)
             conversations[index].provider = provider
             conversations[index].apiConnectionID = nil
+            conversations[index].apiWorkspaceToolsEnabled = false; conversations[index].apiWorkspaceGeneration = nil
             conversations[index].model = ""; conversations[index].reasoningEffort = ""
         }
         if let model {

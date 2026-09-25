@@ -17,6 +17,18 @@ are recorded in `distribution-manifest.json` next to this directory.
   included separately. zsh is OpenAI's patched build of commit
   `77045ef899e53b9598bebc5a41db93a548a40ca6`; Proto-Mind adds no further patch.
 
+## Document libraries (0.72.0)
+
+The portable app also includes python-docx 1.2.0, openpyxl 3.1.5,
+python-pptx 1.0.2, ReportLab 4.4.3, Pillow 11.3.0, lxml 6.0.1,
+XlsxWriter 3.2.5, typing_extensions 4.15.0, et_xmlfile 2.0.0,
+charset-normalizer 3.4.3 and defusedxml 0.7.1. Their original license files
+and package metadata remain in `../core/document_packages/*dist-info/`
+(and package folders where supplied upstream). Exact versions and allowed
+wheel SHA-256 values are copied here as `document-requirements.txt`.
+The environment is assembled from those wheels, not copied from the user's
+Python installation. Native binary wheels are signed with the bundle.
+
 Proto-Mind is an independent application. It does not include an OpenAI account,
 subscription, API credit or the proprietary Computer Use service. Third-party
 accounts and optional services are connected by each user separately.

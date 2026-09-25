@@ -66,13 +66,16 @@ struct AgentActivityView: View {
                 DisclosureGroup(L10n.format("Контракт запуска · \(receipt["contract_hash"].text.prefix(12))")) {
                     VStack(alignment: .leading, spacing: 5) {
                         Text(L10n.text("Провайдер: подписочный Codex · режим: полный доступ"))
-                        if receipt["contract"]["schema"].text == "proto_mind.native_agent_contract.v2" {
+                        if ["proto_mind.native_agent_contract.v2", "proto_mind.native_agent_contract.v3"].contains(receipt["contract"]["schema"].text) {
                             Text(L10n.text("Без ограничения длительности и количества действий · остановка кнопкой Стоп"))
                             Text(L10n.format("В локальном журнале — последние \(receipt["contract"]["limits"]["max_retained_items"].integer) действий"))
                         } else {
                             Text(L10n.format("Лимит этого старого запуска: \(receipt["contract"]["limits"]["max_seconds"].integer) с · \(receipt["contract"]["limits"]["max_observed_items"].integer) действий"))
                         }
-                        Text(L10n.text("Автоповтор: нет · фоновая работа: нет · provider completion не считается проверкой"))
+                        Text(L10n.pick("Автоповтор действий выключен. Завершение ответа не является проверкой результата.", "Actions are not retried automatically. A completed response is not verified task success."))
+                        if receipt["contract"]["schema"].text == "proto_mind.native_agent_contract.v3" {
+                            Text(L10n.pick("Инструменты PM: задачи, вопросы, браузер, документы, память проекта и включённые MCP.", "PM tools: tasks, questions, browser, documents, project memory and enabled MCP connections."))
+                        }
                         if receipt["runtime_inventory"]["verified"].flag {
                             Text(L10n.format("Runtime allowlist проверен: \(receipt["runtime_inventory"]["computer_use_tools"].items.count) Computer Use tools"))
                         }
@@ -146,6 +149,7 @@ struct AgentToolRow: View {
         case "commandExecution": return L10n.text("Команда в терминале")
         case "fileChange": return L10n.format("Изменения файлов: \(item["change_count"].integer)")
         case "imageView": return L10n.text("Просмотр изображения")
+        case "dynamicToolCall": return "PM · " + item["tool"].text.replacingOccurrences(of: "pm_", with: "")
         case "webSearch": return item["query"].text.isEmpty ? L10n.text("Поиск в интернете") : item["query"].text
         case "computerUse":
             let names = ["get_app_state": L10n.text("Состояние экрана"), "list_apps": L10n.text("Список приложений"), "click": L10n.text("Нажатие"),

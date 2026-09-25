@@ -22,6 +22,7 @@ struct WorkspacePanelTab: Identifiable {
         case text(WorkspaceTextPreview)
         case image(NativeImagePreview)
         case pdf(NativePDFPreview)
+        case document(WorkspaceDocumentPreview)
         case browser(NativeBrowserTab)
         case conversation(UUID)
         case terminal(WorkspaceTerminal)
@@ -34,6 +35,7 @@ struct WorkspacePanelTab: Identifiable {
         case .text(let file): return file.url.lastPathComponent
         case .image(let image): return image.source.name
         case .pdf(let pdf): return pdf.source.name
+        case .document(let document): return document.url.lastPathComponent
         case .browser(let browser): return browser.messenger?.title ?? L10n.text("Браузер")
         case .conversation: return L10n.text("Диалог PM")
         case .terminal: return L10n.text("Терминал")
@@ -45,6 +47,7 @@ struct WorkspacePanelTab: Identifiable {
         case .text: return "doc.text"
         case .image: return "photo"
         case .pdf: return "doc.richtext"
+        case .document: return "doc.richtext"
         case .browser(let browser): return browser.messenger == nil ? "globe" : "message"
         case .conversation: return "bubble.left.and.bubble.right"
         case .terminal: return "terminal"
@@ -56,6 +59,7 @@ struct WorkspacePanelTab: Identifiable {
         case .text(let file): return "text:\(file.conversationID):\(file.root):\(file.path)"
         case .image(let image): return "image:\(image.conversationID):\(image.source.path)"
         case .pdf(let pdf): return "pdf:\(pdf.conversationID):\(pdf.workspace ?? ""):\(pdf.source.path)"
+        case .document(let document): return "document:\(document.conversationID):\(document.url.path):\(document.sha256)"
         case .conversation(let id): return "conversation:\(id)"
         case .answer(let answer): return "answer:\(answer.conversationID):\(answer.messageID)"
         case .browser, .terminal: return nil

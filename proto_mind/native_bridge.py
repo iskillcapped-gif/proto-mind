@@ -8,6 +8,7 @@ enforce_python_version()
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack, nullcontext, redirect_stdout
+from proto_mind.native_workspace_tools import WorkspaceTools
 from proto_mind.native_steering import LiveSteering, SteeringAttachments
 from dataclasses import asdict, replace
 import hashlib
@@ -292,6 +293,8 @@ class NativeBackend:
         self.active_provider: str | None = None
         self.active_api: APITransport | None = None
         self.active_steering: LiveSteering | None = None
+        self.workspace_tools: WorkspaceTools | None = None
+        self.mcp_client = None
         self.busy = threading.Lock()
         self.agent_grants = AgentGrants()
         self.github = GitHubConnection(self.state_dir)
@@ -526,6 +529,9 @@ class NativeBackend:
     def process(self, params: dict, emit: Callable[[dict], None], request_id: str) -> dict:
         from proto_mind.native_agent_contract import requested_contract_version
         agent_contract_version = requested_contract_version(params)
+        tools_version = params.get("workspace_tools_version", 0)
+        if type(tools_version) is not int or tools_version not in {0, 1} or type(params.get("api_workspace_tools", False)) is not bool:
+            raise ValueError("Invalid workspace tool capability request.")
         if self.closing.is_set():
             raise ValueError("The Native window disconnected. No new turn will start.")
         text = input_text(params)
@@ -536,6 +542,8 @@ class NativeBackend:
             raise ValueError("Invalid Brother Persona activation state.")
         if type(params.get("auto_skills", False)) is not bool:
             raise ValueError("Automatic skill selection must be explicitly on or off.")
+        if type(params.get("local_skill_selection", False)) is not bool:
+            raise ValueError("Invalid local skill selection setting.")
         recall_algorithm = requested_algorithm(params)
         if type(params.get("auto_project_recall", False)) is not bool:
             raise ValueError("Automatic project recall must be explicitly on or off.")
@@ -618,11 +626,13 @@ class NativeBackend:
                 raise WorkSessionError("Project notes changed before the provider call. Review them again; no fallback.")
             if skill_task and self._selected_skill_task(params, session_id, text=text, criteria=criteria) != skill_task:
                 raise WorkSessionError("Skill task changed before the provider call. Review it again; no fallback.")
-            if auto_skills and auto_skills.report["state"] in {"selected", "no_match"}:
+            if auto_skills and auto_skills.report["state"] in {"selected", "no_match", "local_selected", "local_no_match"}:
                 auto_skills.revalidate()
             if agent_workspace is not None:
                 self.agent_grants.validate(session_id, self.agent_workspace(params), params.get("access_token"))
-        provider_thread = (self.subscription.thread_status(session_id, logical_workspace, mode=mode)
+        if mode == "full_access" and bool(tools_version) != (agent_contract_version == 3):
+            raise ValueError("Workspace tools require an explicit v3 agent contract.")
+        provider_thread = (self.subscription.thread_status(session_id, logical_workspace, mode=mode, **({"workspace_tools": True} if tools_version else {}))
                            if provider == "codex" and not description["operator"] else None)
         provider_history = ([] if provider_thread and provider_thread["linked"] else history)
         if not self.busy.acquire(blocking=False):
@@ -664,6 +674,9 @@ class NativeBackend:
                 self.active_steering = LiveSteering(request_id, session_id, emit, attachments=SteeringAttachments(
                     self.workspace(params) if logical_workspace else None, self.image_reader(), self.pdf_reader(), require_steering_vision))
                 self.subscription.on_main_turn = self.active_steering.set_active
+            if params.get("workspace_tools_version") == 1 and not description["operator"] and (mode == "full_access" or provider == "api" and params.get("api_workspace_tools") is True):
+                self.workspace_tools = WorkspaceTools(request_id, session_id, emit)
+                self.subscription.workspace_tools = self.workspace_tools
             self.active_request, self.active_provider = request_id, provider if not description["operator"] else "operator"
             if self.closing.is_set():
                 raise ValueError("Native disconnected before processing; no new work started.")
@@ -694,7 +707,10 @@ class NativeBackend:
                 if provider == "codex":
                     if params.get("auto_skills") is True and skill_task is None:
                         auto_skills = AutoSkills(self.root, conversation=session_id, workspace=logical_workspace, text=text, mode=mode)
-                        auto_skills.select(self.subscription, text=text, history=history, model=model, emit=activity)
+                        if params.get("local_skill_selection") is True:
+                            auto_skills.select_local(text=text, emit=activity)
+                        else:
+                            auto_skills.select(self.subscription, text=text, history=history, model=model, emit=activity)
                     coordinator.reasoner = SubscriptionReasoner(
                         self.subscription, model, history,
                         lambda delta: emit({"event": "answer_delta", "request_id": request_id, "delta": delta}),
@@ -715,6 +731,9 @@ class NativeBackend:
                     )
                 elif provider == "api":
                     self.active_api = APITransport(params["api_connection"])
+                    self.active_api.workspace_tools = self.workspace_tools
+                    self.active_api.on_activity = activity
+                    self.active_api.on_progress = progress
                     coordinator.reasoner = NativeAPIReasoner(self.active_api, model, history,
                         lambda delta: emit({"event": "answer_delta", "request_id": request_id, "delta": delta}),
                         files=files, criteria=criteria, pdfs=pdfs, project_notes=project_notes,
@@ -825,6 +844,10 @@ class NativeBackend:
                     self.active_steering.set_active(None)
                     self.subscription.on_main_turn = None
                     self.active_steering = None
+                if self.workspace_tools is not None:
+                    self.workspace_tools.cancel()
+                    self.workspace_tools = None
+                    self.subscription.workspace_tools = None
                 self.active_request = self.active_provider = None
                 self.active_api = None
                 self.busy.release()
@@ -937,7 +960,7 @@ class NativeBackend:
         local_history = bounded_history(params.get("history", []))
         logical_workspace = workspace_identity(reader.root) if reader else None
         provider_thread = (self.subscription.thread_status(params.get("conversation_id", ""), logical_workspace,
-                                                           mode=mode)
+                                                           mode=mode, **({"workspace_tools": True} if params.get("workspace_tools_version") == 1 else {}))
                            if provider == "codex" and not operator else None)
         provider_history = [] if provider_thread and provider_thread["linked"] else local_history
         result = context_preview(root=self.root, text=text, history=provider_history,
@@ -1221,6 +1244,8 @@ class NativeBackend:
             self.busy.release()
 
     def dispatch(self, method: str, params: dict, emit: Callable[[dict], None], request_id: str) -> Any:
+        if self.closing.is_set() and method in {"workspace_mcp", "workspace_worktree", "document_create"}:
+            raise ValueError("Native disconnected. No queued operation was started.")
         if method in PRIVATE_BACKUP_METHODS:
             if self.closing.is_set() or not self.busy.acquire(blocking=False):
                 raise ValueError("Дождитесь завершения текущей работы перед операциями с копиями.")
@@ -1327,6 +1352,21 @@ class NativeBackend:
             return self.pdf_reader().preview(params.get("path"), params.get("pages"), params.get("expected_sha256"))
         if method == "pdf_render_page":
             return self.pdf_reader().render_page(params.get("path"), params.get("page"), params.get("expected_sha256"))
+        if method == "workspace_mcp":
+            from proto_mind.native_mcp import perform
+            return perform(params, register=lambda client: setattr(self, "mcp_client", client))
+        if method in {"document_environment", "document_read", "document_create"}:
+            from proto_mind import native_documents
+            if method == "document_environment": return native_documents.environment()
+            reader = self.workspace(params)
+            if method == "document_read": return native_documents.inspect(reader, params.get("path"))
+            return native_documents.create(reader, params.get("path"), params.get("content"))
+        if method == "workspace_worktree":
+            from proto_mind.native_worktrees import create
+            import hashlib
+            namespace = hashlib.sha256(str(self.state_dir.resolve()).encode()).hexdigest()[:16]
+            destination = self.state_dir.resolve().parent / "ProtoMindWorktrees" / namespace
+            return create(self.workspace(params), destination)
         if method == "account_status":
             return self.subscription.account()
         if method == "steer":
@@ -1366,7 +1406,7 @@ class NativeBackend:
         if method == "codex_thread_status":
             conversation = str(UUID(str(params.get("conversation_id", ""))))
             workspace = workspace_identity(self.workspace(params).root) if params.get("workspace_root") else None
-            return self.subscription.thread_status(conversation, workspace)
+            return self.subscription.thread_status(conversation, workspace, **({"workspace_tools": True} if params.get("workspace_tools_version") == 1 else {}))
         if method == "codex_thread_reset":
             if self.busy.locked() or self.closing.is_set():
                 raise ValueError("Wait for the active turn to finish before starting a new Codex session.")
@@ -1434,6 +1474,7 @@ class NativeBackend:
     def cancel(self, request_id: str) -> dict:
         if request_id != self.active_request:
             return {"cancel_requested": False, "notice": "No matching active turn."}
+        if self.workspace_tools is not None: self.workspace_tools.cancel()
         if self.active_provider == "api" and self.active_api:
             self.active_api.cancel()
             return {"cancel_requested": True, "notice": "Остановка API запрошена."}
@@ -1450,6 +1491,8 @@ class NativeBackend:
 
     def disconnect(self) -> None:
         self.closing.set()
+        if self.mcp_client is not None: self.mcp_client.close()
+        if self.workspace_tools is not None: self.workspace_tools.cancel()
         if self.active_api: self.active_api.cancel()
         if self.active_steering is not None: self.active_steering.stop()
         self.agent_grants.revoke()
@@ -1497,7 +1540,12 @@ def serve(backend: NativeBackend, source, destination) -> None:
                 request_id = message["id"]
                 if not isinstance(message.get("method"), str) or not isinstance(message.get("params", {}), dict):
                     raise ValueError("Invalid request shape.")
-                if message["method"] == "cancel":
+                if message["method"] == "workspace_tool_result":
+                    if backend.workspace_tools is None:
+                        raise ValueError("No active workspace tool channel.")
+                    result = backend.workspace_tools.resolve(message.get("params", {}))
+                    emit({"id": request_id, "result": result})
+                elif message["method"] == "cancel":
                     emit({"id": request_id, "result": backend.cancel(str(message.get("params", {}).get("request_id", "")))})
                 else:
                     target = (attachment_executor if message["method"] in ATTACHMENT_READ_METHODS else

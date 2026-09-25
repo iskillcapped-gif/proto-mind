@@ -349,6 +349,41 @@ class CodexAgentAdapterTests(unittest.TestCase):
         self.assertIn("notify=[]", chat)
         self.assertIn("notify=[]", full)
 
+    def test_workspace_catalog_call_and_resume_keep_exact_provider_binding(self):
+        from proto_mind.native_workspace_tools import WorkspaceTools, TOOLS
+        replies = []
+        def native(event):
+            self.assertEqual(event['name'], 'pm_list_tasks')
+            channel.resolve(dict(request_id='local-request', call_id=event['call_id'], success=True, result={'tasks':[]}, error=''))
+        channel = WorkspaceTools('local-request', self.conversation, native)
+        self.client.workspace_tools = channel
+        def transform(rpc):
+            original = rpc.next_event
+            delivered = False
+            def next_event(timeout):
+                nonlocal delivered
+                if not delivered:
+                    delivered = True
+                    return {'method':'proto_mind/workspace_call','params':{'id':'server-call', 'params':{
+                        'threadId':'agent-thread','turnId':'turn','tool':'pm_list_tasks','arguments':{}}}}
+                return original(timeout)
+            rpc.next_event = next_event
+            rpc._send = replies.append
+        self.transform = transform
+        for _ in range(2):
+            answer = self.client.agent_answer('fixture','instructions','',lambda _:None,
+                conversation=self.conversation, logical_workspace=self.logical_workspace, history=[],
+                workspace=self.workspace, on_activity=lambda _:None, contract_version=3)
+            self.assertEqual(answer, 'Verified fixture.')
+        full = [rpc for rpc in self.transports if rpc.full_access]
+        started = next(params for method,params in full[0].calls if method=='thread/start')
+        self.assertEqual(started['dynamicTools'], TOOLS)
+        resumed = next(params for method,params in full[1].calls if method=='thread/resume')
+        self.assertNotIn('dynamicTools', resumed)
+        self.assertEqual(len(replies), 2)
+        self.assertTrue(all(reply['result']['success'] for reply in replies))
+        self.assertFalse(self.client.thread_status(self.conversation,self.logical_workspace,mode='full_access',workspace_tools=True)['refresh_required'])
+
     def test_computer_use_turn_end_cleanup_hook_is_exact_and_scoped(self):
         cua = codex.codex_arguments(full_access=True, computer_use_command=COMPUTER_USE_COMMAND)
         notify = [value for value in cua if value.startswith("notify=")]
