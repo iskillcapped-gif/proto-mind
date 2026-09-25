@@ -138,7 +138,7 @@ class PrivateBackup:
                 for entry in sorted(directory.iterdir()):
                     if entry.name == ".DS_Store" or lock_file(entry) or entry.name in {RESTORE_MARKER, GENERATION_FILE}: continue
                     if scope == "native" and directory == root and entry.name not in NATIVE_ITEMS:
-                        if entry.name.startswith("codex-") or entry.name in {"integration-bin", "private_backups"}: continue
+                        if entry.name.startswith("codex-") or entry.name in {"integration-bin", "private_backups", "claude-profile", "claude_sessions"}: continue
                         raise ValueError("Неизвестный раздел локальных данных: " + entry.name)
                     if entry.name.startswith(".private-write-"): continue  # Interrupted atomic write; never authoritative data.
                     info = entry.lstat()

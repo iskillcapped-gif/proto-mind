@@ -124,6 +124,13 @@ class NativeBridgeTests(unittest.TestCase):
         self.assertFalse(self.root.exists())
         self.assertEqual(self.backend.subscription.calls, [])
 
+    def test_ordinary_followups_reach_the_model_instead_of_core_aliases(self):
+        for text in ["Что дальше?", "Какой следующий шаг?", "Есть ли проблемы?", "exit"]:
+            with self.subTest(text=text):
+                self.assertFalse(bridge.describe_input(text)["operator"])
+                self.process(text, provider="codex", cloud_consent=True)
+                self.assertEqual(self.backend.subscription.calls[-1][0], text)
+
     def test_reasoning_effort_reaches_subscription_without_becoming_user_input(self):
         self.process("Hello", provider="codex", cloud_consent=True, reasoning_effort="xhigh")
         self.assertEqual(self.backend.subscription.reasoning_efforts, ["xhigh"])
@@ -152,8 +159,8 @@ class NativeBridgeTests(unittest.TestCase):
         self.assertEqual(len(records), 1)
         self.assertEqual(records[0]["content"], "Native explicit test memory.")
 
-    def test_read_only_operator_and_natural_commands_never_call_cloud_or_write_stores(self):
-        for text in ["/commands status", "что делать дальше"]:
+    def test_read_only_operator_commands_never_call_cloud_or_write_stores(self):
+        for text in ["/commands status", "/loop next"]:
             before = self.files()
             result = self.process(text, provider="codex", cloud_consent=False)
             self.assertTrue(result["operator"])
@@ -162,9 +169,9 @@ class NativeBridgeTests(unittest.TestCase):
         self.assertEqual(self.backend.subscription.calls, [])
         self.assertFalse(self.state.exists())
 
-    def test_natural_context_mutation_requires_confirmation(self):
+    def test_explicit_context_mutation_requires_confirmation(self):
         with self.assertRaisesRegex(ValueError, "Confirm the exact"):
-            self.process("включи контекст")
+            self.process("/context injection enable")
         self.assertFalse(self.root.exists())
 
     def test_cloud_requires_boolean_consent_before_any_core_processing(self):

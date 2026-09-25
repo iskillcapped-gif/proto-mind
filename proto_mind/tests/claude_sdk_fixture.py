@@ -46,12 +46,13 @@ class ClaudeSDKClient:
         self.content = messages[0]['message']['content']
         options = self.options
         assert options.setting_sources == [] and options.strict_mcp_config is True
-        assert options.extra_args == {'no-session-persistence': None}
+        assert options.extra_args == ({} if options.session_id or options.resume else {'no-session-persistence': None})
         full = options.permission_mode == 'bypassPermissions'
         assert options.tools == ({'type':'preset','preset':'claude_code'} if full else [])
         Path(options.cwd, 'sdk-observed.json').write_text(json.dumps({
             'permission_mode': options.permission_mode, 'tools': options.tools,
             'model': options.model, 'effort': options.effort,
+            'session_id': options.session_id, 'resume': options.resume,
             'messages': messages, 'instructions': options.system_prompt,
             'workspace_tools': [item.name for item in options.mcp_servers.get('pm',{}).get('tools',[])]
         }))
@@ -59,6 +60,11 @@ class ClaudeSDKClient:
         mode = self.options.model
         if mode == 'hang': await asyncio.Event().wait()
         if mode == 'malformed': raise RuntimeError('SECRET THAT MUST NEVER REACH PM')
+        if mode in {'rate_limit', 'authentication_failed'}:
+            yield AssistantMessage(content=[], error=mode)
+            yield ResultMessage(is_error=True, subtype='success', result=None,
+                                api_error_status=429 if mode=='rate_limit' else 401)
+            return
         if mode == 'tools':
             yield StreamEvent(event={'type':'content_block_delta','delta':{'type':'text_delta','text':'Checking projects'}})
             yield AssistantMessage(content=[TextBlock(text='Checking projects'), ToolUseBlock(id='call-1', name='mcp__pm__pm_list_projects')])
@@ -70,4 +76,5 @@ class ClaudeSDKClient:
         yield StreamEvent(event={'type':'content_block_delta','delta':{'type':'text_delta','text':'Offline answer'}})
         yield AssistantMessage(content=[TextBlock(text='Offline answer')])
         if mode == 'disconnect': return
-        yield ResultMessage(is_error=mode == 'failed', subtype='error' if mode == 'failed' else 'success', result='Offline answer')
+        yield ResultMessage(is_error=mode == 'failed', subtype='error' if mode == 'failed' else 'success', result='Offline answer',
+                            session_id=self.options.resume or self.options.session_id)

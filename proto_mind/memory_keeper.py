@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from math import exp
+import re
 
 from proto_mind.models import (
     InteractionSummary,
@@ -55,27 +56,18 @@ class MemoryKeeper:
     DECISION_STORAGE_MARKERS = (
         "we decided",
         "let's use",
-        "decision",
         "we now use",
-        "instead of",
         "changing direction",
-        "no longer",
         "мы решили",
         "давай использовать",
-        "решение",
         "теперь используем",
-        "вместо",
         "меняем направление",
-        "больше не",
         "переходим на",
         "ми вирішили",
         "давай використовувати",
         "нумо використовувати",
-        "рішення",
         "тепер використовуємо",
-        "замість",
         "змінюємо напрям",
-        "більше не",
         "переходимо на",
     )
     IMPORTANT_FACT_MARKERS = (
@@ -95,6 +87,7 @@ class MemoryKeeper:
     def __init__(self, store: MemoryStore) -> None:
         self.store = store
         self.last_retrieval_trace: RetrievalTrace | None = None
+        self.context_scope: str | None = None
 
     def retrieve(
         self,
@@ -129,6 +122,10 @@ class MemoryKeeper:
                 final_total_score=breakdown["final_total_score"],
                 preference_priority_contribution=breakdown["preference_priority_contribution"],
             )
+            if record.context_scope is not None and record.context_scope != self.context_scope:
+                candidate.filtered_reason = "filtered_other_project"
+                candidate_traces.append(candidate)
+                continue
             if record.type == "lesson":
                 provenance = verify_memory_provenance(record)
                 if not provenance.verified:
@@ -313,7 +310,8 @@ class MemoryKeeper:
                 return summary
 
             existing_working = self.store.load_working_memory()
-            matching = self._find_similar(existing_working, summary.content)
+            scope = self.context_scope if summary.memory_type in {"decision", "project"} else None
+            matching = self._find_similar(existing_working, summary.content, scope)
             if matching:
                 matching.importance = max(matching.importance, summary.importance)
                 matching.tags = sorted(set(matching.tags + summary.tags))
@@ -323,9 +321,9 @@ class MemoryKeeper:
                 if summary.override_detected and matching.type == "decision":
                     summary.superseded_record_ids = self._supersede_prior_decisions(matching)
                     summary.override_rationale = (
-                        "Superseded prior active decisions with overlapping topics."
+                        "Superseded the unambiguous, explicitly named decision in the same scope."
                         if summary.superseded_record_ids
-                        else "Override detected, but no prior active decisions matched."
+                        else "Override detected, but no single explicit replacement target matched in this scope."
                     )
                 if summary.should_promote_new and self._should_promote_record(matching):
                     summary.promoted_record_ids = self._promote(matching)
@@ -341,6 +339,7 @@ class MemoryKeeper:
                 importance=summary.importance,
                 source="interaction",
                 tags=summary.tags,
+                context_scope=scope,
             )
             self.store.add_working_record(record)
             summary.stored_record_id = record.id
@@ -348,9 +347,9 @@ class MemoryKeeper:
             if summary.override_detected and record.type == "decision":
                 summary.superseded_record_ids = self._supersede_prior_decisions(record)
                 summary.override_rationale = (
-                    "Superseded prior active decisions with overlapping topics."
+                    "Superseded the unambiguous, explicitly named decision in the same scope."
                     if summary.superseded_record_ids
-                    else "Override detected, but no prior active decisions matched."
+                    else "Override detected, but no single explicit replacement target matched in this scope."
                 )
             if summary.should_promote_new and self._should_promote_record(record):
                 summary.promoted_record_ids = self._promote(record)
@@ -388,7 +387,7 @@ class MemoryKeeper:
 
     def _promote(self, record: MemoryRecord) -> list[str]:
         persistent = self.store.load_persistent_memory()
-        existing = self._find_similar(persistent, record.content)
+        existing = self._find_similar(persistent, record.content, record.context_scope)
         if existing:
             existing.importance = max(existing.importance, record.importance)
             existing.tags = sorted(set(existing.tags + record.tags))
@@ -407,6 +406,7 @@ class MemoryKeeper:
             tags=record.tags,
             usage_count=record.usage_count,
             last_used=record.last_used,
+            context_scope=record.context_scope,
         )
         self.store.add_persistent_record(promoted)
         return [promoted.id]
@@ -423,13 +423,19 @@ class MemoryKeeper:
                 continue
             if record.usage_count < 2 or record.type not in {"decision", "preference", "insight", "project"} or not record.active:
                 continue
-            if self._find_similar(persistent, record.content):
+            if self._find_similar(persistent, record.content, record.context_scope):
                 continue
             promoted_ids.extend(self._promote(record))
             persistent = self.store.load_persistent_memory()
         return promoted_ids
 
     def _supersede_prior_decisions(self, new_record: MemoryRecord) -> list[str]:
+        candidates = [record for record in self.store.load_working_memory() + self.store.load_persistent_memory()
+                      if record.id != new_record.id and record.active and self._decisions_conflict(record, new_record)]
+        # Copies in working/persistent memory represent one decision. Ambiguous
+        # replacement targets remain active for explicit review, never mass-overwritten.
+        if len({self._normalize_content(record.content) for record in candidates}) != 1:
+            return []
         superseded_ids: list[str] = []
         for loader, saver in (
             (self.store.load_working_memory, self.store.save_working_memory),
@@ -456,10 +462,19 @@ class MemoryKeeper:
     def _decisions_conflict(existing: MemoryRecord, new_record: MemoryRecord) -> bool:
         if existing.type != "decision" or new_record.type != "decision":
             return False
-        existing_tags = set(existing.tags)
-        new_tags = set(new_record.tags)
-        lowered = new_record.content.lower()
-        return bool(existing_tags & new_tags) or "instead of" in lowered or "вместо" in lowered or "замість" in lowered
+        if existing.context_scope != new_record.context_scope:
+            return False
+        # A change marker or generic shared tag is not a reference to an old
+        # decision. Require the specifically named replaced choice and topic.
+        match = re.search(r"\b(?:instead of|вместо|замість)\s+[\"'«‘“]?([\w.+-]+)", normalize_text(new_record.content))
+        if not match:
+            return False
+        target = match[1].rstrip(".-")
+        if len(target) < 3 or target in {"the", "this", "that", "old", "previous", "старой", "старого", "него", "этого", "цього"}:
+            return False
+        old_text = normalize_text(existing.content)
+        specific_overlap = {tag for tag in existing.tags if topic_weight(tag) >= 0.6} & set(new_record.tags)
+        return bool(specific_overlap and re.search(r"(?<!\w)" + re.escape(target) + r"(?!\w)", old_text))
 
     def _decay_working_memory(self) -> None:
         records = self.store.load_working_memory()
@@ -473,10 +488,10 @@ class MemoryKeeper:
             self.store.save_working_memory(records)
 
     @staticmethod
-    def _find_similar(records: list[MemoryRecord], content: str) -> MemoryRecord | None:
+    def _find_similar(records: list[MemoryRecord], content: str, scope: str | None = None) -> MemoryRecord | None:
         normalized = MemoryKeeper._normalize_content(content)
         for record in records:
-            if MemoryKeeper._normalize_content(record.content) == normalized:
+            if record.context_scope == scope and MemoryKeeper._normalize_content(record.content) == normalized:
                 return record
         return None
 
@@ -607,6 +622,8 @@ class MemoryKeeper:
             elif (not candidate.active) and candidate.state_bias_contribution < 0 and current_oriented:
                 reasons.append("penalized because it is superseded for a current-oriented query")
 
+            if candidate.filtered_reason == "filtered_other_project":
+                reasons.append("it belongs to another project")
             if candidate.filtered_reason == "filtered_no_specific_topic_overlap":
                 reasons.append("lacked specific topical overlap")
             elif candidate.filtered_reason == "filtered_below_threshold":
@@ -667,6 +684,8 @@ class MemoryKeeper:
 
     @staticmethod
     def _not_selected_summary(candidate: RetrievalCandidateTrace, specific_query_topics: list[str]) -> str:
+        if candidate.filtered_reason == "filtered_other_project":
+            return "Filtered because this memory belongs to another project."
         if candidate.filtered_reason == "filtered_no_specific_topic_overlap":
             if specific_query_topics:
                 return "Deprioritized because it only matched generic tags and lacked specific topical overlap."

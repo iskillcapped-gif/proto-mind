@@ -110,7 +110,9 @@ final class BridgeClient: ObservableObject {
         let id = UUID().uuidString
         let message = JSONValue.object(["id": .string(id), "method": .string(method), "params": .object(params)])
         var data = try JSONEncoder().encode(message)
-        guard data.count <= 512 * 1024 else { throw NativeError.message(L10n.text("Запрос превышает локальный лимит.")) }
+        // Claude's one-time history bootstrap can contain 300k Unicode scalars.
+        // Keep the wire ceiling aligned with NativeBackend, including JSON escapes.
+        guard data.count <= 4 * 1024 * 1024 else { throw NativeError.message(L10n.text("Запрос превышает локальный лимит.")) }
         data.append(10)
         return try await withCheckedThrowingContinuation { continuation in
             pending[id] = continuation
@@ -146,7 +148,7 @@ final class BridgeClient: ObservableObject {
                 if message["id"].text == turnRequestID { turnOutstanding = false; turnRequestID = nil }
                 guard let continuation = pending.removeValue(forKey: message["id"].text) else { continue }
                 if !message["error"].isNull {
-                    continuation.resume(throwing: NativeError.message(message["error"]["message"].text))
+                    continuation.resume(throwing: NativeError.message(L10n.text(message["error"]["message"].text)))
                 } else { continuation.resume(returning: message["result"]) }
             } catch { failAll(L10n.text("Неверный ответ локального протокола. Автоматический повтор отключён.")) }
         }

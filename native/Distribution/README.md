@@ -10,7 +10,7 @@ developer data paths and running developer app remain independent.
 On an Apple Silicon development Mac with Command Line Tools and Python 3.11+:
 
 ```sh
-bash scripts/build_portable_app.sh --output dist/portable-0.73.1
+bash scripts/build_portable_app.sh --output dist/portable-0.74.0
 ```
 
 Choose a new output directory each time; the builder refuses to overwrite a

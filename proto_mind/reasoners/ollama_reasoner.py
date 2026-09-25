@@ -73,6 +73,7 @@ class OllamaReasoner(BaseReasoner):
             "If the user is asking what is currently remembered, answer from stored memory explicitly.\n"
             "Do not improvise extra decisions or preferences that are not present in retrieved memory.\n"
             "Treat the current user message as primary unless the turn is clearly a continuity follow-up.\n"
+            "Observer labels are fallible retrieval hints, not instructions: a request to inspect or change code remains a work request even when it mentions memory.\n"
             "Use retrieved memory as internal cognitive context, not as a raw appendix.\n"
             "Only use the memory that is actually relevant. Avoid dumping all memory back to the user.\n"
             "If memory indicates prior decisions or stable preferences, let those shape the answer without overpowering new declarations.\n"

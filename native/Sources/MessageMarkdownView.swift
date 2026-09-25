@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct MarkdownBlock: Equatable {
-    enum Kind: Equatable { case text, heading(Int), code(String), listItem(String, Int), quote, rule }
+    enum Kind: Equatable { case text, heading(Int), code(String), listItem(String, Int), quote, rule, table(MarkdownTable) }
     let kind: Kind
     let content: String
 
@@ -21,7 +21,10 @@ struct MarkdownBlock: Equatable {
             paragraphKind = .text
             continuationIndent = 0
         }
-        for line in source.components(separatedBy: "\n") {
+        let lines = source.components(separatedBy: "\n")
+        var consumedThrough = -1
+        for (index, line) in lines.enumerated() {
+            if index <= consumedThrough { continue }
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             if let opened = fence {
                 if trimmed.hasPrefix(opened) && trimmed.dropFirst(opened.count).allSatisfy({ $0 == opened.first }) {
@@ -35,6 +38,11 @@ struct MarkdownBlock: Equatable {
                 fence = marker
                 language = String(trimmed.dropFirst(marker.count).prefix(32)).trimmingCharacters(in: .whitespaces)
             } else if trimmed.isEmpty { flush() }
+            else if let parsed = MarkdownTable.parse(lines, at: index) {
+                flush()
+                result.append(MarkdownBlock(kind: .table(parsed.table), content: lines[index...parsed.end].joined(separator: "\n")))
+                consumedThrough = parsed.end
+            }
             else {
                 let level = trimmed.prefix(while: { $0 == "#" }).count
                 let compact = trimmed.filter { !$0.isWhitespace }
@@ -162,6 +170,8 @@ struct MessageMarkdownView: View {
                         .overlay(alignment: .leading) { Rectangle().fill(Color.secondary.opacity(0.3)).frame(width: 2) }
                 case .rule:
                     Divider().padding(.vertical, 4)
+                case .table(let table):
+                    MarkdownTableView(table: table, allowFileLinks: openLink != nil)
                 case .code(let language):
                     VStack(alignment: .leading, spacing: 0) {
                         HStack {

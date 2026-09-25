@@ -1,4 +1,5 @@
 from __future__ import annotations
+import re
 
 from proto_mind.models import ObserverState
 from proto_mind.topic_utils import extract_topic_tags
@@ -277,6 +278,13 @@ class Observer:
         return any(phrase in text for phrase in self.CONTINUITY_MARKERS)
 
     def _is_memory_inventory_query(self, text: str) -> bool:
+        # A coding/review request can mention memory or ask what changed. Those
+        # words describe the work, not a request to enumerate personal memory.
+        if re.search(r"(?:^|[.!?\n]\s*)(?:please\s+|пожалуйста[, ]+|будь ласка[, ]+)?"
+                     r"(?:fix|implement|refactor|debug|review|inspect|rewrite|build|test|"
+                     r"исправь|перепиши|реализуй|проверь код|изучи код|проведи аудит|"
+                     r"виправ|перепиши|реалізуй|перевір код)\b", text):
+            return False
         if any(phrase in text for phrase in self.MEMORY_INVENTORY_MARKERS):
             return True
 

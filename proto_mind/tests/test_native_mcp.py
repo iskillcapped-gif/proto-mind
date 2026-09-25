@@ -6,7 +6,7 @@ import tempfile
 import threading
 import unittest
 
-from proto_mind.native_mcp import MCPClient, perform, validate_connection, public_result
+from proto_mind.native_mcp import MCPClient, MCPSession, perform, validate_connection, public_result
 
 
 class MCPTests(unittest.TestCase):
@@ -46,6 +46,56 @@ class MCPTests(unittest.TestCase):
         configuration,calls=self.server(sse=True)
         result=perform({'connection':configuration,'operation':'list'})
         self.assertEqual(result['tools'][0]['name'],'echo')
+
+    def test_http_session_is_retained_between_list_and_multiple_calls(self):
+        configuration, calls = self.server()
+        session = MCPSession(); self.addCleanup(session.close)
+        session.perform({'connection':configuration, 'operation':'list'})
+        for _ in range(2):
+            session.perform({'connection':configuration, 'operation':'call', 'name':'echo', 'arguments':{}})
+        self.assertEqual([row[0]['method'] for row in calls],
+                         ['initialize', 'notifications/initialized', 'tools/list', 'tools/call', 'tools/call'])
+        self.assertTrue(all(row[2] == 'fixture-session' for row in calls[1:]))
+
+    def test_failed_session_cannot_reconnect_or_repeat_uncertain_call(self):
+        configuration, calls = self.server('disconnect')
+        session = MCPSession(); self.addCleanup(session.close)
+        params = {'connection':configuration, 'operation':'call', 'name':'echo', 'arguments':{}}
+        with self.assertRaises(ValueError): session.perform(params)
+        with self.assertRaisesRegex(ValueError, 'closed'): session.perform(params)
+        self.assertEqual(sum(row[0]['method'] == 'tools/call' for row in calls), 1)
+        self.assertEqual(sum(row[0]['method'] == 'initialize' for row in calls), 1)
+
+    def test_bridge_retains_state_until_close_and_other_bridge_is_independent(self):
+        from proto_mind.native_bridge import NativeBackend
+        from proto_mind.tests.test_native import FakeSubscription
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            script = root / 'counter.py'
+            script.write_text('''import json,sys
+count=0
+for line in sys.stdin:
+ v=json.loads(line)
+ if "id" not in v: continue
+ if v["method"]=="initialize": result={"protocolVersion":"2025-06-18"}
+ elif v["method"]=="tools/list": result={"tools":[{"name":"next"}]}
+ else:
+  count+=1; result={"count":count}
+ print(json.dumps({"jsonrpc":"2.0","id":v["id"],"result":result}),flush=True)
+''')
+            connection = {'transport':'stdio', 'endpoint':'', 'command':sys.executable,
+                          'arguments':[str(script)], 'secret':''}
+            first = NativeBackend(root / 'project', root / 'state', subscription_factory=FakeSubscription)
+            second = NativeBackend(root / 'other', root / 'other-state', subscription_factory=FakeSubscription)
+            self.addCleanup(first.close); self.addCleanup(second.close)
+            params = {'connection':connection, 'operation':'call', 'name':'next', 'arguments':{}}
+            def call(backend): return backend.dispatch('workspace_mcp', params, lambda _:None, 'fixture')['result']['count']
+            self.assertEqual([call(first), call(first), call(second)], [1, 2, 1])
+            process = first.mcp_session.client.process
+            first.close()
+            self.assertIsNotNone(process.poll())
+            with self.assertRaises(ValueError): call(first)
+            self.assertEqual(call(second), 2)
 
     def test_uncertain_action_is_not_replayed(self):
         configuration,calls=self.server('disconnect')

@@ -156,18 +156,39 @@ struct Conversation: Codable, Identifiable, Equatable {
     }
 
     var history: [JSONValue] {
-        messages.filter { ["user", "assistant"].contains($0.role) && !$0.isError && $0.operatorInput != true && !($0.role == "user" && $0.text.hasPrefix("/")) }
+        let claude = provider == "claude"
+        let recent = messages.filter { ["user", "assistant"].contains($0.role) && !$0.isError && $0.operatorInput != true && !($0.role == "user" && $0.text.hasPrefix("/")) }
             .flatMap { message -> [JSONValue] in
                 var note = message.role == "user" && message.imageContext?.isEmpty == false
                     ? "[Earlier image bytes are NOT included in this turn. Reattach the image to inspect it again.]\n" : ""
                 if message.role == "user" && message.pdfContext?.isEmpty == false {
                     note += "[Earlier PDF page text is NOT included in this turn. Reattach selected pages to inspect them again.]\n"
                 }
-                let primary = JSONValue.object(["role": .string(message.role), "content": .string(String((note + message.text).prefix(2000)))])
+                let text = note + message.text
+                let primary = JSONValue.object(["role": .string(message.role), "content": .string(claude ? text : String(text.prefix(2000)))])
                 return [primary] + (message.taskUpdates ?? []).filter { $0.state == .accepted }.map {
-                    .object(["role": .string("user"), "content": .string(String($0.historyText.prefix(2000)))])
+                    .object(["role": .string("user"), "content": .string(claude ? $0.historyText : String($0.historyText.prefix(2000)))])
                 }
-            }.suffix(12).map { $0 }
+            }
+        guard claude else { return Array(recent.suffix(12)) }
+        // Only bootstrapping/recovering a provider session needs local messages.
+        // Continued Claude turns use its exact saved session, including tool history.
+        let marker = "[Earlier conversation text omitted from this bootstrap; do not infer missing details.]\n"
+        var remaining = 300_000 - marker.count
+        var result: [JSONValue] = []
+        for row in recent.suffix(2000).reversed() {
+            guard remaining > marker.count else { break }
+            let text = row["content"].text
+            let content = text.unicodeScalars.count > remaining
+                ? marker + String(String.UnicodeScalarView(text.unicodeScalars.suffix(remaining - marker.count))) : text
+            result.append(.object(["role": row["role"], "content": .string(content)]))
+            remaining -= content.unicodeScalars.count
+        }
+        result.reverse()
+        if result.count < recent.count, let first = result.first, !first["content"].text.hasPrefix(marker) {
+            result[0] = .object(["role": first["role"], "content": .string(marker + first["content"].text)])
+        }
+        return result
     }
 }
 

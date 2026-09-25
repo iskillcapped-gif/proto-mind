@@ -29,6 +29,7 @@ class MemoryRecord:
     confidence: float | None = None
     updated_at: str | None = None
     provenance: dict[str, Any] | None = None
+    context_scope: str | None = None
 
     def touch(self) -> None:
         self.last_used = utc_now_iso()
@@ -38,6 +39,8 @@ class MemoryRecord:
         payload = asdict(self)
         if self.provenance is None:
             payload.pop("provenance")
+        if self.context_scope is None:
+            payload.pop("context_scope")
         return payload
 
     @classmethod

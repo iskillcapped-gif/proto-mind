@@ -29,15 +29,18 @@ struct WorkspaceService: Codable, Identifiable, Equatable {
 }
 
 @MainActor final class WorkspaceServices: ObservableObject {
+    private struct Session: Hashable {
+        let service: UUID
+        let owner: UUID?
+    }
     @Published private(set) var items: [WorkspaceService] = []
     private let defaults: UserDefaults
     private let preference: String
     private let keychainService: String
     private let configuration: LaunchConfiguration
-    private var clients: [UUID: BridgeClient] = [:]
-    private var active: Set<UUID> = []
-    private var catalogs: [UUID: Set<String>] = [:]
-    private var owners: [UUID: UUID] = [:]
+    private var clients: [Session: BridgeClient] = [:]
+    private var active: Set<Session> = []
+    private var catalogs: [Session: Set<String>] = [:]
 
     init(configuration: LaunchConfiguration, defaults: UserDefaults) {
         self.configuration = configuration; self.defaults = defaults
@@ -54,50 +57,65 @@ struct WorkspaceService: Codable, Identifiable, Equatable {
 
     func save(_ service: WorkspaceService, token: String = "") throws {
         try service.validate()
-        guard !active.contains(service.id), items.count < 20 || items.contains(where: { $0.id == service.id }) else { throw NativeError.message("MCP connection is busy or the list is full.") }
+        guard !active.contains(where: { $0.service == service.id }), items.count < 20 || items.contains(where: { $0.id == service.id }) else { throw NativeError.message("MCP connection is busy or the list is full.") }
         if service.usesToken {
             if !token.isEmpty { try keychain(service).save(token) } else { _ = try keychain(service).read() }
         }
         let next = items.filter { $0.id != service.id } + [service]
         defaults.set(try JSONEncoder().encode(next), forKey: preference); items = next
-        clients.removeValue(forKey: service.id)?.shutdown()
-        catalogs.removeValue(forKey: service.id)
+        closeSessions { $0.service == service.id }
     }
 
     func remove(_ service: WorkspaceService) throws {
-        guard !active.contains(service.id) else { throw NativeError.message("MCP connection is busy.") }
+        guard !active.contains(where: { $0.service == service.id }) else { throw NativeError.message("MCP connection is busy.") }
         if service.usesToken { try keychain(service).remove() }
         let next = items.filter { $0.id != service.id }
         defaults.set(try JSONEncoder().encode(next), forKey: preference); items = next
-        clients.removeValue(forKey: service.id)?.shutdown()
-        catalogs.removeValue(forKey: service.id)
+        closeSessions { $0.service == service.id }
     }
 
     func perform(id: UUID, operation: String, name: String = "", arguments: JSONValue = .object([:]), cursor: String = "", owner: UUID? = nil) async throws -> JSONValue {
-        guard let service = items.first(where: { $0.id == id && $0.enabled }), !active.contains(id) else { throw NativeError.message("Enable an available MCP connection in Settings first.") }
+        guard let service = items.first(where: { $0.id == id && $0.enabled }) else { throw NativeError.message("Enable an available MCP connection in Settings first.") }
+        let session = Session(service: id, owner: owner)
+        guard !active.contains(session) else { throw NativeError.message(L10n.pick("Подключение MCP выполняет предыдущий запрос. Дождитесь его завершения.", "This MCP connection is completing its previous request. Wait for it to finish.")) }
         try service.validate()
-        if operation == "call" && catalogs[id]?.contains(name) != true { throw NativeError.message("List this service's tools before calling one.") }
+        if operation == "call" && catalogs[session]?.contains(name) != true { throw NativeError.message("List this service's tools before calling one.") }
         let token = service.usesToken ? try keychain(service).read() : ""
-        active.insert(id); owners[id] = owner
-        defer { active.remove(id); owners.removeValue(forKey: id) }
-        let client = clients[id] ?? BridgeClient(configuration: configuration); clients[id] = client
-        let result = try await client.request("workspace_mcp", ["connection": .object([
-            "transport": .string(service.transport), "endpoint": .string(service.endpoint), "command": .string(service.command),
-            "arguments": .array(service.arguments.map(JSONValue.string)), "secret": .string(token)]),
-            "operation": .string(operation), "name": .string(name), "arguments": arguments, "cursor": .string(cursor)])
-        guard items.contains(service) else { throw NativeError.message("MCP connection changed while the request was running.") }
-        if operation == "list" {
-            let names = Set(result["tools"].items.map { $0["name"].text }.filter { !$0.isEmpty && $0.count <= 200 })
-            catalogs[id] = (cursor.isEmpty ? [] : catalogs[id] ?? []).union(names)
+        active.insert(session)
+        defer { active.remove(session) }
+        let client = clients[session] ?? BridgeClient(configuration: configuration); clients[session] = client
+        do {
+            let result = try await client.request("workspace_mcp", ["connection": .object([
+                "transport": .string(service.transport), "endpoint": .string(service.endpoint), "command": .string(service.command),
+                "arguments": .array(service.arguments.map(JSONValue.string)), "secret": .string(token)]),
+                "operation": .string(operation), "name": .string(name), "arguments": arguments, "cursor": .string(cursor)])
+            guard items.contains(service), clients[session] === client else { throw NativeError.message("MCP connection changed while the request was running.") }
+            if operation == "list" {
+                let names = Set(result["tools"].items.map { $0["name"].text }.filter { !$0.isEmpty && $0.count <= 200 })
+                catalogs[session] = (cursor.isEmpty ? [] : catalogs[session] ?? []).union(names)
+            }
+            return result
+        } catch {
+            if clients[session] === client {
+                clients.removeValue(forKey: session)?.shutdown()
+                catalogs.removeValue(forKey: session)
+            }
+            throw error
         }
-        return result
     }
 
     func cancel(owner: UUID) {
-        for id in owners.filter({ $0.value == owner }).map(\.key) { clients.removeValue(forKey: id)?.shutdown() }
+        closeSessions { $0.owner == owner }
     }
 
-    func shutdown() { clients.values.forEach { $0.shutdown() }; clients.removeAll(); active.removeAll(); owners.removeAll() }
+    private func closeSessions(where matches: (Session) -> Bool) {
+        for session in clients.keys.filter(matches) {
+            clients.removeValue(forKey: session)?.shutdown()
+            catalogs.removeValue(forKey: session)
+        }
+    }
+
+    func shutdown() { closeSessions { _ in true } }
 }
 
 struct WorkspaceServiceSettings: View {

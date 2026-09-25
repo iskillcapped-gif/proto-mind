@@ -155,8 +155,8 @@ class AutoSkillTests(TestCase):
         self.assertEqual(self.backend.subscription.selections, [])
         self.assertEqual(result["knowledge_context"]["skill_task"]["skill_id"], self.record["id"])
 
-    def test_slash_natural_and_exit_bypass_auto_selection(self):
-        for text in ("/commands status", "что делать дальше", "exit"):
+    def test_explicit_commands_bypass_auto_selection(self):
+        for text in ("/commands status", "/loop next", "/exit"):
             self.assertIsNone(self.send(text=text)["auto_skills"])
         self.assertFalse(self.backend.subscription.selections or self.backend.subscription.calls)
 

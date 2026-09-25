@@ -59,7 +59,7 @@ class NativeSkillTaskTests(TestCase):
 
     def test_missing_goal_criteria_or_operator_goal_is_not_preparable(self):
         before = self.files()
-        for values in ({"goal": ""}, {"criteria": []}, {"goal": "/data doctor"}, {"goal": "проверь систему"}, {"goal": "exit"}):
+        for values in ({"goal": ""}, {"criteria": []}, {"goal": "/data doctor"}, {"goal": "/commands status"}, {"goal": "/exit"}):
             with self.subTest(values=values):
                 result = self.preview(**values)
                 self.assertEqual(result["status"], "NOT_READY")

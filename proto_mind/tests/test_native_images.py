@@ -187,7 +187,7 @@ class NativeImageTests(unittest.TestCase):
         spec = self.spec()
         self.write(data=b"changed and invalid")
         with patch.object(images.ImageReader, "read", side_effect=AssertionError("No image read")):
-            for text in ("/data doctor", "проверь систему"):
+            for text in ("/data doctor", "/commands status"):
                 result = self.backend.process(self.params(text=text, images=[spec]), lambda _: None, "operator")
                 self.assertTrue(result["operator"])
                 self.assertEqual(result["image_context"], [])

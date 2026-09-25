@@ -91,7 +91,6 @@ from proto_mind.private_state_gate import generation, require_available
 from proto_mind.native_work_sessions import WorkSessionStore, WorkSessionError, workspace_identity
 from proto_mind.native_desk import context_manifest, context_preview, capture_artifacts, review_observations
 from proto_mind.native_review import CONFIRM_REVIEW, criteria_context_message, validate_criteria, review_preview
-from proto_mind.natural_commands import route_natural_command
 from proto_mind.observer import Observer
 from proto_mind.reasoners.mock_reasoner import MockReasoner
 from proto_mind.reasoners.ollama_reasoner import OllamaReasoner
@@ -100,7 +99,7 @@ from proto_mind.session_log import SessionOperatorLogger
 
 BRIDGE_VERSION = 1
 MAX_INPUT_CHARS = 32_000
-MAX_REQUEST_BYTES = 512 * 1024
+MAX_REQUEST_BYTES = 4 * 1024 * 1024
 MAX_LIVE_SESSIONS = 32
 ATTACHMENT_READ_METHODS = {"image_preview", "pdf_preview", "pdf_render_page", "workspace_status", "workspace_list", "workspace_read"}
 RESET_CODEX_THREAD_CONFIRMATION = "START NEW CODEX SESSION"
@@ -219,7 +218,10 @@ class NativeOllamaReasoner(OllamaReasoner):
             raise RuntimeError("Ollama did not return an answer. Start Ollama and check the selected model, or explicitly choose Mock. No fallback model was used.") from exc
 
 
-def bounded_history(value: object) -> list[dict]:
+def bounded_history(value: object, provider: str = "") -> list[dict]:
+    if provider == "claude":
+        from proto_mind.native_claude_sessions import bootstrap_history
+        return bootstrap_history(value)
     if not isinstance(value, list) or len(value) > 200:
         raise ValueError("Invalid conversation history.")
     history = []
@@ -241,8 +243,9 @@ def input_text(params: dict) -> str:
 
 
 def describe_input(text: str) -> dict:
+    text = text.strip()
     preview = build_action_preview(text)
-    operator = text.startswith("/") or route_natural_command(text) is not None or is_exit_command(text)
+    operator = text.startswith("/")
     if not operator:
         return {"operator": False, "requires_confirmation": False, "blocked": False,
                 "notice": "Normal turn: existing memory and session-log rules apply."}
@@ -299,7 +302,8 @@ class NativeBackend:
         self.claude_metadata = ClaudeMetadataReader(self.state_dir)
         self.active_steering: LiveSteering | None = None
         self.workspace_tools: WorkspaceTools | None = None
-        self.mcp_client = None
+        from proto_mind.native_mcp import MCPSession
+        self.mcp_session = MCPSession()
         self.busy = threading.Lock()
         self.agent_grants = AgentGrants()
         self.github = GitHubConnection(self.state_dir)
@@ -571,7 +575,7 @@ class NativeBackend:
         if provider == "claude" and not description["operator"]:
             reasoning_effort = claude_effort(params.get("reasoning_effort", ""))
             if persona_enabled: raise ValueError("Brother Persona is available through Codex and Ollama. Claude uses the core memory.")
-        history = bounded_history(params.get("history", []))
+        history = bounded_history(params.get("history", []), provider)
         criteria = [] if description["operator"] else validate_criteria(params.get("criteria", []))
         if provider in {"codex", "api", "claude"} and not description["operator"] and params.get("cloud_consent") is not True:
             raise ValueError("Разрешите облачную обработку в настройках перед отправкой сообщений и памяти API."
@@ -659,6 +663,15 @@ class NativeBackend:
                 raise ValueError("This Native bridge has already used its restore attempt. Inspect the skill and receipt; no command was executed.")
             if not description["operator"]:
                 workspace = logical_workspace
+                claude_plan = None
+                if provider == "claude":
+                    from proto_mind.native_claude_sessions import ClaudeSessionPlan
+                    account = claude_status(self.state_dir)
+                    if not account["connected"]:
+                        raise ValueError("Sign in through Claude Code in Settings → Connections first.")
+                    claude_plan = ClaudeSessionPlan(self.state_dir, session_id, account=account,
+                        workspace=logical_workspace, full_access=mode == "full_access", tools=bool(tools_version), history=history)
+                    provider_history, provider_thread = claude_plan.history, claude_plan.public()
                 continuation = params.get("continuation")
                 if continuation is not None:
                     prepared = self.work_sessions.continuation(continuation, session_id, workspace)
@@ -689,6 +702,10 @@ class NativeBackend:
             if self.closing.is_set():
                 raise ValueError("Native disconnected before processing; no new work started.")
             coordinator = self._coordinator(session_id)
+            scope = _canonical_hash(logical_workspace) if logical_workspace else None
+            if coordinator.memory_keeper.context_scope != scope:
+                coordinator.pending_correction_hints = []
+            coordinator.memory_keeper.context_scope = scope
             agent_receipt = None
             work_log = None
 
@@ -748,7 +765,7 @@ class NativeBackend:
                         skill_task=skill_task, before_provider_call=revalidate_knowledge)
                 elif provider == "claude":
                     self.active_claude = ClaudeTransport(self.state_dir, workspace=agent_workspace,
-                        full_access=mode == "full_access", effort=reasoning_effort, images=images)
+                        full_access=mode == "full_access", effort=reasoning_effort, images=images, session_plan=claude_plan)
                     self.active_claude.workspace_tools = self.workspace_tools
                     self.active_claude.on_activity = activity
                     self.active_claude.on_progress = progress
@@ -781,6 +798,7 @@ class NativeBackend:
             output = process_interactive_input_with_envelope(
                 text, coordinator=coordinator, session_logger=self.logger, project_root=self.root,
                 hygiene=MemoryHygiene(coordinator.memory_keeper.store),
+                natural_commands=False,
             )
             pilot = peek_experience_pilot(coordinator)
             if pilot is not None and pilot.learning_applies.snapshot():
@@ -888,6 +906,7 @@ class NativeBackend:
         provider: str,
         mode: str,
         operator: bool,
+        logical_workspace: dict | None = None,
     ) -> dict:
         persona_enabled = params.get("persona_enabled", False)
         if type(persona_enabled) is not bool:
@@ -910,7 +929,9 @@ class NativeBackend:
         coordinator = self.sessions.get(conversation_id) if conversation_id else None
         observer = coordinator.observer if coordinator is not None else Observer()
         observer_state = observer.analyze(text)
-        correction_hints = list(coordinator.pending_correction_hints) if coordinator is not None else []
+        scope = _canonical_hash(logical_workspace) if logical_workspace else None
+        correction_hints = (list(coordinator.pending_correction_hints)
+                            if coordinator is not None and coordinator.memory_keeper.context_scope == scope else [])
         retrieved_memory = []
         if observer_state.needs_memory:
             data = self.root / "proto_mind" / "data"
@@ -918,6 +939,7 @@ class NativeBackend:
                 data / "working_memory.json",
                 data / "persistent_memory.json",
             ))
+            keeper.context_scope = _canonical_hash(logical_workspace) if logical_workspace else None
             top_k = 10 if observer_state.query_type == "memory_inventory" else 5
             retrieved_memory = keeper.retrieve(
                 observer_state,
@@ -978,12 +1000,18 @@ class NativeBackend:
         if type(params.get("auto_project_recall", False)) is not bool:
             raise ValueError("Invalid automatic project recall setting.")
         reader = self.workspace(params) if params.get("workspace_root") and not operator else None
-        local_history = bounded_history(params.get("history", []))
+        local_history = bounded_history(params.get("history", []), provider)
         logical_workspace = workspace_identity(reader.root) if reader else None
         provider_thread = (self.subscription.thread_status(params.get("conversation_id", ""), logical_workspace,
                                                            mode=mode, **({"workspace_tools": True} if params.get("workspace_tools_version") == 1 else {}))
                            if provider == "codex" and not operator else None)
         provider_history = [] if provider_thread and provider_thread["linked"] else local_history
+        if provider == "claude" and not operator:
+            from proto_mind.native_claude_sessions import ClaudeSessionPlan
+            plan = ClaudeSessionPlan(self.state_dir, params.get("conversation_id", ""), account=claude_status(self.state_dir),
+                workspace=logical_workspace, full_access=mode == "full_access", tools=params.get("workspace_tools_version") == 1,
+                history=local_history)
+            provider_history, provider_thread = plan.history, plan.public()
         result = context_preview(root=self.root, text=text, history=provider_history,
                                  provider=provider, model=model,
                                  effort=(claude_effort(params.get("reasoning_effort", "")) if provider == "claude" else validate_reasoning_effort(params.get("reasoning_effort", ""))) if provider in {"codex", "claude"} and not operator else "",
@@ -997,6 +1025,7 @@ class NativeBackend:
             provider=provider,
             mode=mode,
             operator=operator,
+            logical_workspace=logical_workspace,
         )
         if not operator and provider in {"codex", "ollama", "api", "claude"}:
             result["manifest"]["recall"] = "read_only_current_projection_recomputed_at_send"
@@ -1051,7 +1080,14 @@ class NativeBackend:
             result["manifest"]["knowledge_context"] = knowledge
         if provider_thread:
             result["provider_thread"] = provider_thread
-            if not provider_thread["workspace_matches"]:
+            if provider == "claude":
+                if provider_thread["linked"]:
+                    result["notes"].append("Claude will resume its exact saved session, including its provider and tool history. Local chat history is not sent again and does not reproduce that session in this preview.")
+                else:
+                    result["notes"].append("Claude will start a new saved session using the local history shown here. An incomplete or mismatched session is never automatically replayed.")
+                if provider_thread.get("bootstrap_partial"):
+                    result["notes"].append("Earlier local messages exceed the bootstrap budget and are explicitly marked as omitted. This limit applies only when starting a new Claude session.")
+            elif not provider_thread["workspace_matches"]:
                 result["notes"].append("The saved Codex binding belongs to another workspace. Send is blocked until the operator starts a new Codex session; no automatic contract refresh will rebind it.")
             elif provider_thread["linked"]:
                 result["notes"].append("Codex will resume its durable provider thread. Bounded local chat history is not sent again; provider-side history is not reproduced in this local preview.")
@@ -1059,7 +1095,7 @@ class NativeBackend:
                 result["notes"].append("The selected mode has an older static instruction contract. Send will create one fresh durable thread, bootstrap it with the bounded local history shown here and preserve the old provider rollout as history.")
             else:
                 result["notes"].append("This will create a durable Codex thread and bootstrap it once with the bounded local chat history shown here.")
-            if not provider_thread["workspace_matches"]:
+            if provider == "codex" and not provider_thread["workspace_matches"]:
                 result["attachments_ready"] = False
         return result
 
@@ -1374,8 +1410,7 @@ class NativeBackend:
         if method == "pdf_render_page":
             return self.pdf_reader().render_page(params.get("path"), params.get("page"), params.get("expected_sha256"))
         if method == "workspace_mcp":
-            from proto_mind.native_mcp import perform
-            return perform(params, register=lambda client: setattr(self, "mcp_client", client))
+            return self.mcp_session.perform(params)
         if method in {"document_environment", "document_read", "document_create"}:
             from proto_mind import native_documents
             if method == "document_environment": return native_documents.environment()
@@ -1516,6 +1551,8 @@ class NativeBackend:
         return {"cancel_requested": True, "notice": "Codex stop requested."}
 
     def close(self) -> None:
+        self.closing.set()
+        self.mcp_session.close()
         self.claude_metadata.close()
         if self.active_claude: self.active_claude.cancel()
         if self.active_api: self.active_api.cancel()
@@ -1526,7 +1563,7 @@ class NativeBackend:
         self.claude_metadata.close()
         if self.active_claude: self.active_claude.cancel()
         self.closing.set()
-        if self.mcp_client is not None: self.mcp_client.close()
+        self.mcp_session.close()
         if self.workspace_tools is not None: self.workspace_tools.cancel()
         if self.active_api: self.active_api.cancel()
         if self.active_steering is not None: self.active_steering.stop()

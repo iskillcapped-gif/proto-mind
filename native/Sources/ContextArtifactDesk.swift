@@ -181,6 +181,7 @@ struct NativeContextPreview: Equatable {
     var pdfSources: [JSONValue] { value["pdf_sources"].items }
 
     init(_ value: JSONValue) throws {
+        let claude = value["manifest"]["provider"].text == "claude"
         guard value["schema"].text == "proto_mind.native_context_preview.v1",
               value["read_only"] == .bool(true), value["no_execution"] == .bool(true),
               value["manifest"]["schema"].text == "proto_mind.native_context_manifest.v1",
@@ -190,8 +191,9 @@ struct NativeContextPreview: Equatable {
               case .array(let sources) = value["sources"], sources.count <= 3,
               sources.allSatisfy({ ["ready", "changed", "unavailable"].contains($0["state"].text)
                   && $0["excerpt"].text.unicodeScalars.count <= 6000 && $0["expected_sha256"].text.count == 64 }),
-              case .array(let history) = value["history"], history.count <= 12,
-              history.allSatisfy({ ["user", "assistant"].contains($0["role"].text) && $0["content"].text.unicodeScalars.count <= 2000 }) else {
+              case .array(let history) = value["history"], history.count <= (claude ? 2000 : 12),
+              history.allSatisfy({ ["user", "assistant"].contains($0["role"].text) && (claude || $0["content"].text.unicodeScalars.count <= 2000) }),
+              !claude || history.reduce(0, { $0 + $1["content"].text.unicodeScalars.count }) <= 300_000 else {
             throw NativeError.message(L10n.text("Формат локального контекста не прошёл проверку. Ничего не отправлено."))
         }
         if !value["image_sources"].isNull {
@@ -374,6 +376,20 @@ struct ContextDeskView: View {
                                     Text(L10n.text("Следующее сообщение создаст новый постоянный thread Codex.")).fontWeight(.medium)
                                     Text(L10n.text("До 12 показанных локальных реплик будут использованы один раз для начального continuity."))
                                         .font(.caption).foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        if manifest["provider"].text == "claude" {
+                            let thread = manifest["provider_thread"]
+                            DeskSection(L10n.pick("Сессия Claude", "Claude session"), icon: "link.circle") {
+                                Text(thread["linked"].flag
+                                     ? L10n.pick("Продолжится сохранённая сессия Claude с историей работы и инструментов.", "Claude will continue its saved conversation and tool history.")
+                                     : L10n.pick("Начнётся новая сессия Claude с локальной перепиской, показанной выше.", "A new Claude session will start with the local conversation shown above."))
+                                Text(L10n.pick("При продолжении переписка повторно не отправляется. История сессии Claude в этом просмотре не дублируется.", "Resuming does not resend the local conversation. This preview does not reproduce Claude's saved session history."))
+                                    .font(.caption).foregroundStyle(.secondary)
+                                if thread["bootstrap_partial"].flag {
+                                    Text(L10n.pick("Старая переписка превышает объём начальной передачи. Пропуск раннего текста явно обозначен.", "The old conversation exceeds the initial transfer budget. Omitted earlier text is explicitly marked."))
+                                        .font(.caption).foregroundStyle(.orange)
                                 }
                             }
                         }

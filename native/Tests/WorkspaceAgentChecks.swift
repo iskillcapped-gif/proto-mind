@@ -56,12 +56,30 @@ extension NativeChecks {
             try check(false, "Expired workspace turn must fail")
         } catch { try check(true, "A stale tool call cannot act in a newer turn") }
         state.running = false
+        try await mcpSessionOwnership(app: app, python: python, root: root)
         if let output = LaunchConfiguration.argument("--workspace-ui-directory") {
             let directory = URL(fileURLWithPath: output)
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             state.workspaceQuestions = [WorkspaceAgentQuestion(requestID: "preview", text: "Which format should I prepare for the client?", options: ["PDF", "Word", "Both"])]
             try await renderWorkspacePreview(WorkspaceAgentQuestionsView(model: app, state: state).padding(24).background(NativeTheme.canvas),
                 size: NSSize(width: 640, height: 260), destination: directory.appendingPathComponent("question.png"))
+            let table = """
+            ## Project estimate
+
+            Included work and assumptions remain separate.
+
+            | Deliverable | Status | Budget |
+            | :--- | :---: | ---: |
+            | **Landing page** | Ready to review | €350 |
+            | `proposal.md` | Saved | €0 |
+            | Client photography | Awaiting confirmation of the final selection | — |
+
+            Next: review the proposal with the client.
+            """
+            try await renderWorkspacePreview(MessageMarkdownView(text: table, copy: { _ in }).padding(24).background(NativeTheme.canvas),
+                size: NSSize(width: 740, height: 410), destination: directory.appendingPathComponent("markdown-table.png"))
+            try await renderWorkspacePreview(MessageMarkdownView(text: table, copy: { _ in }).padding(20).background(NativeTheme.canvas),
+                size: NSSize(width: 340, height: 460), destination: directory.appendingPathComponent("markdown-table-narrow.png"))
             var service = WorkspaceService(); service.name = "Example service"; service.endpoint = "https://example.invalid/mcp"
             try app.workspaceServices.save(service)
             try await renderWorkspacePreview(Form { WorkspaceServiceSettings(app: app, services: app.workspaceServices) }.formStyle(.grouped),
@@ -97,10 +115,53 @@ extension NativeChecks {
         catch { try check(true,"Closed browser cannot be operated") }
     }
 
+    @MainActor private static func mcpSessionOwnership(app: AppModel, python: URL, root: URL) async throws {
+        let script = root.appendingPathComponent("mcp-counter.py")
+        try """
+        import json, sys, time
+        count = 0
+        for line in sys.stdin:
+            value = json.loads(line)
+            if 'id' not in value: continue
+            if value['method'] == 'initialize': result = {'protocolVersion':'2025-06-18'}
+            elif value['method'] == 'tools/list': result = {'tools':[{'name':'next'}]}
+            else:
+                if value['params'].get('arguments',{}).get('wait'): time.sleep(30)
+                count += 1
+                result = {'count':count}
+            print(json.dumps({'jsonrpc':'2.0','id':value['id'],'result':result}),flush=True)
+        """.write(to: script, atomically: true, encoding: .utf8)
+        var service = WorkspaceService(); service.name = "Offline counter"; service.transport = "stdio"
+        service.command = python.path; service.arguments = [script.path]; service.enabled = true
+        try app.workspaceServices.save(service)
+        let a = UUID(), b = UUID()
+        let services = app.workspaceServices
+        _ = try await services.perform(id: service.id, operation: "list", owner: a)
+        _ = try await services.perform(id: service.id, operation: "list", owner: b)
+        let first = try await services.perform(id: service.id, operation: "call", name: "next", owner: a)
+        let second = try await services.perform(id: service.id, operation: "call", name: "next", owner: a)
+        let other = try await services.perform(id: service.id, operation: "call", name: "next", owner: b)
+        try check(first["result"]["count"].integer == 1 && second["result"]["count"].integer == 2 && other["result"]["count"].integer == 1,
+                  "MCP retains server state across calls but isolates concurrent conversation owners")
+        services.cancel(owner: a)
+        do { _ = try await services.perform(id: service.id, operation: "call", name: "next", owner: a); try check(false, "Closed owner's catalog must be invalidated") }
+        catch { try check(true, "Turn completion closes idle MCP sessions and invalidates their catalog") }
+        let stillLive = try await services.perform(id: service.id, operation: "call", name: "next", owner: b)
+        try check(stillLive["result"]["count"].integer == 2, "Stopping another conversation leaves this MCP session alive")
+        let blocked = Task { try await services.perform(id: service.id, operation: "call", name: "next", arguments: .object(["wait":.bool(true)]), owner: b) }
+        try await Task.sleep(for: .milliseconds(100))
+        do { _ = try await services.perform(id: service.id, operation: "list", owner: b); try check(false, "Concurrent requests to one session must fail") }
+        catch { try check(error.localizedDescription.contains("previous request") || error.localizedDescription.contains("предыдущий запрос"), "Busy MCP reports a busy connection, not a disabled service") }
+        services.cancel(owner: b)
+        do { _ = try await blocked.value; try check(false, "Cancelled MCP call must not report success") }
+        catch { try check(true, "Stop closes an in-flight MCP transport without waiting for its tool") }
+        try services.remove(service)
+    }
+
     @MainActor private static func renderWorkspacePreview<Content: View>(_ content: Content, size: NSSize, destination: URL) async throws {
         let window = NSWindow(contentRect: NSRect(origin: .zero, size: size), styleMask: [.borderless], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
-        let host = NSHostingView(rootView: content.environment(\.colorScheme, .dark))
+        let host = NSHostingView(rootView: content.frame(width: size.width, height: size.height, alignment: .topLeading).background(NativeTheme.canvas).environment(\.colorScheme, .dark))
         host.frame = NSRect(origin: .zero, size: size)
         window.contentView = host
         defer { window.contentView = nil; window.close() }

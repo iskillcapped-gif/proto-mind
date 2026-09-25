@@ -1,6 +1,17 @@
 // Additional interface translations. Placeholders preserve dynamic content verbatim.
 extension L10n {
     static let additionalEnglish: [String: String] = [
+        "Claude: войдите в аккаунт заново в настройках подключения.": "Claude: sign in again in connection settings.",
+        "Claude: достигнут лимит. Проверьте остаток и время обновления в разделе «Лимиты».": "Claude: usage limit reached. Check remaining usage and reset times in Limits.",
+        "Claude: провайдер сообщил о проблеме оплаты или доступного баланса.": "Claude: the provider reported a billing or balance problem.",
+        "Claude: аккаунту недоступен этот запрос или выбранная модель.": "Claude: this account cannot access this request or selected model.",
+        "Claude: запрос или выбранная модель не поддерживается. Проверьте настройки модели.": "Claude: this request or model is unsupported. Check the model settings.",
+        "Claude: временная ошибка сервиса. Задача не отправлялась повторно.": "Claude: temporary service error. The task was not resubmitted.",
+        "Задача Claude остановлена. Уже выполненные действия не отменены.": "Claude task stopped. Completed actions were not undone.",
+        "Claude: связь с инструментами PM прервана. Проверьте результат перед продолжением.": "Claude: the PM tool connection was interrupted. Inspect the result before continuing.",
+        "Claude: достигнут предел шагов провайдера. Проверьте частичный результат.": "Claude: the provider's step limit was reached. Inspect the partial result.",
+        "Claude: достигнут предел бюджета провайдера. Проверьте частичный результат.": "Claude: the provider's budget limit was reached. Inspect the partial result.",
+        "Claude не подтвердил завершение ответа. Проверьте подключение и частичный результат; автоматического повтора не было.": "Claude did not confirm a completed response. Check the connection and partial result; there was no automatic retry.",
         "Полный доступ к Mac, интернету и экрану": "Full access to Mac, internet and screen",
         "Полный доступ к Mac и интернету": "Full access to Mac and internet",
         "Модель сможет читать и менять файлы, запускать команды, использовать Web Search и официальный локальный Computer Use OpenAI: видеть содержимое приложений, нажимать, вводить текст и прокручивать экран. Подтверждения каждого действия не будет.": "The model can read and change files, run commands, use Web Search and OpenAI's official local Computer Use service: view apps, click, type and scroll. Individual actions will not ask for confirmation.",

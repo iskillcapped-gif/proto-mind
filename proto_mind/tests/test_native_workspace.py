@@ -203,7 +203,7 @@ class NativeWorkspaceTests(unittest.TestCase):
                 self.backend.process(self.params(cloud_consent=False, files=[{}]), lambda _: None, "id")
 
     def test_operator_commands_ignore_files_without_reading_or_sending(self):
-        for text in ("/commands status", "что делать дальше"):
+        for text in ("/commands status", "/loop next"):
             with patch.object(self.backend, "workspace", side_effect=AssertionError("Must not read")):
                 result = self.backend.process(self.params(text=text, files=[{}], cloud_consent=False), lambda _: None, "id")
             self.assertTrue(result["operator"])

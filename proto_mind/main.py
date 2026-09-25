@@ -144,8 +144,12 @@ def process_interactive_input_with_envelope(
     session_logger: SessionOperatorLogger,
     project_root: Path,
     hygiene: MemoryHygiene | None = None,
+    natural_commands: bool = True,
 ) -> InteractiveResponse:
     """Process one input once, with an optional detached normal-turn projection."""
+    if not natural_commands and not user_input.strip().startswith("/"):
+        return _process_normal_input(user_input.strip(), coordinator=coordinator,
+                                     project_root=project_root, include_cognitive_envelope=True)
     output = _process_interactive_input(
         user_input,
         coordinator=coordinator,
@@ -485,6 +489,12 @@ def _process_interactive_input(
                 _format_reference_repairs(result.repaired_superseded_by_refs),
             ]
         )
+    return _process_normal_input(user_input, coordinator=coordinator, project_root=project_root,
+                                 include_cognitive_envelope=include_cognitive_envelope)
+
+
+def _process_normal_input(user_input: str, *, coordinator: Coordinator, project_root: Path,
+                          include_cognitive_envelope: bool) -> str | InteractiveResponse:
     injection = prepare_context_injection(user_input, project_root=project_root)
     result = coordinator.handle(user_input, reasoner_input=injection.get("reasoner_input"))
     pilot_observation = observe_experience_pilot_if_active(

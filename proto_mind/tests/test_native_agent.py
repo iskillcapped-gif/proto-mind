@@ -197,13 +197,13 @@ class NativeAgentPermissionTests(unittest.TestCase):
 
     def test_operator_inputs_bypass_agent_grant_and_model(self):
         self.grant()
-        for text in ("/commands status", "что делать дальше"):
+        for text in ("/commands status", "/loop next"):
             result = self.backend.process(self.params(text=text, cloud_consent=False, access_token="bad"), lambda _: None, "r")
             self.assertTrue(result["operator"])
             self.assertIsNone(result["agent_run"])
         self.assertEqual(self.backend.subscription.calls, [])
         with self.assertRaisesRegex(ValueError, "Confirm the exact"):
-            self.backend.process(self.params(text="включи контекст"), lambda _: None, "r")
+            self.backend.process(self.params(text="/context injection enable"), lambda _: None, "r")
         self.assertFalse(self.root.exists())
 
     def test_other_providers_and_unknown_modes_do_not_inherit_tools(self):

@@ -104,6 +104,38 @@ class ClaudeTests(unittest.TestCase):
                 self.transport().answer(mode,'instructions',[],'go',lambda _:None)
             self.assertNotIn('SECRET', str(error.exception))
 
+    def test_auth_and_quota_errors_are_actionable_without_provider_diagnostics(self):
+        errors = []
+        for model in ['authentication_failed', 'rate_limit']:
+            with self.assertRaises(RuntimeError) as error:
+                self.transport().answer(model, 'instructions', [], 'go', lambda _: None)
+            errors.append(str(error.exception))
+        self.assertIn('войдите', errors[0])
+        self.assertIn('лимит', errors[1])
+        self.assertNotIn('SECRET', ' '.join(errors))
+
+    def test_new_workers_resume_exact_saved_session_without_repeating_history(self):
+        from proto_mind.native_claude_sessions import ClaudeSessionPlan
+        conversation = str(uuid4())
+        account = status(self.state)
+        history = [{'role':'user', 'content':'Old context ' + 'x' * 6000}]
+        def plan():
+            return ClaudeSessionPlan(self.state, conversation, account=account, workspace=None,
+                                     full_access=False, tools=False, history=history)
+        original = plan()
+        self.transport(session_plan=original).answer('sonnet', 'instructions', history, 'first', lambda _:None)
+        observed = json.loads((self.state / 'claude-profile/sdk-observed.json').read_text())
+        self.assertEqual(observed['session_id'], original.session_id)
+        self.assertIsNone(observed['resume'])
+        self.assertIn('x' * 6000, observed['messages'][0]['message']['content'][0]['text'])
+        history += [{'role':'assistant', 'content':'Offline answer'}]
+        continued = plan()
+        self.transport(session_plan=continued).answer('sonnet', 'instructions', history, 'second', lambda _:None)
+        observed = json.loads((self.state / 'claude-profile/sdk-observed.json').read_text())
+        self.assertEqual(observed['resume'], original.session_id)
+        self.assertIsNone(observed['session_id'])
+        self.assertNotIn('Old context', observed['messages'][0]['message']['content'][0]['text'])
+
     def test_cancel_one_worker_leaves_a_different_turn_usable(self):
         transport = self.transport()
         errors = []
@@ -134,6 +166,12 @@ class ClaudeTests(unittest.TestCase):
             for key in ['instruction_receipt','turn_receipt']:
                 self.assertEqual(result['work_session'][key]['provider'], 'claude')
             self.assertIsNone(result['provider_thread'])
+            continued = {**params, 'text':'Continue', 'history':[{'role':'user','content':'Привет'},
+                         {'role':'assistant','content':result['cognitive_turn']['response']}]}
+            self.assertTrue(backend.preview_context(continued)['provider_thread']['linked'])
+            next_result = backend.process(continued, lambda _:None, 'claude-resume')
+            self.assertTrue(next_result['work_session']['context_manifest']['provider_thread']['linked'])
+            self.assertEqual(next_result['work_session']['context_manifest']['history']['messages'], 0)
             self.assertEqual(backend.subscription.calls, [])
             with self.assertRaises(ValueError): backend.process({**params,'cloud_consent':False},lambda _:None,'no-consent')
             with self.assertRaises(ValueError): backend.process({**params,'access_mode':'full_access'},lambda _:None,'no-grant')

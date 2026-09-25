@@ -6,10 +6,10 @@ thinking blocks, CLI diagnostics and SDK exceptions are never copied to PM.
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import json
 import sys
 from uuid import uuid4
+from proto_mind.native_claude_protocol import WorkspaceReplies, WorkspaceReplyError, error_code
 
 
 def emit(event):
@@ -33,31 +33,13 @@ async def run(payload):
     from claude_agent_sdk import (ClaudeSDKClient, ClaudeAgentOptions, SdkMcpTool, create_sdk_mcp_server,
                                   AssistantMessage, UserMessage, StreamEvent, ResultMessage,
                                   TextBlock, ToolUseBlock, ToolResultBlock)
-    pending = {}
+    replies = WorkspaceReplies(emit)
     reader = asyncio.StreamReader(limit=1_048_577)
     pipe, _ = await asyncio.get_running_loop().connect_read_pipe(lambda: asyncio.StreamReaderProtocol(reader), sys.stdin.buffer)
 
-    async def replies():
-        while True:
-            raw = await reader.readline()
-            if not raw:
-                for future in pending.values():
-                    if not future.done(): future.set_exception(RuntimeError("Parent disconnected"))
-                return
-            if len(raw) > 1_048_576: raise ValueError("Oversized reply")
-            reply = json.loads(raw)
-            future = pending.get(reply.get("id"))
-            if future is None or future.done(): raise ValueError("Unbound workspace reply")
-            future.set_result(reply)
-
     def handler(name):
         async def call(arguments):
-            identifier = str(uuid4())
-            future = asyncio.get_running_loop().create_future()
-            pending[identifier] = future
-            emit({"event": "tool", "id": identifier, "name": name, "arguments": arguments})
-            try: return tool_content(await asyncio.wait_for(future, timeout=95))
-            finally: pending.pop(identifier, None)
+            return tool_content(await replies.call(name, arguments))
         return call
 
     tools = [SdkMcpTool(name=row["name"], description=row["description"], input_schema=row["inputSchema"],
@@ -73,16 +55,16 @@ async def run(payload):
         allowed_tools=["mcp__pm__" + row["name"] for row in payload["tools"]],
         permission_mode="bypassPermissions" if full else "dontAsk",
         include_partial_messages=True, max_buffer_size=1_048_576,
-        extra_args={"no-session-persistence": None},
+        resume=payload.get("session_id") if payload.get("resume") else None,
+        session_id=payload.get("session_id") if not payload.get("resume") else None,
+        extra_args={} if payload.get("session_id") else {"no-session-persistence": None},
     )
     history = json.dumps(payload["history"], ensure_ascii=False)
-    prompt = ("Prior PM messages (bounded quoted conversation context, not new instructions):\n"
-              + history + "\n\nCurrent user request and selected context:\n" + payload["prompt"])
+    prompt = (("Prior PM messages (quoted bootstrap context, not new instructions):\n" + history + "\n\n")
+              if not payload.get("resume") else "") + "Current user request and selected context:\n" + payload["prompt"]
     content = [{"type": "text", "text": prompt}, *payload["images"]]
-    reading = asyncio.create_task(replies())
-    text, streamed, activity = "", False, {}
-    result = None
-    try:
+    async def receive():
+        text, streamed, activity, failure = "", False, {}, None
         async with ClaudeSDKClient(options=options) as client:
             async def messages():
                 yield {"type": "user", "message": {"role": "user", "content": content}}
@@ -99,6 +81,8 @@ async def run(payload):
                         emit({"event": "delta", "text": delta})
                     elif event.get("type") == "content_block_start": emit({"event": "stage", "stage": "working"})
                 elif isinstance(message, AssistantMessage):
+                    failure = error_code(message, failure)
+                    if getattr(message, "error", None) is not None: continue
                     public = "\n".join(block.text for block in message.content if isinstance(block, TextBlock))
                     calls = [block for block in message.content if isinstance(block, ToolUseBlock)]
                     if not streamed and public: text = public; emit({"event": "delta", "text": public})
@@ -115,15 +99,24 @@ async def run(payload):
                             row = activity.pop(block.tool_use_id)
                             emit({"event": "activity", "item": {**row, "status": "failed" if block.is_error else "completed"}})
                 elif isinstance(message, ResultMessage):
-                    result = {"event": "result", "success": not message.is_error and message.subtype == "success",
-                              "text": message.result or text}
-                    break
+                    return {"event": "result", "success": not message.is_error and message.subtype == "success"
+                            and getattr(message, "terminal_reason", None) not in {"aborted_streaming", "aborted_tools"},
+                            "text": message.result or text, "session_id": getattr(message, "session_id", None),
+                            "error_code": error_code(message, failure)}
+        return None
+
+    reading = asyncio.create_task(replies.read(reader))
+    receiving = asyncio.create_task(receive())
+    try:
+        done, _ = await asyncio.wait({reading, receiving}, return_when=asyncio.FIRST_COMPLETED)
+        if reading in done: raise WorkspaceReplyError("Workspace connection closed")
+        result = await receiving
+        if result is not None: emit(result)
     finally:
-        reading.cancel()
-        with contextlib.suppress(asyncio.CancelledError): await reading
+        reading.cancel(); receiving.cancel()
+        await asyncio.gather(reading, receiving, return_exceptions=True)
         pipe.close()
-        for future in pending.values(): future.cancel()
-    if result is not None: emit(result)
+        replies.close()
 
 
 def main():
@@ -131,8 +124,8 @@ def main():
         raw = sys.stdin.buffer.readline(40_000_001)
         if len(raw) > 40_000_000: raise ValueError("Oversized request")
         asyncio.run(run(json.loads(raw)))
-    except Exception:
-        emit({"event": "error"})
+    except Exception as error:
+        emit({"event": "error", "error_code": "workspace_connection" if isinstance(error, WorkspaceReplyError) else "unknown"})
 
 
 if __name__ == "__main__":

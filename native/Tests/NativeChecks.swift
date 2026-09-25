@@ -213,6 +213,11 @@ struct NativeChecks {
         chat.messages = (0..<30).map { ChatMessage(role: "user", text: "message \($0) " + String(repeating: "x", count: 3000)) }
         chat.messages += [ChatMessage(role: "report", text: "not model history"), ChatMessage(role: "assistant", text: "error", isError: true)]
         try check(chat.history.count == 12 && chat.history.allSatisfy { $0["content"].text.count <= 2000 }, "Model history is bounded and excludes reports/errors")
+        chat.provider = "claude"
+        try check(chat.history.count == 30 && chat.history.allSatisfy { $0["content"].text.count > 3000 }, "Claude bootstraps full messages beyond the old 12 by 2000 limit")
+        chat.messages = (0..<10).map { ChatMessage(role: "user", text: "message \($0) " + String(repeating: "x", count: 40_000)) }
+        try check(chat.history.first?["content"].text.hasPrefix("[Earlier conversation text omitted") == true
+                  && chat.history.last?["content"].text == chat.messages.last?.text, "Claude large bootstrap marks omitted history and retains the latest complete message")
 
         let untouched = root.appendingPathComponent("untouched")
         let app = AppModel(configuration: LaunchConfiguration(projectRoot: untouched, python: untouched.appendingPathComponent("python"), stateDirectory: untouched))
@@ -682,6 +687,16 @@ struct NativeChecks {
         try check(urls.count == 1 && urls.first?.scheme == "https", "Rendered links cannot launch local files or command schemes")
         try check(NativeTheme.interfaceSize == 14 && NativeTheme.codeSize == 12, "Native typography uses 14-point system text and 12-point code")
         try check(MarkdownBlock.inline("Use `code` here").runs.first(where: { $0.inlinePresentationIntent?.contains(.code) == true })?.font == NativeTheme.codeFont, "Inline code shares the fenced-code font size")
+        let tableSource = "Before\n\n| Item | Status | Amount |\n| :--- | :---: | ---: |\n| **Draft** | Ready | €200 |\n| `a|b` | a\\|b |\n\nAfter"
+        let tableBlocks = MarkdownBlock.parse(tableSource)
+        guard tableBlocks.count == 3, case .table(let table) = tableBlocks[1].kind else {
+            throw NativeError.message("Markdown table was not parsed")
+        }
+        try check(table.alignments == [.leading, .center, .trailing] && table.rows.count == 2
+                  && table.rows[1] == ["`a|b`", "a|b", ""], "Tables preserve alignment, code pipes, escaped pipes and missing cells")
+        try check(tableBlocks.last?.content == "After" && tableBlocks[1].content.contains("**Draft**"), "Table boundaries preserve surrounding prose and source formatting")
+        try check(MarkdownBlock.parse("```\n| A | B |\n| --- | --- |\n```").first?.kind == .code(""), "Fenced pipes remain literal code")
+        try check(!MarkdownBlock.parse("A | B\n--- | nope\nC | D").contains { if case .table = $0.kind { return true }; return false }, "Incomplete table separators remain readable text during streaming")
     }
 
     @MainActor
@@ -1382,6 +1397,16 @@ struct NativeChecks {
         try check(app.messages == messages && app.selectedID == selected && app.selected?.pendingFiles == files && !app.busy && !app.fullAccessEnabled && !app.cloudConsent,
                   "Opening context desk never sends, authorizes, reselects files, or changes the conversation")
         try check(try fileBytes(state) == nativeBefore && fileBytes(fixture) == coreBefore, "Context desk leaves all Native/core/workspace/log bytes unchanged")
+        let longHistory: [JSONValue] = (0..<30).map { _ in
+            .object(["role":.string("user"), "content":.string(String(repeating:"я", count:10_000))])
+        }
+        let largeClaude = try await app.serviceClient.request("context_preview", [
+            "provider":.string("claude"), "text":.string("Inspect context"),
+            "conversation_id":.string(UUID().uuidString), "history":.array(longHistory)])
+        let claudePreview = try NativeContextPreview(largeClaude)
+        try check(claudePreview.value["history"].items.count == 30
+                  && claudePreview.manifest["history"]["characters"].integer == 300_000,
+                  "Claude bootstrap survives real bridge transport above 512 KiB and accepts long Unicode history")
         guard case .object(let valid) = preview.value else { throw NativeError.message("Expected context object") }
         for (key, value) in [("schema", JSONValue.string("other")), ("no_execution", .bool(false)), ("read_only", .bool(false)), ("sources", .null),
                              ("history", .array([.object(["role": .string("system"), "content": .string("do not render")])]))] {
@@ -1424,11 +1449,11 @@ struct NativeChecks {
         var instructionTamperRefused = false
         do { _ = try NativeContextPreview(.object(cloudValue)) } catch { instructionTamperRefused = true }
         try check(instructionTamperRefused, "Context desk rejects tampered local instruction text and SHA evidence")
-        app.setComposer("включи контекст"); app.flushDraft()
+        app.setComposer("/context injection enable"); app.flushDraft()
         let beforeOperator = try fileBytes(state), beforeOperatorCore = try fileBytes(fixture)
         await app.refreshContextPreview()
         try check(app.contextPreview?.manifest["operator"] == .bool(true) && app.contextPreview?.sources.isEmpty == true
-                  && app.pendingAction == nil && app.bootstrap["context_injection"] == .bool(false), "Preview of natural mutation remains an inert operator explanation")
+                  && app.pendingAction == nil && app.bootstrap["context_injection"] == .bool(false), "Preview of explicit mutation remains an inert operator explanation")
         try check(try fileBytes(state) == beforeOperator && fileBytes(fixture) == beforeOperatorCore, "Operator context preview changes no files")
         app.setComposer(""); app.flushDraft()
     }

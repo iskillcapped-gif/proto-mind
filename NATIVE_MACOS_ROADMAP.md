@@ -4,6 +4,26 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Reliable Memory and Claude Sessions — Native 0.74.0
+
+Ordinary Native questions now reach the selected model; core commands require
+an explicit slash. Legacy CLI natural aliases remain available. Automatic memory
+replacement requires one specifically named prior decision in the same scope;
+generic topic overlap or a temporary coding instruction cannot deactivate other
+decisions. New project decisions/facts carry their project identity; old unscoped
+records and personal preferences remain shared. Existing records are not migrated.
+
+Claude resumes a durable, exact per-chat SDK session. The old 12 × 2,000-character
+limit is removed for Claude; bounded local history is used only to bootstrap a
+new session. [Binding, error and recovery contract](CLAUDE_CONNECTION.md).
+MCP sessions retain state across calls within their owning task, close on Stop
+or completion, and stay independent across conversations. Tables now render with
+aligned columns, inline formatting and horizontal scrolling in narrow panels.
+
+New product ideas from the Opus review remain deferred, including cross-provider
+context transfer and automatic additional model opinions. Task delegation keeps
+its existing workflow and permission model.
+
 ## Claude Models and Limits — Native 0.73.1
 
 The model menu displays versioned names from Claude Code's account catalog and

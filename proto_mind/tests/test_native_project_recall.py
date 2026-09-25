@@ -216,7 +216,7 @@ class ProjectRecallTests(TestCase):
         self.save("Порт сервера: 4317.")
         with patch.object(NativeProjectMemory, "_read", side_effect=AssertionError("Bypassed recall")):
             for changes in ({"auto_project_recall": False}, {"provider": "mock"}, {"text": "/commands status"},
-                            {"text": "что делать дальше"}, {"text": "exit"}):
+                            {"text": "/loop next"}, {"text": "/exit"}):
                 with self.subTest(changes=changes):
                     self.assertIsNone(self.send(**changes)["knowledge_context"])
                     self.assertNotIn("knowledge_context", self.preview(**changes)["manifest"])

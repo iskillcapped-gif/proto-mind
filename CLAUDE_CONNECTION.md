@@ -1,6 +1,6 @@
 # Claude in Proto-Mind
 
-Development release: **0.73.1 (103)**. This local integration runs Anthropic's
+Development release: **0.74.0 (104)**. This local integration runs Anthropic's
 official **Claude Agent SDK 0.2.159 / Claude Code 2.1.281**. PM is an independent
 application, not an Anthropic product. No account is included.
 
@@ -41,10 +41,31 @@ file/command/network tools plus PM's exact-turn task, question, browser,
 document and explicitly enabled MCP tools. The initial directory is not a
 sandbox. OpenAI's Computer Use helper is not supplied to Claude.
 
-For this first route, each request starts a new provider session with PM's
-bounded recent history (12 messages, up to 2000 characters each), selected
-context and current memory. Full provider-session continuation, live steering,
-Claude reset actions and multiple Claude logins are not implemented.
+Each PM conversation now resumes its exact saved Claude session, including tool
+history, across worker/app restarts. PM uses the SDK's explicit session UUID,
+never the most recent session in a directory. This removes the inherited
+12-message / 2000-character-per-message restriction from continuing Claude chats.
+The provider still owns its context window and compaction; PM does not promise
+unlimited model context. [Official SDK session contract](https://code.claude.com/docs/en/agent-sdk/sessions).
+
+Only a **new** session bootstraps from local PM messages: up to 300,000 Unicode
+characters across 2,000 messages, without a per-message cap. Omitted older text
+is marked, and the context inspector shows whether a session continues or starts
+fresh. Old image bytes and PDF excerpts are not reattached from local history.
+The 4 MiB bridge request envelope accommodates this history including UTF-8 and
+JSON escapes. Core memory and explicitly selected context are refreshed per turn.
+
+An exclusive per-conversation lease rechecks the binding before sending. A
+confirmed result must name the expected session before PM saves continuation.
+Bindings include public account identity, login epoch, exact workspace identity,
+access/tool mode and private-restore generation. Resume also requires the latest
+local answer to match the saved result. Uncertain/interrupted sessions are not
+silently resumed or retried; the next user-initiated turn starts a fresh session
+with local history. API logins without a public email also bootstrap fresh.
+Changing a provider or project can therefore start a new session; this release
+does not add cross-provider context-transfer features.
+
+Live steering, Claude reset actions and multiple Claude logins are not implemented.
 Brother Persona and automatic skill selection remain Codex/Ollama-specific;
 Claude still gets core memory and explicit selected skill guidance. The sidebar and Limits page separate Codex and Claude subscriptions. No automatic provider fallback or
 PM retry is performed after failure.
@@ -79,7 +100,9 @@ The CLI owns authentication under `<native profile>/claude-profile` and its
 normal credential facilities. PM reads only public `auth status` fields; it
 does not implement OAuth, ask for a password, extract tokens or proxy sessions.
 The auth terminal is not copied into chats, work journals or exports. This
-profile is excluded by the private backup allowlist. Sign-in/out waits until
+profile and the `claude_sessions` binding registry are excluded from private
+backups. Restore generations invalidate saved continuation without deleting old
+provider transcripts. Sign-in/out waits until
 all Claude tasks are idle; an active login blocks new Claude turns.
 
 The SDK runs in a separate `python -S` worker with a restricted inherited
@@ -95,9 +118,22 @@ The rest of the app retains its existing signing/distribution status.
 
 ## Verification
 
+Release 0.74.0 verification on 2026-09-25: **2402 Python tests and 1982 Native
+checks passed**. After table layout refinements, the 46 focused workspace checks
+also passed; wide and narrow table renders were visually inspected. The long
+Claude bootstrap passed through the actual Native/Python bridge with Unicode
+history larger than the old 512 KiB envelope. Exact resume and interrupted-session
+recovery were tested with the synthetic SDK. The installed official SDK accepted
+the explicit session UUID in a disposable signed-out profile without a model
+query. A live multi-turn subscription task was not part of this verification.
+
 Offline tests exercise the actual PM worker pipe with a synthetic SDK, including
 async SDK input, streaming, tool round trips, errors, cancellation, access
-gates, context, recall and durable turn receipts. They never use live credentials.
+gates, long-history bootstrap, exact session resume, context, recall and durable
+turn receipts. Separate tests cover lease contention, account/project/restore
+changes, interrupted sessions and late tool replies. Known timed-out replies
+cannot terminate unrelated pending calls. Authentication, quota and service
+failures have distinct content-free messages. These tests never use live credentials.
 The installed official SDK/CLI also completed initialization in a disposable
 signed-out profile without submitting a model query. On 2026-09-25 the operator
 signed in with Pro; a read-only live check then confirmed the CLI catalog and

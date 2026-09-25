@@ -336,6 +336,22 @@ class NativeInstructionBridgeTests(unittest.TestCase):
         self.assertFalse(self.state.exists())
         self.assertEqual(before, self.files())
 
+    def test_preview_and_send_apply_the_same_project_scope(self):
+        conversation = str(uuid4())
+        params = {"text":"Мы решили использовать SQLite для хранения памяти.",
+                  "conversation_id":conversation, "provider":"codex", "cloud_consent":True,
+                  "workspace_root":str(self.root)}
+        saved = self.backend.process(params, lambda _:None, "scope-save")
+        query = {**params, "text":"Что используем сейчас для хранения памяти?"}
+        before = self.files()
+        preview = self.backend.preview_context(query)["instruction_preview"]
+        self.assertEqual(before, self.files())
+        sent = self.backend.process(query, lambda _:None, "scope-recall")
+        self.assertEqual(preview["selected_memory_ids"], sent["work_session"]["instruction_receipt"]["selected_memory_ids"])
+        self.assertIn("SQLite", preview["layers"][0]["text"])
+        unbound = self.backend.preview_context({**query, "workspace_root":""})["instruction_preview"]
+        self.assertNotIn("SQLite", unbound["layers"][0]["text"])
+
     def test_actual_send_persists_only_content_free_instruction_receipt(self):
         conversation = str(uuid4())
         coordinator = self.backend._coordinator(conversation)

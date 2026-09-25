@@ -115,6 +115,13 @@ class PrivateBackupTests(unittest.TestCase):
         self.write(self.state / "future-private-store/data.json", {})
         with self.assertRaisesRegex(ValueError, "Неизвестный раздел"): self.manager.scan()
 
+    def test_claude_login_and_provider_sessions_stay_outside_private_backup(self):
+        self.write(self.state / "claude-profile/settings.json", {"secret":"NEVER-COPY-CLAUDE"})
+        self.write(self.state / "claude_sessions/binding.json", {"session":"NEVER-COPY-CLAUDE"})
+        target = self.work / "claude-excluded.protomind-backup"
+        self.manager.export(target)
+        self.assertNotIn(b"NEVER-COPY-CLAUDE", b"".join(p.read_bytes() for p in target.rglob("*") if p.is_file()))
+
     def test_hash_corruption_is_refused_before_live_writes(self):
         (self.source / "payload/core/identity.json").write_text("corrupt")
         before = self.hashes()

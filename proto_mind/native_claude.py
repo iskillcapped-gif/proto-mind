@@ -15,12 +15,14 @@ import signal
 import subprocess
 import sys
 import threading
+from contextlib import nullcontext
 
 from proto_mind.native_api import NativeAPIReasoner
 from proto_mind.native_codex import TurnCancelled
 from proto_mind.native_progress import WorkLog
 from proto_mind.native_workspace_tools import TOOLS
 from proto_mind.native_claude_contract import validate_effort
+from proto_mind.native_claude_sessions import invalidate_login, text_hash
 
 MAX_LINE = 1_048_576
 MODEL = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/\[\]-]{0,159}\Z")
@@ -92,14 +94,16 @@ def authentication_command(state: Path, operation: str) -> dict:
         raise ValueError("Unknown Claude authentication action.")
     binary = executable()
     profile = profile_directory(state, create=True)
+    invalidate_login(state)
     return {"executable": str(binary), "arguments": ["auth", operation],
             "environment": environment(state), "directory": str(profile)}
 
 
 class ClaudeTransport:
-    def __init__(self, state: Path, *, workspace: Path | None, full_access: bool, effort="", images=()):
+    def __init__(self, state: Path, *, workspace: Path | None, full_access: bool, effort="", images=(), session_plan=None):
         self.state, self.workspace, self.full_access = state, workspace, full_access
         self.effort, self.images = effort, images
+        self.session_plan = session_plan
         self.workspace_tools = None
         self.on_activity = lambda _: None
         self.on_progress = lambda _: None
@@ -139,16 +143,28 @@ class ClaudeTransport:
                 process.wait(timeout=3)
 
     def answer(self, model, instructions, history, prompt, on_delta):
+        if self.cancelled.is_set(): raise TurnCancelled("Claude task stopped.")
         if model and not MODEL.fullmatch(model):
             raise ValueError("Invalid Claude model identifier.")
         validate_effort(self.effort)
-        if not status(self.state)["connected"]:
+        account = status(self.state)
+        if not account["connected"]:
             raise ValueError("Sign in through Claude Code in Settings → Connections first.")
+        if self.session_plan and self.session_plan.binding["account"] != text_hash(json.dumps(
+                {key: account.get(key) for key in ("email", "authMethod", "apiProvider")}, sort_keys=True)):
+            raise ValueError("Claude account changed before dispatch. No task was sent.")
+        with self.session_plan.lease() if self.session_plan else nullcontext():
+            return self._answer(model, instructions, history, prompt, on_delta)
+
+    def _answer(self, model, instructions, history, prompt, on_delta):
         binary = executable()
         env = environment(self.state)
         env["PYTHONPATH"] = os.pathsep.join([str(runtime_path()), str(Path(__file__).resolve().parent.parent)])
         payload = {"model": model, "effort": self.effort, "instructions": instructions,
-                   "history": history, "prompt": prompt, "full_access": self.full_access,
+                   "history": self.session_plan.history if self.session_plan else history,
+                   "session_id": self.session_plan.session_id if self.session_plan else None,
+                   "resume": self.session_plan.resumed if self.session_plan else False,
+                   "prompt": prompt, "full_access": self.full_access,
                    "cli": str(binary), "workspace": str(self.workspace or profile_directory(self.state)),
                    "tools": TOOLS if self.workspace_tools else [],
                    "images": [{"type": "image", "source": {"type": "base64", "media_type": image.mime_type,
@@ -196,11 +212,13 @@ class ClaudeTransport:
                     if self.cancelled.is_set(): raise TurnCancelled("Claude task stopped.")
                     answer = event.get("text")
                     if event.get("success") is not True or not isinstance(answer, str) or not answer.strip() or len(answer) > 250_000:
-                        raise RuntimeError("Claude did not confirm a completed answer. Check its account, model and usage; PM did not resubmit the task.")
+                        raise RuntimeError(claude_error(event.get("error_code")))
+                    if self.session_plan:
+                        self.session_plan.complete(event.get("session_id"), answer.strip())
                     outcome = "completed"
                     return answer.strip()
                 elif kind == "error":
-                    raise RuntimeError("Claude Code stopped before completing the task. Check its account and model; PM did not resubmit it or change providers.")
+                    raise RuntimeError(claude_error(event.get("error_code")))
             if self.cancelled.is_set(): raise TurnCancelled("Claude task stopped. Earlier changes are not rolled back.")
             raise RuntimeError("Claude Code disconnected before completing the task. PM did not resubmit it.")
         except (OSError, ValueError, KeyError, TypeError):
@@ -219,3 +237,19 @@ class ClaudeTransport:
 class NativeClaudeReasoner(NativeAPIReasoner):
     backend_name = "claude_subscription"
     instruction_provider = "claude"
+
+
+def claude_error(code):
+    messages = {
+        "authentication_failed": "Claude: войдите в аккаунт заново в настройках подключения.",
+        "rate_limit": "Claude: достигнут лимит. Проверьте остаток и время обновления в разделе «Лимиты».",
+        "billing_error": "Claude: провайдер сообщил о проблеме оплаты или доступного баланса.",
+        "access_denied": "Claude: аккаунту недоступен этот запрос или выбранная модель.",
+        "invalid_request": "Claude: запрос или выбранная модель не поддерживается. Проверьте настройки модели.",
+        "server_error": "Claude: временная ошибка сервиса. Задача не отправлялась повторно.",
+        "cancelled": "Задача Claude остановлена. Уже выполненные действия не отменены.",
+        "workspace_connection": "Claude: связь с инструментами PM прервана. Проверьте результат перед продолжением.",
+        "max_turns": "Claude: достигнут предел шагов провайдера. Проверьте частичный результат.",
+        "max_budget": "Claude: достигнут предел бюджета провайдера. Проверьте частичный результат.",
+    }
+    return messages.get(code, "Claude не подтвердил завершение ответа. Проверьте подключение и частичный результат; автоматического повтора не было.")

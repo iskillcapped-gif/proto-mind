@@ -167,8 +167,8 @@ class NativeDeskTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "missing or expired"):
             self.backend.process(self.params(access_mode="full_access", cloud_consent=True), lambda _: None, "send")
 
-    def test_operator_and_natural_commands_do_not_read_attachments_or_execute(self):
-        for text in ("/context injection enable", "включи контекст", "/unknown command"):
+    def test_explicit_operator_commands_do_not_read_attachments_or_execute(self):
+        for text in ("/context injection enable", "/context injection status", "/unknown command"):
             with patch.object(self.reader, "read_file", side_effect=AssertionError("Must bypass")):
                 result = self.context(text=text, files=[{"path": "never.py", "sha256": "0" * 64}], history=[{"role": "user", "content": "private"}])
             self.assertTrue(result["manifest"]["operator"])
