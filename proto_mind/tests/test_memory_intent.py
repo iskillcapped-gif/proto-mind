@@ -59,4 +59,3 @@ class MemoryIntentTests(unittest.TestCase):
                      "Перевір код пам'яті. Що змінилося?"]:
             with self.subTest(text=text): self.assertNotEqual(Observer().analyze(text).query_type, "memory_inventory")
         self.assertEqual(Observer().analyze("Что ты помнишь о моих предпочтениях?").query_type, "memory_inventory")
-
