@@ -160,4 +160,7 @@ class NativeAPIReasoner(BaseReasoner):
             developer_instructions=None, selected_memory=retrieved_memory, correction_hints=hints)
         prompt = (criteria_context_message(self.criteria) + file_context_message(self.files) + pdf_context_message(self.pdfs)
                   + knowledge_context_message(self.project_notes, self.skill_task) + user_input)
+        return self._dispatch(prepared, prompt)
+
+    def _dispatch(self, prepared, prompt):
         return self.transport.answer(self.model, prepared.text, self.history, prompt, self.on_delta)

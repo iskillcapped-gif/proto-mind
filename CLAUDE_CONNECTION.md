@@ -1,6 +1,6 @@
 # Claude in Proto-Mind
 
-Development release: **0.74.0 (104)**. This local integration runs Anthropic's
+Development release: **0.74.1 (105)**. This local integration runs Anthropic's
 official **Claude Agent SDK 0.2.159 / Claude Code 2.1.281**. PM is an independent
 application, not an Anthropic product. No account is included.
 
@@ -53,15 +53,25 @@ characters across 2,000 messages, without a per-message cap. Omitted older text
 is marked, and the context inspector shows whether a session continues or starts
 fresh. Old image bytes and PDF excerpts are not reattached from local history.
 The 4 MiB bridge request envelope accommodates this history including UTF-8 and
-JSON escapes. Core memory and explicitly selected context are refreshed per turn.
+JSON escapes. Explicitly selected context is sent with each turn.
+
+Claude Code keeps a session's first system prompt when it resumes, so PM's
+system prompt holds only session-stable rules. Each turn's Observer labels,
+selected core memory and correction hints travel in a `<proto_mind_turn_context>`
+block inside that turn's message; a long memory record is truncated with a
+marker there instead of failing the turn. A changed PM system prompt, for example
+after an update, starts a new session from local history.
 
 An exclusive per-conversation lease rechecks the binding before sending. A
 confirmed result must name the expected session before PM saves continuation.
 Bindings include public account identity, login epoch, exact workspace identity,
-access/tool mode and private-restore generation. Resume also requires the latest
-local answer to match the saved result. Uncertain/interrupted sessions are not
-silently resumed or retried; the next user-initiated turn starts a fresh session
-with local history. API logins without a public email also bootstrap fresh.
+access/tool mode, PM's system prompt and private-restore generation. Resume also
+requires the latest local answer to match the saved result and the provider
+transcript to exist. After Stop, a usage limit, a crash or a transient error, the
+next user-initiated turn from the same local position continues that session with
+an explicit interruption notice; nothing is replayed or retried automatically. A
+resumed session that fails before any output for an unknown reason is not offered
+again. API logins without a public email bootstrap fresh.
 Changing a provider or project can therefore start a new session; this release
 does not add cross-provider context-transfer features.
 

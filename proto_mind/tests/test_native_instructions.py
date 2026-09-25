@@ -19,6 +19,8 @@ from proto_mind.native_instructions import (
     NativeInstructionError,
     build_instruction_receipt,
     build_instruction_preview,
+    claude_session_contract,
+    claude_system_text,
     legacy_subscription_instructions,
     prepare_local_instructions,
     validate_instruction_receipt,
@@ -182,6 +184,39 @@ class NativeInstructionContractTests(unittest.TestCase):
             self.observer, [self.memory], ["State uncertainty explicitly."],
         )
         self.assertEqual(self.prepared().text, legacy_subscription_instructions(raw))
+
+    def test_claude_system_prompt_is_session_stable_and_turn_context_is_separate(self):
+        first = self.prepared("claude")
+        later = prepare_local_instructions("claude", Observer().analyze("Fix the failing parser test."), [], [])
+        self.assertEqual(first.system_text, later.system_text)
+        self.assertEqual(first.system_text, claude_system_text(full_access=False, workspace_tools=False))
+        self.assertNotIn("Observer interpretation", first.system_text)
+        self.assertIn("query_type: memory_inventory", first.turn_context)
+        self.assertIn("query_type: new_question", later.turn_context)
+        self.assertIn(self.memory.content, first.turn_context)
+        self.assertNotIn(self.memory.content, later.turn_context)
+        # The inspected layer still carries every PM-authored part in the familiar order.
+        static = OllamaReasoner.STATIC_PROMPT
+        self.assertEqual(first.text, static + first.turn_context + first.system_text[len(static):])
+        self.assertNotEqual(claude_session_contract(full_access=False, workspace_tools=False),
+                            claude_session_contract(full_access=True, workspace_tools=True))
+
+    def test_one_very_long_memory_record_is_bounded_for_every_provider(self):
+        record = MemoryRecord(id="long-memory", content="Мы решили использовать SQLite. " + "x" * 30_000,
+                              type="decision", importance=0.9, source="operator", tags=["decision"])
+        for provider, mode in [("codex", "chat"), ("api", "chat"), ("ollama", "chat"),
+                               ("claude", "chat"), ("claude", "full_access")]:
+            with self.subTest(provider=provider, mode=mode):
+                prepared = prepare_local_instructions(provider, self.observer, [record], [],
+                    claude_full_access=mode == "full_access", claude_workspace_tools=mode == "full_access")
+                receipt = build_instruction_receipt(provider=provider, mode=mode, prepared=prepared,
+                    developer_instructions=CHAT_DEVELOPER_INSTRUCTIONS if provider == "codex" else None,
+                    selected_memory=[record], correction_hints=[])
+                self.assertEqual(receipt["layer_count"], 2 if provider == "codex" else 1)
+                self.assertIn("[Local context truncated; do not infer omitted facts.]", prepared.text)
+                if provider == "claude":
+                    self.assertIn("truncated", prepared.turn_context)
+                    self.assertNotIn("truncated", prepared.system_text)
 
     def test_instruction_receipt_matches_projection_without_storing_instruction_content(self):
         prepared = self.prepared()

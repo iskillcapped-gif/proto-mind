@@ -197,6 +197,31 @@ class ClaudeTests(unittest.TestCase):
         self.assertIsInstance(errors[0], TurnCancelled)
         self.assertEqual(self.transport().answer('sonnet','instructions',[],'go',lambda _:None), 'Offline answer')
 
+    def test_resumed_session_keeps_its_system_prompt_and_receives_current_turn_context(self):
+        from proto_mind.native_instructions import claude_session_contract, claude_system_text
+        root = self.root / 'project'
+        backend = NativeBackend(root, self.state, subscription_factory=FakeSubscription)
+        self.addCleanup(backend.close)
+        params = {'text':'Привет', 'provider':'claude', 'model':'sonnet', 'reasoning_effort':'medium',
+                  'conversation_id':str(uuid4()), 'cloud_consent':True}
+        observed = lambda: json.loads((self.state / 'claude-profile/sdk-observed.json').read_text())
+        question = 'Что ты помнишь о моих предпочтениях?'
+        with patch.object(ProtoMindConfig, 'from_env', return_value=ProtoMindConfig(data_dir=root / 'proto_mind/data')):
+            first = backend.process(params, lambda _:None, 'first')
+            opening = observed()
+            backend.process({**params, 'text':question, 'history':[{'role':'user','content':'Привет'},
+                             {'role':'assistant','content':first['cognitive_turn']['response']}]}, lambda _:None, 'second')
+            resumed = observed()
+        self.assertEqual(resumed['resume'], opening['session_id'])
+        self.assertEqual(opening['instructions']['append'], claude_system_text(full_access=False, workspace_tools=False))
+        self.assertEqual(resumed['instructions'], opening['instructions'])
+        texts = [value['messages'][0]['message']['content'][0]['text'] for value in (opening, resumed)]
+        self.assertIn('query_type: new_question', texts[0])
+        self.assertIn('query_type: memory_inventory', texts[1])
+        self.assertLess(texts[1].index('</proto_mind_turn_context>'), texts[1].index(question))
+        binding = json.loads((self.state / 'claude_sessions' / (params['conversation_id'] + '.json')).read_text())['binding']
+        self.assertEqual(binding['contract'], claude_session_contract(full_access=False, workspace_tools=False))
+
     def test_bridge_history_receipts_recall_and_access_are_claude_bound(self):
         root = self.root / 'project'
         backend = NativeBackend(root, self.state, subscription_factory=FakeSubscription)

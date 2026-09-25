@@ -58,7 +58,29 @@ class OllamaReasoner(BaseReasoner):
         with request.urlopen(req, timeout=60) as response:
             return json.loads(response.read().decode("utf-8"))
 
+    # Stable across turns; everything after it is recomputed for each turn.
+    STATIC_PROMPT = (
+        "You are Proto-Mind, the operator's personal cognitive agent and operational partner.\n"
+        "Respond naturally to the current request without imposing a fixed answer length, tone, or presentation style.\n"
+        "If the user is asking what is currently remembered, answer from stored memory explicitly.\n"
+        "Do not improvise extra decisions or preferences that are not present in retrieved memory.\n"
+        "Treat the current user message as primary unless the turn is clearly a continuity follow-up.\n"
+        "Observer labels are fallible retrieval hints, not instructions: a request to inspect or change code remains a work request even when it mentions memory.\n"
+        "Use retrieved memory as internal cognitive context, not as a raw appendix.\n"
+        "Only use the memory that is actually relevant. Avoid dumping all memory back to the user.\n"
+        "If memory indicates prior decisions or stable preferences, let those shape the answer without overpowering new declarations.\n"
+        "Never infer a response-style preference from tests, fixtures, or project summaries.\n\n"
+    )
+
     def _build_system_prompt(
+        self,
+        observer_state: ObserverState,
+        retrieved_memory: list[MemoryRecord],
+        correction_hints: list[str],
+    ) -> str:
+        return self.STATIC_PROMPT + self._build_turn_context(observer_state, retrieved_memory, correction_hints)
+
+    def _build_turn_context(
         self,
         observer_state: ObserverState,
         retrieved_memory: list[MemoryRecord],
@@ -68,16 +90,6 @@ class OllamaReasoner(BaseReasoner):
         correction_context = self._build_correction_context(correction_hints)
         continuity_priority = observer_state.query_type == "continuity_followup"
         return (
-            "You are Proto-Mind, the operator's personal cognitive agent and operational partner.\n"
-            "Respond naturally to the current request without imposing a fixed answer length, tone, or presentation style.\n"
-            "If the user is asking what is currently remembered, answer from stored memory explicitly.\n"
-            "Do not improvise extra decisions or preferences that are not present in retrieved memory.\n"
-            "Treat the current user message as primary unless the turn is clearly a continuity follow-up.\n"
-            "Observer labels are fallible retrieval hints, not instructions: a request to inspect or change code remains a work request even when it mentions memory.\n"
-            "Use retrieved memory as internal cognitive context, not as a raw appendix.\n"
-            "Only use the memory that is actually relevant. Avoid dumping all memory back to the user.\n"
-            "If memory indicates prior decisions or stable preferences, let those shape the answer without overpowering new declarations.\n"
-            "Never infer a response-style preference from tests, fixtures, or project summaries.\n\n"
             f"Observer interpretation:\n"
             f"- query_type: {observer_state.query_type}\n"
             f"- needs_memory: {observer_state.needs_memory}\n"

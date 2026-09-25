@@ -106,6 +106,27 @@ class PreparedLocalInstructions:
     text: str
     source: str
     persona_receipt: dict[str, Any] | None
+    # Claude only: `text` is the fingerprinted whole; the provider receives the
+    # session-stable `system_text` and the per-turn `turn_context` separately.
+    system_text: str = ""
+    turn_context: str = ""
+
+
+def _bounded(text: str, limit: int) -> str:
+    if len(text) <= limit:
+        return text
+    return text[:max(0, limit)] + "\n[Local context truncated; do not infer omitted facts.]"
+
+
+def claude_system_text(*, full_access: bool, workspace_tools: bool) -> str:
+    """The Claude system prompt: identical for every turn of one session."""
+    from proto_mind.native_claude_contract import instructions
+    return OllamaReasoner.STATIC_PROMPT + instructions(full_access=full_access, workspace_tools=workspace_tools)
+
+
+def claude_session_contract(*, full_access: bool, workspace_tools: bool) -> str:
+    """Session binding identity: a changed system prompt needs a new Claude session."""
+    return _text_hash(claude_system_text(full_access=full_access, workspace_tools=workspace_tools))
 
 
 def _canonical(value: object) -> bytes:
@@ -149,14 +170,27 @@ def prepare_local_instructions(
         raise NativeInstructionError("Only Codex and Ollama have a local instruction envelope.")
     memory = list(retrieved_memory)
     hints = list(correction_hints)
-    legacy = OllamaReasoner(ProtoMindConfig())._build_system_prompt(observer_state, memory, hints)
+    reasoner = OllamaReasoner(ProtoMindConfig())
+    turn = reasoner._build_turn_context(observer_state, memory, hints)
+    legacy = reasoner.STATIC_PROMPT + turn
     if provider == "codex":
         legacy = legacy_subscription_instructions(legacy)
+    elif provider in {"api", "ollama"}:
+        legacy = _bounded(legacy, MAX_INSTRUCTION_CHARS)
     if provider == "claude":
-        from proto_mind.native_claude_contract import instructions
         if persona_activation is not None:
             raise NativeInstructionError("Brother Persona is not supported by the Claude route.")
-        legacy += instructions(full_access=claude_full_access, workspace_tools=claude_workspace_tools)
+        system = claude_system_text(full_access=claude_full_access, workspace_tools=claude_workspace_tools)
+        # The fingerprinted whole must fit one instruction layer, so only the
+        # per-turn part is shortened when old memory records are very long.
+        turn = _bounded(turn, MAX_INSTRUCTION_CHARS - len(system))
+        return PreparedLocalInstructions(
+            text=reasoner.STATIC_PROMPT + turn + system[len(reasoner.STATIC_PROMPT):],
+            source="legacy_cognitive_core_current_projection",
+            persona_receipt=None,
+            system_text=system,
+            turn_context=turn,
+        )
     if persona_activation is None:
         return PreparedLocalInstructions(
             text=legacy,
@@ -274,6 +308,8 @@ def build_instruction_preview(
         )
         if retrieval_performed:
             notices.append("Shared-core memory retrieval ran locally in read-only mode for this projection; no usage telemetry or store write occurred.")
+        if provider == "claude":
+            notices.append("Claude receives the opening rules and the Claude contract as a session-stable system prompt. The Observer, memory and correction sections are sent inside each turn's message, because Claude Code keeps a session's first system prompt on resume.")
         if persona_state == "brother":
             notices.append("Brother Persona was compiled for inspection only; no provider activation receipt was persisted.")
 

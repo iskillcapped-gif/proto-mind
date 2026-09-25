@@ -40,6 +40,7 @@ from proto_mind.native_codex import (
 from proto_mind.native_instructions import (
     build_instruction_receipt,
     build_instruction_preview,
+    claude_session_contract,
     prepare_local_instructions,
 )
 from proto_mind.native_computer_use import public_computer_use_capability
@@ -670,7 +671,9 @@ class NativeBackend:
                     if not account["connected"]:
                         raise ValueError("Sign in through Claude Code in Settings → Connections first.")
                     claude_plan = ClaudeSessionPlan(self.state_dir, session_id, account=account,
-                        workspace=logical_workspace, full_access=mode == "full_access", tools=bool(tools_version), history=history)
+                        workspace=logical_workspace, full_access=mode == "full_access", tools=bool(tools_version), history=history,
+                        contract=claude_session_contract(full_access=mode == "full_access",
+                                                         workspace_tools=mode == "full_access" and bool(tools_version)))
                     provider_history, provider_thread = claude_plan.history, claude_plan.public()
                 continuation = params.get("continuation")
                 if continuation is not None:
@@ -1008,9 +1011,10 @@ class NativeBackend:
         provider_history = [] if provider_thread and provider_thread["linked"] else local_history
         if provider == "claude" and not operator:
             from proto_mind.native_claude_sessions import ClaudeSessionPlan
+            tools = params.get("workspace_tools_version") == 1
             plan = ClaudeSessionPlan(self.state_dir, params.get("conversation_id", ""), account=claude_status(self.state_dir),
-                workspace=logical_workspace, full_access=mode == "full_access", tools=params.get("workspace_tools_version") == 1,
-                history=local_history)
+                workspace=logical_workspace, full_access=mode == "full_access", tools=tools, history=local_history,
+                contract=claude_session_contract(full_access=mode == "full_access", workspace_tools=mode == "full_access" and tools))
             provider_history, provider_thread = plan.history, plan.public()
         result = context_preview(root=self.root, text=text, history=provider_history,
                                  provider=provider, model=model,

@@ -21,7 +21,7 @@ from proto_mind.native_api import NativeAPIReasoner
 from proto_mind.native_codex import TurnCancelled
 from proto_mind.native_progress import WorkLog
 from proto_mind.native_workspace_tools import TOOLS
-from proto_mind.native_claude_contract import validate_effort
+from proto_mind.native_claude_contract import turn_context_message, validate_effort
 from proto_mind.native_claude_sessions import INTERRUPTED_NOTICE, invalidate_login, text_hash
 
 MAX_LINE = 1_048_576
@@ -259,6 +259,12 @@ class ClaudeTransport:
 class NativeClaudeReasoner(NativeAPIReasoner):
     backend_name = "claude_subscription"
     instruction_provider = "claude"
+
+    def _dispatch(self, prepared, prompt):
+        # A resumed session keeps its first system prompt, so only the stable
+        # part goes there; current memory and Observer labels ride the message.
+        return self.transport.answer(self.model, prepared.system_text, self.history,
+                                     turn_context_message(prepared.turn_context) + prompt, self.on_delta)
 
 
 def claude_error(code):
