@@ -36,6 +36,7 @@ struct ConversationComposerContext {
         switch conversation?.provider {
         case "api": return L10n.text("Модель через API")
         case "codex": return L10n.text("Codex · облако")
+        case "claude": return "Claude"
         case "mock": return L10n.text("Тестовый режим")
         default: return L10n.text("Ollama · локально")
         }

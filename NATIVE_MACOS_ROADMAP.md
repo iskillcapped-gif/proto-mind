@@ -4,6 +4,16 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Claude Connection — Native 0.73.0
+
+Claude runs through a pinned official Agent SDK worker and unmodified Claude Code
+binary. Main and side chats share memory, context, history and explicit Mac access;
+ordinary chat disables tools. Official login is available in Connections without
+copying credentials into PM history or backups. Existing Codex accounts stay intact.
+The first version uses bounded PM history on each request, without live steering,
+Claude quota display or multiple Claude accounts. [Contract and verification](CLAUDE_CONNECTION.md).
+Real subscription login and task trials await the operator's new account.
+
 ## Agent Workspace — Native 0.72.0
 
 The assistant can now operate PM's projects, tasks, browser and document panels through a shared, turn-bound tool channel. Codex Full Mac advertises the frozen v3 catalog; API conversations opt into completed Responses/Chat Completions calls separately. Exact request, source binding and permission-generation checks keep delayed work out of another conversation. User questions persist, and late answers route to the original chat without consuming its draft.

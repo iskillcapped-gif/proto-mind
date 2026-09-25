@@ -137,6 +137,7 @@ struct NativeSettingsView: View {
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                     case .services:
+                        ClaudeConnectionSettings(app: model)
                         WorkspaceServiceSettings(app: model, services: model.workspaceServices)
                         MessengerSettings(app: model, connections: model.messengers)
                         TelegramRemoteSettings(app: model, remote: model.telegram)
@@ -170,6 +171,7 @@ struct NativeSettingsView: View {
             Text(model.selected?.displayTitle ?? L10n.text("Новый диалог")).font(.callout.weight(.medium)).lineLimit(2)
             Picker(L10n.text("Источник модели"), selection: Binding(get: { model.selected?.provider ?? "ollama" }, set: model.setProvider)) {
                 Text(L10n.text("ChatGPT · по подписке")).tag("codex")
+                Text("Claude · Claude Code").tag("claude")
                 Text(L10n.text("Ollama · на этом Mac")).tag("ollama")
                 Text(L10n.text("Модель через API")).tag("api")
                 Text(L10n.text("Тестовый режим · без модели")).tag("mock")
@@ -182,6 +184,10 @@ struct NativeSettingsView: View {
                 })).disabled(model.busy)
                 Text(L10n.pick("Модель сможет работать с задачами, проектной памятью и браузером PM. Нужна поддержка function calling; обращения к API оплачиваются по тарифу провайдера.", "The model can use PM tasks, project memory and browser tools. Requires function calling; API usage is billed by your provider.")).font(.caption).foregroundStyle(.secondary)
                 Button(L10n.text("Настроить API-подключения")) { model.settingsSection = .services }
+            } else if model.selected?.provider == "claude" {
+                ClaudeModelControls(app: model, conversationID: model.selectedID)
+                Toggle(L10n.text("Разрешить облачную обработку"), isOn: $model.cloudConsent).disabled(model.globalBusy)
+                Button(L10n.pick("Подключить Claude", "Connect Claude")) { model.settingsSection = .services }
             } else if model.selected?.provider == "ollama" {
                 TextField(L10n.text("Модель Ollama"), text: Binding(get: { model.selected?.model ?? "" }, set: model.setModel), prompt: Text(model.bootstrap["ollama_model"].text))
                     .disabled(model.globalBusy)

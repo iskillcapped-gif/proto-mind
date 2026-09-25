@@ -22,7 +22,7 @@ struct NativeInstructionPreview: Equatable {
               ["read_only", "no_execution", "no_model_call", "no_network_call", "no_store_write", "no_thread_refresh", "current_projection"]
                 .allSatisfy({ value[$0] == .bool(true) }),
               value["private_reasoning_included"] == .bool(false),
-              ["codex", "ollama", "mock", "api"].contains(value["provider"].text),
+              ["codex", "ollama", "mock", "api", "claude"].contains(value["provider"].text),
               ["chat", "full_access", "operator"].contains(value["mode"].text),
               case .bool = value["operator"], case .bool = value["recomputed_on_send"],
               case .bool = value["read_only_retrieval_performed"],
@@ -70,8 +70,8 @@ struct NativeInstructionPreview: Equatable {
                   layers[1]["source"] == .string(value["mode"].text == "full_access" ? "full_mac_static_contract" : "chat_static_contract"),
                   layers[1]["dynamic"] == .bool(false), value["recomputed_on_send"] == .bool(true) else { throw Self.error() }
         } else {
-            guard ["ollama", "api"].contains(value["provider"].text), value["mode"] == .string("chat"),
-                  identifiers == ["system_instructions"], layers[0]["placement"] == .string(value["provider"].text == "api" ? "api_system_message" : "ollama_system_message"),
+            guard ["ollama", "api", "claude"].contains(value["provider"].text), (value["provider"].text == "claude" || value["mode"] == .string("chat")),
+                  identifiers == ["system_instructions"], layers[0]["placement"] == .string(value["provider"].text + "_system_message"),
                   ["legacy_cognitive_core_current_projection", "brother_persona_current_projection"].contains(layers[0]["source"].text),
                   layers[0]["dynamic"] == .bool(true), value["recomputed_on_send"] == .bool(true) else { throw Self.error() }
         }
@@ -118,8 +118,8 @@ struct NativeInstructionReceipt: Equatable {
               value["assembled_for_provider_call"] == .bool(true), value["provider_delivery_verified"] == .bool(false),
               value["provider_owned_instructions_included"] == .bool(false), value["private_reasoning_included"] == .bool(false),
               value["scope"] == .string("proto_mind_authored_instruction_metadata"),
-              ["codex", "ollama", "api"].contains(value["provider"].text), ["chat", "full_access"].contains(value["mode"].text),
-              value["provider"].text == "codex" || value["mode"].text == "chat",
+              ["codex", "ollama", "api", "claude"].contains(value["provider"].text), ["chat", "full_access"].contains(value["mode"].text),
+              ["codex", "claude"].contains(value["provider"].text) || value["mode"].text == "chat",
               ["brother", "legacy"].contains(value["persona_state"].text),
               case .array(let memoryIDs) = value["selected_memory_ids"], memoryIDs.count <= 10,
               memoryIDs.allSatisfy({ !$0.text.isEmpty && $0.text.unicodeScalars.count <= 160 }),
@@ -145,7 +145,7 @@ struct NativeInstructionReceipt: Equatable {
                   layers[1]["source"] == .string(value["mode"].text == "full_access" ? "full_mac_static_contract" : "chat_static_contract"),
                   layers[1]["dynamic"] == .bool(false) else { throw Self.error() }
         } else {
-            guard identifiers == ["system_instructions"], layers[0]["placement"] == .string(value["provider"].text == "api" ? "api_system_message" : "ollama_system_message"),
+            guard identifiers == ["system_instructions"], layers[0]["placement"] == .string(value["provider"].text + "_system_message"),
                   ["legacy_cognitive_core_current_projection", "brother_persona_current_projection"].contains(layers[0]["source"].text),
                   layers[0]["dynamic"] == .bool(true) else { throw Self.error() }
         }
@@ -230,7 +230,7 @@ struct NativeContextPreview: Equatable {
             let workspace = report.value["workspace"].isNull ? JSONValue.null : report.value["workspace"]["path"]
             guard report.value["goal_sha256"] == value["manifest"]["input"]["sha256"],
                   report.value["access_mode"] == value["manifest"]["access_mode"], workspace == value["manifest"]["workspace"],
-                  value["manifest"]["provider"] == .string("codex"), !value["manifest"]["operator"].flag else { throw NativeProjectRecallReport.error() }
+                  ["codex", "claude"].contains(value["manifest"]["provider"].text), !value["manifest"]["operator"].flag else { throw NativeProjectRecallReport.error() }
         }
         let reference = value["manifest"]["knowledge_context"]["skill_task"]
         if !reference.isNull {
@@ -562,6 +562,7 @@ struct ContextDeskView: View {
 
     private func destination(_ value: String) -> String {
         switch value {
+        case "anthropic_cloud": return L10n.pick("Claude · облачная обработка Anthropic", "Claude · Anthropic cloud processing")
         case "openai_cloud": return L10n.text("Codex · облачная обработка OpenAI")
         case "ollama_loopback": return L10n.text("Ollama · на этом Mac")
         case "operator_local": return L10n.text("Операторская команда · без модели")

@@ -4,6 +4,7 @@ struct PendingAgentAccess: Identifiable {
     let id = UUID()
     let conversationID: UUID
     let workspace: String?
+    var provider: String = "codex"
 }
 
 struct AgentAccessGrant {
@@ -16,23 +17,26 @@ struct AgentAccessSheet: View {
     @ObservedObject var model: AppModel
     let request: PendingAgentAccess
     @State private var acknowledged = false
+    private var computerUse: Bool { request.provider == "codex" && model.computerUseAvailable }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Label(model.computerUseAvailable ? L10n.text("Полный доступ к Mac, интернету и экрану") : L10n.text("Полный доступ к Mac и интернету"),
+            Label(computerUse ? L10n.text("Полный доступ к Mac, интернету и экрану") : L10n.text("Полный доступ к Mac и интернету"),
                   systemImage: "exclamationmark.shield")
                 .font(.title2.weight(.semibold)).foregroundStyle(.orange)
-            Text(model.computerUseAvailable
+            Text(computerUse
                  ? L10n.text("Модель сможет читать и менять файлы, запускать команды, использовать Web Search и официальный локальный Computer Use OpenAI: видеть содержимое приложений, нажимать, вводить текст и прокручивать экран. Подтверждения каждого действия не будет.")
                  : L10n.text("Модель сможет читать и менять файлы, запускать команды, использовать встроенный Web Search и обращаться к сети с правами вашего пользователя. Подтверждения каждой команды или поиска не будет. Computer Use сейчас недоступен."))
             Text(request.workspace.map { L10n.format("Начальная папка: \($0)") }
                  ?? L10n.text("Без проекта · команды начнут работу в домашней папке."))
                 .font(.callout).textSelection(.enabled)
-            Text(model.computerUseAvailable
+            Text(request.provider == "claude"
+                 ? L10n.pick("Начальная папка не ограничивает доступ. Claude Code сможет читать и менять другие файлы Mac, выполнять команды и работать с интернетом с правами вашего пользователя. Контекст и результаты инструментов обрабатываются Anthropic. macOS продолжает управлять системными разрешениями.", "The initial folder is not an access boundary. Claude Code can read and change other Mac files, run commands and use the internet with your user permissions. Anthropic processes context and tool results. macOS still controls system permissions.")
+                 : computerUse
                  ? L10n.text("Это начальная папка, не граница доступа. Доступны и другие файлы Mac и видимое содержимое экрана, включая личные данные. Запросы, страницы, скриншоты, прочитанный контекст и вывод инструментов могут обрабатываться OpenAI. Веб-страницы и экран считаются недоверенными данными. Это не root; macOS всё ещё управляет системными разрешениями.")
                  : L10n.text("Это начальная папка, не граница доступа. Доступны и другие файлы Mac, включая личные данные. Запросы, открытые страницы, прочитанный контекст и вывод инструментов могут передаваться OpenAI. Веб-страницы считаются недоверенными данными. Это не root; macOS всё ещё управляет системными разрешениями."))
                 .font(.callout).foregroundStyle(.secondary)
-            if model.computerUseAvailable {
+            if computerUse {
                 Label(L10n.format("OpenAI Computer Use \(model.computerUseVersion.isEmpty ? L10n.text("установлен") : model.computerUseVersion) · скриншоты, UI-дерево, координаты и введённый текст не сохраняются в журнал Proto-Mind."), systemImage: "display.and.arrow.down")
                     .font(.callout).foregroundStyle(.secondary)
             }

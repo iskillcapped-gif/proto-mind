@@ -2,7 +2,7 @@ import Foundation
 
 extension AppModel {
     func hasAgentAccessSelection(_ conversation: Conversation) -> Bool {
-        guard cloudConsent, conversation.provider == "codex" else { return false }
+        guard cloudConsent, ["codex", "claude"].contains(conversation.provider) else { return false }
         return rememberedAgentAccess.contains { $0.conversationID == conversation.id && $0.workspace == conversation.workspacePath }
             || (executions[conversation.id]?.client.connected == true
                 && agentGrants[conversation.id]?.workspace == conversation.workspacePath && agentGrants[conversation.id] != nil)
@@ -36,7 +36,7 @@ extension AppModel {
         defer { restoringAgentAccess.removeValue(forKey: id) }
         let grant = try await task.value
         guard executions[id] === state, let current = conversations.first(where: { $0.id == id }),
-              current.workspacePath == conversation.workspacePath, hasAgentAccessSelection(current),
+              current.workspacePath == conversation.workspacePath, current.provider == conversation.provider, hasAgentAccessSelection(current),
               grant.bridgeGeneration == state.client.connectionGeneration else {
             throw NativeError.message(L10n.text("Диалог или доступ изменились во время подключения. Задача не запускалась."))
         }

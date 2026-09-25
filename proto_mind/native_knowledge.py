@@ -92,8 +92,8 @@ def validate_skill_task_metadata(value):
     if (not isinstance(value, dict) or set(value) != _TASK_FIELDS or value["schema"] != "proto_mind.native_skill_task_reference.v1"
             or not isinstance(value["conversation_id"], str)
             or value["execution_path"] != "existing_operator_sent_provider_turn" or value["quality_verification"] != "not_assessed"
-            or value["shared_skill_library"] is not True or value["provider"] not in {"codex", "ollama", "mock", "api"}
-            or value["access_mode"] not in {"chat", "full_access"} or value["access_mode"] == "full_access" and value["provider"] != "codex"
+            or value["shared_skill_library"] is not True or value["provider"] not in {"codex", "ollama", "mock", "api", "claude"}
+            or value["access_mode"] not in {"chat", "full_access"} or value["access_mode"] == "full_access" and value["provider"] not in {"codex", "claude"}
             or value["lifecycle_state"] not in {"active_verified", "active_restored_verified"}
             or any(not isinstance(value[key], str) or not _HASH.fullmatch(value[key]) for key in ("preview_fingerprint", "skill_record_hash", "provenance_hash", "contract_hash", "goal_sha256", "criteria_sha256"))
             or any(not isinstance(value[key], str) or not re.fullmatch(r"[A-Za-z0-9_.:-]{1,200}", value[key]) for key in ("skill_id", "source_lesson_id", "provenance_id"))

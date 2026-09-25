@@ -83,6 +83,7 @@ extension AppModel {
     }
 
     func shutdown() {
+        closeClaudeAuthentication()
         telegram.stop()
         workspaceServices.shutdown()
         workspacePanels.closeAll()

@@ -218,7 +218,7 @@ struct WorkSessionsView: View {
                     Text(L10n.text("Сохранены только размеры, источники и SHA-256 фактически собранных Proto-Mind слоёв. Текст инструкций, provider-owned prompt и приватные рассуждения не сохранены. Квитанция подтверждает локальную сборку для provider call, но не является независимым подтверждением доставки или интерпретации провайдером."))
                         .font(.caption).foregroundStyle(.secondary)
                 }.padding(14).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
-            } else if run.state == "completed" && ["codex", "ollama", "api"].contains(run.value["provider"].text) {
+            } else if run.state == "completed" && ["codex", "ollama", "api", "claude"].contains(run.value["provider"].text) {
                 Label(L10n.text("Исторический запуск: content-free квитанция инструкций ещё не сохранялась."), systemImage: "clock")
                     .font(.caption).foregroundStyle(.secondary)
             }

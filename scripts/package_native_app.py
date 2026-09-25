@@ -127,6 +127,10 @@ def linked_libraries(load_commands: str) -> list[str]:
 def sign_app(app: Path, identity: str) -> None:
     options = ["--options", "runtime", "--timestamp"] if identity != "-" else []
     for path in macho_files(app):
+        if path == app / "Contents/Resources/core/claude_packages/claude_agent_sdk/_bundled/claude":
+            # This is Anthropic's unmodified binary, including their signature.
+            run("/usr/bin/codesign", "--verify", "--strict", path)
+            continue
         run("/usr/bin/codesign", "--force", "--sign", identity, *options, path, stderr=subprocess.DEVNULL)
     run("/usr/bin/codesign", "--force", "--sign", identity, *options, app)
     run("/usr/bin/codesign", "--verify", "--deep", "--strict", app)
@@ -138,6 +142,7 @@ def smoke_runtime(app: Path) -> None:
     executable = resources / "runtime/codex/bin/codex"
     run(python, "--version")
     run(executable, "--version")
+    run(resources / "core/claude_packages/claude_agent_sdk/_bundled/claude", "--version")
     with tempfile.TemporaryDirectory(prefix="pm-package-check-") as temporary:
         profile = Path(temporary)
         env = {key: value for key, value in os.environ.items()
@@ -196,6 +201,8 @@ def package(root: Path, binaries: Path, output: Path, cache: Path, identity: str
         extract_runtime(archives["codex"], runtime / "codex")
         run(runtime / "python/bin/python3", root / "scripts/prepare_document_runtime.py", "--python", runtime / "python/bin/python3",
             "--destination", resources / "core/document_packages")
+        run(runtime / "python/bin/python3", root / "scripts/prepare_claude_runtime.py", "--python", runtime / "python/bin/python3",
+            "--destination", resources / "core/claude_packages")
         files = source_inventory(root)
         for relative in files:
             target = resources / "core" / relative
@@ -221,6 +228,7 @@ def package(root: Path, binaries: Path, output: Path, cache: Path, identity: str
             (licenses / ("Python-" + PurePosixPath(name).name)).write_bytes(content)
         shutil.copy2(root / "native/Distribution/THIRD_PARTY_NOTICES.md", licenses / "README.md")
         shutil.copy2(root / "requirements-documents.txt", licenses / "document-requirements.txt")
+        shutil.copy2(root / "requirements-claude.txt", licenses / "claude-requirements.txt")
         run("/bin/bash", root / "scripts/build_native_icon.sh", resources / "ProtoMindCube.icns")
         manifest = {"schema": 1, "version": plist["CFBundleShortVersionString"], "build": plist["CFBundleVersion"],
                     "platform": lock["platform"], "signing": "ad-hoc beta" if identity == "-" else "Developer ID; notarization pending",
@@ -231,6 +239,10 @@ def package(root: Path, binaries: Path, output: Path, cache: Path, identity: str
                     "document_runtime": {"requirements_sha256": sha256(root / "requirements-documents.txt"),
                         "requirements": "Licenses/document-requirements.txt", "packages": "core/document_packages",
                         "notice": "Wheel hashes are pinned. Package dist-info directories retain licenses and metadata. Installation inventory precedes Apple code signing."}}
+        manifest["claude_runtime"] = {"requirements_sha256": sha256(root / "requirements-claude.txt"),
+            "packages": "core/claude_packages", "requirements": "Licenses/claude-requirements.txt",
+            "executable_sha256": sha256(resources / "core/claude_packages/claude_agent_sdk/_bundled/claude"),
+            "notice": "Official Claude Agent SDK; Claude Code binary and Anthropic signature are preserved. User authenticates with Claude Code; no account data is included."}
         (resources / "distribution-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
         sign_app(app, identity)
         smoke_runtime(app)

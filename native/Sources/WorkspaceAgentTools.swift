@@ -69,7 +69,7 @@ extension AppModel {
         }
         guard workspaceToolBinding(source) == state.workspaceToolBinding,
               (source.provider == "api" && apiWorkspaceToolsAllowed(source))
-            || (source.provider == "codex" && agentGrants[source.id]?.workspace == source.workspacePath && agentGrants[source.id] != nil) else {
+            || (["codex", "claude"].contains(source.provider) && agentGrants[source.id]?.workspace == source.workspacePath && agentGrants[source.id] != nil) else {
             throw NativeError.message("Workspace tool permission was revoked.")
         }
         try PrivateStateAccess.requireAvailable(serviceClient.configuration.stateDirectory)
@@ -290,7 +290,7 @@ extension AppModel {
     }
 
     private func prepareWorkspaceDelegation(source: Conversation, target: UUID, state: ConversationExecution, request: String) async throws -> String? {
-        guard workspaceDelegationEnabled.contains(source.id), source.provider == "codex", !isRunning(target),
+        guard workspaceDelegationEnabled.contains(source.id), ["codex", "claude"].contains(source.provider), !isRunning(target),
               let child = conversations.first(where: { $0.id == target && $0.workspaceParentID == source.id }),
               !hasAgentAccessSelection(child) else { return nil }
         _ = try requireWorkspaceTurn(state, request)

@@ -80,7 +80,7 @@ extension AppModel {
         guard !operationBusy, !isRunning(id), let index = conversations.firstIndex(where: { $0.id == id }),
               !conversations[index].archived else { return }
         if let provider, provider != conversations[index].provider {
-            guard ["codex", "ollama", "mock"].contains(provider) else { return }
+            guard ["codex", "ollama", "mock", "claude"].contains(provider) else { return }
             discardAgentGrants(for: id)
             conversations[index].provider = provider
             conversations[index].apiConnectionID = nil
@@ -99,7 +99,9 @@ extension AppModel {
         }
         if let effort {
             let model = codexModels(for: id).first { conversations[index].model.isEmpty ? $0.isDefault : $0.id == conversations[index].model }
-            guard conversations[index].provider == "codex", effort.isEmpty || model?.efforts.contains(where: { $0.rawValue == effort }) == true else { return }
+            let valid = conversations[index].provider == "claude" ? ClaudeSelection.efforts.contains(effort)
+                : conversations[index].provider == "codex" && (effort.isEmpty || model?.efforts.contains(where: { $0.rawValue == effort }) == true)
+            guard valid else { return }
             conversations[index].reasoningEffort = effort
         }
         invalidateContextPreview(); invalidateSessionSpinePilot(); persist()

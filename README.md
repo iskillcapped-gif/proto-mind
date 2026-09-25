@@ -14,7 +14,9 @@ For current development guidance, see [`AGENTS.md`](AGENTS.md). The [current pri
 
 ## Native macOS Direction
 
-The current native workspace is **Native 0.72.0 / Agent Workspace**, built with SwiftUI/AppKit over the existing Python cognitive core. Models can work with PM projects, conversations, browser pages, documents and explicitly connected services. This development line is separate from the earlier submitted Build Week baseline and published download.
+The current native workspace is **Native 0.73.0 / Claude Connection**, built with SwiftUI/AppKit over the existing Python cognitive core. Models can work with PM projects, conversations, browser pages, documents and explicitly connected services. This development line is separate from the earlier submitted Build Week baseline and published download.
+
+**Claude Code:** sign in through **Settings → Connections → Claude**, then select Claude in any chat. The official SDK/CLI supports the user's own Claude Code subscription or explicit API login. Claude shares PM's editor, memory and journal; tools require the conversation's Mac access. Each request uses bounded PM history rather than resuming a Claude provider session. Live steering remains Codex-only. [Setup and current limits](CLAUDE_CONNECTION.md).
 
 **Agent workspace:** Codex tasks with Full Mac access receive PM tools automatically. An API chat can opt in to **PM tools** in its model-source menu or Models settings; this does not grant an API model arbitrary shell or Mac control. Tasks can inspect project/task status, open results in their originating panel, ask questions without consuming drafts, search project notes, start separate tasks and collect their answers. Questions survive restart. Answers to an expired question become explicit new input in the same conversation. A saved continuation offers a user-operated **Continue task** button; it never starts an automatic paid loop. [Upgrade checklist and usage](AGENT_WORKSPACE_UPGRADE.md).
 

@@ -12,6 +12,7 @@ final class WorkspaceTerminal: NSObject, ObservableObject, @preconcurrency Local
     @Published private(set) var running = false
     @Published private(set) var exitCode: Int32?
     private var started = false
+    var onExit: ((Int32?) -> Void)?
 
     init(directory: URL) {
         self.directory = directory
@@ -23,10 +24,10 @@ final class WorkspaceTerminal: NSObject, ObservableObject, @preconcurrency Local
         view.nativeForegroundColor = NSColor(calibratedWhite: 0.86, alpha: 1)
     }
 
-    func start(executable: String = "/bin/zsh", arguments: [String] = ["-l"]) {
+    func start(executable: String = "/bin/zsh", arguments: [String] = ["-l"], environment suppliedEnvironment: [String: String]? = nil) {
         guard !started else { return }
         started = true
-        var environment = ProcessInfo.processInfo.environment
+        var environment = suppliedEnvironment ?? ProcessInfo.processInfo.environment
         environment["TERM"] = "xterm-256color"
         environment["COLORTERM"] = "truecolor"
         environment["PATH"] = TerminalLaunch.environmentPath(environment["PATH"])
@@ -47,7 +48,7 @@ final class WorkspaceTerminal: NSObject, ObservableObject, @preconcurrency Local
     func sizeChanged(source: LocalProcessTerminalView, newCols: Int, newRows: Int) {}
     func setTerminalTitle(source: LocalProcessTerminalView, title: String) { processTitle = String(title.prefix(120)) }
     func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) {}
-    func processTerminated(source: TerminalView, exitCode: Int32?) { running = false; self.exitCode = exitCode }
+    func processTerminated(source: TerminalView, exitCode: Int32?) { running = false; self.exitCode = exitCode; onExit?(exitCode) }
 }
 
 enum TerminalLaunch {

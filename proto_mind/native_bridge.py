@@ -153,6 +153,8 @@ class NativeMemoryStore(MemoryStore):
 
 
 from proto_mind.native_api import APITransport, NativeAPIReasoner, validate_connection
+from proto_mind.native_claude import ClaudeTransport, NativeClaudeReasoner, status as claude_status, authentication_command as claude_auth_command
+from proto_mind.native_claude_contract import validate_effort as claude_effort
 
 
 class NativeOllamaReasoner(OllamaReasoner):
@@ -292,6 +294,7 @@ class NativeBackend:
         self.active_request: str | None = None
         self.active_provider: str | None = None
         self.active_api: APITransport | None = None
+        self.active_claude: ClaudeTransport | None = None
         self.active_steering: LiveSteering | None = None
         self.workspace_tools: WorkspaceTools | None = None
         self.mcp_client = None
@@ -557,17 +560,20 @@ class NativeBackend:
         if description["requires_confirmation"] and params.get("confirmed_text") != text:
             raise ValueError("Confirm the exact operator command before running it.")
         provider = params.get("provider", "ollama")
-        if provider not in {"ollama", "mock", "codex", "api"}:
+        if provider not in {"ollama", "mock", "codex", "api", "claude"}:
             raise ValueError("Unknown model provider.")
         model = params.get("model", "")
         if not isinstance(model, str) or len(model) > 160 or "\x00" in model:
             raise ValueError("Invalid model name.")
         reasoning_effort = validate_reasoning_effort(params.get("reasoning_effort", "")) if provider == "codex" and not description["operator"] else ""
+        if provider == "claude" and not description["operator"]:
+            reasoning_effort = claude_effort(params.get("reasoning_effort", ""))
+            if persona_enabled: raise ValueError("Brother Persona is available through Codex and Ollama. Claude uses the core memory.")
         history = bounded_history(params.get("history", []))
         criteria = [] if description["operator"] else validate_criteria(params.get("criteria", []))
-        if provider in {"codex", "api"} and not description["operator"] and params.get("cloud_consent") is not True:
+        if provider in {"codex", "api", "claude"} and not description["operator"] and params.get("cloud_consent") is not True:
             raise ValueError("Разрешите облачную обработку в настройках перед отправкой сообщений и памяти API."
-                             if provider == "api" else "Select and approve cloud processing before sending messages or recalled memories to Codex.")
+                             if provider == "api" else "Select and approve cloud processing before sending messages or recalled memories to the selected cloud provider.")
         if description["operator"] and persona_enabled:
             raise ValueError("Brother Persona is not applied to operator commands. No command was executed.")
         if provider == "api" and not description["operator"]:
@@ -583,7 +589,7 @@ class NativeBackend:
             if mode not in {"chat", "full_access"}:
                 raise ValueError("Unknown model access mode.")
             if mode == "full_access":
-                if provider != "codex":
+                if provider not in {"codex", "claude"}:
                     raise ValueError("Full Mac tools currently require the explicitly selected Codex provider.")
                 grant = self.agent_grants.validate(session_id, self.agent_workspace(params), params.get("access_token"))
                 agent_workspace = Path(grant["execution_root"])
@@ -602,7 +608,7 @@ class NativeBackend:
         images = []
         if not description["operator"] and params.get("images", []) != []:
             image_specifications(params["images"])
-            if provider != "codex":
+            if provider not in {"codex", "claude"}:
                 raise ValueError("Image input currently requires an explicitly selected vision-capable Codex model. Ollama/Mock images are not implemented; no provider was changed.")
             images = self.image_reader().selected(params["images"])
         pdfs = [] if description["operator"] else self.pdf_reader().selected(params.get("pdfs", []))
@@ -610,7 +616,7 @@ class NativeBackend:
                              if not description["operator"] and params.get("workspace_root") else None)
         project_notes = [] if description["operator"] else self._selected_project_notes(params, session_id)
         project_recall = None
-        if not description["operator"] and provider == "codex" and params.get("auto_project_recall") is True and not project_notes:
+        if not description["operator"] and provider in {"codex", "claude"} and params.get("auto_project_recall") is True and not project_notes:
             project_recall = ProjectRecall(self.root, self.state_dir, conversation=session_id,
                                            workspace=logical_workspace, text=text, mode=mode, algorithm=recall_algorithm)
             project_notes = project_recall.notes
@@ -738,6 +744,16 @@ class NativeBackend:
                         lambda delta: emit({"event": "answer_delta", "request_id": request_id, "delta": delta}),
                         files=files, criteria=criteria, pdfs=pdfs, project_notes=project_notes,
                         skill_task=skill_task, before_provider_call=revalidate_knowledge)
+                elif provider == "claude":
+                    self.active_claude = ClaudeTransport(self.state_dir, workspace=agent_workspace,
+                        full_access=mode == "full_access", effort=reasoning_effort, images=images)
+                    self.active_claude.workspace_tools = self.workspace_tools
+                    self.active_claude.on_activity = activity
+                    self.active_claude.on_progress = progress
+                    coordinator.reasoner = NativeClaudeReasoner(self.active_claude, model, history,
+                        lambda delta: emit({"event": "answer_delta", "request_id": request_id, "delta": delta}),
+                        files=files, criteria=criteria, pdfs=pdfs, project_notes=project_notes,
+                        skill_task=skill_task, before_provider_call=revalidate_knowledge)
                 elif provider == "ollama":
                     url = urlparse(config.ollama_url)
                     if url.scheme != "http" or url.hostname not in {"localhost", "127.0.0.1", "::1"}:
@@ -776,7 +792,7 @@ class NativeBackend:
             serialized = output.to_dict()
             persona_receipt = getattr(coordinator.reasoner, "last_persona_receipt", None)
             instruction_receipt = getattr(coordinator.reasoner, "last_instruction_receipt", None)
-            if (not description["operator"] and provider in {"codex", "ollama", "api"}
+            if (not description["operator"] and provider in {"codex", "ollama", "api", "claude"}
                     and not isinstance(instruction_receipt, dict)):
                 raise ValueError("Provider instruction assembly did not produce a validated content-free receipt.")
             if persona_activation is not None:
@@ -850,6 +866,7 @@ class NativeBackend:
                     self.subscription.workspace_tools = None
                 self.active_request = self.active_provider = None
                 self.active_api = None
+                self.active_claude = None
                 self.busy.release()
 
     def _artifact_workspace(self, params: dict, record: dict) -> WorkspaceReader | None:
@@ -924,6 +941,8 @@ class NativeBackend:
             retrieved_memory,
             correction_hints,
             persona_activation=persona_activation,
+            claude_full_access=provider == "claude" and mode == "full_access",
+            claude_workspace_tools=provider == "claude" and mode == "full_access" and params.get("workspace_tools_version") == 1,
         )
         developer = None
         if provider == "codex":
@@ -945,7 +964,7 @@ class NativeBackend:
             raise ValueError("Invalid draft for local context inspection.")
         text = text.strip()
         provider, mode = params.get("provider", "ollama"), params.get("access_mode", "chat")
-        if provider not in {"codex", "ollama", "mock", "api"} or mode not in {"chat", "full_access"}:
+        if provider not in {"codex", "ollama", "mock", "api", "claude"} or mode not in {"chat", "full_access"}:
             raise ValueError("Unknown provider or access mode.")
         model = params.get("model", "")
         if not isinstance(model, str) or len(model) > 160 or "\x00" in model:
@@ -965,7 +984,7 @@ class NativeBackend:
         provider_history = [] if provider_thread and provider_thread["linked"] else local_history
         result = context_preview(root=self.root, text=text, history=provider_history,
                                  provider=provider, model=model,
-                                 effort=validate_reasoning_effort(params.get("reasoning_effort", "")) if provider == "codex" and not operator else "",
+                                 effort=(claude_effort(params.get("reasoning_effort", "")) if provider == "claude" else validate_reasoning_effort(params.get("reasoning_effort", ""))) if provider in {"codex", "claude"} and not operator else "",
                                  mode=mode, workspace=str(reader.root) if reader else None, operator=operator,
                                  criteria=validate_criteria(params.get("criteria", [])),
                                  reader=reader, specifications=params.get("files", []), cloud_consent=params.get("cloud_consent") is True,
@@ -977,7 +996,7 @@ class NativeBackend:
             mode=mode,
             operator=operator,
         )
-        if not operator and provider in {"codex", "ollama", "api"}:
+        if not operator and provider in {"codex", "ollama", "api", "claude"}:
             result["manifest"]["recall"] = "read_only_current_projection_recomputed_at_send"
             result["notes"][1] = (
                 "Core Observer, read-only memory retrieval and correction context are included in the current local instruction projection. "
@@ -998,7 +1017,7 @@ class NativeBackend:
         result["manifest"]["images"] = images
         result["manifest"]["image_limits"] = {"count": MAX_IMAGES, "bytes_each": MAX_IMAGE_BYTES, "bytes_total": MAX_TOTAL_IMAGE_BYTES}
         result["excluded_image_count"] = len(image_specs) if operator else 0
-        result["image_provider_ready"] = operator or not image_specs or provider == "codex"
+        result["image_provider_ready"] = operator or not image_specs or provider in {"codex", "claude"}
         result["attachments_ready"] = (result["attachments_ready"] and result["image_provider_ready"]
                                         and all(row["state"] == "ready" for row in rows))
         pdf_specs = params.get("pdfs", [])
@@ -1012,7 +1031,7 @@ class NativeBackend:
         project_notes = [] if operator else self._selected_project_notes(params, str(UUID(params.get("conversation_id", "")))) if params.get("project_memory") else []
         project_recall = None
         skill_task = None
-        if not operator and provider == "codex" and params.get("auto_project_recall") is True and not project_notes:
+        if not operator and provider in {"codex", "claude"} and params.get("auto_project_recall") is True and not project_notes:
             project_recall = ProjectRecall(self.root, self.state_dir, conversation=str(UUID(params.get("conversation_id", ""))),
                                            workspace=logical_workspace, text=text, mode=mode, algorithm=recall_algorithm)
             project_notes = project_recall.notes
@@ -1428,6 +1447,11 @@ class NativeBackend:
             return self.agent_grants.enable(conversation, workspace, params.get("confirmation"))
         if method == "models":
             return {"models": self.subscription.models()}
+        if method == "claude_status":
+            return claude_status(self.state_dir)
+        if method == "claude_auth_command":
+            if self.closing.is_set(): raise ValueError("Native disconnected.")
+            return claude_auth_command(self.state_dir, params.get("operation"))
         if method == "ollama_status":
             config = ProtoMindConfig.from_env(self.root / "proto_mind")
             try:
@@ -1478,6 +1502,9 @@ class NativeBackend:
         if self.active_provider == "api" and self.active_api:
             self.active_api.cancel()
             return {"cancel_requested": True, "notice": "Остановка API запрошена."}
+        if self.active_provider == "claude" and self.active_claude:
+            self.active_claude.cancel()
+            return {"cancel_requested": True, "notice": "Claude stop requested."}
         if self.active_provider != "codex":
             return {"cancel_requested": False, "notice": "This operation must finish safely; no process was killed."}
         if self.active_steering is not None: self.active_steering.stop()
@@ -1485,11 +1512,13 @@ class NativeBackend:
         return {"cancel_requested": True, "notice": "Codex stop requested."}
 
     def close(self) -> None:
+        if self.active_claude: self.active_claude.cancel()
         if self.active_api: self.active_api.cancel()
         self.agent_grants.revoke()
         self.subscription.close()
 
     def disconnect(self) -> None:
+        if self.active_claude: self.active_claude.cancel()
         self.closing.set()
         if self.mcp_client is not None: self.mcp_client.close()
         if self.workspace_tools is not None: self.workspace_tools.cancel()

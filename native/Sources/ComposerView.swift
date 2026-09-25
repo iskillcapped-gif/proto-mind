@@ -44,9 +44,9 @@ struct ComposerView: View {
                     Button(L10n.text("Вернуть к диалогам")) { if let id = context.id { model.archiveConversation(id, archived: false) } }
                 }.font(.caption).foregroundStyle(.secondary)
             }
-            if context.conversation?.provider == "codex" && !model.cloudConsent {
+            if ["codex", "claude"].contains(context.conversation?.provider ?? "") && !model.cloudConsent {
                 Button { model.settingsSection = .models; openSettings() } label: {
-                    Label(L10n.text("Подключите ChatGPT в настройках, чтобы начать"), systemImage: "person.crop.circle.badge.plus")
+                    Label(context.conversation?.provider == "claude" ? L10n.pick("Подключите Claude в настройках, чтобы начать", "Connect Claude in Settings to get started") : L10n.text("Подключите ChatGPT в настройках, чтобы начать"), systemImage: "person.crop.circle.badge.plus")
                         .font(.system(size: 12)).foregroundStyle(NativeTheme.accent)
                 }.buttonStyle(.nativeHover)
             }
@@ -95,7 +95,7 @@ struct ComposerView: View {
                     HStack(spacing: 8) {
                         attachmentMenu
                         optionsButton
-                        if context.conversation?.provider == "codex" { ComposerAccessMenu(model: model, conversationID: context.id) }
+                        if ["codex", "claude"].contains(context.conversation?.provider ?? "") { ComposerAccessMenu(model: model, conversationID: context.id) }
                         Spacer(minLength: 8)
                         ModelSelectionMenu(model: model, conversationID: context.id, openSettings: { openSettings() })
                         DictationButton(app: model, dictation: model.dictation, voice: model.liveVoice, conversationID: context.id)
@@ -105,7 +105,7 @@ struct ComposerView: View {
                         HStack(spacing: 8) {
                             attachmentMenu
                             optionsButton
-                            if context.conversation?.provider == "codex" { ComposerAccessMenu(model: model, conversationID: context.id, compact: true) }
+                            if ["codex", "claude"].contains(context.conversation?.provider ?? "") { ComposerAccessMenu(model: model, conversationID: context.id, compact: true) }
                             Spacer(minLength: 4)
                         }
                         HStack(spacing: 8) {
@@ -168,6 +168,11 @@ struct ComposerView: View {
                     }
                     Button { openOption { criteriaOpen = true } } label: {
                         option(L10n.text("Критерии результата"), detail: context.conversation?.pendingCriteria.isEmpty != false ? L10n.text("Как проверить, что задача решена") : L10n.format("Задано: \(context.conversation?.pendingCriteria.count ?? 0)"), icon: "checklist")
+                    }
+                    if context.conversation?.provider == "claude" {
+                        Divider()
+                        Toggle(L10n.text("Вспоминать автоматически"), isOn: setting(\.autoProjectRecallEnabled))
+                        Button(L10n.text("Заметки проекта…")) { openOption { openMemory() } }
                     }
                     if context.conversation?.provider == "codex" {
                         Divider()
@@ -271,7 +276,7 @@ struct ComposerAccessMenu: View {
             .composerPopover(isPresented: $open, width: 285) {
                 VStack(alignment: .leading, spacing: 6) {
                     if context.fullAccess {
-                        Text(model.computerUseAvailable ? L10n.text("Файлы, терминал, интернет и экран доступны") : L10n.text("Файлы, терминал и интернет доступны"))
+                        Text(context.conversation?.provider == "codex" && model.computerUseAvailable ? L10n.text("Файлы, терминал, интернет и экран доступны") : L10n.text("Файлы, терминал и интернет доступны"))
                             .font(.system(size: 12)).foregroundStyle(.secondary).padding(10)
                         ComposerMenuRow(title: L10n.text("Выключить доступ к Mac"), icon: "lock.shield") {
                             open = false; Task { await model.disableAgentAccess(conversationID: context.id) }

@@ -19,6 +19,14 @@ are recorded in `distribution-manifest.json` next to this directory.
 
 ## Document libraries (0.72.0)
 
+Claude integration (0.73.0) includes the official Claude Agent SDK 0.2.159 and
+unmodified Claude Code 2.1.281. Their wheel metadata and license files remain
+under `../core/claude_packages/`; `claude-requirements.txt` records all dependency
+versions and accepted hashes. The Claude Code executable retains Anthropic's
+signature. Claude Code is subject to Anthropic's terms:
+https://code.claude.com/docs/en/legal-and-compliance . It is not an open-source
+component or an included account/subscription. Each user signs in independently.
+
 The portable app also includes python-docx 1.2.0, openpyxl 3.1.5,
 python-pptx 1.0.2, ReportLab 4.4.3, Pillow 11.3.0, lxml 6.0.1,
 XlsxWriter 3.2.5, typing_extensions 4.15.0, et_xmlfile 2.0.0,

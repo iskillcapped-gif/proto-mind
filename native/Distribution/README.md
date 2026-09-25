@@ -10,7 +10,7 @@ developer data paths and running developer app remain independent.
 On an Apple Silicon development Mac with Command Line Tools and Python 3.11+:
 
 ```sh
-bash scripts/build_portable_app.sh --output dist/portable-0.72.0
+bash scripts/build_portable_app.sh --output dist/portable-0.73.0
 ```
 
 Choose a new output directory each time; the builder refuses to overwrite a
@@ -25,7 +25,12 @@ It excludes private `data/`, histories, accounts, logs, exports, tests and the
 operator's untracked documents even if they exist in the checkout. Python's
 dependency notices come from the matching full standalone archive.
 
-Every build signs the nested executable code, verifies the completed bundle,
+Claude's SDK dependencies are separately hash-pinned in `requirements-claude.txt`
+and installed into `core/claude_packages`. The official Claude Code executable
+retains its upstream bytes and Anthropic signature; all other nested code is signed
+by the packager. No Claude credentials or model requests are part of packaging.
+
+Every build signs or verifies the nested executable code, verifies the completed bundle,
 then starts its own Python bridge with a disposable empty profile. A missing
 module or failed bootstrap stops packaging. Output contains `Proto-Mind.app`,
 the DMG, installation notes, a synthetic demo project, and a DMG SHA-256 file. Nothing is uploaded.

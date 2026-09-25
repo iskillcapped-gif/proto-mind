@@ -51,6 +51,11 @@ final class AppModel: ObservableObject {
     var account: JSONValue { get { selectedCodexAccount.account } set { selectedCodexAccount.account = newValue } }
     var codexUsage: CodexUsageModel { selectedCodexAccount.usage }
     var presentedCodexAccount: CodexAccountConnection?
+    @Published var claudeAccountStatus: JSONValue = .null
+    @Published var claudeAccountLoading = false
+    @Published var claudeAuthenticating = false
+    @Published var claudeAuthenticationTerminal: WorkspaceTerminal?
+    @Published var claudeAccountError: String?
     let apiConnections: ModelAPIConnections
     let workspaceServices: WorkspaceServices
     @Published var workspaceDelegationEnabled: Set<UUID> = []
@@ -338,16 +343,16 @@ final class AppModel: ObservableObject {
         var params: [String: JSONValue] = [
             "text": .string(context.draft), "conversation_id": .string(conversation.id.uuidString),
             "provider": .string(conversation.provider), "model": .string(conversation.model),
-            "reasoning_effort": .string(conversation.provider == "codex" ? conversation.reasoningEffort : ""),
+            "reasoning_effort": .string(["codex", "claude"].contains(conversation.provider) ? conversation.reasoningEffort : ""),
             "history": .array(conversation.history), "files": .array(conversation.pendingFiles),
             "images": .array(conversation.pendingImages),
             "pdfs": .array(conversation.pendingPDFs),
             "project_memory": .array((projectNoteSelections[id] ?? []).map(\.selection)),
             "criteria": .array(conversation.pendingCriteria.map(JSONValue.string)),
             "auto_skills": .bool(conversation.provider == "codex" && conversation.autoSkillsEnabled),
-            "auto_project_recall": .bool(conversation.provider == "codex" && conversation.autoProjectRecallEnabled),
+            "auto_project_recall": .bool(["codex", "claude"].contains(conversation.provider) && conversation.autoProjectRecallEnabled),
             "project_recall_algorithm": .string("local_content_terms_v3"),
-            "persona_enabled": .bool(personaEnabled && conversation.provider != "api"),
+            "persona_enabled": .bool(personaEnabled && ["codex", "ollama"].contains(conversation.provider)),
             "cloud_consent": .bool(cloudConsent), "access_mode": .string(context.fullAccess ? "full_access" : "chat")
         ]
         if let path = conversation.workspacePath { params["workspace_root"] = .string(path) }
@@ -599,7 +604,7 @@ final class AppModel: ObservableObject {
         return params
     }
     var providerLabel: String {
-        switch selected?.provider { case "api": return L10n.text("Модель через API"); case "codex": return L10n.text("Codex · облако"); case "mock": return L10n.text("Mock · локальный тест"); default: return L10n.text("Ollama · локально") }
+        switch selected?.provider { case "claude": return "Claude"; case "api": return L10n.text("Модель через API"); case "codex": return L10n.text("Codex · облако"); case "mock": return L10n.text("Mock · локальный тест"); default: return L10n.text("Ollama · локально") }
     }
     var computerUseAvailable: Bool { bootstrap["agent"]["computer_use"]["available"].flag }
     var computerUseVersion: String { bootstrap["agent"]["computer_use"]["version"].text }
@@ -612,10 +617,10 @@ final class AppModel: ObservableObject {
     func requestAgentAccess(conversationID: UUID? = nil, in source: WorkspacePresentations? = nil) {
         guard let id = conversationID ?? selectedID,
               let conversation = conversations.first(where: { $0.id == id }),
-              !operationBusy, !isRunning(id), !conversation.archived, conversation.provider == "codex", cloudConsent else {
-            report(NativeError.message(L10n.text("Сначала выберите Codex и разрешите облачную обработку."))); return
+              !operationBusy, !isRunning(id), !conversation.archived, ["codex", "claude"].contains(conversation.provider), cloudConsent else {
+            report(NativeError.message(L10n.pick("Выберите Codex или Claude и разрешите облачную обработку.", "Choose Codex or Claude and allow cloud processing."))); return
         }
-        let request = PendingAgentAccess(conversationID: id, workspace: conversation.workspacePath)
+        let request = PendingAgentAccess(conversationID: id, workspace: conversation.workspacePath, provider: conversation.provider)
         presentations.prepare(request.id, in: source ?? presentations.currentDestination)
         pendingAgentAccess = request
     }
@@ -623,7 +628,7 @@ final class AppModel: ObservableObject {
     func confirmAgentAccess() async {
         guard !operationBusy, let request = pendingAgentAccess, !isRunning(request.conversationID),
               let conversation = conversations.first(where: { $0.id == request.conversationID }), !conversation.archived,
-              request.workspace == conversation.workspacePath, cloudConsent, conversation.provider == "codex" else {
+              request.workspace == conversation.workspacePath, cloudConsent, conversation.provider == request.provider, ["codex", "claude"].contains(request.provider) else {
             pendingAgentAccess = nil; return
         }
         pendingAgentAccess = nil; busy = true
@@ -637,7 +642,7 @@ final class AppModel: ObservableObject {
             guard result["mode"].text == "full_access", !result["token"].text.isEmpty,
                   result["workspace_root"] == (request.workspace.map(JSONValue.string) ?? .null),
                   let current = conversations.first(where: { $0.id == request.conversationID }), request.workspace == current.workspacePath,
-                  cloudConsent, current.provider == "codex", !current.archived else { throw NativeError.message(L10n.text("Не удалось проверить разрешение агента.")) }
+                  cloudConsent, current.provider == request.provider, !current.archived else { throw NativeError.message(L10n.text("Не удалось проверить разрешение агента.")) }
             invalidateSessionSpinePilot()
             agentGrants[request.conversationID] = AgentAccessGrant(token: result["token"].text, workspace: request.workspace,
                 bridgeGeneration: execution(for: request.conversationID).client.connectionGeneration)
@@ -653,7 +658,7 @@ final class AppModel: ObservableObject {
             }
             invalidateContextPreview()
             error = nil
-            status = computerUseAvailable
+            status = request.provider == "codex" && computerUseAvailable
                 ? L10n.text("Полный доступ, интернет и Computer Use включены для этого диалога")
                 : L10n.text("Полный доступ и интернет включены; Computer Use недоступен")
         } catch { report(error) }

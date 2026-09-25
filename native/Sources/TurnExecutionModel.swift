@@ -71,11 +71,16 @@ extension AppModel {
     func perform(_ text: String, execution state: ConversationExecution, confirmed: Bool, operatorInput: Bool, useDraft: Bool = true) async {
         let conversationID = state.conversationID
         guard let index = conversations.firstIndex(where: { $0.id == conversationID }) else { state.running = false; return }
+        if conversations[index].provider == "claude", claudeAuthenticating {
+            state.running = false
+            report(NativeError.message(L10n.pick("Завершите вход в Claude перед запуском задачи.", "Finish signing in to Claude before starting a task.")))
+            return
+        }
         // Core/operator mutations block other work while retaining their original session.
         if operatorInput { operationBusy = true }
         defer { if operatorInput { operationBusy = false } }
         let providerClient = state.client
-        let usePersona = !operatorInput && personaEnabled && conversations[index].provider != "api"
+        let usePersona = !operatorInput && personaEnabled && ["codex", "ollama"].contains(conversations[index].provider)
         invalidateSessionSpinePilot()
         let conversation = conversations[index]
         let history = conversation.history
@@ -86,9 +91,9 @@ extension AppModel {
         let projectNotes = operatorInput || !useDraft ? [] : projectNoteSelections[conversationID] ?? []
         let skillTask = operatorInput || !useDraft ? nil : preparedSkillTasks[conversationID]
         let automaticSkills = !operatorInput && conversation.provider == "codex" && conversation.autoSkillsEnabled && skillTask == nil
-        let automaticRecall = !operatorInput && conversation.provider == "codex" && conversation.autoProjectRecallEnabled && projectNotes.isEmpty
+        let automaticRecall = !operatorInput && ["codex", "claude"].contains(conversation.provider) && conversation.autoProjectRecallEnabled && projectNotes.isEmpty
         let suggestMemory = !operatorInput && conversation.provider == "codex" && conversation.memorySuggestionsEnabled && conversation.workspacePath != nil
-        let grant = !operatorInput && cloudConsent && conversation.provider == "codex"
+        let grant = !operatorInput && cloudConsent && ["codex", "claude"].contains(conversation.provider)
             && state.client.connected && agentGrants[conversationID]?.workspace == conversation.workspacePath
             ? agentGrants[conversationID] : nil
         let reviewedRecall = (selectedID == conversationID ? contextPreview : nil).flatMap { try? NativeProjectRecallReport($0.manifest["knowledge_context"]["project_recall"]) }
@@ -138,7 +143,7 @@ extension AppModel {
             var params: [String: JSONValue] = [
                 "text": .string(text), "conversation_id": .string(conversationID.uuidString),
                 "provider": .string(conversation.provider), "model": .string(conversation.model),
-                "reasoning_effort": .string(conversation.provider == "codex" ? conversation.reasoningEffort : ""),
+                "reasoning_effort": .string(["codex", "claude"].contains(conversation.provider) ? conversation.reasoningEffort : ""),
                 "cloud_consent": .bool(cloudConsent), "history": .array(history),
                 "persona_enabled": .bool(usePersona),
             ]
@@ -230,7 +235,7 @@ extension AppModel {
                 throw NativeError.message(L10n.text("Результат не подтвердил выбранные страницы PDF. Запрос не повторялся; проверьте журнал работы."))
             }
             var turnReference: JSONValue?
-            if !operatorInput && ["codex", "ollama", "api"].contains(conversation.provider) {
+            if !operatorInput && ["codex", "ollama", "api", "claude"].contains(conversation.provider) {
                 let run = try NativeWorkSession(result["work_session"])
                 guard run.id == requestedRunID?.uuidString.lowercased(), let receipt = run.turnReceipt else {
                     throw NativeError.message(L10n.text("Завершённый ответ не содержит проверяемую квитанцию связи с запуском. Запрос не повторялся."))

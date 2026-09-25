@@ -8,9 +8,9 @@ import subprocess
 import tempfile
 
 
-def prepare(python: Path, destination: Path, requirements: Path):
+def prepare(python: Path, destination: Path, requirements: Path, *, marker_name="proto-mind-document-runtime.json"):
     fingerprint = hashlib.sha256(requirements.read_bytes()).hexdigest()
-    marker = destination / "proto-mind-document-runtime.json"
+    marker = destination / marker_name
     if marker.is_file():
         try:
             saved = json.loads(marker.read_text())

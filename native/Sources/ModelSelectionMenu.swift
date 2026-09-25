@@ -113,6 +113,12 @@ struct ModelSelectionChoices: View {
                     if let selected = context.conversation?.model, !selected.isEmpty, context.selectedModel == nil {
                         Text(L10n.format("\(selected) · недоступна")).font(.caption).foregroundStyle(.secondary).padding(10)
                     }
+                } else if context.conversation?.provider == "claude" {
+                    ClaudeModelControls(app: model, conversationID: context.id)
+                    ComposerMenuRow(title: L10n.pick("Подключение Claude…", "Claude connection…"), icon: "person.crop.circle") {
+                        open = false
+                        Task { @MainActor in await Task.yield(); model.settingsSection = .services; openSettings() }
+                    }
                 } else {
                     choice(localModelLabel, selected: true) { open = false }
                 }

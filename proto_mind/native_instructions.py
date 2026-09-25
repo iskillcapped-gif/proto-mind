@@ -141,15 +141,22 @@ def prepare_local_instructions(
     correction_hints: Sequence[str],
     *,
     persona_activation: PersonaTurnActivation | None = None,
+    claude_full_access: bool = False,
+    claude_workspace_tools: bool = False,
 ) -> PreparedLocalInstructions:
     """Build the production local instruction text for one supported provider."""
-    if provider not in {"codex", "ollama", "api"}:
+    if provider not in {"codex", "ollama", "api", "claude"}:
         raise NativeInstructionError("Only Codex and Ollama have a local instruction envelope.")
     memory = list(retrieved_memory)
     hints = list(correction_hints)
     legacy = OllamaReasoner(ProtoMindConfig())._build_system_prompt(observer_state, memory, hints)
     if provider == "codex":
         legacy = legacy_subscription_instructions(legacy)
+    if provider == "claude":
+        from proto_mind.native_claude_contract import instructions
+        if persona_activation is not None:
+            raise NativeInstructionError("Brother Persona is not supported by the Claude route.")
+        legacy += instructions(full_access=claude_full_access, workspace_tools=claude_workspace_tools)
     if persona_activation is None:
         return PreparedLocalInstructions(
             text=legacy,
@@ -211,11 +218,11 @@ def build_instruction_preview(
     retrieval_performed: bool = False,
 ) -> dict[str, Any]:
     """Return a bounded current projection without dispatching or persisting it."""
-    if provider not in {"codex", "ollama", "mock", "api"} or mode not in {"chat", "full_access"}:
+    if provider not in {"codex", "ollama", "mock", "api", "claude"} or mode not in {"chat", "full_access"}:
         raise NativeInstructionError("Unknown provider or instruction mode.")
     if type(operator) is not bool or type(retrieval_performed) is not bool:
         raise NativeInstructionError("Instruction preview route flags are invalid.")
-    if mode == "full_access" and provider != "codex" and not operator:
+    if mode == "full_access" and provider not in {"codex", "claude"} and not operator:
         raise NativeInstructionError("Full Mac instruction preview requires Codex.")
 
     memory_ids = [record.id for record in selected_memory]
@@ -235,7 +242,7 @@ def build_instruction_preview(
         if prepared is None:
             raise NativeInstructionError("Supported provider instruction text is missing.")
         persona_state = "brother" if prepared.source == "brother_persona_current_projection" else "legacy"
-        placement = "codex_base_instructions" if provider == "codex" else ("api_system_message" if provider == "api" else "ollama_system_message")
+        placement = "codex_base_instructions" if provider == "codex" else provider + "_system_message"
         identifier = "base_instructions" if provider == "codex" else "system_instructions"
         layers.append(_layer(identifier, placement, prepared.source, prepared.text, dynamic=True))
         if provider == "codex":
@@ -324,7 +331,7 @@ def validate_instruction_preview(value: object) -> dict[str, Any]:
     }.items():
         if value[field] is not expected:
             raise NativeInstructionError(f"Local instruction preview {field} is invalid.")
-    if value["provider"] not in {"codex", "ollama", "mock", "api"}:
+    if value["provider"] not in {"codex", "ollama", "mock", "api", "claude"}:
         raise NativeInstructionError("Local instruction preview provider is invalid.")
     if value["mode"] not in {"chat", "full_access", "operator"}:
         raise NativeInstructionError("Local instruction preview mode is invalid.")
@@ -419,9 +426,9 @@ def validate_instruction_preview(value: object) -> dict[str, Any]:
             raise NativeInstructionError("Codex instruction layer metadata is invalid.")
     else:
         if (
-            value["mode"] != "chat"
+            (value["mode"] != "chat" and value["provider"] != "claude")
             or identifiers != ["system_instructions"]
-            or layers[0]["placement"] != ("api_system_message" if value["provider"] == "api" else "ollama_system_message")
+            or layers[0]["placement"] != value["provider"] + "_system_message"
             or layers[0]["source"] not in {"legacy_cognitive_core_current_projection", "brother_persona_current_projection"}
             or layers[0]["dynamic"] is not True
             or value["recomputed_on_send"] is not True
@@ -456,7 +463,7 @@ def build_instruction_receipt(
     correction_hints: Sequence[str] = (),
 ) -> dict[str, Any]:
     """Fingerprint the production instruction assembly without retaining its text."""
-    if provider not in {"codex", "ollama", "api"}:
+    if provider not in {"codex", "ollama", "api", "claude"}:
         raise NativeInstructionError("Only a real supported provider can produce an instruction receipt.")
     memory = list(selected_memory)
     hints = list(correction_hints)
@@ -519,7 +526,7 @@ def validate_instruction_receipt(value: object) -> dict[str, Any]:
             raise NativeInstructionError(f"Native instruction receipt {field} is invalid.")
     if value["scope"] != "proto_mind_authored_instruction_metadata":
         raise NativeInstructionError("Native instruction receipt scope is invalid.")
-    if value["provider"] not in {"codex", "ollama", "api"}:
+    if value["provider"] not in {"codex", "ollama", "api", "claude"}:
         raise NativeInstructionError("Native instruction receipt provider is invalid.")
     if value["mode"] not in {"chat", "full_access"}:
         raise NativeInstructionError("Native instruction receipt mode is invalid.")
@@ -581,7 +588,7 @@ def validate_instruction_receipt(value: object) -> dict[str, Any]:
     else:
         if (
             identifiers != ["system_instructions"]
-            or layers[0]["placement"] != ("api_system_message" if value["provider"] == "api" else "ollama_system_message")
+            or layers[0]["placement"] != value["provider"] + "_system_message"
             or layers[0]["source"] not in {"legacy_cognitive_core_current_projection", "brother_persona_current_projection"}
             or layers[0]["dynamic"] is not True
         ):

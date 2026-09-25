@@ -162,7 +162,7 @@ def validate_turn_receipt(value: object) -> dict[str, Any]:
         raise NativeTurnLineageError("Native turn receipt scope is invalid.")
     _uuid(value["run_id"])
     _uuid(value["conversation_id"])
-    if value["provider"] not in {"codex", "ollama", "api"}:
+    if value["provider"] not in {"codex", "ollama", "api", "claude"}:
         raise NativeTurnLineageError("Native turn receipt provider is invalid.")
     if value["mode"] not in {"chat", "full_access"} or (
         value["provider"] in {"ollama", "api"} and value["mode"] != "chat"
@@ -257,7 +257,7 @@ def validate_turn_reference(value: object) -> dict[str, Any]:
         raise NativeTurnLineageError("Native turn reference scope is invalid.")
     for field in ("source_message_id", "run_id", "conversation_id"):
         _uuid(value[field])
-    if value["provider"] not in {"codex", "ollama", "api"}:
+    if value["provider"] not in {"codex", "ollama", "api", "claude"}:
         raise NativeTurnLineageError("Native turn reference provider is invalid.")
     if value["mode"] not in {"chat", "full_access"} or (
         value["provider"] in {"ollama", "api"} and value["mode"] != "chat"

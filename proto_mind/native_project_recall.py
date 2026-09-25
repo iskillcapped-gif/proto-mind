@@ -61,7 +61,7 @@ def validate_project_recall(value, *, notes=None, record=None):
         raise ValueError("Recalled note provenance differs from the selection.")
     if record is not None and (value["conversation_id"] != record.get("conversation_id")
             or workspace != record.get("workspace") or value["access_mode"] != record.get("access_mode")
-            or value["goal_sha256"] != record.get("input_sha256") or record.get("provider") != "codex"):
+            or value["goal_sha256"] != record.get("input_sha256") or record.get("provider") not in {"codex", "claude"}):
         raise ValueError("Recall belongs to another task, project or provider.")
 
 

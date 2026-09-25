@@ -53,7 +53,7 @@ struct NativeProjectRecallReport: Equatable {
         if let run {
             guard value["conversation_id"] == run["conversation_id"], value["workspace"] == run["workspace"],
                   value["goal_sha256"] == run["input_sha256"], value["access_mode"] == run["access_mode"],
-                  run["provider"] == .string("codex") else { throw Self.error() }
+                  ["codex", "claude"].contains(run["provider"].text) else { throw Self.error() }
         }
         self.value = value
     }

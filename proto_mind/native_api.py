@@ -141,6 +141,7 @@ class APITransport:
 
 class NativeAPIReasoner(BaseReasoner):
     backend_name = "native_api"
+    instruction_provider = "api"
 
     def __init__(self, transport, model, history, on_delta, *, files, criteria, pdfs, project_notes, skill_task, before_provider_call):
         self.transport, self.model, self.history, self.on_delta = transport, model, history, on_delta
@@ -152,8 +153,10 @@ class NativeAPIReasoner(BaseReasoner):
     def respond(self, user_input, retrieved_memory, observer_state, correction_hints=None):
         self.before_provider_call()
         hints = correction_hints or []
-        prepared = prepare_local_instructions("api", observer_state, retrieved_memory, hints)
-        self.last_instruction_receipt = build_instruction_receipt(provider="api", mode="chat", prepared=prepared,
+        mode = "full_access" if getattr(self.transport, "full_access", False) else "chat"
+        prepared = prepare_local_instructions(self.instruction_provider, observer_state, retrieved_memory, hints,
+            claude_full_access=mode == "full_access", claude_workspace_tools=self.transport.workspace_tools is not None)
+        self.last_instruction_receipt = build_instruction_receipt(provider=self.instruction_provider, mode=mode, prepared=prepared,
             developer_instructions=None, selected_memory=retrieved_memory, correction_hints=hints)
         prompt = (criteria_context_message(self.criteria) + file_context_message(self.files) + pdf_context_message(self.pdfs)
                   + knowledge_context_message(self.project_notes, self.skill_task) + user_input)

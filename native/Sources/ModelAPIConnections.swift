@@ -206,6 +206,7 @@ struct ConversationProviderChoices: View {
         DisclosureGroup(L10n.text("Источник модели")) {
             VStack(alignment: .leading, spacing: 3) {
                 ComposerMenuRow(title: L10n.text("ChatGPT · подписка"), icon: "sparkle") { app.configureConversation(conversationID, provider: "codex"); chosen() }
+                ComposerMenuRow(title: "Claude · Claude Code", icon: "sparkle") { app.configureConversation(conversationID, provider: "claude"); chosen() }
                 ComposerMenuRow(title: L10n.text("Ollama · локально"), icon: "desktopcomputer") { app.configureConversation(conversationID, provider: "ollama"); chosen() }
                 ForEach(connections.items) { connection in
                     ComposerMenuRow(title: connection.name + " · " + connection.model, icon: "network") {

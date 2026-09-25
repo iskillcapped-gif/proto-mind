@@ -91,7 +91,7 @@ extension AppModel {
     }
 
     func setProvider(_ value: String) {
-        guard !busy, ["ollama", "codex", "mock", "api"].contains(value), selected?.provider != value,
+        guard !busy, ["ollama", "codex", "mock", "api", "claude"].contains(value), selected?.provider != value,
               let index = conversations.firstIndex(where: { $0.id == selectedID }) else { return }
         discardAgentGrants(for: selectedID)
         invalidateSessionSpinePilot()
@@ -155,6 +155,7 @@ extension AppModel {
     }
 
     func setReasoningEffort(_ value: String) {
+        if selected?.provider == "claude", let id = selectedID { configureConversation(id, effort: value); return }
         guard !busy, selected?.provider == "codex", let index = conversations.firstIndex(where: { $0.id == selectedID }),
               value.isEmpty || availableReasoningEfforts.contains(where: { $0.rawValue == value }) else { return }
         if selected?.reasoningEffort != value { invalidateSessionSpinePilot() }
