@@ -52,6 +52,9 @@ Only a **new** session bootstraps from local PM messages: up to 300,000 Unicode
 characters across 2,000 messages, without a per-message cap. Omitted older text
 is marked, and the context inspector shows whether a session continues or starts
 fresh. Old image bytes and PDF excerpts are not reattached from local history.
+A request that failed or was stopped stays in local history with a marker: it has
+no confirmed answer, and its actions are not repeated unless the current request
+asks. Failed answers are not replayed. This applies to every provider's history.
 The 4 MiB bridge request envelope accommodates this history including UTF-8 and
 JSON escapes. Explicitly selected context is sent with each turn.
 

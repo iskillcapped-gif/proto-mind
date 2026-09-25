@@ -155,12 +155,19 @@ struct Conversation: Codable, Identifiable, Equatable {
         try NativeWorkSessionNotice.validate(dismissedWorkSessionWarnings)
     }
 
+    /// Must match `INCOMPLETE_REQUEST` in proto_mind/native_claude_sessions.py.
+    static let incompleteRequestMarker = "[Proto-Mind: this request did not complete (stopped, usage limit or error) and has no confirmed answer. Its actions may be partial; do not repeat them unless the current request asks.]\n"
+
     var history: [JSONValue] {
         let claude = provider == "claude"
-        let recent = messages.filter { ["user", "assistant"].contains($0.role) && !$0.isError && $0.operatorInput != true && !($0.role == "user" && $0.text.hasPrefix("/")) }
+        // A failed request stays visible, marked, so a new provider session still
+        // knows what was asked; a failed answer is never replayed as an answer.
+        let recent = messages.filter { ["user", "assistant"].contains($0.role) && !($0.isError && $0.role == "assistant") && $0.operatorInput != true && !($0.role == "user" && $0.text.hasPrefix("/")) }
             .flatMap { message -> [JSONValue] in
-                var note = message.role == "user" && message.imageContext?.isEmpty == false
-                    ? "[Earlier image bytes are NOT included in this turn. Reattach the image to inspect it again.]\n" : ""
+                var note = message.role == "user" && message.isError ? Conversation.incompleteRequestMarker : ""
+                if message.role == "user" && message.imageContext?.isEmpty == false {
+                    note += "[Earlier image bytes are NOT included in this turn. Reattach the image to inspect it again.]\n"
+                }
                 if message.role == "user" && message.pdfContext?.isEmpty == false {
                     note += "[Earlier PDF page text is NOT included in this turn. Reattach selected pages to inspect them again.]\n"
                 }

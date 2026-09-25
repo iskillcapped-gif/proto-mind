@@ -25,6 +25,10 @@ PARTIAL_HISTORY = "[Earlier conversation text omitted from this bootstrap; do no
 INTERRUPTED_NOTICE = ("[Proto-Mind: the previous turn in this session did not complete (stopped, usage limit, "
                       "error or restart). Its actions may be partial and its result was not confirmed; inspect the "
                       "current state before continuing. Nothing was replayed automatically.]\n\n")
+# Native prefixes each failed request in local history with this exact marker
+# (`Conversation.incompleteRequestMarker` in native/Sources/Models.swift).
+INCOMPLETE_REQUEST = ("[Proto-Mind: this request did not complete (stopped, usage limit or error) and has no confirmed "
+                      "answer. Its actions may be partial; do not repeat them unless the current request asks.]\n")
 
 
 def text_hash(text):
@@ -37,9 +41,14 @@ UNRESUMABLE = text_hash("\x00proto-mind:unresumable")
 
 def continuity_hash(history):
     """Local history position a session continues from; None when it cannot be identified."""
-    if not history:
+    rows = list(history)
+    # Failed requests after the last answer do not move that position: an
+    # interrupted session continues from where its failed turn started.
+    while rows and rows[-1]["role"] == "user" and rows[-1]["content"].startswith(INCOMPLETE_REQUEST):
+        rows.pop()
+    if not rows:
         return text_hash("")
-    return text_hash(history[-1]["content"]) if history[-1]["role"] == "assistant" else None
+    return text_hash(rows[-1]["content"]) if rows[-1]["role"] == "assistant" else None
 
 
 def transcript_exists(state, session_id):

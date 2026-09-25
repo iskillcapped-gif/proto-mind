@@ -5,7 +5,8 @@ import tempfile
 import unittest
 from uuid import uuid4
 
-from proto_mind.native_claude_sessions import ClaudeSessionPlan, bootstrap_history, invalidate_login, PARTIAL_HISTORY, UNRESUMABLE
+from proto_mind.native_claude_sessions import (ClaudeSessionPlan, bootstrap_history, continuity_hash, invalidate_login,
+                                               INCOMPLETE_REQUEST, PARTIAL_HISTORY, UNRESUMABLE)
 from proto_mind.native_claude_protocol import WorkspaceReplies, WorkspaceReplyError
 from proto_mind.private_state_gate import GENERATION_FILE, RESTORE_MARKER
 
@@ -144,6 +145,18 @@ class SessionTests(unittest.TestCase):
         self.assertTrue(result[0]["content"].startswith(PARTIAL_HISTORY))
         self.assertEqual(result[-1], rows[-1])
         self.assertLessEqual(sum(len(row["content"]) for row in result), 300000 + len(PARTIAL_HISTORY))
+
+    def test_failed_requests_after_the_last_answer_keep_the_continuation_position(self):
+        answered = [{"role":"user", "content":"Original"}, {"role":"assistant", "content":"Saved answer"}]
+        failed = {"role":"user", "content":INCOMPLETE_REQUEST + "Refactor the parser"}
+        self.assertEqual(continuity_hash(answered + [failed, failed]), continuity_hash(answered))
+        self.assertEqual(continuity_hash([failed]), continuity_hash([]))
+        self.assertIsNone(continuity_hash(answered + [{"role":"user", "content":"Unmarked question"}]))
+        self.assertIsNone(continuity_hash([failed, {"role":"user", "content":"Unmarked question"}]))
+
+    def test_native_history_uses_the_same_incomplete_request_marker(self):
+        source = (Path(__file__).resolve().parents[2] / "native/Sources/Models.swift").read_text(encoding="utf-8")
+        self.assertIn('"' + INCOMPLETE_REQUEST.replace("\n", "\\n") + '"', source)
 
 
 class ReplyTests(unittest.IsolatedAsyncioTestCase):

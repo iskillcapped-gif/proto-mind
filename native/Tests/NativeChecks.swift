@@ -637,7 +637,11 @@ struct NativeChecks {
                          ChatMessage(role: "user", text: "/memory status"),
                          ChatMessage(role: "user", text: "failed normal turn", isError: true),
                          ChatMessage(role: "user", text: "normal turn"), ChatMessage(role: "assistant", text: "answer")]
-        try check(chat.history.map { $0["content"].text } == ["normal turn", "answer"], "Natural operator inputs and failed turns stay out of model history")
+        try check(chat.history.map { $0["content"].text } == [Conversation.incompleteRequestMarker + "failed normal turn", "normal turn", "answer"],
+                  "Natural operator inputs stay out of model history; a failed request stays visible with its marker")
+        chat.provider = "claude"
+        try check(chat.history.first?["content"].text.hasPrefix(Conversation.incompleteRequestMarker) == true,
+                  "A new Claude session still sees a failed request")
     }
 
     @MainActor

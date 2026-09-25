@@ -159,6 +159,27 @@ class ClaudeTests(unittest.TestCase):
         self.assertIn('did not complete', text); self.assertIn('third', text)
         self.assertFalse(self.session_plan(conversation, history + [{'role':'assistant', 'content':'Offline answer'}]).interrupted)
 
+    def test_failed_request_stays_in_history_and_still_resumes_or_bootstraps(self):
+        from proto_mind.native_claude_sessions import ClaudeSessionPlan, INCOMPLETE_REQUEST
+        conversation, history = str(uuid4()), [{'role':'user', 'content':'Start'}]
+        self.transport(session_plan=self.session_plan(conversation, history)).answer('sonnet', 'instructions', history, 'first', lambda _:None)
+        history = history + [{'role':'assistant', 'content':'Offline answer'}]
+        with self.assertRaises(RuntimeError):
+            self.transport(session_plan=self.session_plan(conversation, history)).answer(
+                'rate_limit', 'instructions', history, 'Refactor the parser', lambda _:None)
+        # Native keeps the failed request after the last answer, with its marker.
+        history = history + [{'role':'user', 'content':INCOMPLETE_REQUEST + 'Refactor the parser'}]
+        continued = self.session_plan(conversation, history)
+        self.assertTrue(continued.resumed and continued.interrupted)
+        self.assertEqual(continued.history, [])
+        # A session that cannot continue (here: a changed system prompt) still sees the request.
+        fresh = ClaudeSessionPlan(self.state, conversation, account=status(self.state), workspace=None,
+                                  full_access=False, tools=False, history=history, contract='changed-system-prompt')
+        self.assertFalse(fresh.resumed)
+        self.transport(session_plan=fresh).answer('sonnet', 'instructions', history, 'continue', lambda _:None)
+        text = json.loads((self.state / 'claude-profile/sdk-observed.json').read_text())['messages'][0]['message']['content'][0]['text']
+        self.assertIn('this request did not complete', text); self.assertIn('Refactor the parser', text)
+
     def test_missing_resumed_session_fails_once_then_starts_fresh(self):
         conversation, history = str(uuid4()), [{'role':'user', 'content':'Start'}]
         original = self.session_plan(conversation, history)
