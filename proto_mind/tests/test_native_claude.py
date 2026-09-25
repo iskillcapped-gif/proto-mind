@@ -98,6 +98,29 @@ class ClaudeTests(unittest.TestCase):
         self.assertNotIn('PRIVATE THOUGHTS', json.dumps(events))
         self.assertEqual([event['item']['status'] for event in events if event.get('event') == 'agent_activity'], ['inProgress','completed'])
 
+    def test_turn_usage_counts_each_request_once_and_becomes_an_answer_notice(self):
+        from proto_mind.native_claude import usage_notice
+        transport = self.transport()
+        self.assertEqual(transport.answer('usage', 'instructions', [], 'go', lambda _: None), 'Offline answer')
+        # Per-turn counts come from each request, not from session-cumulative result totals.
+        self.assertEqual(transport.usage, {'requests': 2, 'subagent_requests': 1, 'context_max': 21502, 'input_tokens': 10,
+                                           'cache_creation_input_tokens': 5500, 'cache_read_input_tokens': 41000,
+                                           'output_tokens': 390, 'thinking_tokens': 200})
+        notice = usage_notice(transport.usage)
+        self.assertTrue(notice.startswith('Claude usage for this turn: 2 model requests plus 1 by subagents, context up to 22K tokens.'))
+        self.assertIn('read from cache 41K', notice)
+        self.assertIn('output 390 including 200 thinking', notice)
+        self.assertIsNone(self.transport().usage)
+        for invalid in [None, {}, {**transport.usage, 'requests': 0}, {**transport.usage, 'extra': 1}, {**transport.usage, 'output_tokens': -1}]:
+            self.assertIsNone(usage_notice(invalid))
+        root = self.root / 'project'
+        backend = NativeBackend(root, self.state, subscription_factory=FakeSubscription)
+        self.addCleanup(backend.close)
+        with patch.object(ProtoMindConfig, 'from_env', return_value=ProtoMindConfig(data_dir=root / 'proto_mind/data')):
+            result = backend.process({'text': 'Привет', 'provider': 'claude', 'model': 'usage', 'conversation_id': str(uuid4()),
+                                      'cloud_consent': True}, lambda _: None, 'usage')
+        self.assertIn(notice, result['notices'])
+
     def test_failed_disconnected_or_malformed_worker_is_never_success(self):
         for mode in ['failed','disconnect','malformed']:
             with self.subTest(mode=mode), self.assertRaises(RuntimeError) as error:

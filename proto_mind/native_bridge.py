@@ -160,7 +160,7 @@ class NativeMemoryStore(MemoryStore):
 
 
 from proto_mind.native_api import APITransport, NativeAPIReasoner, validate_connection
-from proto_mind.native_claude import ClaudeTransport, NativeClaudeReasoner, status as claude_status, authentication_command as claude_auth_command
+from proto_mind.native_claude import ClaudeTransport, NativeClaudeReasoner, usage_notice as claude_usage_notice, status as claude_status, authentication_command as claude_auth_command
 from proto_mind.native_claude_contract import validate_effort as claude_effort
 from proto_mind.native_claude_metadata import ClaudeMetadataReader
 
@@ -820,6 +820,9 @@ class NativeBackend:
             if output.text is None:
                 self.sessions.pop(session_id, None)
             serialized = output.to_dict()
+            usage = claude_usage_notice(self.active_claude.usage) if provider == "claude" and self.active_claude else None
+            if usage:
+                serialized["notices"].append(usage)
             persona_receipt = getattr(coordinator.reasoner, "last_persona_receipt", None)
             instruction_receipt = getattr(coordinator.reasoner, "last_instruction_receipt", None)
             if (not description["operator"] and provider in {"codex", "ollama", "api", "claude"}

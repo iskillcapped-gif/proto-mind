@@ -75,6 +75,22 @@ class ClaudeSDKClient:
             yield ResultMessage(is_error=True, subtype='success', result=None,
                                 api_error_status=429 if mode=='rate_limit' else 401)
             return
+        if mode == 'usage':
+            # Two main requests and one subagent request; streamed deltas carry the final output counts.
+            opening = {'input_tokens':5, 'cache_creation_input_tokens':1000, 'cache_read_input_tokens':20000, 'output_tokens':1}
+            yield StreamEvent(event={'type':'message_start','message':{'id':'msg-1','usage':opening}})
+            yield AssistantMessage(content=[ToolUseBlock(id='call-u', name='Read')], message_id='msg-1', usage=opening)
+            yield StreamEvent(event={'type':'message_delta','usage':{'output_tokens':300,'output_tokens_details':{'thinking_tokens':200}}})
+            yield AssistantMessage(content=[TextBlock(text='nested')], parent_tool_use_id='call-u', message_id='msg-sub',
+                                   usage={'input_tokens':3, 'cache_creation_input_tokens':4000, 'cache_read_input_tokens':0, 'output_tokens':50})
+            closing = {'input_tokens':2, 'cache_creation_input_tokens':500, 'cache_read_input_tokens':21000, 'output_tokens':1}
+            yield StreamEvent(event={'type':'message_start','message':{'id':'msg-2','usage':closing}})
+            yield StreamEvent(event={'type':'content_block_delta','delta':{'type':'text_delta','text':'Offline answer'}})
+            yield AssistantMessage(content=[TextBlock(text='Offline answer')], message_id='msg-2', usage=closing)
+            yield StreamEvent(event={'type':'message_delta','usage':{'output_tokens':40}})
+            yield ResultMessage(is_error=False, subtype='success', result='Offline answer', session_id=self.options.resume or self.options.session_id,
+                                usage={'cache_read_input_tokens':99_000_000}, total_cost_usd=123.0)
+            return
         if mode == 'tools':
             yield StreamEvent(event={'type':'content_block_delta','delta':{'type':'text_delta','text':'Checking projects'}})
             yield AssistantMessage(content=[TextBlock(text='Checking projects'), ToolUseBlock(id='call-1', name='mcp__pm__pm_list_projects')])

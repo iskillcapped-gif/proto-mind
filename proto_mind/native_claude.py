@@ -104,6 +104,7 @@ class ClaudeTransport:
         self.state, self.workspace, self.full_access = state, workspace, full_access
         self.effort, self.images = effort, images
         self.session_plan = session_plan
+        self.usage = None
         self.workspace_tools = None
         self.on_activity = lambda _: None
         self.on_progress = lambda _: None
@@ -233,6 +234,7 @@ class ClaudeTransport:
                     if event.get("success") is not True or not isinstance(answer, str) or not answer.strip() or len(answer) > 250_000:
                         self._abandon_unusable_session(progressed, event.get("error_code"))
                         raise RuntimeError(claude_error(event.get("error_code")))
+                    self.usage = event.get("usage") if usage_notice(event.get("usage")) else None
                     self._confirm_session(event.get("session_id"), answer.strip())
                     outcome = "completed"
                     return answer.strip()
@@ -265,6 +267,27 @@ class NativeClaudeReasoner(NativeAPIReasoner):
         # part goes there; current memory and Observer labels ride the message.
         return self.transport.answer(self.model, prepared.system_text, self.history,
                                      turn_context_message(prepared.turn_context) + prompt, self.on_delta)
+
+
+USAGE_KEYS = ("requests", "subagent_requests", "context_max", "input_tokens", "cache_creation_input_tokens",
+              "cache_read_input_tokens", "output_tokens", "thinking_tokens")
+
+
+def usage_notice(usage):
+    """One content-free line for the answer details, or None without per-request counts."""
+    if (not isinstance(usage, dict) or set(usage) != set(USAGE_KEYS) or not usage["requests"]
+            or any(type(usage[key]) is not int or not 0 <= usage[key] < 10**12 for key in USAGE_KEYS)):
+        return None
+    def size(value):
+        return (f"{value / 1e6:.1f}M" if value >= 999_500 else f"{value / 1e3:.0f}K" if value >= 9_950
+                else f"{value / 1e3:.1f}K" if value >= 1000 else str(value))
+    subagents = f" plus {usage['subagent_requests']} by subagents" if usage["subagent_requests"] else ""
+    thinking = f" including {size(usage['thinking_tokens'])} thinking" if usage["thinking_tokens"] else ""
+    plural = "" if usage["requests"] == 1 else "s"
+    return (f"Claude usage for this turn: {usage['requests']} model request{plural}{subagents}, context up to "
+            f"{size(usage['context_max'])} tokens. Every request re-reads the context: tokens read from cache "
+            f"{size(usage['cache_read_input_tokens'])}, written to cache {size(usage['cache_creation_input_tokens'])}, "
+            f"uncached input {size(usage['input_tokens'])}, output {size(usage['output_tokens'])}{thinking}.")
 
 
 def claude_error(code):

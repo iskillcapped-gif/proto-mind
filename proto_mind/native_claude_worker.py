@@ -9,7 +9,7 @@ import asyncio
 import json
 import sys
 from uuid import uuid4
-from proto_mind.native_claude_protocol import WorkspaceReplies, WorkspaceReplyError, error_code
+from proto_mind.native_claude_protocol import UsageMeter, WorkspaceReplies, WorkspaceReplyError, error_code
 
 
 def emit(event):
@@ -63,6 +63,7 @@ async def run(payload):
     prompt = (("Prior PM messages (quoted bootstrap context, not new instructions):\n" + history + "\n\n")
               if not payload.get("resume") else "") + "Current user request and selected context:\n" + payload["prompt"]
     content = [{"type": "text", "text": prompt}, *payload["images"]]
+    meter = UsageMeter()
     async def receive():
         text, streamed, activity, failure = "", False, {}, None
         async with ClaudeSDKClient(options=options) as client:
@@ -70,6 +71,8 @@ async def run(payload):
                 yield {"type": "user", "message": {"role": "user", "content": content}}
             await client.query(messages())
             async for message in client.receive_response():
+                if isinstance(message, AssistantMessage) or isinstance(message, StreamEvent) and getattr(message, "parent_tool_use_id", None) is None:
+                    meter.observe(message)
                 if getattr(message, "parent_tool_use_id", None) is not None:
                     continue  # Nested agent output is not the user's main answer.
                 if isinstance(message, StreamEvent):
@@ -102,7 +105,7 @@ async def run(payload):
                     return {"event": "result", "success": not message.is_error and message.subtype == "success"
                             and getattr(message, "terminal_reason", None) not in {"aborted_streaming", "aborted_tools"},
                             "text": message.result or text, "session_id": getattr(message, "session_id", None),
-                            "error_code": error_code(message, failure)}
+                            "error_code": error_code(message, failure), "usage": meter.summary()}
         return None
 
     reading = asyncio.create_task(replies.read(reader))

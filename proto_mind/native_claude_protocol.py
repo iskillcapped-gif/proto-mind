@@ -23,6 +23,52 @@ def error_code(message, previous=None):
     return previous if previous in ERROR_CODES else "unknown"
 
 
+class UsageMeter:
+    """Content-free token counts for one turn, per provider request.
+
+    A resumed Claude Code session restores its accumulated totals, so the result
+    message's usage and cost can span earlier turns; counting each request by
+    its message ID keeps the numbers to this turn.
+    """
+    CONTEXT = ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens")
+    COUNTS = (*CONTEXT, "output_tokens", "thinking_tokens")
+
+    def __init__(self):
+        self.requests, self.current = {}, None
+
+    def observe(self, message):
+        """Takes assistant messages (main or subagent) and main-thread stream events."""
+        event = getattr(message, "event", None)
+        if isinstance(event, dict):
+            if event.get("type") == "message_start" and isinstance(event.get("message"), dict):
+                self.current = event["message"].get("id")
+                self._add(self.current, event["message"].get("usage"), False)
+            elif event.get("type") == "message_delta":
+                self._add(self.current, event.get("usage"), False)
+            return
+        self._add(getattr(message, "message_id", None), getattr(message, "usage", None),
+                  getattr(message, "parent_tool_use_id", None) is not None)
+
+    def _add(self, identifier, usage, nested):
+        if not isinstance(identifier, str) or not isinstance(usage, dict):
+            return
+        if identifier not in self.requests:
+            if len(self.requests) >= 100_000: return
+            self.requests[identifier] = {"nested": nested, **dict.fromkeys(self.COUNTS, 0)}
+        row, details = self.requests[identifier], usage.get("output_tokens_details")
+        values = {**usage, "thinking_tokens": details.get("thinking_tokens") if isinstance(details, dict) else None}
+        for key in self.COUNTS:
+            # Streamed counts are cumulative within one request.
+            if type(values.get(key)) is int and 0 <= values[key] < 10**10:
+                row[key] = max(row[key], values[key])
+
+    def summary(self):
+        rows = list(self.requests.values())
+        return {"requests": sum(not row["nested"] for row in rows), "subagent_requests": sum(row["nested"] for row in rows),
+                "context_max": max((sum(row[key] for key in self.CONTEXT) for row in rows), default=0),
+                **{key: sum(row[key] for row in rows) for key in self.COUNTS}}
+
+
 class WorkspaceReplyError(RuntimeError):
     pass
 
