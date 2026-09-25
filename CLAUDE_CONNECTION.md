@@ -126,6 +126,13 @@ history larger than the old 512 KiB envelope. Exact resume and interrupted-sessi
 recovery were tested with the synthetic SDK. The installed official SDK accepted
 the explicit session UUID in a disposable signed-out profile without a model
 query. A live multi-turn subscription task was not part of this verification.
+The local 0.74.0 (104) bundle was installed without restarting the running app;
+its previous executable was preserved. The Apple Silicon DMG passed clean-profile
+bridge bootstrap, bundled document-runtime checks, signature verification and
+checksum verification. All 206 packaged Python source files and 157 Native
+source hashes match commit `05c6538`; the Claude CLI remains byte-identical to
+the original Anthropic-signed binary. Packaging evidence is stored beside the
+local DMG in `dist/portable-0.74.0/verification.json`.
 
 Offline tests exercise the actual PM worker pipe with a synthetic SDK, including
 async SDK input, streaming, tool round trips, errors, cancellation, access
