@@ -103,6 +103,27 @@ def macho_files(root: Path) -> list[Path]:
     return sorted(result, key=lambda path: len(path.parts), reverse=True)
 
 
+def linked_libraries(load_commands: str) -> list[str]:
+    """Read actual dependencies from otool -l, excluding a dylib's own ID.
+
+    Wheel dylibs may retain a build-time LC_ID_DYLIB even when every consumer
+    correctly loads them through @loader_path. otool -L lists both together.
+    """
+    dependency_commands = {
+        "LC_LOAD_DYLIB", "LC_LOAD_WEAK_DYLIB", "LC_REEXPORT_DYLIB",
+        "LC_LAZY_LOAD_DYLIB", "LC_LOAD_UPWARD_DYLIB",
+    }
+    command = ""
+    libraries = []
+    for raw in load_commands.splitlines():
+        line = raw.strip()
+        if line.startswith("cmd "):
+            command = line[4:]
+        elif line.startswith("name ") and command in dependency_commands:
+            libraries.append(line[5:].rsplit(" (offset ", 1)[0])
+    return libraries
+
+
 def sign_app(app: Path, identity: str) -> None:
     options = ["--options", "runtime", "--timestamp"] if identity != "-" else []
     for path in macho_files(app):

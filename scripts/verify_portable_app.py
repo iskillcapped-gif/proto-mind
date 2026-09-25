@@ -11,7 +11,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 
-from package_native_app import macho_files, run, smoke_runtime
+from package_native_app import linked_libraries, macho_files, run, smoke_runtime
 
 
 PROBE = '''from pathlib import Path
@@ -61,9 +61,8 @@ def main() -> None:
     resources = app / "Contents/Resources"
     binaries = macho_files(app)
     for path in binaries:
-        libraries = run("/usr/bin/otool", "-L", path, capture_output=True, text=True).stdout.splitlines()[1:]
-        for line in libraries:
-            library = line.strip().split(" (")[0]
+        commands = run("/usr/bin/otool", "-l", path, capture_output=True, text=True).stdout
+        for library in linked_libraries(commands):
             if library.startswith("/") and not library.startswith(("/usr/lib/", "/System/Library/")):
                 raise ValueError(f"Unbundled dependency: {path.name}: {library}")
     print(f"PASS: {len(binaries)} Mach-O files have no absolute non-system library dependency", flush=True)

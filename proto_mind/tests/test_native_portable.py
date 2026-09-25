@@ -11,7 +11,7 @@ import unittest
 from unittest.mock import patch
 
 from proto_mind import native_codex as codex
-from scripts.package_native_app import extract_runtime, source_inventory
+from scripts.package_native_app import extract_runtime, linked_libraries, source_inventory
 
 
 class PortableRuntimeTests(unittest.TestCase):
@@ -73,6 +73,33 @@ class PortableRuntimeTests(unittest.TestCase):
         subprocess.run(["git", "-C", str(repo), "add", "."], check=True)
         files = source_inventory(repo)
         self.assertEqual(set(map(str, files)), set(names) - {"proto_mind/data/identity.json", "proto_mind/tests/test_private.py"})
+
+    def test_library_inventory_excludes_own_id_but_keeps_every_dependency_kind(self):
+        commands = """Load command 0
+          cmd LC_ID_DYLIB
+      cmdsize 64
+         name /DLC/PIL/.dylibs/libavif.dylib (offset 24)
+Load command 1
+          cmd LC_LOAD_DYLIB
+         name @loader_path/libavif.dylib (offset 24)
+Load command 2
+          cmd LC_LOAD_WEAK_DYLIB
+         name /opt/homebrew/lib/missing.dylib (offset 24)
+Load command 3
+          cmd LC_REEXPORT_DYLIB
+         name /usr/lib/libSystem.B.dylib (offset 24)
+Load command 4
+          cmd LC_LAZY_LOAD_DYLIB
+         name /external/With Spaces/lib.dylib (offset 24)
+Load command 5
+          cmd LC_LOAD_UPWARD_DYLIB
+         name @rpath/Parent.framework/Parent (offset 24)
+"""
+        self.assertEqual(linked_libraries(commands), [
+            "@loader_path/libavif.dylib", "/opt/homebrew/lib/missing.dylib",
+            "/usr/lib/libSystem.B.dylib", "/external/With Spaces/lib.dylib",
+            "@rpath/Parent.framework/Parent",
+        ])
 
     def test_runtime_archive_cannot_escape_or_write_through_links(self):
         for members in [[("../outside", None)], [("runtime/link", "../../outside"), ("runtime/link/value", None)]]:

@@ -11,7 +11,10 @@ This is one tracked delivery. Completing an individual row does not complete the
 - [x] Coordination: start and await independent subtasks, collect results, isolate simultaneous repository edits with worktrees, and expose controlled long-task continuation.
 - [x] API models: use the shared PM tool set through supported Responses/Chat Completions function calls, with explicit enablement, cancellation and no uncertain paid retries.
 - [x] Skills: avoid an unnecessary separate model call for routine guidance without silently treating optional selection as a required execution gate.
-- [ ] Verification and delivery: focused transport/routing/permission tests, Native and Python regression checks, disposable-profile UI checks, local build, documentation, and a final explicit report covering every row.
+- [x] Verification and delivery: focused transport/routing/permission tests, Native and Python regression checks, disposable-profile UI checks, local build, documentation, and a final explicit report covering every row.
+
+Completed locally on 2026-09-25 as **Native 0.72.0 (101)**. Every row in this
+agreed upgrade is delivered within the explicit limits below.
 
 ## Working boundaries
 
@@ -30,7 +33,10 @@ Baseline: `1da022c`, Native 0.71.1. No tracked edits existed at the start.
 - Actual local HTTP/SSE fixtures test Responses image/tool/reasoning flow and MCP. Real stdio fixtures test MCP lifecycle and a Native reply while its provider worker is waiting. No real cloud model was invoked.
 - Real WebKit fixtures clicked an observed control, verified the new page, rejected stale IDs and excluded form values from text capture. Dark UI renders of the question card and MCP settings were inspected in a disposable profile, without foreground desktop control.
 - Real document libraries round-tripped DOCX/XLSX/PPTX, generated a Unicode PDF, refused overwrites and escaped/symlink paths. A disposable Git repository verified committed-HEAD worktrees without changing source edits.
-- Build/signature/portable verification: pending the final packaging step.
+- Local app and portable Apple Silicon app built as **0.72.0 (101)**; ad-hoc signatures verified. The portable build contains the clean application source from `a7081db`, including all 200 inventoried core files.
+- The portable app passed bootstrap with disposable state, document-library round trips using bundled Python 3.12.14, transactional memory save/restart and verified private backup. All 52 Mach-O binaries passed the dependency check; no personal core stores or Python caches appeared inside installed code. The verifier now distinguishes a dylib's own ID from its loaded dependencies; all **6 focused portable checks passed** after that fix.
+- Local artifacts: `dist/Proto-Mind Native.app` and `dist/portable-0.72.0/Proto-Mind-0.72.0-arm64-beta.dmg`. DMG SHA-256 verified: `5a963545178578246c272cac805931eb1e25cfe2ff0b97b6422f1734e848c8da`. The public download is unchanged.
+
 Installed and packaged Codex: 0.153.4. Its local experimental JSON schema was
 generated into `/tmp/proto-mind-app-server-schema` to verify tool protocol shapes.
 
