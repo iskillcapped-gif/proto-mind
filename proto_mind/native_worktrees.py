@@ -46,6 +46,19 @@ def main_checkout(root: Path) -> Path | None:
         return None
 
 
+def project_workspace(workspace: dict | None) -> dict | None:
+    """Folder identity that project memory and notes belong to: a linked Git
+    worktree, such as an isolated PM task, uses its main checkout's identity."""
+    if not workspace:
+        return workspace
+    from proto_mind.native_work_sessions import workspace_identity
+    main = main_checkout(Path(workspace["path"]))
+    try:
+        return workspace_identity(main) if main else workspace
+    except OSError:
+        return workspace
+
+
 def create(reader, directory: Path):
     root = reader.root
     top = Path(git(root, "rev-parse", "--show-toplevel")).resolve(strict=True)

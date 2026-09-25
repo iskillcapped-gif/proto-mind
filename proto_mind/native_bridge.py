@@ -116,14 +116,8 @@ def _canonical_hash(value: object) -> str:
 def memory_scope(workspace: dict | None) -> str | None:
     """Core-memory project scope. A linked Git worktree, such as an isolated PM
     task, shares its main checkout's scope; any other folder keeps its own."""
-    if not workspace:
-        return None
-    from proto_mind.native_worktrees import main_checkout
-    main = main_checkout(Path(workspace["path"]))
-    try:
-        return _canonical_hash(workspace_identity(main) if main else workspace)
-    except OSError:
-        return _canonical_hash(workspace)
+    from proto_mind.native_worktrees import project_workspace
+    return _canonical_hash(project_workspace(workspace)) if workspace else None
 
 
 class _NoLocalRedirect(request.HTTPRedirectHandler):

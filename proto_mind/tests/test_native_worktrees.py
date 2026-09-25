@@ -54,6 +54,37 @@ class IsolatedWorktreeTests(unittest.TestCase):
             self.assertIsNone(main_checkout(other))
             self.assertEqual(memory_scope(workspace_identity(other)), _canonical_hash(workspace_identity(other)))
 
+    def test_isolated_task_reads_and_saves_its_main_checkout_project_notes(self):
+        from uuid import uuid4
+        from proto_mind.native_project_memory import NativeProjectMemory
+        from proto_mind.native_project_recall import ProjectRecall
+        from proto_mind.native_work_sessions import workspace_identity
+        with tempfile.TemporaryDirectory() as temporary:
+            base=Path(temporary).resolve(); root=base/'repo'; root.mkdir(); core=base/'core'; state=base/'private'
+            subprocess.run(['/usr/bin/git','init','-q',str(root)],check=True)
+            (root/'work.txt').write_text('committed')
+            git(root,'add','work.txt')
+            git(root,'-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','-qm','baseline')
+            work=Path(create(WorkspaceReader(str(root)),base/'managed')['path'])
+            conversation=str(uuid4())
+            def memory(folder): return NativeProjectMemory(core,state,conversation,workspace_identity(folder))
+            def save(folder,content):
+                note={'kind':'decision','content':content,'basis':'Fixture operator statement','supersedes_id':''}
+                preview=memory(folder).preview(note)
+                return memory(folder).save({'note':note,'preview_fingerprint':preview['preview_fingerprint'],
+                                            'confirmation_token':preview['confirmation_token'],'acknowledge_operator_note':True})['item']
+            project=save(root,'Заказы храним в SQLite.')
+            self.assertEqual([row['id'] for row in memory(work).listing()['items']],[project['id']])
+            recall=ProjectRecall(core,state,conversation=conversation,workspace=workspace_identity(work),
+                                 text='Где храним заказы, в SQLite?',mode='full_access')
+            self.assertEqual(recall.report['selected_ids'],[project['id']])
+            self.assertEqual(recall.notes[0]['workspace'],workspace_identity(work))
+            task=save(work,'Тесты запускаем через unittest.')
+            self.assertEqual({row['id'] for row in memory(root).listing()['items']},{project['id'],task['id']})
+            # A folder with a copied .git file that the repository never registered stays separate.
+            other=base/'other'; other.mkdir(); (other/'.git').write_text((work/'.git').read_text())
+            self.assertEqual(memory(other).listing()['items'],[])
+
     def test_non_repository_does_not_create_a_destination(self):
         with tempfile.TemporaryDirectory() as temporary:
             root=Path(temporary).resolve(); destination=root/'managed'

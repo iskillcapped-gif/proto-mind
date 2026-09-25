@@ -7,6 +7,7 @@ from proto_mind.native_desk import injection_state
 from proto_mind.project_recall_search import ALGORITHM, rank_notes
 from proto_mind.native_private_records import PrivateRecordStore, digest, encoded, snapshot_hash, HASH
 from proto_mind.native_work_sessions import workspace_identity
+from proto_mind.native_worktrees import project_workspace
 from proto_mind.native_project_note_state import SCHEMA as STATE_SCHEMA, ACTIONS, project_states, validate_state
 
 
@@ -76,10 +77,13 @@ def parse_project_memory_request(method: str, params: dict) -> dict:
 class NativeProjectMemory:
     def __init__(self, root: Path, state_dir: Path, conversation: str, workspace: dict):
         self.root, self.conversation, self.workspace = root, str(UUID(conversation)), workspace
+        # Notes belong to the project folder; an isolated task in a linked Git
+        # worktree reads and saves its main checkout's notes.
+        self.scope = project_workspace(workspace)
         self.store = PrivateRecordStore(state_dir, "project_memory")
 
     def _same_scope(self, body):
-        return body["project_root"] == str(self.root) and body["workspace"] == self.workspace
+        return body["project_root"] == str(self.root) and body["workspace"] == self.scope
 
     def _read(self):
         all_records, issues = self.store.scan(validate_project_memory)
@@ -142,7 +146,7 @@ class NativeProjectMemory:
                 "matching_count": matching, "offset": offset, "page_size": page_size,
                 "query": query or "", "algorithm": ALGORITHM if query is not None else "saved_at_descending",
                 "directory": str(self.store.directory), "limit": 200,
-                "notice": "Only explicitly saved notes for this exact folder. Legacy core memory remains shared and is not migrated. No automatic model attachment or usage-counter write."}
+                "notice": "Only explicitly saved notes for this project folder; an isolated worktree task uses its main checkout's notes. Legacy core memory remains shared and is not migrated. No automatic model attachment or usage-counter write."}
 
     def inspect(self, identifier):
         record = self.store.get(identifier, validate_project_memory)
@@ -157,7 +161,7 @@ class NativeProjectMemory:
     def preview(self, note):
         if not isinstance(note, dict) or set(note) != NOTE_FIELDS:
             raise ValueError("Use kind, content, basis and an optional exact supersedes_id only.")
-        body = {"schema": SCHEMA, "project_root": str(self.root), "workspace": self.workspace,
+        body = {"schema": SCHEMA, "project_root": str(self.root), "workspace": self.scope,
                 "conversation_id": self.conversation, **deepcopy(note), "source": "operator_explicit",
                 "verification": "operator_asserted_not_independently_verified", "executable": False, "automatic_learning": False}
         validate_project_memory(body)
@@ -207,7 +211,7 @@ class NativeProjectMemory:
         self._check_workspace()
         events = [row for row in all_records if row["body"]["schema"] == STATE_SCHEMA and self._same_scope(row["body"])]
         _, heads, _ = project_states(records, events)
-        body = {"schema": STATE_SCHEMA, "project_root": str(self.root), "workspace": self.workspace,
+        body = {"schema": STATE_SCHEMA, "project_root": str(self.root), "workspace": self.scope,
                 "conversation_id": self.conversation, "note_id": identifier, "note_record_hash": record_hash,
                 "previous_state_id": heads.get(identifier, ""), "action": action, "source": "operator_explicit",
                 "executable": False, "automatic_learning": False}
