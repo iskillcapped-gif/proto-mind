@@ -4,6 +4,49 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Claude Continuity and Memory Bounds — Native 0.74.2
+
+Claude Code keeps a session's first system prompt when it resumes. PM put the
+per-turn Observer labels, selected core memory and correction hints there, so a
+resumed session kept seeing its first turn's versions (observed live in 0.74.0)
+while the context inspector showed the current ones. The Claude system prompt
+now holds only session-stable rules; each turn's context travels in a
+`<proto_mind_turn_context>` block inside that turn's message. The session binding
+includes a hash of the system prompt, so a changed prompt starts a new session
+from local history instead of silently keeping the old one. The first Claude turn
+after this update therefore starts a new session in each conversation.
+
+After Stop, a usage limit, a crash or a transient error, the next user-initiated
+Claude turn from the same position continues the interrupted session with an
+explicit notice; nothing is replayed. A failed or stopped request now stays in
+every provider's local history, marked as having no confirmed answer and not to
+be repeated unless the current request asks. Previously it was dropped, so a
+session that had to start fresh after a usage limit never saw the request it was
+asked to continue. Failed answers are still never replayed.
+
+Automatic core-memory capture skips messages over 2,000 characters, which are
+usually pasted reports or logs. Stored records are shown to models at up to
+3,000 characters each with a truncation marker, and Claude/API/Ollama bound the
+whole per-turn context as Codex already did, so one long record no longer fails
+a turn. Isolated tasks in linked Git worktrees share their main checkout's
+project memory; the link must be registered by the main repository, and the main
+checkout's scope is unchanged, so no records move. The Settings MCP tool check
+closes its own session instead of leaving a bridge and server running.
+
+Verification on 2026-09-25: **2417 Python tests and 1988 Native checks passed**,
+plus compileall; optional pytest is absent. Regressions cover an identical Claude
+system prompt across a resumed session with current turn context, the prompt
+hash in the binding, a 30,000-character memory record for every provider, long
+pastes, failed requests surviving both resume and a fresh bootstrap, the
+Swift/Python marker match, registered, relative and crafted worktree links, and
+the Settings MCP check. Tests use synthetic SDK/MCP fixtures and disposable
+state; no model request was made. The 0.74.2 (106) bundle was built in a staging
+folder and installed by replacing its files in place while the app kept running.
+The previous 0.74.1 (105) bundle is kept beside it as
+`dist/Proto-Mind Native 0.74.1 (105).previous`. The new Native behavior starts
+after the operator restarts the app. A live Claude turn with this release has not
+been checked yet.
+
 ## Composer Stability — Native 0.74.1
 
 A live hang sample from 0.74.0 captured the main thread inside

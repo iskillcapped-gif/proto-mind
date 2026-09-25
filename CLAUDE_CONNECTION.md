@@ -1,6 +1,6 @@
 # Claude in Proto-Mind
 
-Development release: **0.74.1 (105)**. This local integration runs Anthropic's
+Development release: **0.74.2 (106)**. This local integration runs Anthropic's
 official **Claude Agent SDK 0.2.159 / Claude Code 2.1.281**. PM is an independent
 application, not an Anthropic product. No account is included.
 
@@ -130,6 +130,15 @@ Anthropic's binary and Developer ID signature are preserved during packaging.
 The rest of the app retains its existing signing/distribution status.
 
 ## Verification
+
+Release 0.74.2 verification on 2026-09-25: **2417 Python tests and 1988 Native
+checks passed**, with the synthetic SDK and no model request. They cover the
+session-stable system prompt, current per-turn context after resume, the prompt
+hash in the binding, bounded long memory, and failed requests that survive both
+resume and a fresh bootstrap. Earlier, in the running 0.74.0 app, a live
+subscription session showed that `--resume` works and that the CLI kept the
+first turn's `append`; this release addresses that. A live check of 0.74.2 itself
+is still pending.
 
 Release 0.74.0 verification on 2026-09-25: **2402 Python tests and 1982 Native
 checks passed**. After table layout refinements, the 46 focused workspace checks
