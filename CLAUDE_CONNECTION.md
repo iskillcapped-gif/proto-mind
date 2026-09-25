@@ -77,3 +77,11 @@ gates, context, recall and durable turn receipts. They never use live credential
 The installed official SDK/CLI also completed initialization in a disposable
 signed-out profile without submitting a model query. Subscription sign-in and
 real coding tasks still require the operator's new account.
+
+Release verification on 2026-09-25: **2372 Python tests and 1952 Native checks
+passed**. The local app and Apple Silicon portable DMG were built. The portable
+Python/SDK/CLI also initialized with all 26 PM tool definitions in a disposable,
+signed-out profile, without a model query or tool invocation. Its Claude binary
+matches the original SDK binary byte for byte and retains Anthropic's verified
+Developer ID signature. This verifies packaging and initialization, not a live
+subscription login or real Claude task.
