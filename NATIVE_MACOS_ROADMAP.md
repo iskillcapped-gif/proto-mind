@@ -4,6 +4,30 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Composer Stability — Native 0.74.1
+
+A live hang sample from 0.74.0 captured the main thread inside
+`NativeComposer.updateNSView → NSTextView.setEditable → input-method activation`,
+whose nested event loop reentered SwiftUI's graph update. Opening an in-workspace
+presentation could trigger this even when the model turn was already over.
+
+Composer editability and focus changes now run after the SwiftUI update, coalesce
+to the latest surface state and skip unchanged AppKit setters. Covered editors
+refuse Send immediately; removed editors discard queued activation. The draft,
+selection and retained editor stay intact. This UI fix does not alter Claude
+session recovery or the provider's usage limits.
+
+Verification: **615 Native interface checks passed**, including deferred and
+idempotent editability, rapid presentation changes, draft/selection preservation,
+Send gating, read-only editors and cancellation after removal. Tests use disposable
+profiles and make no model calls.
+The release app also passed six Settings/Chat cycles through the keyboard and
+sidebar menu on a disposable Mock profile. An edited draft survived every cycle
+and normal Command-Q, and no model request was submitted. The signed local
+0.74.1 (105) bundle was installed with the user's app left closed. The live hang
+sample and verification logs are retained in
+`dist/diagnostics/composer-freeze-2026-09-25/`.
+
 ## Reliable Memory and Claude Sessions — Native 0.74.0
 
 Ordinary Native questions now reach the selected model; core commands require

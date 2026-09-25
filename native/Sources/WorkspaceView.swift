@@ -675,6 +675,42 @@ struct NativeComposer: NSViewRepresentable {
     final class Editor: NSTextView {
         var pendingProgrammaticFocus = false
         private var focusObservers: [NSObjectProtocol] = []
+        private var requestedEditable = true
+        private var surfaceAllowsInteraction = true
+        private var interactionScheduled = false
+        private var dismantled = false
+
+        func updateInteraction(enabled: Bool, surfaceEnabled: Bool) {
+            requestedEditable = enabled && surfaceEnabled
+            surfaceAllowsInteraction = surfaceEnabled
+            if !surfaceEnabled { pendingProgrammaticFocus = false }
+            scheduleInteraction()
+        }
+
+        private func scheduleInteraction() {
+            guard !dismantled, !interactionScheduled else { return }
+            interactionScheduled = true
+            // AppKit's input-method activation can run a nested event loop.
+            // Never enter it while SwiftUI is updating its view graph.
+            DispatchQueue.main.async { [weak self] in
+                guard let self, !self.dismantled else { return }
+                self.interactionScheduled = false
+                if !self.surfaceAllowsInteraction, self.window?.firstResponder === self {
+                    self.window?.makeFirstResponder(nil)
+                }
+                if self.isEditable != self.requestedEditable {
+                    self.isEditable = self.requestedEditable
+                }
+                self.applyProgrammaticFocus()
+            }
+        }
+
+        func dismantleInteraction() {
+            dismantled = true
+            pendingProgrammaticFocus = false
+            focusObservers.forEach(NotificationCenter.default.removeObserver)
+            focusObservers = []
+        }
 
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
@@ -683,25 +719,29 @@ struct NativeComposer: NSViewRepresentable {
             guard let window else { return }
             for name in [NSWindow.didBecomeKeyNotification, NSWindow.didEndSheetNotification] {
                 focusObservers.append(NotificationCenter.default.addObserver(forName: name, object: window, queue: .main) { [weak self] _ in
-                    DispatchQueue.main.async { self?.applyProgrammaticFocus() }
+                    self?.scheduleInteraction()
                 })
             }
-            applyProgrammaticFocus()
+            scheduleInteraction()
         }
 
         deinit { focusObservers.forEach(NotificationCenter.default.removeObserver) }
 
         func requestProgrammaticFocus() {
+            guard !dismantled, surfaceAllowsInteraction else { return }
             pendingProgrammaticFocus = true
-            DispatchQueue.main.async { [weak self] in self?.applyProgrammaticFocus() }
+            scheduleInteraction()
         }
 
         private func applyProgrammaticFocus() {
-            guard pendingProgrammaticFocus, isEditable, let window,
+            guard !dismantled, pendingProgrammaticFocus, requestedEditable,
+                  surfaceAllowsInteraction, isEditable, let window,
                   window.isKeyWindow, window.attachedSheet == nil else { return }
-            if window.makeFirstResponder(self) {
-                pendingProgrammaticFocus = false
+            pendingProgrammaticFocus = false
+            if window.firstResponder === self || window.makeFirstResponder(self) {
                 scrollRangeToVisible(selectedRange())
+            } else if surfaceAllowsInteraction {
+                pendingProgrammaticFocus = true
             }
         }
 
@@ -742,6 +782,7 @@ struct NativeComposer: NSViewRepresentable {
             catch { onDropError?(error.localizedDescription); return false }
         }
         override func keyDown(with event: NSEvent) {
+            guard !dismantled, requestedEditable, surfaceAllowsInteraction else { return }
             if event.keyCode == 53 && !hasMarkedText() {
                 onStop?()
             } else if [36, 76].contains(event.keyCode) && !event.modifierFlags.contains(.shift) && !hasMarkedText() {
@@ -786,9 +827,8 @@ struct NativeComposer: NSViewRepresentable {
         context.coordinator.parent = self
         guard let editor = scroll.documentView as? Editor else { return }
         editor.setAccessibilityLabel(L10n.text("Сообщение Proto-Mind"))
-        editor.isEditable = enabled && surfaceEnabled
+        editor.updateInteraction(enabled: enabled, surfaceEnabled: surfaceEnabled)
         if !focusOnRevision || !surfaceEnabled { editor.pendingProgrammaticFocus = false }
-        if !surfaceEnabled, editor.window?.firstResponder === editor { editor.window?.makeFirstResponder(nil) }
         // SwiftUI may render an older binding while NSTextView is handling rapid keystrokes.
         // Only an explicit programmatic revision may replace the editor's live text.
         if context.coordinator.appliedRevision != revision {
@@ -806,5 +846,9 @@ struct NativeComposer: NSViewRepresentable {
         editor.onFiles = onDrop
         editor.onDropHover = onDropHover
         editor.onDropError = onDropError
+    }
+
+    static func dismantleNSView(_ scroll: NSScrollView, coordinator: Coordinator) {
+        (scroll.documentView as? Editor)?.dismantleInteraction()
     }
 }

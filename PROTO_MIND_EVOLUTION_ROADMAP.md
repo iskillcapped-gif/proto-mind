@@ -1,6 +1,6 @@
 # Proto-Mind: Current Direction
 
-Updated: 2026-09-25. Current development release: Native **0.74.0 (104)**.
+Updated: 2026-09-25. Current development release: Native **0.74.1 (105)**.
 
 The Claude subscription experiment now has a local integration through the official Agent SDK and unmodified Claude Code login. [Setup and scope](CLAUDE_CONNECTION.md). The operator has connected Pro; read-only live checks confirmed the account's model catalog and subscription quotas. Native 0.73.1 added exact model versions and separate Codex/Claude limits; 0.74.0 fixes the independently checked review findings, including durable Claude sessions, memory replacement, Native intent routing and stateful MCP. Additional review ideas, particularly cross-provider context transfer, are deferred at the operator's request. Real disposable-project tasks remain the next acceptance step; metadata checks do not establish model quality.
 
