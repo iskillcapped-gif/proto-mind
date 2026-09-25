@@ -104,10 +104,16 @@ signed in with Pro; a read-only live check then confirmed the CLI catalog and
 five-hour/weekly quotas, with no model query. Real coding-task acceptance remains
 a separate check.
 
-Release verification on 2026-09-25: **2372 Python tests and 1952 Native checks
+Release 0.73.0 verification on 2026-09-25: **2372 Python tests and 1952 Native checks
 passed**. The local app and Apple Silicon portable DMG were built. The portable
 Python/SDK/CLI also initialized with all 26 PM tool definitions in a disposable,
 signed-out profile, without a model query or tool invocation. Its Claude binary
 matches the original SDK binary byte for byte and retains Anthropic's verified
 Developer ID signature. This verifies packaging and initialization, not a live
 subscription login or real Claude task.
+
+Release 0.73.1 verification on 2026-09-25: **2379 Python tests and 1966 Native
+checks passed**. The versioned model menu and Claude quota page were rendered
+with disposable fixtures and visually inspected. The combined subscription
+page and the standalone Codex page both passed small-window layout checks.
+The local app was rebuilt; live Pro metadata was verified as described above.

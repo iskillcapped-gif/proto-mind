@@ -13,6 +13,13 @@ struct CodexUsageView: View {
     private var resetBlocked: Bool { refreshBlocked || app.globalBusy || app.client.turnOutstanding }
 
     var body: some View {
+        Group {
+            if embedded { content }
+            else { content.workspacePageSize(width: 560, height: 610) }
+        }
+    }
+
+    private var content: some View {
         VStack(alignment: .leading, spacing: 18) {
             if !embedded { HStack {
                 Text(L10n.text("Использование Codex")).font(.system(size: 22, weight: .semibold))

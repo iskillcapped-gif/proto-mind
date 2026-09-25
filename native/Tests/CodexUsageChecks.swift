@@ -49,6 +49,10 @@ extension NativeChecks {
         let size = view.sizeThatFits(in: CGSize(width: 800, height: 720))
         try check(size.width <= 640 && size.height <= 660 && !FileManager.default.fileExists(atPath: state.path),
                   "Usage sheet fits a small window and layout measurement never creates account state")
+        let combined = NSHostingController(rootView: AccountUsageView(app: app, usage: app.codexUsage))
+        let combinedSize = combined.sizeThatFits(in: CGSize(width: 800, height: 720))
+        try check(combinedSize.width <= 640 && combinedSize.height <= 660 && !FileManager.default.fileExists(atPath: state.path),
+                  "Combined subscription page fits the same window without creating account state")
         var invalid = String(decoding: raw, as: UTF8.self)
         invalid = invalid.replacingOccurrences(of: "proto_mind.codex_usage.v1", with: "unknown")
         do {
