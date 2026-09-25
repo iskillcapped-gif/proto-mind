@@ -56,19 +56,17 @@ class MemoryKeeper:
         "на майбутнє",
         "моє уподобання",
     )
+    # "Let's use X" usually steers the current task ("in this test"), so it is
+    # not captured as a project decision that could replace an earlier one.
     DECISION_STORAGE_MARKERS = (
         "we decided",
-        "let's use",
         "we now use",
         "changing direction",
         "мы решили",
-        "давай использовать",
         "теперь используем",
         "меняем направление",
         "переходим на",
         "ми вирішили",
-        "давай використовувати",
-        "нумо використовувати",
         "тепер використовуємо",
         "змінюємо напрям",
         "переходимо на",

@@ -32,6 +32,21 @@ class MemoryIntentTests(unittest.TestCase):
                 self.assertFalse(result.memory_summary.should_store)
                 self.assertTrue(all(r.active for r in self.store.load_persistent_memory()))
 
+    def test_lets_use_is_a_task_instruction_not_a_project_decision(self):
+        self.keeper.context_scope = "project-a"
+        first = self.coordinator.handle("Мы решили использовать unittest для тестов проекта.")
+        for text in ["Давай использовать pytest вместо unittest в этом тесте.",
+                     "Let's use pytest instead of unittest for this test.",
+                     "Давай використовувати pytest замість unittest у цьому тесті."]:
+            with self.subTest(text=text):
+                result = self.coordinator.handle(text)
+                self.assertFalse(result.memory_summary.should_store)
+                self.assertEqual(result.memory_summary.superseded_record_ids, [])
+        stored = self.store.load_working_memory() + self.store.load_persistent_memory()
+        self.assertTrue(all(r.active for r in stored if r.content == first.memory_summary.content))
+        self.assertTrue(self.coordinator.handle("Переходим на pytest вместо unittest для тестов проекта.")
+                        .memory_summary.superseded_record_ids)
+
     def test_replacement_requires_specific_target_and_same_project(self):
         self.keeper.context_scope = "project-a"
         first = self.coordinator.handle("Мы решили использовать JSON для хранения памяти.")
