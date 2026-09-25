@@ -136,6 +136,51 @@ class ClaudeTests(unittest.TestCase):
         self.assertIsNone(observed['session_id'])
         self.assertNotIn('Old context', observed['messages'][0]['message']['content'][0]['text'])
 
+    def session_plan(self, conversation, history):
+        from proto_mind.native_claude_sessions import ClaudeSessionPlan
+        return ClaudeSessionPlan(self.state, conversation, account=status(self.state), workspace=None,
+                                 full_access=False, tools=False, history=history)
+
+    def test_usage_limit_keeps_the_session_for_the_next_user_turn_with_notice(self):
+        conversation, history = str(uuid4()), [{'role':'user', 'content':'Start'}]
+        original = self.session_plan(conversation, history)
+        self.transport(session_plan=original).answer('sonnet', 'instructions', history, 'first', lambda _:None)
+        history = history + [{'role':'assistant', 'content':'Offline answer'}]
+        with self.assertRaises(RuntimeError) as error:
+            self.transport(session_plan=self.session_plan(conversation, history)).answer(
+                'rate_limit', 'instructions', history, 'second', lambda _:None)
+        self.assertIn('продолжит эту же сессию', str(error.exception))
+        continued = self.session_plan(conversation, history)
+        self.assertTrue(continued.resumed and continued.interrupted)
+        self.transport(session_plan=continued).answer('sonnet', 'instructions', history, 'third', lambda _:None)
+        observed = json.loads((self.state / 'claude-profile/sdk-observed.json').read_text())
+        text = observed['messages'][0]['message']['content'][0]['text']
+        self.assertEqual(observed['resume'], original.session_id)
+        self.assertIn('did not complete', text); self.assertIn('third', text)
+        self.assertFalse(self.session_plan(conversation, history + [{'role':'assistant', 'content':'Offline answer'}]).interrupted)
+
+    def test_missing_resumed_session_fails_once_then_starts_fresh(self):
+        conversation, history = str(uuid4()), [{'role':'user', 'content':'Start'}]
+        original = self.session_plan(conversation, history)
+        self.transport(session_plan=original).answer('sonnet', 'instructions', history, 'first', lambda _:None)
+        history = history + [{'role':'assistant', 'content':'Offline answer'}]
+        continued = self.session_plan(conversation, history)
+        self.assertTrue(continued.resumed)
+        # Claude Code pruned the transcript after planning: resume fails before any model output.
+        next((self.state / 'claude-profile/projects').glob('*/' + original.session_id + '.jsonl')).unlink()
+        with self.assertRaises(RuntimeError):
+            self.transport(session_plan=continued).answer('sonnet', 'instructions', history, 'second', lambda _:None)
+        fresh = self.session_plan(conversation, history)
+        self.assertFalse(fresh.resumed)
+        self.assertEqual(self.transport(session_plan=fresh).answer('sonnet', 'instructions', history, 'third', lambda _:None), 'Offline answer')
+
+    def test_completed_answer_survives_a_failed_continuation_update(self):
+        conversation, history = str(uuid4()), []
+        plan = self.session_plan(conversation, history)
+        with patch.object(type(plan), 'complete', side_effect=ValueError('binding changed')):
+            self.assertEqual(self.transport(session_plan=plan).answer('sonnet', 'instructions', history, 'go', lambda _:None), 'Offline answer')
+        self.assertFalse(self.session_plan(conversation, [{'role':'user', 'content':'go'}, {'role':'assistant', 'content':'Offline answer'}]).resumed)
+
     def test_cancel_one_worker_leaves_a_different_turn_usable(self):
         transport = self.transport()
         errors = []

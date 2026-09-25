@@ -47,6 +47,16 @@ class ClaudeSDKClient:
         options = self.options
         assert options.setting_sources == [] and options.strict_mcp_config is True
         assert options.extra_args == ({} if options.session_id or options.resume else {'no-session-persistence': None})
+        # Like Claude Code: persisted sessions live in projects/<cwd>/<id>.jsonl,
+        # and an explicit resume of a missing transcript fails before any model call.
+        session = options.resume or options.session_id
+        if session:
+            import os
+            transcript = Path(os.environ['CLAUDE_CONFIG_DIR'], 'projects', 'fixture', session + '.jsonl')
+            if options.resume and not transcript.exists():
+                raise RuntimeError('No conversation found with session ID: ' + session)
+            transcript.parent.mkdir(parents=True, exist_ok=True)
+            with transcript.open('a') as stream: stream.write(json.dumps({'type': 'user'}) + '\n')
         full = options.permission_mode == 'bypassPermissions'
         assert options.tools == ({'type':'preset','preset':'claude_code'} if full else [])
         Path(options.cwd, 'sdk-observed.json').write_text(json.dumps({

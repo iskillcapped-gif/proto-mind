@@ -1,7 +1,9 @@
 """Exact Claude session bindings, separate from credentials and private backups.
 
-Planning is read-only. A cross-process lease revalidates the plan before dispatch;
-only a confirmed answer can authorize the next resume. No replay on uncertainty.
+Planning is read-only. A cross-process lease revalidates the plan before dispatch.
+The in-flight record keeps the local history position the turn started from, so
+an interrupted turn (Stop, usage limit, crash) can be continued by the next
+user-initiated turn with an explicit notice. Nothing is replayed automatically.
 """
 from contextlib import contextmanager
 import fcntl
@@ -20,10 +22,41 @@ SCHEMA = "proto_mind.claude_session.v1"
 BOOTSTRAP_CHARACTERS = 300_000
 BOOTSTRAP_MESSAGES = 2000
 PARTIAL_HISTORY = "[Earlier conversation text omitted from this bootstrap; do not infer missing details.]\n"
+INTERRUPTED_NOTICE = ("[Proto-Mind: the previous turn in this session did not complete (stopped, usage limit, "
+                      "error or restart). Its actions may be partial and its result was not confirmed; inspect the "
+                      "current state before continuing. Nothing was replayed automatically.]\n\n")
 
 
 def text_hash(text):
     return hashlib.sha256(text.strip().encode()).hexdigest()
+
+
+# Never equal to a real continuity hash: the next turn starts a fresh session.
+UNRESUMABLE = text_hash("\x00proto-mind:unresumable")
+
+
+def continuity_hash(history):
+    """Local history position a session continues from; None when it cannot be identified."""
+    if not history:
+        return text_hash("")
+    return text_hash(history[-1]["content"]) if history[-1]["role"] == "assistant" else None
+
+
+def transcript_exists(state, session_id):
+    """Claude Code stores each session as projects/<cwd>/<id>.jsonl; it may prune old ones."""
+    projects = state / "claude-profile" / "projects"
+    try:
+        with os.scandir(projects) as entries:
+            for entry in entries:
+                if entry.is_dir(follow_symlinks=False):
+                    try:
+                        if stat.S_ISREG(os.lstat(os.path.join(entry.path, session_id + ".jsonl")).st_mode):
+                            return True
+                    except FileNotFoundError:
+                        continue
+    except (FileNotFoundError, NotADirectoryError):
+        return False
+    return False
 
 
 def bootstrap_history(value):
@@ -58,25 +91,30 @@ def invalidate_login(state):
 
 
 class ClaudeSessionPlan:
-    def __init__(self, state, conversation, *, account, workspace, full_access, tools, history):
+    def __init__(self, state, conversation, *, account, workspace, full_access, tools, history, contract=1):
         self.state = state.resolve()
         self.conversation = str(UUID(conversation))
         self.directory = self.state / "claude_sessions"
         self.path = self.directory / (self.conversation + ".json")
         self.generation = generation(self.state)
         require_available(self.state)
+        # `contract` identifies PM's session-stable system text. Claude Code records
+        # the first system prompt of a session, so a changed contract needs a new one.
         self.binding = {
             "account": text_hash(json.dumps({key: account.get(key) for key in ("email", "authMethod", "apiProvider")}, sort_keys=True)),
             "login": auth_epoch(self.state), "generation": self.generation.hex() if self.generation else None,
             "workspace": workspace, "mode": "full_access" if full_access else "chat", "tools": bool(tools),
-            "contract": 1,
+            "contract": contract,
         }
         self.baseline = self._read()
         previous = self._parse(self.baseline) if self.baseline else None
-        self.resumed = bool(account.get("email") and previous and previous["state"] == "ready"
-                            and previous["binding"] == self.binding and history
-                            and history[-1]["role"] == "assistant"
-                            and text_hash(history[-1]["content"]) == previous["answer_hash"])
+        self.continuity = continuity_hash(history)
+        # A confirmed answer or an interrupted turn started from the same local
+        # position continues; any other local change starts a new session.
+        self.resumed = bool(account.get("email") and previous and previous["binding"] == self.binding
+                            and self.continuity is not None and previous["answer_hash"] == self.continuity
+                            and transcript_exists(self.state, previous["session_id"]))
+        self.interrupted = self.resumed and previous["state"] == "in_flight"
         self.session_id = previous["session_id"] if self.resumed else str(uuid4())
         self.history = [] if self.resumed else bootstrap_history(history)
         self._leased = False
@@ -101,7 +139,7 @@ class ClaudeSessionPlan:
 
     def public(self):
         return {"schema": SCHEMA, "linked": self.resumed, "thread_id_short": self.session_id[:8],
-                "bootstrap_messages": len(self.history),
+                "bootstrap_messages": len(self.history), "interrupted": self.interrupted,
                 "bootstrap_partial": bool(self.history and self.history[0]["content"].startswith(PARTIAL_HISTORY))}
 
     def _save(self, state, answer_hash):
@@ -127,7 +165,7 @@ class ClaudeSessionPlan:
             opened, current = os.fstat(descriptor), os.stat(name, dir_fd=folder, follow_symlinks=False)
             if (opened.st_dev, opened.st_ino) != (current.st_dev, current.st_ino) or self._read() != self.baseline:
                 raise ValueError("Claude session changed before dispatch. No task was sent.")
-            self._save("in_flight", text_hash(""))
+            self._save("in_flight", self.continuity or UNRESUMABLE)
             self._leased = True
             yield self
         finally:
@@ -139,3 +177,8 @@ class ClaudeSessionPlan:
         if not self._leased or session_id != self.session_id:
             raise ValueError("Claude returned another session. No continuation was saved.")
         self._save("ready", text_hash(answer))
+
+    def abandon(self):
+        """A resumed session that failed before any output is not offered again."""
+        if self._leased:
+            self._save("in_flight", UNRESUMABLE)

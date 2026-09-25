@@ -22,7 +22,7 @@ from proto_mind.native_codex import TurnCancelled
 from proto_mind.native_progress import WorkLog
 from proto_mind.native_workspace_tools import TOOLS
 from proto_mind.native_claude_contract import validate_effort
-from proto_mind.native_claude_sessions import invalidate_login, text_hash
+from proto_mind.native_claude_sessions import INTERRUPTED_NOTICE, invalidate_login, text_hash
 
 MAX_LINE = 1_048_576
 MODEL = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/\[\]-]{0,159}\Z")
@@ -156,10 +156,27 @@ class ClaudeTransport:
         with self.session_plan.lease() if self.session_plan else nullcontext():
             return self._answer(model, instructions, history, prompt, on_delta)
 
+    def _abandon_unusable_session(self, progressed, code):
+        # A resumed session that fails before producing anything, for no known
+        # account/service reason, may be missing or damaged. Do not offer it again.
+        plan = self.session_plan
+        if plan and plan.resumed and not progressed and code in {None, "unknown"} and not self.cancelled.is_set():
+            try: plan.abandon()
+            except (OSError, ValueError): pass
+
+    def _confirm_session(self, session_id, answer):
+        if self.session_plan:
+            # The answer itself is complete; a failed binding update only means
+            # the next turn starts a fresh session from local history.
+            try: self.session_plan.complete(session_id, answer)
+            except (OSError, ValueError): pass
+
     def _answer(self, model, instructions, history, prompt, on_delta):
         binary = executable()
         env = environment(self.state)
         env["PYTHONPATH"] = os.pathsep.join([str(runtime_path()), str(Path(__file__).resolve().parent.parent)])
+        if self.session_plan and self.session_plan.interrupted:
+            prompt = INTERRUPTED_NOTICE + prompt
         payload = {"model": model, "effort": self.effort, "instructions": instructions,
                    "history": self.session_plan.history if self.session_plan else history,
                    "session_id": self.session_plan.session_id if self.session_plan else None,
@@ -173,6 +190,7 @@ class ClaudeTransport:
         outcome = "failed"
         process = None
         seen_calls = set()
+        progressed = False
         try:
             with self.lock:
                 if self.cancelled.is_set(): raise TurnCancelled("Claude task stopped.")
@@ -187,6 +205,7 @@ class ClaudeTransport:
                 if len(raw) > MAX_LINE: raise RuntimeError("Claude event exceeded its buffer limit.")
                 event = json.loads(raw)
                 kind = event.get("event")
+                progressed = progressed or kind in {"delta", "commentary", "stage", "activity", "tool"}
                 if kind == "delta":
                     on_delta(event["text"])
                 elif kind == "commentary":
@@ -212,17 +231,20 @@ class ClaudeTransport:
                     if self.cancelled.is_set(): raise TurnCancelled("Claude task stopped.")
                     answer = event.get("text")
                     if event.get("success") is not True or not isinstance(answer, str) or not answer.strip() or len(answer) > 250_000:
+                        self._abandon_unusable_session(progressed, event.get("error_code"))
                         raise RuntimeError(claude_error(event.get("error_code")))
-                    if self.session_plan:
-                        self.session_plan.complete(event.get("session_id"), answer.strip())
+                    self._confirm_session(event.get("session_id"), answer.strip())
                     outcome = "completed"
                     return answer.strip()
                 elif kind == "error":
+                    self._abandon_unusable_session(progressed, event.get("error_code"))
                     raise RuntimeError(claude_error(event.get("error_code")))
             if self.cancelled.is_set(): raise TurnCancelled("Claude task stopped. Earlier changes are not rolled back.")
+            self._abandon_unusable_session(progressed, None)
             raise RuntimeError("Claude Code disconnected before completing the task. PM did not resubmit it.")
         except (OSError, ValueError, KeyError, TypeError):
             if self.cancelled.is_set(): raise TurnCancelled("Claude task stopped.") from None
+            self._abandon_unusable_session(progressed, None)
             raise RuntimeError("Claude transport failed. PM did not resubmit the task or change providers.") from None
         finally:
             if process is not None:
@@ -242,7 +264,7 @@ class NativeClaudeReasoner(NativeAPIReasoner):
 def claude_error(code):
     messages = {
         "authentication_failed": "Claude: войдите в аккаунт заново в настройках подключения.",
-        "rate_limit": "Claude: достигнут лимит. Проверьте остаток и время обновления в разделе «Лимиты».",
+        "rate_limit": "Claude: достигнут лимит. После обновления (время — в разделе «Лимиты») следующее сообщение продолжит эту же сессию; автоматического повтора не было.",
         "billing_error": "Claude: провайдер сообщил о проблеме оплаты или доступного баланса.",
         "access_denied": "Claude: аккаунту недоступен этот запрос или выбранная модель.",
         "invalid_request": "Claude: запрос или выбранная модель не поддерживается. Проверьте настройки модели.",

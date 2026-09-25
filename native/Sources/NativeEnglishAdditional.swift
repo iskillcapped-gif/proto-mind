@@ -2,7 +2,7 @@
 extension L10n {
     static let additionalEnglish: [String: String] = [
         "Claude: войдите в аккаунт заново в настройках подключения.": "Claude: sign in again in connection settings.",
-        "Claude: достигнут лимит. Проверьте остаток и время обновления в разделе «Лимиты».": "Claude: usage limit reached. Check remaining usage and reset times in Limits.",
+        "Claude: достигнут лимит. После обновления (время — в разделе «Лимиты») следующее сообщение продолжит эту же сессию; автоматического повтора не было.": "Claude: usage limit reached. After it resets (see Limits), your next message continues this same session; nothing was retried automatically.",
         "Claude: провайдер сообщил о проблеме оплаты или доступного баланса.": "Claude: the provider reported a billing or balance problem.",
         "Claude: аккаунту недоступен этот запрос или выбранная модель.": "Claude: this account cannot access this request or selected model.",
         "Claude: запрос или выбранная модель не поддерживается. Проверьте настройки модели.": "Claude: this request or model is unsupported. Check the model settings.",
