@@ -19,6 +19,33 @@ def git(root, *arguments):
     return result.stdout.decode().strip()
 
 
+def main_checkout(root: Path) -> Path | None:
+    """The main checkout of a linked Git worktree, or None.
+
+    Reads Git's own files without running Git. The worktree's `.git` file must
+    be registered by the main repository, which records it in `<admin>/gitdir`,
+    so a crafted `.git` file cannot claim another project.
+    """
+    marker = root / ".git"
+    try:
+        if marker.is_symlink() or not marker.is_file() or marker.stat().st_size > 4096:
+            return None
+        text = marker.read_text(encoding="utf-8").strip()
+        if not text.startswith("gitdir: "):
+            return None
+        admin = (root / text[len("gitdir: "):]).resolve(strict=True)
+        common = (admin / (admin / "commondir").read_text(encoding="utf-8").strip()).resolve(strict=True)
+        # Git may record either path relatively (worktree.useRelativePaths).
+        registered = (admin / (admin / "gitdir").read_text(encoding="utf-8").strip()).resolve(strict=True)
+        main = common.parent
+        if (registered != marker.resolve(strict=True) or common.name != ".git" or admin.parent != common / "worktrees"
+                or not common.is_dir() or common.is_symlink()):
+            return None
+        return main
+    except (OSError, UnicodeError, ValueError):
+        return None
+
+
 def create(reader, directory: Path):
     root = reader.root
     top = Path(git(root, "rev-parse", "--show-toplevel")).resolve(strict=True)

@@ -113,6 +113,19 @@ def _canonical_hash(value: object) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def memory_scope(workspace: dict | None) -> str | None:
+    """Core-memory project scope. A linked Git worktree, such as an isolated PM
+    task, shares its main checkout's scope; any other folder keeps its own."""
+    if not workspace:
+        return None
+    from proto_mind.native_worktrees import main_checkout
+    main = main_checkout(Path(workspace["path"]))
+    try:
+        return _canonical_hash(workspace_identity(main) if main else workspace)
+    except OSError:
+        return _canonical_hash(workspace)
+
+
 class _NoLocalRedirect(request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         raise ValueError("Local Ollama requests cannot follow redirects.")
@@ -705,7 +718,7 @@ class NativeBackend:
             if self.closing.is_set():
                 raise ValueError("Native disconnected before processing; no new work started.")
             coordinator = self._coordinator(session_id)
-            scope = _canonical_hash(logical_workspace) if logical_workspace else None
+            scope = memory_scope(logical_workspace)
             if coordinator.memory_keeper.context_scope != scope:
                 coordinator.pending_correction_hints = []
             coordinator.memory_keeper.context_scope = scope
@@ -932,7 +945,7 @@ class NativeBackend:
         coordinator = self.sessions.get(conversation_id) if conversation_id else None
         observer = coordinator.observer if coordinator is not None else Observer()
         observer_state = observer.analyze(text)
-        scope = _canonical_hash(logical_workspace) if logical_workspace else None
+        scope = memory_scope(logical_workspace)
         correction_hints = (list(coordinator.pending_correction_hints)
                             if coordinator is not None and coordinator.memory_keeper.context_scope == scope else [])
         retrieved_memory = []
@@ -942,7 +955,7 @@ class NativeBackend:
                 data / "working_memory.json",
                 data / "persistent_memory.json",
             ))
-            keeper.context_scope = _canonical_hash(logical_workspace) if logical_workspace else None
+            keeper.context_scope = scope
             top_k = 10 if observer_state.query_type == "memory_inventory" else 5
             retrieved_memory = keeper.retrieve(
                 observer_state,
