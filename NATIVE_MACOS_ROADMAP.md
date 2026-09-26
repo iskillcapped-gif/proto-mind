@@ -4,6 +4,36 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Computer Use Targeting and Compaction Rows — Native 0.74.10
+
+The first live test of 0.74.9 through PM, on 2026-09-27, found a targeting
+error. `pm_screen_capture` returned Safari's window, but a click on the playing
+video did not reach it: when PM hid its windows, macOS activated ChatGPT, whose
+window lay over Safari at that point. A window capture shows the window even
+where another covers it, so the image did not reveal this. Capturing one app now
+brings it to the front first. Before each action PM checks that the captured app
+owns the topmost ordinary window at the target point (or is frontmost for keys);
+otherwise it activates the app once more, and if the point is still covered it
+refuses and asks for a new capture. PM's windows now return ten seconds after
+the last action instead of six. Done by hand, the same sequence (hide PM,
+activate Safari, click) paused the video.
+
+Claude Code compacts a long session by itself at the model's threshold. On
+2026-09-27 the development conversation compacted at 968,276 tokens: the summary
+took 93 seconds, the next request carried 34,902 tokens (a 14,805-token summary
+plus the system prompt, tools and re-read files), and work continued within the
+same turn. PM showed nothing during those 93 seconds. The Claude worker now turns
+the CLI's compacting status into one work-log row, "Context compaction…", and
+completes it at the compact boundary with the tokens before and after and the
+duration. It reuses the entry Codex compaction already had; Codex rows are
+unchanged.
+
+Verification on 2026-09-27: **2430 Python tests and 2010 Native checks
+passed**. They cover the compaction row (with the synthetic SDK) and its display.
+Window activation and the covered-point check need a live desktop and were not
+part of them. The 0.74.10 (114) bundle was staged and installed in place;
+0.74.9 (113) is kept as `dist/Proto-Mind Native 0.74.9 (113).previous`.
+
 ## Claude Computer Use — Native 0.74.9
 
 The operator's view is that Full Mac means full access, including computer use.

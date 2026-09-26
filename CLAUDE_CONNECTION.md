@@ -1,6 +1,6 @@
 # Claude in Proto-Mind
 
-Development release: **0.74.2 (106)**. This local integration runs Anthropic's
+Development release: **0.74.10 (114)**. This local integration runs Anthropic's
 official **Claude Agent SDK 0.2.159 / Claude Code 2.1.281**. PM is an independent
 application, not an Anthropic product. No account is included.
 
@@ -118,7 +118,9 @@ They made 113 and 154 requests, each re-reading a cached context of up to 366K
 tokens: 24–32M cache-read tokens per turn against 0.3M cache writes and
 0.14–0.17M output tokens (64–75% of them thinking).
 The CLI's auto-compaction window stays on its model-tuned `auto` setting, which
-it recommends for cost.
+it recommends for cost. On 2026-09-27 a live 1M-context session compacted at
+968K tokens in 93 seconds and continued the same turn from a 35K-token context;
+from 0.74.10 PM's work log shows each compaction with its token counts.
 
 ## Ownership and packaging
 
