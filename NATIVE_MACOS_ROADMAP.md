@@ -16,8 +16,10 @@ The first real capture showed the changed-files summary under a Claude answer
 with an absolute path. Paths inside the task's folder now read relative to it
 (`scripts/build_native_app.sh`), other paths use `~`, and the tooltip keeps the
 full path. The Claude action receipt carries `workspace_root` like the Codex
-receipt. This is also the first update signed with the stable local identity,
-so Screen Recording should survive it without a new grant.
+receipt. This was also the first update signed with the stable local identity:
+after installing it and restarting PM at 19:13 with no new grant,
+`CGPreflightScreenCaptureAccess()` still returned true and window capture
+worked, so macOS permissions now survive updates.
 
 Verification on 2026-09-26: **2427 Python tests and 2005 Native checks
 passed**. The 0.74.8 (112) bundle was staged and installed in place; 0.74.7
