@@ -1,6 +1,11 @@
 // Additional interface translations. Placeholders preserve dynamic content verbatim.
 extension L10n {
     static let additionalEnglish: [String: String] = [
+        "Перезапустить Proto-Mind?": "Restart Proto-Mind?",
+        "Перезапустить": "Restart",
+        "Сейчас выполняются задачи: {0}. Перезапуск остановит их; уже сделанные изменения не отменяются.": "Tasks running now: {0}. Restarting stops them; changes already made are not undone.",
+        "Обновлений нет": "No update installed",
+        "Установлена версия {0} ({1}). Нажмите, чтобы перезапустить Proto-Mind.": "Version {0} ({1}) is installed. Click to restart Proto-Mind.",
         "Claude: войдите в аккаунт заново в настройках подключения.": "Claude: sign in again in connection settings.",
         "Claude: достигнут лимит. После обновления (время — в разделе «Лимиты») следующее сообщение продолжит эту же сессию; автоматического повтора не было.": "Claude: usage limit reached. After it resets (see Limits), your next message continues this same session; nothing was retried automatically.",
         "Claude: провайдер сообщил о проблеме оплаты или доступного баланса.": "Claude: the provider reported a billing or balance problem.",

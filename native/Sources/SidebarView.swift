@@ -36,6 +36,7 @@ struct SidebarView: View {
                 HStack(spacing: 9) {
                     Text("Proto-Mind").font(.system(size: 20, weight: .semibold))
                     Spacer()
+                    AppUpdateButton(app: model, monitor: model.appUpdate)
                     Button { searchVisible.toggle(); searchFocused = searchVisible } label: { Image(systemName: "magnifyingglass") }
                         .foregroundStyle(.secondary).help(L10n.text("Поиск диалогов · ⌘F")).accessibilityLabel(L10n.text("Поиск диалогов"))
                 }.padding(.horizontal, 19).padding(.top, 19).padding(.bottom, 20)

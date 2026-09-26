@@ -836,6 +836,7 @@ struct NativeChecks {
         try await browserContext(fixture: fixture, python: python, root: root)
         try await workspacePanelIntegration(fixture: fixture, python: python, root: root)
         try await workspaceAgentTools(fixture: fixture, python: python, root: root)
+        try appUpdateDetection(root: root)
         try await claudeProvider(fixture: fixture, python: python, root: root)
         try await claudeAccountControls(fixture: fixture, python: python, root: root)
         let app = AppModel(configuration: LaunchConfiguration(projectRoot: fixture, python: python, stateDirectory: root.appendingPathComponent("integration-state")))

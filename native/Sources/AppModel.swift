@@ -67,6 +67,7 @@ final class AppModel: ObservableObject {
     private var attentionObservation: AnyCancellable?
     let sidebarProjectOrder: SidebarProjectOrder
     let desktop: DesktopPresentation
+    let appUpdate = AppUpdateMonitor()
     let presentations = WorkspacePresentations()
     let conversationRouting = ConversationRouting()
     @Published var showSettings = false
@@ -714,6 +715,7 @@ final class AppModel: ObservableObject {
 
     func start() async {
         guard !started else { return }; started = true
+        appUpdate.start()
         do {
             try PrivateStateAccess.requireAvailable(client.configuration.stateDirectory)
             try PrivateStateAccess.requireAvailable(client.configuration.projectRoot.appendingPathComponent("proto_mind/data"))
