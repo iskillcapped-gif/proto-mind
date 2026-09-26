@@ -249,13 +249,14 @@ class ClaudeTransport:
                 if len(raw) > MAX_LINE: raise RuntimeError("Claude event exceeded its buffer limit.")
                 event = json.loads(raw)
                 kind = event.get("event")
-                progressed = progressed or kind in {"delta", "commentary", "stage", "activity", "tool"}
+                progressed = progressed or kind in {"delta", "commentary", "stage", "activity", "tool", "compaction"}
                 if kind == "delta":
                     on_delta(event["text"])
                 elif kind == "commentary":
                     progress.commentary(event["id"], event["text"], True)
                     self.on_progress({"event": "answer_reset"})
                 elif kind == "stage": progress.stage(event["stage"])
+                elif kind == "compaction": progress.compaction(event["id"], event["status"], event)
                 elif kind == "activity":
                     row = event["item"]
                     self.tool_rows.pop(row["id"], None); self.tool_rows[row["id"]] = row

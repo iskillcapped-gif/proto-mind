@@ -45,6 +45,21 @@ struct WorkTimelineSection: Identifiable {
 }
 
 enum WorkTimelinePresentation {
+    /// "Сжатие контекста · 968K → 15K токенов · 1 мин 33 с" when the provider reports its counts.
+    static func compaction(_ entry: JSONValue) -> String {
+        let title = L10n.text("Сжатие контекста")
+        if entry["status"].text == "inProgress" { return title + "…" }
+        var parts = [title]
+        let before = entry["pre_tokens"].integer, after = entry["post_tokens"].integer
+        if before > 0, after > 0 { parts.append(L10n.format("\(tokens(before)) → \(tokens(after)) токенов")) }
+        if !entry["duration_ms"].isNull { parts.append(WorkLogPresentation.duration(entry["duration_ms"].integer)) }
+        return parts.joined(separator: " · ")
+    }
+
+    static func tokens(_ count: Int) -> String {
+        count >= 1_000_000 ? String(format: "%.1fM", Double(count) / 1_000_000) : count >= 1000 ? "\((count + 500) / 1000)K" : "\(count)"
+    }
+
     static func sections(_ entries: [JSONValue]) -> [WorkTimelineSection] {
         var result: [WorkTimelineSection] = []
         for (index, entry) in entries.prefix(96).enumerated() {
@@ -139,7 +154,7 @@ struct WorkTimelineView: View {
                 }.padding(.top, 8).textSelection(.enabled)
             }.font(.system(size: 13)).foregroundStyle(.secondary)
         case "context_compaction":
-            Label(L10n.text("Сжатие контекста"), systemImage: "rectangle.compress.vertical").font(.system(size: 12)).foregroundStyle(.tertiary)
+            Label(WorkTimelinePresentation.compaction(entry), systemImage: "rectangle.compress.vertical").font(.system(size: 12)).foregroundStyle(.tertiary)
         default: EmptyView()
         }
     }

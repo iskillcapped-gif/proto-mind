@@ -17,7 +17,7 @@ import time
 from uuid import UUID, uuid4
 
 from proto_mind.native_locks import open_sidecar
-from proto_mind.native_progress import display_text
+from proto_mind.native_progress import COMPACTION_COUNTS, display_text
 from proto_mind.native_desk import CONTEXT_SCHEMA, valid_artifact_snapshot
 from proto_mind.native_images import validate_image_metadata
 from proto_mind.native_pdf import validate_pdf_metadata
@@ -111,6 +111,8 @@ def public_work_log(value: dict) -> dict:
             continue
         if item.get("kind") == "plan":
             row["steps"] = [_texts(step, {"step": 200, "status": 40}) for step in item.get("steps", [])[:12] if isinstance(step, dict)]
+        if item.get("kind") == "context_compaction":
+            row.update({key: item[key] for key in COMPACTION_COUNTS if type(item.get(key)) is int and 0 <= item[key] < 10**10})
         result["entries"] = [old for old in result["entries"] if old["id"] != row["id"]] + [row]
     return result
 

@@ -33,7 +33,7 @@ def tool_content(reply):
 
 async def run(payload):
     from claude_agent_sdk import (ClaudeSDKClient, ClaudeAgentOptions, SdkMcpTool, create_sdk_mcp_server,
-                                  AssistantMessage, UserMessage, StreamEvent, ResultMessage,
+                                  AssistantMessage, UserMessage, StreamEvent, ResultMessage, SystemMessage,
                                   TextBlock, ToolUseBlock, ToolResultBlock)
     replies = WorkspaceReplies(emit)
     reader = asyncio.StreamReader(limit=MAX_UPDATE_LINE + 1)
@@ -93,6 +93,7 @@ async def run(payload):
 
     async def receive():
         text, streamed, activity, failure, outcome, waiting, leaf = "", False, {}, None, None, False, None
+        compaction = None
         async with ClaudeSDKClient(options=options) as client:
             async def messages():
                 yield {"type": "user", "message": {"role": "user", "content": content}}
@@ -159,6 +160,19 @@ async def run(payload):
                     live["finished"] = True
                     if live["pending"]: outcome["undelivered_updates"] = sorted(live["pending"])
                     return outcome
+                elif isinstance(message, SystemMessage):
+                    # Claude Code compacts a long session by itself, and a summary can take a
+                    # minute or two. Its status repeats while it works; one row covers it.
+                    data = message.data if isinstance(message.data, dict) else {}
+                    if message.subtype == "status" and data.get("status") == "compacting" and compaction is None:
+                        compaction = str(uuid4())
+                        emit({"event": "compaction", "id": compaction, "status": "inProgress"})
+                    elif message.subtype == "compact_boundary":
+                        metadata = data.get("compact_metadata") if isinstance(data.get("compact_metadata"), dict) else {}
+                        emit({"event": "compaction", "id": compaction or str(uuid4()), "status": "completed",
+                              **{key: metadata[key] for key in ("pre_tokens", "post_tokens", "duration_ms")
+                                 if type(metadata.get(key)) is int and 0 <= metadata[key] < 10**10}})
+                        compaction = None
         live["finished"] = True
         return None
 

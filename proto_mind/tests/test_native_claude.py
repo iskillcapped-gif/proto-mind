@@ -216,6 +216,25 @@ class ClaudeTests(unittest.TestCase):
         self.assertEqual([entry['tool_kind'] for entry in result['work_log']['entries'] if entry['kind'] == 'tool'],
                          ['commandExecution', 'fileChange', 'fileRead', 'search'])
 
+    def test_claude_code_compaction_is_one_work_log_row_with_its_counts(self):
+        root = self.root / 'project'
+        backend = NativeBackend(root, self.state, subscription_factory=FakeSubscription)
+        self.addCleanup(backend.close)
+        events = []
+        with patch.object(ProtoMindConfig, 'from_env', return_value=ProtoMindConfig(data_dir=root / 'proto_mind/data')):
+            result = backend.process({'text': 'Привет', 'provider': 'claude', 'model': 'compact', 'conversation_id': str(uuid4()),
+                                      'cloud_consent': True}, events.append, 'compact-request')
+        self.assertEqual(result['cognitive_turn']['response'], 'Done')
+        live = [entry for event in events if event.get('event') == 'work_log' for entry in event['log']['entries']
+                if entry['kind'] == 'context_compaction']
+        self.assertEqual([entry['status'] for entry in live][:1], ['inProgress'])
+        self.assertEqual(len({entry['id'] for entry in live}), 1)  # Repeated status updates keep one row.
+        for log in (result['work_log'], result['work_session']['work_log']):
+            rows = [entry for entry in log['entries'] if entry['kind'] == 'context_compaction']
+            self.assertEqual([(row['status'], row['pre_tokens'], row['post_tokens'], row['duration_ms']) for row in rows],
+                             [('completed', 968276, 14805, 93480)])
+        self.assertNotIn('PRIVATE CONTEXT', json.dumps([events, result], ensure_ascii=False))
+
     def test_computer_use_tools_are_claude_full_mac_only_and_keep_the_system_prompt(self):
         from proto_mind.native_workspace_tools import COMPUTER_TOOLS, GUIDANCE, WorkspaceTools
         from proto_mind.native_claude_contract import instructions

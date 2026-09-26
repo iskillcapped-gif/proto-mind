@@ -9,6 +9,7 @@ from uuid import uuid4
 
 
 MAX_WORK_ITEMS = 96
+COMPACTION_COUNTS = ("pre_tokens", "post_tokens", "duration_ms")
 _ANSI = re.compile(r"\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\))")
 
 
@@ -84,9 +85,15 @@ class WorkLog:
             if item.get("type") == "reasoning":
                 self.stage("working")  # Presence only; no content or summary is copied.
             if item.get("type") == "contextCompaction" and method == "item/completed":
-                self._record({"id": "compaction:" + display_text(item.get("id"), 160),
-                              "kind": "context_compaction", "text": "Context compacted by provider.",
-                              "status": "completed"}, force=True)
+                self.compaction(display_text(item.get("id"), 160), "completed")
+
+    def compaction(self, item_id: str, status: str, counts: dict | None = None) -> None:
+        """The provider's own context compaction; Claude Code also reports its token counts."""
+        self._record({"id": "compaction:" + display_text(item_id, 160), "kind": "context_compaction",
+                      "text": "Context compacted by provider." if status == "completed" else "Provider is compacting the context.",
+                      "status": status if status in {"inProgress", "completed"} else "unknown",
+                      **{key: value for key, value in (counts or {}).items()
+                         if key in COMPACTION_COUNTS and type(value) is int and 0 <= value < 10**10}}, force=True)
 
     def finish(self, status: str) -> None:
         self.log.update(status=status, finished_at=timestamp(), elapsed_ms=max(0, int((time.monotonic() - self.started) * 1000)))

@@ -22,6 +22,13 @@ extension NativeChecks {
                   "Live activity cannot reveal file lists or diffs even when the tool group is expanded")
         try check(WorkTimelinePresentation.visibleTools(tools, live: false) == tools,
                   "Finished activity keeps source actions available on demand")
+        let compacted: JSONValue = .object(["kind": .string("context_compaction"), "status": .string("completed"), "pre_tokens": .number(968_276),
+                                            "post_tokens": .number(14_805), "duration_ms": .number(93_480)])
+        try check(WorkTimelinePresentation.compaction(compacted) == "Сжатие контекста · 968K → 15K токенов · 1 мин 33 с"
+                  && WorkTimelinePresentation.compaction(.object(["kind": .string("context_compaction"), "status": .string("inProgress")])) == "Сжатие контекста…"
+                  && WorkTimelinePresentation.compaction(.object(["kind": .string("context_compaction"), "status": .string("completed")])) == "Сжатие контекста"
+                  && WorkTimelinePresentation.tokens(1_260_000) == "1.3M",
+                  "Context compaction shows its progress and, when the provider reports them, token counts and duration")
 
         func edit(_ id: String, path: String, added: JSONValue, removed: JSONValue, status: String = "completed") -> JSONValue {
             .object(["id": .string(id), "kind": .string("fileChange"), "status": .string(status), "change_count": .number(1),

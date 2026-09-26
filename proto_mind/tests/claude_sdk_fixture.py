@@ -10,6 +10,7 @@ class AssistantMessage(SimpleNamespace): pass
 class UserMessage(SimpleNamespace): pass
 class StreamEvent(SimpleNamespace): pass
 class ResultMessage(SimpleNamespace): pass
+class SystemMessage(SimpleNamespace): pass
 class TextBlock(SimpleNamespace): pass
 class ToolUseBlock(SimpleNamespace): pass
 class ToolResultBlock(SimpleNamespace): pass
@@ -78,6 +79,16 @@ class ClaudeSDKClient:
         def answer(text):
             return [StreamEvent(event={'type':'content_block_delta','delta':{'type':'text_delta','text':text}}),
                     AssistantMessage(content=[TextBlock(text=text)])]
+        if mode == 'compact':
+            # Claude Code repeats its compacting status while the summary runs, then marks the boundary.
+            yield SystemMessage(subtype='status', data={'type': 'system', 'subtype': 'status', 'status': 'compacting'})
+            yield SystemMessage(subtype='status', data={'type': 'system', 'subtype': 'status', 'status': 'compacting'})
+            yield SystemMessage(subtype='compact_boundary', data={'type': 'system', 'subtype': 'compact_boundary', 'compact_metadata': {
+                'trigger': 'auto', 'pre_tokens': 968276, 'post_tokens': 14805, 'duration_ms': 93480, 'user_context': 'PRIVATE CONTEXT'}})
+            yield SystemMessage(subtype='status', data={'type': 'system', 'subtype': 'status', 'status': None})
+            for message in answer('Done'): yield message
+            yield ResultMessage(is_error=False, subtype='success', result='Done', session_id=session)
+            return
         if mode == 'claude-tools':
             yield AssistantMessage(content=[
                 ToolUseBlock(id='bash-1', name='Bash', input={'command': 'pytest -q', 'description': 'Run the tests'}),
