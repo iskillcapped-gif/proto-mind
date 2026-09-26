@@ -34,6 +34,13 @@ Window activation and the covered-point check need a live desktop and were not
 part of them. The 0.74.10 (114) bundle was staged and installed in place;
 0.74.9 (113) is kept as `dist/Proto-Mind Native 0.74.9 (113).previous`.
 
+Live check through PM after the operator's restart on 2026-09-27, with ChatGPT
+and PM deliberately in front of Safari: `pm_screen_capture` brought Safari
+forward. A click on the player's play button started the paused video (46:04,
+then 46:05 and a new scene). The key `k` paused it at 46:24 and a second `k`
+resumed it (46:26). A new capture verified each result. The refusal for a still
+covered point was not triggered.
+
 ## Claude Computer Use — Native 0.74.9
 
 The operator's view is that Full Mac means full access, including computer use.
