@@ -67,12 +67,15 @@ struct TaskUpdate: Codable, Identifiable, Equatable {
 }
 
 extension AppModel {
+    /// Providers whose running turn accepts saved text/attachment updates.
+    static let updatableProviders: Set<String> = ["codex", "claude"]
+
     var canEditMessageAttachments: Bool { (!busy && !client.turnOutstanding) || canUpdateTask }
     var hasPendingMessageAttachments: Bool {
         selected.map { !$0.pendingFiles.isEmpty || !$0.pendingImages.isEmpty || !$0.pendingPDFs.isEmpty } ?? false
     }
     var hasComposerInput: Bool { !composer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || hasPendingMessageAttachments }
-    var composerShowsStop: Bool { busy && (!hasComposerInput || selected?.provider != "codex") }
+    var composerShowsStop: Bool { busy && (!hasComposerInput || !Self.updatableProviders.contains(selected?.provider ?? "")) }
     var canSendComposer: Bool {
         hasComposerInput && (!busy || canUpdateTask) && selected?.archived != true
             && !loadingDroppedAttachments && !loadingImagePreview && !loadingPDFPreview
@@ -80,7 +83,7 @@ extension AppModel {
             && !historyPersistence.blocksSubmission && !store.writeBlocked
     }
     var canUpdateTask: Bool {
-        busy && turnStartedAt != nil && activeTaskMessageID != nil && selected?.provider == "codex"
+        busy && turnStartedAt != nil && activeTaskMessageID != nil && Self.updatableProviders.contains(selected?.provider ?? "")
             && cloudConsent && !taskUpdatesStopped && !historyPersistence.blocksSubmission && !store.writeBlocked
     }
 
@@ -92,7 +95,7 @@ extension AppModel {
     func enqueueTaskUpdate(_ text: String, conversationID: UUID) async {
         guard let state = executions[conversationID], canUpdateTask(state), let sourceID = state.sourceMessageID,
               let index = conversations.firstIndex(where: { $0.id == conversationID }),
-              conversations[index].provider == "codex", !conversations[index].archived,
+              Self.updatableProviders.contains(conversations[index].provider), !conversations[index].archived,
               let message = conversations[index].messages.firstIndex(where: { $0.id == sourceID }) else { return }
         guard text.unicodeScalars.count <= 20_000, !text.contains("\0"),
               (conversations[index].messages[message].taskUpdates?.count ?? 0) < 32 else {

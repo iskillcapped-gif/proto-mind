@@ -5,6 +5,7 @@ import json
 from uuid import uuid4
 
 ERROR_CODES = {"authentication_failed", "billing_error", "rate_limit", "invalid_request", "server_error"}
+MAX_UPDATE_LINE = 16 * 1024 * 1024
 
 
 def error_code(message, previous=None):
@@ -80,13 +81,18 @@ class WorkspaceReplies:
         self.expired, self.expired_order = set(), deque()
         self.failed = False
 
-    async def read(self, reader):
+    async def read(self, reader, on_update=None):
         try:
             while True:
                 raw = await reader.readline()
-                if not raw or len(raw) > 1_048_576: break
+                if not raw or len(raw) > MAX_UPDATE_LINE: break
                 reply = json.loads(raw)
-                if not isinstance(reply, dict) or not isinstance(reply.get("id"), str): break
+                # An operator update for the running turn may carry images;
+                # workspace tool replies keep their smaller bound.
+                if isinstance(reply, dict) and reply.get("event") == "update" and on_update is not None:
+                    await on_update(reply)
+                    continue
+                if len(raw) > 1_048_576 or not isinstance(reply, dict) or not isinstance(reply.get("id"), str): break
                 identifier = reply["id"]
                 future = self.pending.get(identifier)
                 # A known timed-out/cancelled call cannot satisfy a new call and

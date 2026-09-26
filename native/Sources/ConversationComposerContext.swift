@@ -11,7 +11,7 @@ struct ConversationComposerContext {
     var hasAttachments: Bool { conversation.map { !$0.pendingFiles.isEmpty || !$0.pendingImages.isEmpty || !$0.pendingPDFs.isEmpty } ?? false }
     var hasInput: Bool { !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || hasAttachments }
     var canUpdate: Bool { state.map(app.canUpdateTask) == true }
-    var showsStop: Bool { state?.running == true && (!hasInput || conversation?.provider != "codex") }
+    var showsStop: Bool { state?.running == true && (!hasInput || !AppModel.updatableProviders.contains(conversation?.provider ?? "")) }
     var canEditAttachments: Bool {
         conversation?.archived == false && !app.operationBusy && (canUpdate || (state?.running != true && state?.client.turnOutstanding != true))
     }

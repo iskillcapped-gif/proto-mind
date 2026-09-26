@@ -42,11 +42,16 @@ class ClaudeSDKClient:
     async def query(self, prompt):
         assert hasattr(prompt, '__aiter__'), 'SDK requires an async iterable, not a dict'
         messages = [item async for item in prompt]
+        if hasattr(self, 'content'):
+            # Like streaming input: a later query during the turn is an operator update.
+            assert len(messages) == 1 and messages[0]['uuid'] and messages[0]['message']['role'] == 'user'
+            self.updates.extend(messages); self.updated.set(); return
+        self.updates, self.updated = [], asyncio.Event()
         assert len(messages) == 1 and messages[0]['message']['role'] == 'user'
         self.content = messages[0]['message']['content']
         options = self.options
         assert options.setting_sources == [] and options.strict_mcp_config is True
-        assert options.extra_args == ({} if options.session_id or options.resume else {'no-session-persistence': None})
+        assert options.extra_args == {'replay-user-messages': None, **({} if options.session_id or options.resume else {'no-session-persistence': None})}
         # Like Claude Code: persisted sessions live in projects/<cwd>/<id>.jsonl,
         # and an explicit resume of a missing transcript fails before any model call.
         session = options.resume or options.session_id
@@ -66,6 +71,35 @@ class ClaudeSDKClient:
             'messages': messages, 'instructions': options.system_prompt,
             'workspace_tools': [item.name for item in options.mcp_servers.get('pm',{}).get('tools',[])]
         }))
+    async def receive_messages(self):
+        mode = self.options.model
+        session = self.options.resume or self.options.session_id
+        def answer(text):
+            return [StreamEvent(event={'type':'content_block_delta','delta':{'type':'text_delta','text':text}}),
+                    AssistantMessage(content=[TextBlock(text=text)])]
+        if mode == 'steer':
+            # The update arrives while a tool runs and is added before the next request.
+            yield AssistantMessage(content=[ToolUseBlock(id='bash-1', name='Bash')])
+            await asyncio.wait_for(self.updated.wait(), 10)
+            update = self.updates[-1]
+            yield UserMessage(content=[ToolResultBlock(tool_use_id='bash-1', is_error=False)])
+            yield UserMessage(content=update['message']['content'], uuid=update['uuid'])
+            for message in answer('Done; ' + update['message']['content'][0]['text']): yield message
+            yield ResultMessage(is_error=False, subtype='success', result='Done; ' + update['message']['content'][0]['text'], session_id=session)
+            return
+        if mode == 'steer-late':
+            # The model already answered; Claude Code runs the update as the next turn.
+            for message in answer('first answer'): yield message
+            await asyncio.wait_for(self.updated.wait(), 10)
+            yield ResultMessage(is_error=False, subtype='success', result='first answer', session_id=session)
+            update = self.updates[-1]
+            yield UserMessage(content=update['message']['content'], uuid=update['uuid'])
+            for message in answer('second answer: ' + update['message']['content'][0]['text']): yield message
+            yield ResultMessage(is_error=False, subtype='success', result='second answer: ' + update['message']['content'][0]['text'], session_id=session)
+            return
+        async for message in self.receive_response():
+            yield message
+
     async def receive_response(self):
         mode = self.options.model
         if mode == 'hang': await asyncio.Event().wait()

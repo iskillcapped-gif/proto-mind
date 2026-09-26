@@ -156,7 +156,7 @@ struct ModelAPIConnectionSettings: View {
             }
             if let error { Text(error).font(.caption).foregroundStyle(.orange) }
             if let notice { Text(notice).font(.caption).foregroundStyle(.secondary) }
-            Text(L10n.pick("API поддерживает диалог и выбранный контекст. Инструменты PM включаются отдельно для каждого чата: задачи, браузер, документы и MCP. Управление Mac и уточнения во время выполнения остаются в маршруте Codex.", "API supports conversations and selected context. Enable PM tools per chat for tasks, browser, documents and MCP. Mac control and live steering use Codex."))
+            Text(L10n.pick("API поддерживает диалог и выбранный контекст. Инструменты PM включаются отдельно для каждого чата: задачи, браузер, документы и MCP. Управление Mac и уточнения во время выполнения остаются в маршрутах Codex и Claude.", "API supports conversations and selected context. Enable PM tools per chat for tasks, browser, documents and MCP. Mac control and live steering use Codex or Claude."))
                 .font(.caption).foregroundStyle(.secondary)
         }
     }

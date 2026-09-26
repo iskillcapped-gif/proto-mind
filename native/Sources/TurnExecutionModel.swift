@@ -136,7 +136,7 @@ extension AppModel {
             state.running = false; state.startedAt = nil
             return
         }
-        state.sourceMessageID = !operatorInput && conversation.provider == "codex" ? userMessage.id : nil
+        state.sourceMessageID = !operatorInput && Self.updatableProviders.contains(conversation.provider) ? userMessage.id : nil
         state.updateTarget = nil; state.updatesStopped = false
         do {
             let requestedRunID = operatorInput ? nil : UUID()

@@ -105,9 +105,13 @@ class ClaudeTransport:
         self.effort, self.images = effort, images
         self.session_plan = session_plan
         self.usage = None
+        self.undelivered_updates = []
         self.workspace_tools = None
         self.on_activity = lambda _: None
         self.on_progress = lambda _: None
+        self.on_steering = lambda _: None
+        self.write_lock = threading.Lock()
+        self.update_acks = {}
         self.cancelled = threading.Event()
         self.process = None
         self.lock = threading.Lock()
@@ -157,6 +161,30 @@ class ClaudeTransport:
         with self.session_plan.lease() if self.session_plan else nullcontext():
             return self._answer(model, instructions, history, prompt, on_delta)
 
+    def _write(self, process, value):
+        # Tool replies and operator updates share the worker's stdin.
+        with self.write_lock:
+            process.stdin.write(json.dumps(value, ensure_ascii=False).encode() + b"\n"); process.stdin.flush()
+
+    def steer(self, identifier, text, images=()):
+        """Adds an operator update to the running turn: accepted, rejected or unknown."""
+        with self.lock:
+            process = self.process
+        if process is None or process.poll() is not None or self.cancelled.is_set():
+            return "rejected"
+        try:
+            blocks = [{"type": "text", "text": text}, *(claude_image(item) for item in images)]
+        except (AttributeError, KeyError, ValueError):
+            return "rejected"
+        waiter = threading.Event()
+        self.update_acks[identifier] = [waiter, "unknown"]
+        try:
+            self._write(process, {"event": "update", "id": identifier, "content": blocks})
+        except (OSError, ValueError):
+            return self.update_acks.pop(identifier)[1]
+        waiter.wait(10)
+        return self.update_acks.pop(identifier)[1]
+
     def _abandon_unusable_session(self, progressed, code):
         # A resumed session that fails before producing anything, for no known
         # account/service reason, may be missing or damaged. Do not offer it again.
@@ -199,7 +227,7 @@ class ClaudeTransport:
                     stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                     env=env, cwd=profile_directory(self.state), start_new_session=True)
                 self.process = process
-            process.stdin.write(json.dumps(payload, ensure_ascii=False).encode() + b"\n"); process.stdin.flush()
+            self._write(process, payload)
             while not self.cancelled.is_set():
                 raw = process.stdout.readline(MAX_LINE + 1)
                 if not raw: break
@@ -227,7 +255,13 @@ class ClaudeTransport:
                     except (ValueError, RuntimeError) as exc:
                         reply = {"id": call_id, "error": str(exc)[:600], "success": False}
                     if self.cancelled.is_set(): break
-                    process.stdin.write(json.dumps(reply, ensure_ascii=False).encode() + b"\n"); process.stdin.flush()
+                    self._write(process, reply)
+                elif kind == "steering_ready":
+                    self.on_steering(self)
+                elif kind == "update_ack":
+                    entry = self.update_acks.get(event.get("id"))
+                    if entry and event.get("status") in {"accepted", "rejected", "unknown"}:
+                        entry[1] = event["status"]; entry[0].set()
                 elif kind == "result":
                     if self.cancelled.is_set(): raise TurnCancelled("Claude task stopped.")
                     answer = event.get("text")
@@ -235,6 +269,8 @@ class ClaudeTransport:
                         self._abandon_unusable_session(progressed, event.get("error_code"))
                         raise RuntimeError(claude_error(event.get("error_code")))
                     self.usage = event.get("usage") if usage_notice(event.get("usage")) else None
+                    undelivered = event.get("undelivered_updates")
+                    self.undelivered_updates = undelivered if isinstance(undelivered, list) and len(undelivered) <= 32 else []
                     self._confirm_session(event.get("session_id"), answer.strip())
                     outcome = "completed"
                     return answer.strip()
@@ -249,6 +285,7 @@ class ClaudeTransport:
             self._abandon_unusable_session(progressed, None)
             raise RuntimeError("Claude transport failed. PM did not resubmit the task or change providers.") from None
         finally:
+            self.on_steering(None)
             if process is not None:
                 self._terminate(process)
                 for stream in [process.stdin, process.stdout]:
@@ -267,6 +304,15 @@ class NativeClaudeReasoner(NativeAPIReasoner):
         # part goes there; current memory and Observer labels ride the message.
         return self.transport.answer(self.model, prepared.system_text, self.history,
                                      turn_context_message(prepared.turn_context) + prompt, self.on_delta)
+
+
+def claude_image(item):
+    """A validated `data:` image item from PM's attachment reader as an Anthropic image block."""
+    header, data = item["url"].split(",", 1)
+    mime = header.removeprefix("data:").removesuffix(";base64")
+    if item.get("type") != "image" or not header.endswith(";base64") or mime not in {"image/png", "image/jpeg", "image/gif", "image/webp"}:
+        raise ValueError("Unsupported update image.")
+    return {"type": "image", "source": {"type": "base64", "media_type": mime, "data": data}}
 
 
 USAGE_KEYS = ("requests", "subagent_requests", "context_max", "input_tokens", "cache_creation_input_tokens",

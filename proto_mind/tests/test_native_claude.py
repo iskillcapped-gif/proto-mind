@@ -121,6 +121,65 @@ class ClaudeTests(unittest.TestCase):
                                       'cloud_consent': True}, lambda _: None, 'usage')
         self.assertIn(notice, result['notices'])
 
+    def test_updates_reach_the_running_turn_or_the_follow_up_it_waits_for(self):
+        for model, expected in [('steer', 'Done; Also check the README'), ('steer-late', 'second answer: Also check the README')]:
+            with self.subTest(model=model):
+                transport = self.transport()
+                ready, targets, events, result = threading.Event(), [], [], {}
+                transport.on_steering = lambda target: (targets.append(target), ready.set())
+                transport.on_progress = events.append
+                worker = threading.Thread(target=lambda: result.update(answer=transport.answer(model, 'instructions', [], 'go', lambda _: None)))
+                worker.start()
+                self.assertTrue(ready.wait(10))
+                self.assertEqual(transport.steer(str(uuid4()), 'Also check the README'), 'accepted')
+                worker.join(20)
+                self.assertEqual(result.get('answer'), expected)
+                self.assertEqual(targets, [transport, None])
+                self.assertEqual(transport.steer(str(uuid4()), 'Too late'), 'rejected')
+                self.assertEqual(transport.undelivered_updates, [])
+                # A late update's answer comes last; the earlier answer stays visible as progress.
+                self.assertEqual(any(event.get('event') == 'answer_reset' for event in events), model == 'steer-late')
+
+    def test_live_steering_routes_claude_updates_and_closes_with_the_turn(self):
+        from proto_mind.native_steering import LiveSteering
+        conversation, emitted = str(uuid4()), []
+        steering = LiveSteering('request-1', conversation, emitted.append)
+        class Target:
+            calls = []
+            def steer(self, identifier, text, images): self.calls.append((identifier, text, images)); return 'accepted'
+        target = Target()
+        steering.set_active(('claude', 'request-1'), target)
+        token = emitted[-1]['token']
+        params = lambda message: {'request_id': 'request-1', 'conversation_id': conversation, 'token': token,
+                                  'message_id': message, 'text': 'Add the missing test', 'cloud_consent': True}
+        first = str(uuid4())
+        self.assertEqual(steering.send(params(first))['status'], 'accepted')
+        self.assertEqual(target.calls, [(first, 'Add the missing test', [])])
+        steering.set_active(None)
+        self.assertIsNone(emitted[-1]['token'])
+        self.assertEqual(steering.send(params(str(uuid4())))['status'], 'rejected')
+        self.assertEqual(len(target.calls), 1)
+
+    def test_bridge_offers_claude_updates_during_a_turn(self):
+        root = self.root / 'project'
+        backend = NativeBackend(root, self.state, subscription_factory=FakeSubscription)
+        self.addCleanup(backend.close)
+        conversation, ready, result = str(uuid4()), threading.Event(), {}
+        tokens = []
+        def emit(event):
+            if event.get('event') == 'steering_ready' and event.get('token'): tokens.append(event['token']); ready.set()
+        params = {'text': 'Привет', 'provider': 'claude', 'model': 'steer', 'conversation_id': conversation, 'cloud_consent': True}
+        with patch.object(ProtoMindConfig, 'from_env', return_value=ProtoMindConfig(data_dir=root / 'proto_mind/data')):
+            worker = threading.Thread(target=lambda: result.update(turn=backend.process(params, emit, 'steer-request')))
+            worker.start()
+            self.assertTrue(ready.wait(15))
+            receipt = backend.dispatch('steer', {'request_id': 'steer-request', 'conversation_id': conversation, 'token': tokens[-1],
+                                                 'message_id': str(uuid4()), 'text': 'Also check the README', 'cloud_consent': True},
+                                       lambda _: None, 'steer-rpc')
+            worker.join(20)
+        self.assertEqual(receipt['status'], 'accepted')
+        self.assertIn('Also check the README', result['turn']['cognitive_turn']['response'])
+
     def test_failed_disconnected_or_malformed_worker_is_never_success(self):
         for mode in ['failed','disconnect','malformed']:
             with self.subTest(mode=mode), self.assertRaises(RuntimeError) as error:

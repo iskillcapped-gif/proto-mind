@@ -705,6 +705,10 @@ class NativeBackend:
                 self.active_steering = LiveSteering(request_id, session_id, emit, attachments=SteeringAttachments(
                     self.workspace(params) if logical_workspace else None, self.image_reader(), self.pdf_reader(), require_steering_vision))
                 self.subscription.on_main_turn = self.active_steering.set_active
+            elif provider == "claude" and not description["operator"]:
+                # Every current Claude model accepts images, so no vision preflight.
+                self.active_steering = LiveSteering(request_id, session_id, emit, attachments=SteeringAttachments(
+                    self.workspace(params) if logical_workspace else None, self.image_reader(), self.pdf_reader(), lambda: None))
             if params.get("workspace_tools_version") == 1 and not description["operator"] and (mode == "full_access" or provider == "api" and params.get("api_workspace_tools") is True):
                 self.workspace_tools = WorkspaceTools(request_id, session_id, emit)
                 self.subscription.workspace_tools = self.workspace_tools
@@ -779,6 +783,8 @@ class NativeBackend:
                     self.active_claude.workspace_tools = self.workspace_tools
                     self.active_claude.on_activity = activity
                     self.active_claude.on_progress = progress
+                    steering = self.active_steering
+                    self.active_claude.on_steering = lambda target: steering.set_active(("claude", request_id) if target else None, target)
                     coordinator.reasoner = NativeClaudeReasoner(self.active_claude, model, history,
                         lambda delta: emit({"event": "answer_delta", "request_id": request_id, "delta": delta}),
                         files=files, criteria=criteria, pdfs=pdfs, project_notes=project_notes,
@@ -823,6 +829,9 @@ class NativeBackend:
             usage = claude_usage_notice(self.active_claude.usage) if provider == "claude" and self.active_claude else None
             if usage:
                 serialized["notices"].append(usage)
+            if provider == "claude" and self.active_claude and self.active_claude.undelivered_updates:
+                serialized["notices"].append("An update sent near the end of this Claude turn was not confirmed as seen by the model. "
+                                             "Send it again as a new message if it still matters; nothing was resent automatically.")
             persona_receipt = getattr(coordinator.reasoner, "last_persona_receipt", None)
             instruction_receipt = getattr(coordinator.reasoner, "last_instruction_receipt", None)
             if (not description["operator"] and provider in {"codex", "ollama", "api", "claude"}

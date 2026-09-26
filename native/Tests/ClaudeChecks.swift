@@ -34,7 +34,10 @@ extension NativeChecks {
         state.workspaceToolBinding = app.workspaceToolBinding(app.selected!)
         let tasks = try await app.executeWorkspaceTool("pm_list_tasks", args: .object([:]), state: state, request: "claude-tools")
         try check(!tasks.isNull, "Claude uses PM tools through the existing turn-bound channel")
-        try check(ConversationComposerContext(app: app, id: id).showsStop, "Claude running tasks retain Stop while a future draft is edited")
+        try check(!ConversationComposerContext(app: app, id: id).showsStop, "A draft typed while Claude runs turns the single action into Send, as for Codex updates")
+        app.setComposer("")
+        try check(ConversationComposerContext(app: app, id: id).showsStop, "An empty editor keeps Stop while Claude runs")
+        app.setComposer("Preserve this draft")
         app.agentGrants.removeValue(forKey: id)
         do {
             _ = try app.requireWorkspaceTurn(state, "claude-tools")

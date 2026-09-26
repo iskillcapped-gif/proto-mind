@@ -81,7 +81,7 @@ class LiveSteering:
                        "text_sha256": digest, "status": "rejected"}
             if attachments is not None: receipt["attachments"] = attachments
             if not self.closed.is_set() and self.target and params["token"] == self.target[0]:
-                _, (thread_id, turn_id), rpc = self.target
+                _, turn, rpc = self.target
                 context, image_input = "", []
                 try:
                     if attachments is not None:
@@ -99,9 +99,14 @@ class LiveSteering:
                 # Freeze this attempt before sending. A lost reply is never retried.
                 self.receipts[message_id] = dict(receipt)
                 try:
-                    result = rpc.request("turn/steer", {"threadId": thread_id, "expectedTurnId": turn_id,
-                        "input": [{"type": "text", "text": context + text}] + image_input}, timeout=10)
-                    if result.get("turnId") == turn_id: receipt["status"] = "accepted"
+                    if turn[0] == "claude":
+                        # The Claude worker adds the update to its running session.
+                        receipt["status"] = rpc.steer(message_id, context + text, image_input)
+                    else:
+                        thread_id, turn_id = turn
+                        result = rpc.request("turn/steer", {"threadId": thread_id, "expectedTurnId": turn_id,
+                            "input": [{"type": "text", "text": context + text}] + image_input}, timeout=10)
+                        if result.get("turnId") == turn_id: receipt["status"] = "accepted"
                 except CodexRequestRejected:
                     receipt["status"] = "rejected"
                 except (RuntimeError, OSError, ValueError):

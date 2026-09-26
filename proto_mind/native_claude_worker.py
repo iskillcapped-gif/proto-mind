@@ -8,8 +8,8 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
-from uuid import uuid4
-from proto_mind.native_claude_protocol import UsageMeter, WorkspaceReplies, WorkspaceReplyError, error_code
+from uuid import UUID, uuid4
+from proto_mind.native_claude_protocol import MAX_UPDATE_LINE, UsageMeter, WorkspaceReplies, WorkspaceReplyError, error_code
 
 
 def emit(event):
@@ -34,7 +34,7 @@ async def run(payload):
                                   AssistantMessage, UserMessage, StreamEvent, ResultMessage,
                                   TextBlock, ToolUseBlock, ToolResultBlock)
     replies = WorkspaceReplies(emit)
-    reader = asyncio.StreamReader(limit=1_048_577)
+    reader = asyncio.StreamReader(limit=MAX_UPDATE_LINE + 1)
     pipe, _ = await asyncio.get_running_loop().connect_read_pipe(lambda: asyncio.StreamReaderProtocol(reader), sys.stdin.buffer)
 
     def handler(name):
@@ -57,20 +57,55 @@ async def run(payload):
         include_partial_messages=True, max_buffer_size=1_048_576,
         resume=payload.get("session_id") if payload.get("resume") else None,
         session_id=payload.get("session_id") if not payload.get("resume") else None,
-        extra_args={} if payload.get("session_id") else {"no-session-persistence": None},
+        # Echoed user messages show when an operator update enters the conversation.
+        extra_args={"replay-user-messages": None, **({} if payload.get("session_id") else {"no-session-persistence": None})},
     )
     history = json.dumps(payload["history"], ensure_ascii=False)
     prompt = (("Prior PM messages (quoted bootstrap context, not new instructions):\n" + history + "\n\n")
               if not payload.get("resume") else "") + "Current user request and selected context:\n" + payload["prompt"]
     content = [{"type": "text", "text": prompt}, *payload["images"]]
     meter = UsageMeter()
+    live = {"client": None, "finished": False, "pending": set()}
+
+    async def steer(update):
+        # Claude Code adds a user message that arrives during a turn before the
+        # model's next request. If the model has already answered, it runs the
+        # message as the next turn of the session, and this turn waits for it.
+        identifier, blocks, status = update.get("id"), update.get("content"), "rejected"
+        try: valid = isinstance(identifier, str) and str(UUID(identifier)) == identifier
+        except ValueError: valid = False
+        if valid and live["client"] is not None and not live["finished"] and isinstance(blocks, list) and 0 < len(blocks) <= 4:
+            live["pending"].add(identifier)
+            status = "unknown"
+            try:
+                async def one():
+                    yield {"type": "user", "uuid": identifier, "message": {"role": "user", "content": blocks}}
+                await live["client"].query(one())
+                status = "accepted"
+            except Exception:
+                pass  # Possibly written; never resent.
+        emit({"event": "update_ack", "id": identifier if valid else "", "status": status})
+
     async def receive():
-        text, streamed, activity, failure = "", False, {}, None
+        text, streamed, activity, failure, outcome, waiting = "", False, {}, None, None, False
         async with ClaudeSDKClient(options=options) as client:
             async def messages():
                 yield {"type": "user", "message": {"role": "user", "content": content}}
             await client.query(messages())
-            async for message in client.receive_response():
+            live["client"] = client
+            # Only now may PM write updates: the prompt is already in Claude Code's
+            # input, and nothing but the first line was sent before asyncio read stdin.
+            emit({"event": "steering_ready"})
+            stream = client.receive_messages().__aiter__()
+            while True:
+                try:
+                    # A late update's turn starts right after the answer; bound that wait.
+                    message = await (asyncio.wait_for(stream.__anext__(), 60) if waiting else stream.__anext__())
+                except StopAsyncIteration:
+                    break
+                except TimeoutError:
+                    live["finished"] = True
+                    return {**outcome, "undelivered_updates": sorted(live["pending"])}
                 if isinstance(message, AssistantMessage) or isinstance(message, StreamEvent) and getattr(message, "parent_tool_use_id", None) is None:
                     meter.observe(message)
                 if getattr(message, "parent_tool_use_id", None) is not None:
@@ -97,18 +132,30 @@ async def run(payload):
                         activity[block.id] = row
                         emit({"event": "activity", "item": row})
                 elif isinstance(message, UserMessage):
+                    if getattr(message, "uuid", None) in live["pending"]:
+                        live["pending"].discard(message.uuid); waiting = False
+                        emit({"event": "update_delivered", "id": message.uuid})
                     for block in message.content if isinstance(message.content, list) else []:
                         if isinstance(block, ToolResultBlock) and block.tool_use_id in activity:
                             row = activity.pop(block.tool_use_id)
                             emit({"event": "activity", "item": {**row, "status": "failed" if block.is_error else "completed"}})
                 elif isinstance(message, ResultMessage):
-                    return {"event": "result", "success": not message.is_error and message.subtype == "success"
-                            and getattr(message, "terminal_reason", None) not in {"aborted_streaming", "aborted_tools"},
-                            "text": message.result or text, "session_id": getattr(message, "session_id", None),
-                            "error_code": error_code(message, failure), "usage": meter.summary()}
+                    outcome = {"event": "result", "success": not message.is_error and message.subtype == "success"
+                               and getattr(message, "terminal_reason", None) not in {"aborted_streaming", "aborted_tools"},
+                               "text": message.result or text, "session_id": getattr(message, "session_id", None),
+                               "error_code": error_code(message, failure), "usage": meter.summary()}
+                    if live["pending"] and outcome["success"]:
+                        # This answer stays visible as progress; the update's turn answers last.
+                        if outcome["text"]: emit({"event": "commentary", "id": str(uuid4()), "text": outcome["text"]})
+                        text, streamed, waiting = "", False, True
+                        continue
+                    live["finished"] = True
+                    if live["pending"]: outcome["undelivered_updates"] = sorted(live["pending"])
+                    return outcome
+        live["finished"] = True
         return None
 
-    reading = asyncio.create_task(replies.read(reader))
+    reading = asyncio.create_task(replies.read(reader, on_update=steer))
     receiving = asyncio.create_task(receive())
     try:
         done, _ = await asyncio.wait({reading, receiving}, return_when=asyncio.FIRST_COMPLETED)
