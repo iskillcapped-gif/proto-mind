@@ -4,6 +4,41 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Interface Audit Fixes — Native 0.74.5
+
+An interface audit on 2026-09-26 used a new offscreen gallery
+(`scripts/test_native.sh --ui-gallery <dir>`): the main workspace in Russian
+and English, light and dark, a small window, the new-chat screen, response
+details, the composer and every Settings section. It uses a disposable profile,
+never starts the bridge and never shows a window.
+
+- **New chats keep the current model.** Cmd-N copied only the Codex account, so
+  every new chat in the developer app started on local Ollama (four empty
+  Ollama chats in the operator's list). It now keeps the provider, model,
+  effort and API connection of the current chat, as panel conversations already
+  did. Mac access and tool permissions are still never copied.
+- **Agent-sent requests are readable.** The 0.74.3 origin header appeared raw in
+  the user bubble. The transcript now shows "From task «X» · model" above the
+  request; the model still receives the full header.
+- **Failed turns read as prose.** Their reports use the answer font; command
+  reports stay monospaced.
+- **New-chat cards** form a 2 × 2 grid instead of 3 + 1, with aligned titles.
+- **Settings text.** The Claude note no longer says each request only gets
+  recent messages or that live updates are Codex-only; the account row shows
+  either Sign in or Sign out; the Appearance subtitle names language and panels;
+  the version shows its build number, e.g. 0.74.5 (109).
+
+Not changed: the journal-read warning banner still has no dismiss button by
+design, because it reports a data-integrity problem. The offscreen gallery drew
+the sidebar title and footer dark in dark mode and some sidebar icons faint in
+light mode; colors over the live sidebar material cannot be judged offscreen, so
+this waits for a real-window check.
+
+Verification on 2026-09-26: **2000 Native checks passed**, including new checks
+for the origin label and new-chat inheritance; no Python file changed since the
+2426-test run for 0.74.4. The 0.74.5 (109) bundle was staged and installed in
+place; 0.74.4 (108) is kept as `dist/Proto-Mind Native 0.74.4 (108).previous`.
+
 ## Claude Updates and Restart Button — Native 0.74.4
 
 **Updates while Claude works.** A message typed while a Claude turn runs now
