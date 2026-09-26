@@ -4,6 +4,31 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Stable Local Signing — Native 0.74.7
+
+The operator noticed that PM lost Screen Recording after updates. The developer
+bundle was ad-hoc signed, so its designated requirement was the build's code
+hash (`cdhash H"…"`), different for every build. macOS stores privacy grants
+with that requirement, so each in-place update made PM a new app and dropped
+all of them: Screen Recording, Microphone, Speech Recognition and Apple Events.
+
+With the operator's consent, a self-signed "Proto-Mind Local Signing"
+code-signing identity (RSA-2048, ten years, code-signing use only) was created
+on this Mac and imported into the login keychain with access for
+`/usr/bin/codesign`; the temporary key files were deleted. It is not trusted as
+a root and needs no password prompt. `scripts/build_native_app.sh` now signs
+with it when present (or with `PROTO_MIND_CODESIGN_IDENTITY`) and falls back to
+ad-hoc otherwise. The designated requirement becomes
+`identifier "local.proto-mind.native" and certificate root = H"970a321c…"`,
+which stays the same across builds. The portable package keeps its own signing.
+
+The first launch of a bundle signed this way is a new identity for macOS, so
+each permission has to be granted once more; later updates keep them. A test
+copy signed with the identity passed `codesign --verify --strict`. The binary is
+0.74.6 unchanged apart from the signature. The 0.74.7 (111) bundle was staged
+and installed in place; 0.74.6 (110) is kept as
+`dist/Proto-Mind Native 0.74.6 (110).previous`.
+
 ## Visible Claude Actions — Native 0.74.6
 
 The operator saw Claude's work as repeated "PM tools" groups whose rows read

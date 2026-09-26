@@ -35,8 +35,14 @@ scripts/build_native_icon.sh "${CONTENTS}/Resources/ProtoMindCube.icns"
 chmod +x "${CONTENTS}/MacOS/ProtoMindNative"
 chmod +x "${CONTENTS}/MacOS/ProtoMindPDF"
 plutil -lint "${CONTENTS}/Info.plist"
-codesign --force --sign - "${CONTENTS}/MacOS/ProtoMindPDF"
-codesign --force --sign - "${APP_DIR}"
+# macOS ties privacy grants (screen, microphone, speech, automation) to the
+# designated requirement. An ad-hoc one is the build's code hash, so every
+# rebuild loses them; a local "Proto-Mind Local Signing" identity keeps them.
+SIGNING_IDENTITY="${PROTO_MIND_CODESIGN_IDENTITY:-$(security find-identity -p codesigning 2>/dev/null \
+  | awk -F'"' '$2 == "Proto-Mind Local Signing" { split($1, field, " "); print field[2]; exit }')}"
+SIGNING_IDENTITY="${SIGNING_IDENTITY:--}"
+codesign --force --sign "${SIGNING_IDENTITY}" "${CONTENTS}/MacOS/ProtoMindPDF"
+codesign --force --sign "${SIGNING_IDENTITY}" "${APP_DIR}"
 codesign --verify --strict "${APP_DIR}"
 # Refresh this bundle's icon registration without resetting Dock or global caches.
 touch "${APP_DIR}"

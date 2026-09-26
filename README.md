@@ -14,11 +14,13 @@ For current development guidance, see [`AGENTS.md`](AGENTS.md). The [current pri
 
 ## Native macOS Direction
 
-The current native workspace is **Native 0.74.6 / Visible Claude Actions**, built with SwiftUI/AppKit over the existing Python cognitive core. Models can work with PM projects, conversations, browser pages, documents and explicitly connected services. This development line is separate from the earlier submitted Build Week baseline and published download.
+The current native workspace is **Native 0.74.7 / Stable Local Signing**, built with SwiftUI/AppKit over the existing Python cognitive core. Models can work with PM projects, conversations, browser pages, documents and explicitly connected services. This development line is separate from the earlier submitted Build Week baseline and published download.
 
 **Claude Code:** sign in through **Settings → Connections → Claude**, then select Claude in any chat. The official SDK/CLI supports the user's own Claude Code subscription or explicit API login. Claude shares PM's editor, memory and journal; tools require the conversation's Mac access. Each conversation resumes its exact saved Claude session, including tool history. New sessions bootstrap from up to 300,000 characters of local conversation with explicit omissions; the former 12 × 2,000 limit no longer applies to Claude. While Claude works, a message typed in the chat reaches it as an update, as with Codex. [Setup and current limits](CLAUDE_CONNECTION.md).
 
 **Claude continuity (0.74.2):** a resumed Claude session receives current memory and Observer labels on every turn, and an interrupted session continues on the next message. A failed or stopped request stays visible to every model, marked incomplete. Long pastes no longer become automatic memories, and isolated worktree tasks share their project's memory. [Release details](NATIVE_MACOS_ROADMAP.md#claude-continuity-and-memory-bounds--native-0742).
+
+**Stable local signing (0.74.7):** developer builds are signed with a local certificate, so macOS keeps PM's screen, microphone, speech and automation permissions across updates (grant them once more after this update). [Release details](NATIVE_MACOS_ROADMAP.md#stable-local-signing--native-0747).
 
 **Visible Claude actions (0.74.6):** while Claude works, its commands, file edits, reads and searches appear with their descriptions, output, diffs and durations, and saved answers keep them. [Release details](NATIVE_MACOS_ROADMAP.md#visible-claude-actions--native-0746).
 
