@@ -4,6 +4,57 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Claude Updates and Restart Button — Native 0.74.4
+
+**Updates while Claude works.** A message typed while a Claude turn runs now
+reaches that turn as an update through the same saved queue as Codex updates;
+the single composer action turns into Send while there is text and back into
+Stop when the editor is empty. Live checks of the pinned CLI on 2026-09-26 set
+the design. A user message written into a running session is added before the
+model's next request, and `--replay-user-messages` echoes it with its UUID at
+that moment. A message that arrives after the model's final text is instead run
+by Claude Code as the next turn of the session. The worker therefore:
+
+- announces readiness only after the prompt is written, so no update can be
+  buffered with the first input line;
+- writes each update with the queue item's UUID and acknowledges it as
+  accepted, rejected or unknown;
+- keeps an update pending until its echo arrives; if the turn's answer comes
+  first, it keeps that answer as progress and waits (bounded to 60 seconds)
+  for the follow-up turn, whose answer becomes the final one;
+- rejects updates once the final answer is being returned.
+
+An update that is still unconfirmed when the turn ends is named in the response
+notes; nothing is resent. Attachments use the existing checked readers; images
+become Anthropic image blocks. Accepted updates stay in local history, so a new
+session bootstrap still sees them.
+
+**Restart for updates.** A small icon beside sidebar search is gray while the
+running build is current and turns blue when a different build is on disk
+(version, build number, or the executable's inode or modification time). It is
+checked every 30 seconds in a separate observable. Clicking it quits normally;
+a detached helper reopens the same bundle after this process exits and gives up
+if the quit is cancelled. With tasks running it asks first, because restarting
+stops them.
+
+**Memory.** Two smoke-test records in core memory ("Consolidation … smoke
+succeeded") were forgotten with the existing `/memory forget` operation at the
+operator's request, after a copy of the file was saved in
+`proto_mind/data/backups/`. Forgotten records stay in history and are no longer
+selected.
+
+Verification on 2026-09-26: **2426 Python tests and 1998 Native checks passed**,
+plus compileall; optional pytest is absent. A synthetic SDK covers an update
+added during a tool step, one that arrives after the answer, rejection after the
+turn and the bridge's steering handshake; Native checks cover the composer's
+Send/Stop switch for Claude and build detection on a disposable bundle. Live
+checks through PM's worker and the real CLI on Haiku: an update sent during Bash
+steps produced `one two three BANANA`, and one sent as the answer began produced
+the follow-up answer `ready BANANA`. The restart itself was not exercised by the
+checks, which never quit the process. The 0.74.4 (108) bundle was staged and
+installed in place while the app ran; 0.74.3 (107) is kept as
+`dist/Proto-Mind Native 0.74.3 (107).previous`.
+
 ## Delegated Message Origin — Native 0.74.3
 
 A message that one task's model sends to another through `pm_send_task_message`
