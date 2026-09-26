@@ -4,6 +4,41 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Visible Claude Actions — Native 0.74.6
+
+The operator saw Claude's work as repeated "PM tools" groups whose rows read
+"bash" and were empty inside; after the turn, the saved answer kept no actions.
+The worker had reported every tool call as a PM tool named after the built-in
+tool, and the Claude route produced no action receipt.
+
+Claude tool calls now use PM's shared item kinds. Bash is a terminal command
+with the model's description, the command and an output preview that keeps the
+start and the end. Edit and Write are file changes with a short diff and line
+counts. Read is a file read whose contents are not repeated, Grep and Glob are
+searches, WebSearch and WebFetch web searches, `mcp__pm__*` PM tools, and any
+other tool shows its description. Every row has its duration. At the end of the
+turn the transport returns a `proto_mind.claude_agent_run.v1` receipt, so the
+saved answer, the work journal and the changed-files summary keep the actions.
+Rows are titled by what they did (a command's description or first line,
+"Read · AGENTS.md", "Edit · TaskUpdates.swift"); groups are summarized as
+commands, edits, reads or searches; earlier Claude rows are no longer labeled
+as PM tools.
+
+The operator's screenshot of the real app in cube mode confirmed that the dark
+sidebar title and footer in the 0.74.5 gallery were an offscreen-drawing
+artifact. Screen capture from a model's shell still fails after granting PM
+Screen Recording, because macOS attributes that process chain to Homebrew's
+Python app rather than to PM.
+
+Verification on 2026-09-26: **2427 Python tests and 2004 Native checks
+passed**. A synthetic SDK turn with Bash, Edit, Read and Grep checks each row,
+the absence of the read file's contents, the receipt, the saved work-session
+tools and the work-log kinds; Native checks cover titles, icons and summaries,
+and the gallery renders a sample Claude timeline. The Python side reaches a
+conversation when its bridge starts; the Native side after a restart. The
+0.74.6 (110) bundle was staged and installed in place; 0.74.5 (109) is kept as
+`dist/Proto-Mind Native 0.74.5 (109).previous`.
+
 ## Interface Audit Fixes — Native 0.74.5
 
 An interface audit on 2026-09-26 used a new offscreen gallery
