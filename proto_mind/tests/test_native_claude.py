@@ -79,6 +79,8 @@ class ClaudeTests(unittest.TestCase):
         self.assertEqual(observed['effort'], 'high')
         self.assertIn('previous', observed['messages'][0]['message']['content'][0]['text'])
         self.assertEqual(observed['instructions']['append'], 'PM memory')
+        # A read screenshot arrives as one JSON line; 1 MiB once ended a turn.
+        self.assertGreaterEqual(observed['max_buffer_size'], 32 * 1024 * 1024)
 
     def test_full_mac_workspace_roundtrip_and_commentary(self):
         transport = self.transport()

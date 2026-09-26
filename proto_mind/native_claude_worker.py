@@ -56,7 +56,9 @@ async def run(payload):
         mcp_servers=mcp, strict_mcp_config=True, setting_sources=[],
         allowed_tools=["mcp__pm__" + row["name"] for row in payload["tools"]],
         permission_mode="bypassPermissions" if full else "dontAsk",
-        include_partial_messages=True, max_buffer_size=1_048_576,
+        # Claude Code prints each tool result as one JSON line, including images read
+        # with Read; a 1 MiB cap ended a turn at a 1.25 MB screenshot.
+        include_partial_messages=True, max_buffer_size=64 * 1024 * 1024,
         resume=payload.get("session_id") if payload.get("resume") else None,
         resume_session_at=payload.get("resume_at") if payload.get("resume") else None,
         session_id=payload.get("session_id") if not payload.get("resume") else None,

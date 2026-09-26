@@ -68,6 +68,7 @@ class ClaudeSDKClient:
             'permission_mode': options.permission_mode, 'tools': options.tools,
             'model': options.model, 'effort': options.effort,
             'session_id': options.session_id, 'resume': options.resume, 'resume_session_at': getattr(options, 'resume_session_at', None),
+            'max_buffer_size': options.max_buffer_size,
             'messages': messages, 'instructions': options.system_prompt,
             'workspace_tools': [item.name for item in options.mcp_servers.get('pm',{}).get('tools',[])]
         }))
