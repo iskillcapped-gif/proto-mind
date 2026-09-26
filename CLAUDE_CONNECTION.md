@@ -78,7 +78,7 @@ again. API logins without a public email bootstrap fresh.
 Changing a provider or project can therefore start a new session; this release
 does not add cross-provider context-transfer features.
 
-Messages typed while Claude works reach the running turn as updates (0.74.4). Claude reset actions and multiple Claude logins are not implemented.
+Messages typed while Claude works reach the running turn as updates (0.74.4). With Full Mac, Claude can also see the screen and operate apps with the mouse and keyboard through PM (0.74.9), once macOS allows Proto-Mind Screen Recording and Accessibility. Claude reset actions and multiple Claude logins are not implemented.
 Brother Persona and automatic skill selection remain Codex/Ollama-specific;
 Claude still gets core memory and explicit selected skill guidance. The sidebar and Limits page separate Codex and Claude subscriptions. No automatic provider fallback or
 PM retry is performed after failure.

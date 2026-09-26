@@ -4,6 +4,38 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Claude Computer Use — Native 0.74.9
+
+The operator's view is that Full Mac means full access, including computer use.
+A live test on 2026-09-26 showed what that needs: with Screen Recording and
+Accessibility granted to the stably signed PM, a model's shell could capture
+windows and post mouse and keyboard events, and a click started a YouTube video
+in Safari. In cube mode, though, PM's floating windows covered Safari, PM kept
+keyboard focus, and the covered page stopped redrawing, so the first click and
+key press went to PM and window captures were stale.
+
+Claude with Full Mac now has two PM tools. `pm_screen_capture` returns the main
+display or one app's front window as a JPEG of at most 300 KB (1400 px on the
+long side, stepping down if needed). `pm_computer_action` clicks, double- or
+right-clicks, moves, drags, scrolls, types Unicode text or presses a key with
+modifiers; its coordinates are pixels of the turn's latest capture. PM runs them
+itself with its own grants and hides its windows while Claude operates other
+apps, restoring them six seconds after the last action or when the turn ends.
+Missing grants produce an explicit request to enable them. Codex keeps OpenAI
+Computer Use and API chats never receive these tools; Native also refuses them
+for any other provider. They sit outside the workspace catalog hash, so the
+session-stable Claude prompt and running sessions are unchanged. Work-log rows
+use the existing app-control kind and record only the action, never typed text
+or coordinates. The Full Mac confirmation for Claude now names the screen and
+app control.
+
+Verification on 2026-09-26: **2429 Python tests and 2009 Native checks
+passed**. Checks cover the provider gate, pixel-to-point mapping, key parsing and
+fitting a Retina capture into the reply bound; they do not capture the screen
+or post events. The tools were not yet exercised live through PM. The 0.74.9
+(113) bundle was staged and installed in place; 0.74.8 (112) is kept as
+`dist/Proto-Mind Native 0.74.8 (112).previous`.
+
 ## Core Update After Native 0.74.8 — Exact Claude Resume
 
 On 2026-09-26 the model resumed a session and saw "No response requested." where
