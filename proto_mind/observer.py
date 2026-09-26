@@ -216,8 +216,13 @@ class Observer:
         r"виправ|реалізуй|перевір код|подивись|вивчи|відкрий|зроби|додай|видали|продовжуй|проаналізуй)\b")
     MAX_INVENTORY_HEURISTIC_CHARS = 300
 
+    # "Продолжим позже" defers the work; it does not refer back to earlier context.
+    DEFERRAL = re.compile(
+        r"(?:продолжим|продовжимо|продовжуємо|continue)(?:\s+\w+)?\s+(?:позже|потом|завтра|пізніше|потім|later|tomorrow)\b"
+        r"|(?:позже|потом|завтра|пізніше|потім|later|tomorrow)\s+(?:продолжим|продовжимо|продовжуємо|continue)\b")
+
     def analyze(self, user_input: str) -> ObserverState:
-        lowered = normalize_text(user_input)
+        lowered = self.DEFERRAL.sub(" ", normalize_text(user_input))
         tags = self._extract_tags(lowered)
         query_type = self._classify_query(lowered)
         needs_memory = self._needs_memory(query_type, lowered)
@@ -318,8 +323,10 @@ class Observer:
         if any(phrase in text for phrase in self.PREFERENCE_BEHAVIOR_MARKERS):
             return True
         behavior_words = ("explain", "respond", "style", "future", "later", "объяс", "отвеч", "стиль", "будущ", "позже", "поясн", "відповід", "майбут", "пізніше")
-        preference_words = ("should you", "should we", "use", "responses", "discussions", "должен", "использ", "ответ", "обсужден", "маєш", "використ", "відповід", "обговор")
-        return any(word in text for word in behavior_words) and any(word in text for word in preference_words)
+        preference_words = ("должен", "использ", "ответ", "обсужден", "маєш", "використ", "відповід", "обговор")
+        # English words match whole: "use" must not match "user", "pause" or "because".
+        english = re.search(r"(?<![a-z])(?:should you|should we|us(?:e|ed|ing)|responses|discussions)(?![a-z])", text)
+        return any(word in text for word in behavior_words) and bool(english or any(word in text for word in preference_words))
 
     @staticmethod
     def _is_recall_question(text: str) -> bool:

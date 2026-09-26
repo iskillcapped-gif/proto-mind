@@ -17,7 +17,7 @@ from proto_mind.models import (
     RetrievalTrace,
     SelfReflectionResult,
 )
-from proto_mind.topic_utils import extract_topic_tags
+from proto_mind.topic_utils import extract_topic_tags, topic_weight
 
 
 class SelfReflector:
@@ -86,6 +86,7 @@ class SelfReflector:
 
         correction_hints = self._correction_hints(
             response=response,
+            observer_state=observer_state,
             warnings=warnings,
             retrieved_memory=retrieved_memory,
             all_memory=all_memory,
@@ -118,7 +119,7 @@ class SelfReflector:
         if not retrieved_memory:
             return "neutral"
 
-        important = [record for record in retrieved_memory if record.active and record.importance >= 0.75]
+        important = self._relevant_important(retrieved_memory, observer_state)
         if not important:
             return "ok"
 
@@ -226,6 +227,14 @@ class SelfReflector:
             return "low"
         return "low"
 
+    @staticmethod
+    def _relevant_important(retrieved_memory: list[MemoryRecord], observer_state: ObserverState) -> list[MemoryRecord]:
+        # Retrieval can select an important record for importance or recency alone.
+        # Only a record sharing a specific topic with the question can be ignored.
+        specific = {tag for tag in observer_state.topic_tags if topic_weight(tag) >= 0.6}
+        return [record for record in retrieved_memory if record.active and record.importance >= 0.75
+                and specific & set(record.tags + extract_topic_tags(record.content))]
+
     def _response_reflects_record(self, response: str, record: MemoryRecord) -> bool:
         response_terms = self._signal_terms(response)
         record_terms = self._signal_terms(record.content)
@@ -237,6 +246,7 @@ class SelfReflector:
         self,
         *,
         response: str,
+        observer_state: ObserverState,
         warnings: list[str],
         retrieved_memory: list[MemoryRecord],
         all_memory: list[MemoryRecord],
@@ -262,7 +272,8 @@ class SelfReflector:
             hints.append("Avoid claiming remembered facts unless supported by selected or stored memory.")
 
         if "ignored important selected memory" in warning_text:
-            important = next((record for record in retrieved_memory if record.active and record.importance >= 0.75), None)
+            important = next((record for record in self._relevant_important(retrieved_memory, observer_state)
+                              if not self._response_reflects_record(response, record)), None)
             if important:
                 hints.append(f"Ground the next related answer in selected memory: {self._preview(important.content)}")
 

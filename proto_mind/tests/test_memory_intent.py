@@ -85,6 +85,37 @@ class MemoryIntentTests(unittest.TestCase):
             with self.subTest(text=text): self.assertNotEqual(Observer().analyze(text).query_type, "memory_inventory")
         self.assertEqual(Observer().analyze("Что ты помнишь о моих предпочтениях?").query_type, "memory_inventory")
 
+    def test_deferring_to_later_is_not_a_continuity_follow_up(self):
+        for text in ["Ладно, пока что делаем паузу, продолжим позже.", "Всё, на сегодня хватит, завтра продолжим.",
+                     "OK, let's pause and continue later.", "Добре, продовжимо пізніше.",
+                     "Explain the user settings screen because it is confusing."]:
+            with self.subTest(text=text):
+                state = Observer().analyze(text)
+                self.assertNotEqual(state.query_type, "continuity_followup")
+                self.assertFalse(state.needs_memory)
+        for text in ["Продолжим с того места, где остановились.", "Давай продолжим работу над памятью.",
+                     "Продолжим? Что мы решили раньше про хранение?"]:
+            with self.subTest(text=text): self.assertTrue(Observer().analyze(text).needs_memory)
+
+    def test_unrelated_important_memory_is_not_reported_as_ignored(self):
+        records = [MemoryRecord(text, "explicit", 1.0, "operator") for text in [
+            "Юра считает Proto-Mind архитектурным наследием и хочет быть оператором-соратником.",
+            "Consolidation queue apply smoke succeeded."]]
+        with self.store.transaction(): self.store.save_persistent_memory(records)
+        # A continuity label selects memory by importance; the answer need not echo it.
+        self.coordinator.reasoner = type("Reply", (), {"backend_name": "fixture",
+            "respond": lambda self, **_: "Это моя привычка, не баг. Буду писать проще."})()
+        result = self.coordinator.handle("Как мы обсуждали раньше, почему ты каждый раз здороваешься?")
+        self.assertTrue(result.retrieved_memory)
+        self.assertFalse(any("ignored important selected memory" in warning for warning in result.self_reflection.warnings))
+        self.assertEqual(self.coordinator.pending_correction_hints, [])
+        # A record that shares the question's specific topic still has to be reflected.
+        with self.store.transaction():
+            self.store.save_persistent_memory([MemoryRecord("Proto-Mind stores memory in SQLite.", "decision", 0.9, "operator",
+                                                            tags=["sqlite", "storage"])])
+        result = self.coordinator.handle("What storage system are we using now?")
+        self.assertTrue(any("Ground the next related answer" in hint for hint in self.coordinator.pending_correction_hints))
+
     def test_task_descriptions_that_mention_memory_are_not_memory_inventory(self):
         for text in ["Посмотри модуль памяти. Что изменилось?",
                      "Can you fix the failing test? What changed in memory?",
