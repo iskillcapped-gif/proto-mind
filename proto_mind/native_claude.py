@@ -192,6 +192,7 @@ class ClaudeTransport:
         kinds = [row.get("kind") for row in rows]
         return {"schema": "proto_mind.claude_agent_run.v1", "provider": "claude", "run_id": str(uuid4()),
                 "status": status, "items": rows[-64:], "items_truncated": len(rows) > 64,
+                "workspace_root": str(self.workspace) if self.workspace else "",
                 "command_count": kinds.count("commandExecution"), "web_search_count": kinds.count("webSearch"),
                 "computer_use_count": 0, "finished_at": timestamp(),
                 "execution_may_have_occurred": any(kind not in {"fileRead", "search", "webSearch"} for kind in kinds),

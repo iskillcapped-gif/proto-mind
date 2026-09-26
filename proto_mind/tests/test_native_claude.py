@@ -201,6 +201,7 @@ class ClaudeTests(unittest.TestCase):
         self.assertEqual((receipt['schema'], receipt['status'], receipt['command_count'], len(receipt['items'])),
                          ('proto_mind.claude_agent_run.v1', 'completed', 1, 4))
         self.assertTrue(receipt['execution_may_have_occurred'])
+        self.assertEqual(receipt['workspace_root'], '')
         self.assertEqual(self.transport().tool_rows, {})
         root = self.root / 'project'
         backend = NativeBackend(root, self.state, subscription_factory=FakeSubscription)

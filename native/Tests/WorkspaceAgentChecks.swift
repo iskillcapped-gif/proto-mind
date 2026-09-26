@@ -74,6 +74,11 @@ extension NativeChecks {
                   && AgentToolRow.title(item(["kind": .string("dynamicToolCall"), "tool": .string("mcp__pm__pm_list_tasks")])) == "PM · list_tasks"
                   && AgentToolRow.title(item(["kind": .string("dynamicToolCall"), "tool": .string("pm_open_task")])) == "PM · open_task",
                   "Earlier Claude actions are not labeled as PM tools, while real PM tools still are")
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        try check(CompletedFileChangesView.displayPath("/work/app/scripts/build.sh", root: "/work/app") == "scripts/build.sh"
+                  && CompletedFileChangesView.displayPath(home + "/notes/a.md", root: "/work/app") == "~/notes/a.md"
+                  && CompletedFileChangesView.displayPath("src/main.swift", root: "") == "src/main.swift",
+                  "Changed files read relative to the task folder or the home folder")
         try check(WorkTimelinePresentation.toolSummary(["fileRead", "search"], live: false) == "Чтение файлов, поиск по файлам",
                   "A group of reads and searches is summarized as such, not as PM tools")
         state.requestID = "request-b"

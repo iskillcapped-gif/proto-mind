@@ -93,12 +93,20 @@ struct CompletedFileChangesView: View {
                         let base = URL(fileURLWithPath: receipt["workspace_root"].text, isDirectory: true)
                         openLink(file.path.hasPrefix("/") ? URL(fileURLWithPath: file.path) : base.appendingPathComponent(file.path))
                     } label: {
-                        Text(file.path).lineLimit(1).truncationMode(.middle).frame(maxWidth: .infinity, alignment: .leading)
+                        Text(Self.displayPath(file.path, root: receipt["workspace_root"].text)).lineLimit(1).truncationMode(.middle)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }.buttonStyle(.nativeHover).help(file.path)
                     counts(file.additions, file.deletions)
                 }.font(.system(size: 12)).padding(.horizontal, 14).padding(.vertical, 10)
             }
         }
+    }
+
+    /// Inside the task's folder a path reads relative to it; the full path stays in the tooltip.
+    static func displayPath(_ path: String, root: String) -> String {
+        let base = root.hasSuffix("/") ? root : root + "/"
+        if root.count > 1, path.hasPrefix(base) { return String(path.dropFirst(base.count)) }
+        return path.hasPrefix("/") ? (path as NSString).abbreviatingWithTildeInPath : path
     }
 
     private func counts(_ additions: Int?, _ deletions: Int?) -> some View {
