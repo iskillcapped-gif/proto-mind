@@ -8,7 +8,7 @@ import threading
 import time
 import unittest
 from unittest.mock import patch
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from proto_mind.config import ProtoMindConfig
 from proto_mind.native_bridge import NativeBackend
@@ -251,6 +251,33 @@ class ClaudeTests(unittest.TestCase):
         self.assertEqual(observed['resume'], original.session_id)
         self.assertIsNone(observed['session_id'])
         self.assertNotIn('Old context', observed['messages'][0]['message']['content'][0]['text'])
+
+    def test_a_resumed_session_continues_exactly_after_the_last_answer(self):
+        conversation = str(uuid4())
+        history = [{'role': 'user', 'content': 'first'}]
+        first = self.session_plan(conversation, history)
+        self.transport(session_plan=first).answer('sonnet', 'instructions', history, 'first', lambda _: None)
+        leaf = json.loads(first.leaf_path.read_text())
+        self.assertEqual((leaf['session_id'], str(UUID(leaf['leaf']))), (first.session_id, leaf['leaf']))
+        history += [{'role': 'assistant', 'content': 'Offline answer'}]
+        second = self.session_plan(conversation, history)
+        self.assertEqual(second.resume_at, leaf['leaf'])
+        self.transport(session_plan=second).answer('sonnet', 'instructions', history, 'second', lambda _: None)
+        observed = json.loads((self.state / 'claude-profile/sdk-observed.json').read_text())
+        self.assertEqual((observed['resume'], observed['resume_session_at']), (first.session_id, leaf['leaf']))
+        # A leaf that belongs to another answer is ignored; the session still resumes plainly.
+        stale = json.loads(second.leaf_path.read_text()); stale['answer_hash'] = 'f' * 64
+        second.leaf_path.write_text(json.dumps(stale))
+        history += [{'role': 'user', 'content': 'second'}, {'role': 'assistant', 'content': 'Offline answer'}]
+        third = self.session_plan(conversation, history)
+        self.assertTrue(third.resumed)
+        self.assertIsNone(third.resume_at)
+        # An interrupted turn resumes plainly so the model sees what it had already done.
+        with self.assertRaises(RuntimeError):
+            self.transport(session_plan=third).answer('rate_limit', 'instructions', history, 'third', lambda _: None)
+        interrupted = self.session_plan(conversation, history + [{'role': 'user', 'content': '[Proto-Mind: this request did not complete (stopped, usage limit or error) and has no confirmed answer. Its actions may be partial; do not repeat them unless the current request asks.]\nthird'}])
+        self.assertTrue(interrupted.interrupted)
+        self.assertIsNone(interrupted.resume_at)
 
     def session_plan(self, conversation, history):
         from proto_mind.native_claude_sessions import ClaudeSessionPlan

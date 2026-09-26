@@ -67,7 +67,7 @@ class ClaudeSDKClient:
         Path(options.cwd, 'sdk-observed.json').write_text(json.dumps({
             'permission_mode': options.permission_mode, 'tools': options.tools,
             'model': options.model, 'effort': options.effort,
-            'session_id': options.session_id, 'resume': options.resume,
+            'session_id': options.session_id, 'resume': options.resume, 'resume_session_at': getattr(options, 'resume_session_at', None),
             'messages': messages, 'instructions': options.system_prompt,
             'workspace_tools': [item.name for item in options.mcp_servers.get('pm',{}).get('tools',[])]
         }))
@@ -148,7 +148,8 @@ class ClaudeSDKClient:
             yield UserMessage(content=[ToolResultBlock(tool_use_id='call-1', is_error=False)])
         yield StreamEvent(event={'type':'content_block_delta','delta':{'type':'thinking_delta','thinking':'PRIVATE THOUGHTS'}})
         yield StreamEvent(event={'type':'content_block_delta','delta':{'type':'text_delta','text':'Offline answer'}})
-        yield AssistantMessage(content=[TextBlock(text='Offline answer')])
+        # Like the CLI, the answer's transcript entry has a UUID that a later resume can target.
+        yield AssistantMessage(content=[TextBlock(text='Offline answer')], uuid=str(__import__('uuid').uuid4()))
         if mode == 'disconnect': return
         yield ResultMessage(is_error=mode == 'failed', subtype='error' if mode == 'failed' else 'success', result='Offline answer',
                             session_id=self.options.resume or self.options.session_id)

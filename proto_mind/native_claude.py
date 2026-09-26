@@ -206,11 +206,11 @@ class ClaudeTransport:
             try: plan.abandon()
             except (OSError, ValueError): pass
 
-    def _confirm_session(self, session_id, answer):
+    def _confirm_session(self, session_id, answer, leaf=None):
         if self.session_plan:
             # The answer itself is complete; a failed binding update only means
             # the next turn starts a fresh session from local history.
-            try: self.session_plan.complete(session_id, answer)
+            try: self.session_plan.complete(session_id, answer, leaf)
             except (OSError, ValueError): pass
 
     def _answer(self, model, instructions, history, prompt, on_delta):
@@ -223,6 +223,7 @@ class ClaudeTransport:
                    "history": self.session_plan.history if self.session_plan else history,
                    "session_id": self.session_plan.session_id if self.session_plan else None,
                    "resume": self.session_plan.resumed if self.session_plan else False,
+                   "resume_at": self.session_plan.resume_at if self.session_plan else None,
                    "prompt": prompt, "full_access": self.full_access,
                    "cli": str(binary), "workspace": str(self.workspace or profile_directory(self.state)),
                    "tools": TOOLS if self.workspace_tools else [],
@@ -285,7 +286,7 @@ class ClaudeTransport:
                     self.usage = event.get("usage") if usage_notice(event.get("usage")) else None
                     undelivered = event.get("undelivered_updates")
                     self.undelivered_updates = undelivered if isinstance(undelivered, list) and len(undelivered) <= 32 else []
-                    self._confirm_session(event.get("session_id"), answer.strip())
+                    self._confirm_session(event.get("session_id"), answer.strip(), event.get("leaf"))
                     outcome = "completed"
                     return answer.strip()
                 elif kind == "error":

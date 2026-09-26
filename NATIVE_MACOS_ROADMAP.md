@@ -4,6 +4,28 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Core Update After Native 0.74.8 — Exact Claude Resume
+
+On 2026-09-26 the model resumed a session and saw "No response requested." where
+its previous answer should have been, although PM had shown the operator the
+full answer. The transcript explained it: Claude Code had recorded a
+`deferred_tools_record` attachment, which is the parent of the answer but was
+written after it, as the session's resume point. On resume it closed that
+user-side entry with a synthetic `No response requested.` and attached the new
+prompt there, leaving the real answer on a side branch outside the model's
+context. It happened once in about twenty turns.
+
+The worker now reports the transcript UUID of the turn's last answer, PM saves
+it next to the session binding in `claude_sessions/<conversation>.leaf` (a
+separate file that older bridges ignore), and the next turn resumes with
+`--resume-session-at` at exactly that answer. The leaf is used only when its
+session and answer hash match the binding; an interrupted turn resumes plainly
+so the model sees what it had already done. Verified on 2026-09-26: 2428 Python
+tests passed, and a live two-turn Haiku session through PM's transport attached
+the second prompt directly to the first answer with no synthetic entry, and the
+model recalled the first turn. This is a Python change; it reaches a
+conversation when its bridge starts.
+
 ## Relative Changed Files — Native 0.74.8
 
 After the operator re-granted Screen Recording to the 0.74.7 bundle and

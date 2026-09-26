@@ -126,10 +126,30 @@ class ClaudeSessionPlan:
         self.interrupted = self.resumed and previous["state"] == "in_flight"
         self.session_id = previous["session_id"] if self.resumed else str(uuid4())
         self.history = [] if self.resumed else bootstrap_history(history)
+        # Claude Code may record a later meta entry as the resume point and then
+        # close it with a synthetic "No response requested." that replaces the
+        # last answer in the resumed context. Resume exactly at that answer.
+        self.resume_at = self._leaf(previous) if self.resumed and not self.interrupted else None
         self._leased = False
 
     def _read(self):
         return read_file(self.path, 16_384) if os.path.lexists(self.path) else None
+
+    @property
+    def leaf_path(self):
+        return self.directory / (self.conversation + ".leaf")
+
+    def _leaf(self, previous):
+        # A separate file keeps the main record readable by older bridges.
+        try:
+            if not os.path.lexists(self.leaf_path): return None
+            value = json.loads(read_file(self.leaf_path, 1024))
+            if (set(value) == {"session_id", "answer_hash", "leaf"} and value["session_id"] == previous["session_id"]
+                    and value["answer_hash"] == previous["answer_hash"] and str(UUID(value["leaf"])) == value["leaf"]):
+                return value["leaf"]
+        except (OSError, ValueError, TypeError, AttributeError):
+            pass
+        return None  # Resume plainly, as before.
 
     @staticmethod
     def _parse(raw):
@@ -182,10 +202,16 @@ class ClaudeSessionPlan:
             if descriptor is not None: os.close(descriptor)
             os.close(folder)
 
-    def complete(self, session_id, answer):
+    def complete(self, session_id, answer, leaf=None):
         if not self._leased or session_id != self.session_id:
             raise ValueError("Claude returned another session. No continuation was saved.")
         self._save("ready", text_hash(answer))
+        try: valid = isinstance(leaf, str) and str(UUID(leaf)) == leaf
+        except ValueError: valid = False
+        if valid:
+            atomic_file(self.leaf_path, encoded({"session_id": self.session_id, "answer_hash": text_hash(answer), "leaf": leaf}))
+        elif os.path.lexists(self.leaf_path):
+            os.unlink(self.leaf_path)
 
     def abandon(self):
         """A resumed session that failed before any output is not offered again."""
