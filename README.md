@@ -14,11 +14,13 @@ For current development guidance, see [`AGENTS.md`](AGENTS.md). The [current pri
 
 ## Native macOS Direction
 
-The current native workspace is **Native 0.74.2 / Claude Continuity and Memory Bounds**, built with SwiftUI/AppKit over the existing Python cognitive core. Models can work with PM projects, conversations, browser pages, documents and explicitly connected services. This development line is separate from the earlier submitted Build Week baseline and published download.
+The current native workspace is **Native 0.74.3 / Delegated Message Origin**, built with SwiftUI/AppKit over the existing Python cognitive core. Models can work with PM projects, conversations, browser pages, documents and explicitly connected services. This development line is separate from the earlier submitted Build Week baseline and published download.
 
 **Claude Code:** sign in through **Settings → Connections → Claude**, then select Claude in any chat. The official SDK/CLI supports the user's own Claude Code subscription or explicit API login. Claude shares PM's editor, memory and journal; tools require the conversation's Mac access. Each conversation resumes its exact saved Claude session, including tool history. New sessions bootstrap from up to 300,000 characters of local conversation with explicit omissions; the former 12 × 2,000 limit no longer applies to Claude. Live steering remains Codex-only. [Setup and current limits](CLAUDE_CONNECTION.md).
 
 **Claude continuity (0.74.2):** a resumed Claude session receives current memory and Observer labels on every turn, and an interrupted session continues on the next message. A failed or stopped request stays visible to every model, marked incomplete. Long pastes no longer become automatic memories, and isolated worktree tasks share their project's memory. [Release details](NATIVE_MACOS_ROADMAP.md#claude-continuity-and-memory-bounds--native-0742).
+
+**Delegated message origin (0.74.3):** a message that one task's model sends to another names its source task and model, so neither the receiving model nor the transcript presents it as the operator's words. A pause such as "продолжим позже" no longer pulls unrelated memory and a grounding hint into the next turn. [Release details](NATIVE_MACOS_ROADMAP.md#delegated-message-origin--native-0743).
 
 **Core updates after 0.74.2:** each Claude answer's response notes show the turn's model requests, largest context and token use. "Let's use X" no longer becomes an automatic project decision, task descriptions that mention memory are no longer treated as memory questions, and isolated worktree tasks use their project's notes. New conversations pick these up without a rebuild. [Details](NATIVE_MACOS_ROADMAP.md#core-updates-after-native-0742--september-26).
 

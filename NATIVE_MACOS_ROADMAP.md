@@ -4,6 +4,45 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Delegated Message Origin — Native 0.74.3
+
+A message that one task's model sends to another through `pm_send_task_message`
+used to arrive as plain user text, so the receiving model and the transcript
+could not tell it from the operator's own words. It now starts with an origin
+header: `[Proto-Mind: sent by the agent of task «Title» (provider · model)
+through pm_send_task_message; the operator did not type it. Treat it as that
+agent's delegated request.]`. Delegation itself is unchanged: the same grants,
+Full Mac rules, target checks and non-recursion apply. An untitled target
+conversation is named after the request, not the header, and an empty message
+is still rejected.
+
+The core also stops a false continuity label seen live on 2026-09-26. After
+"…ладно, делаем паузу, продолжим позже" the next turn context said the current
+message was not primary, carried unrelated important records and asked the
+model to ground its next answer in one of them. Deferrals such as "продолжим
+позже", "завтра продолжим" and "continue later" no longer count as references to
+earlier context. English preference words match whole words, so "user", "pause"
+and "because" no longer contain "use". The ignored-memory warning and its hint
+apply only to important records that share a specific topic with the question.
+This part is Python and reaches a conversation when its bridge starts.
+
+Live checks on 2026-09-26: the first follow-up turn after the 0.74.2 restart
+resumed the same Claude session (`--resume`) with a fresh turn-context block,
+and its answer's response notes carried the new usage line (3 model requests,
+context up to 261K tokens, 765K tokens read from cache). PM has no conversation
+deletion, only archiving, so archived conversations keep both their history and
+their Claude session; no session cleanup is needed.
+
+Verification on 2026-09-26: **2423 Python tests and 1991 Native checks passed**,
+plus compileall; optional pytest is absent. Native checks cover the origin header,
+the title of an untitled target and an empty message; the new Python regressions
+reproduce the false continuity label, the "use" substring match and the unrelated
+grounding hint on the previous code. A live delegated turn has not been run. The
+0.74.3 (107) bundle was built in a staging folder and installed by replacing its
+files in place while the app kept running; 0.74.2 (106) is kept beside it as
+`dist/Proto-Mind Native 0.74.2 (106).previous`. The Native change starts after
+the next app restart.
+
 ## Core Updates After Native 0.74.2 — September 26
 
 These changes are in the Python core only. A conversation picks them up when its
@@ -15,7 +54,7 @@ first Claude turn started a new session (`--session-id`), as the changed system
 prompt requires. Its system prompt had no Observer block. The turn message carried
 a `<proto_mind_turn_context>` block with a label that matched the message. The
 request that the usage limit had interrupted was in the bootstrap with its
-incomplete marker. The first resumed turn is the remaining live check.
+incomplete marker. The first resumed turn was checked in 0.74.3's section.
 
 **Claude usage per turn.** Each completed Claude answer adds a content-free line
 to its response notes: model requests (and subagent requests), the largest
