@@ -28,6 +28,8 @@ final class ConversationExecution: ObservableObject {
     @Published var workspaceQuestions: [WorkspaceAgentQuestion] = []
     var workspaceToolCalls: Set<String> = []
     var workspaceToolsAllowed = false
+    /// Pixel-to-point mapping of this turn's latest computer-use screen capture.
+    var computerCapture: ComputerCapture?
     var workspaceToolBinding: String?
     var workspaceCreatedTasks: Set<UUID> = []
     var workspaceWorker: BridgeClient?
@@ -42,7 +44,7 @@ final class ConversationExecution: ObservableObject {
         workspaceWorker?.shutdown(); workspaceWorker = nil; workspaceToolsAllowed = false
         running = false; stream = ""; requestID = nil; agentItems = []
         agentReceipt = .null; workLog = .null; startedAt = nil
-        autoSkillsReport = nil; sourceMessageID = nil
+        autoSkillsReport = nil; sourceMessageID = nil; computerCapture = nil
     }
 }
 

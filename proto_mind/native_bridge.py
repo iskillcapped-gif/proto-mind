@@ -710,7 +710,9 @@ class NativeBackend:
                 self.active_steering = LiveSteering(request_id, session_id, emit, attachments=SteeringAttachments(
                     self.workspace(params) if logical_workspace else None, self.image_reader(), self.pdf_reader(), lambda: None))
             if params.get("workspace_tools_version") == 1 and not description["operator"] and (mode == "full_access" or provider == "api" and params.get("api_workspace_tools") is True):
-                self.workspace_tools = WorkspaceTools(request_id, session_id, emit)
+                # Claude with Full Mac also gets computer use; Codex has its own.
+                self.workspace_tools = WorkspaceTools(request_id, session_id, emit,
+                                                      computer_use=provider == "claude" and mode == "full_access")
                 self.subscription.workspace_tools = self.workspace_tools
             self.active_request, self.active_provider = request_id, provider if not description["operator"] else "operator"
             if self.closing.is_set():

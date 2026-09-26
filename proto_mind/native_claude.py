@@ -21,7 +21,7 @@ from uuid import uuid4
 from proto_mind.native_api import NativeAPIReasoner
 from proto_mind.native_codex import TurnCancelled
 from proto_mind.native_progress import WorkLog, timestamp
-from proto_mind.native_workspace_tools import TOOLS
+from proto_mind.native_workspace_tools import COMPUTER_TOOLS, TOOLS
 from proto_mind.native_claude_contract import turn_context_message, validate_effort
 from proto_mind.native_claude_sessions import INTERRUPTED_NOTICE, invalidate_login, text_hash
 
@@ -194,9 +194,10 @@ class ClaudeTransport:
                 "status": status, "items": rows[-64:], "items_truncated": len(rows) > 64,
                 "workspace_root": str(self.workspace) if self.workspace else "",
                 "command_count": kinds.count("commandExecution"), "web_search_count": kinds.count("webSearch"),
-                "computer_use_count": 0, "finished_at": timestamp(),
+                "computer_use_count": kinds.count("computerUse"), "finished_at": timestamp(),
                 "execution_may_have_occurred": any(kind not in {"fileRead", "search", "webSearch"} for kind in kinds),
-                "network_access_performed": "webSearch" in kinds, "computer_use_performed": False, "screen_access_performed": False}
+                "network_access_performed": "webSearch" in kinds, "computer_use_performed": "computerUse" in kinds,
+                "screen_access_performed": any(row.get("tool") == "get_app_state" for row in rows)}
 
     def _abandon_unusable_session(self, progressed, code):
         # A resumed session that fails before producing anything, for no known
@@ -226,7 +227,7 @@ class ClaudeTransport:
                    "resume_at": self.session_plan.resume_at if self.session_plan else None,
                    "prompt": prompt, "full_access": self.full_access,
                    "cli": str(binary), "workspace": str(self.workspace or profile_directory(self.state)),
-                   "tools": TOOLS if self.workspace_tools else [],
+                   "tools": (TOOLS + (COMPUTER_TOOLS if self.full_access else [])) if self.workspace_tools else [],
                    "images": [{"type": "image", "source": {"type": "base64", "media_type": image.mime_type,
                                "data": base64.b64encode(image.data).decode()}} for image in self.images]}
         progress = WorkLog(self.on_progress, "full_access" if self.full_access else "chat")

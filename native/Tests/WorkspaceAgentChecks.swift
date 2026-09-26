@@ -81,6 +81,27 @@ extension NativeChecks {
                   "Changed files read relative to the task folder or the home folder")
         try check(WorkTimelinePresentation.toolSummary(["fileRead", "search"], live: false) == "Чтение файлов, поиск по файлам",
                   "A group of reads and searches is summarized as such, not as PM tools")
+        do {
+            _ = try await app.executeWorkspaceTool("pm_computer_action", args: .object(["action": .string("click"), "x": .number(10), "y": .number(10),
+                "x2": .null, "y2": .null, "amount": .null, "text": .null]), state: state, request: "request-a")
+            try check(false, "An API chat must not control the Mac")
+        } catch { try check(error.localizedDescription.contains("Claude with Full Mac"), "Computer use is refused outside Claude with Full Mac") }
+        let mapping = ComputerCapture(originX: 182, originY: 38, pointsPerPixel: 0.5, width: 2468, height: 1854)
+        try check(try mapping.point(878, 790) == CGPoint(x: 621, y: 433) && (try? mapping.point(3000, 10)) == nil,
+                  "Capture pixels map to screen points and out-of-image coordinates are refused")
+        let shortcut = try ComputerUseController.keyStroke("cmd+shift+t")
+        try check(shortcut.key == 17 && shortcut.flags.contains(.maskCommand) && shortcut.flags.contains(.maskShift)
+                  && (try ComputerUseController.keyStroke("return")).key == 36 && (try? ComputerUseController.keyStroke("hyper+q")) == nil,
+                  "Key names and modifiers become macOS key codes and flags")
+        let noise = CGContext(data: nil, width: 3420, height: 2214, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
+                              bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)!
+        for band in 0..<220 {
+            noise.setFillColor(CGColor(red: CGFloat(band % 7) / 7, green: CGFloat(band % 11) / 11, blue: CGFloat(band % 5) / 5, alpha: 1))
+            noise.fill(CGRect(x: (band * 37) % 3420, y: (band * 53) % 2214, width: 300, height: 60))
+        }
+        let (jpeg, width, height) = try ComputerUseController.encode(noise.makeImage()!)
+        try check(jpeg.count <= 300_000 && width <= 1400 && height <= 1400 && width > 600,
+                  "A Retina screen capture fits PM's tool-reply bound")
         state.requestID = "request-b"
         do {
             _ = try await app.executeWorkspaceTool("pm_list_tasks", args: .object([:]), state: state, request: "request-a")

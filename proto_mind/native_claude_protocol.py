@@ -74,6 +74,13 @@ def tool_row(identifier, name, arguments):
         row.update(kind="search", query=text("pattern", 400), path=text("path", 1024))
     elif name in {"WebSearch", "WebFetch"}:
         row.update(kind="webSearch", query=text("query", 1000) or text("prompt", 1000), url=text("url", 1600))
+    elif name == "mcp__pm__pm_screen_capture":
+        row.update(kind="computerUse", tool="get_app_state", app=text("app", 120))
+    elif name == "mcp__pm__pm_computer_action":
+        # Like Codex's Computer Use rows: the action only, never typed text or coordinates.
+        actions = {"click": "click", "double_click": "click", "right_click": "click", "move": "move",
+                   "drag": "drag", "scroll": "scroll", "type": "type_text", "key": "press_key"}
+        row.update(kind="computerUse", tool=actions.get(arguments.get("action"), "computer_action"))
     elif name.startswith("mcp__pm__"):
         row.update(kind="dynamicToolCall", tool=name[len("mcp__pm__"):][:80])
     else:

@@ -216,6 +216,39 @@ class ClaudeTests(unittest.TestCase):
         self.assertEqual([entry['tool_kind'] for entry in result['work_log']['entries'] if entry['kind'] == 'tool'],
                          ['commandExecution', 'fileChange', 'fileRead', 'search'])
 
+    def test_computer_use_tools_are_claude_full_mac_only_and_keep_the_system_prompt(self):
+        from proto_mind.native_workspace_tools import COMPUTER_TOOLS, GUIDANCE, WorkspaceTools
+        from proto_mind.native_claude_contract import instructions
+        click = {'action': 'click', 'x': 620, 'y': 430, 'x2': None, 'y2': None, 'amount': None, 'text': None}
+        with self.assertRaises(ValueError):
+            WorkspaceTools('r', str(uuid4()), lambda _: None).call('pm_computer_action', click)
+        tools = WorkspaceTools('r', str(uuid4()), lambda _: None, timeout=0.2, computer_use=True)
+        for invalid in [{**click, 'x': '620'}, {**click, 'action': 'shell'}, {**click, 'x': 10**7}, {'action': 'click'}]:
+            with self.subTest(arguments=invalid), self.assertRaises(ValueError):
+                tools.call('pm_computer_action', invalid)
+        with self.assertRaises(RuntimeError):  # Valid arguments reach Native; nothing answers in this test.
+            tools.call('pm_computer_action', click)
+        from proto_mind.native_claude_protocol import tool_row
+        typed = tool_row('t', 'mcp__pm__pm_computer_action', {**click, 'action': 'type', 'text': 'secret words'})
+        self.assertEqual((typed['kind'], typed['tool']), ('computerUse', 'type_text'))
+        self.assertNotIn('secret words', json.dumps(typed))  # Typed text and coordinates stay out of PM's journal.
+        self.assertEqual(tool_row('s', 'mcp__pm__pm_screen_capture', {'app': 'Safari'})['app'], 'Safari')
+        self.assertNotIn('pm_computer_action', GUIDANCE)
+        self.assertEqual(instructions(full_access=True, workspace_tools=True).count('Workspace tool catalog'), 1)
+        class Calls:
+            def call(self, name, arguments): return {'projects': []}
+            def cancel(self): pass
+        full, chat = self.transport(), self.transport()
+        full.full_access = True
+        full.workspace_tools = Calls()
+        full.answer('tools', 'instructions', [], 'go', lambda _: None)
+        observed = json.loads((self.state / 'claude-profile/sdk-observed.json').read_text())
+        self.assertTrue({row['name'] for row in COMPUTER_TOOLS} <= set(observed['workspace_tools']))
+        chat.workspace_tools = Calls()
+        chat.answer('sonnet', 'instructions', [], 'go', lambda _: None)
+        observed = json.loads((self.state / 'claude-profile/sdk-observed.json').read_text())
+        self.assertFalse({row['name'] for row in COMPUTER_TOOLS} & set(observed['workspace_tools']))
+
     def test_failed_disconnected_or_malformed_worker_is_never_success(self):
         for mode in ['failed','disconnect','malformed']:
             with self.subTest(mode=mode), self.assertRaises(RuntimeError) as error:

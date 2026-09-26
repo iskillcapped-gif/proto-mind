@@ -21,7 +21,7 @@ struct AgentAccessSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Label(computerUse ? L10n.text("Полный доступ к Mac, интернету и экрану") : L10n.text("Полный доступ к Mac и интернету"),
+            Label(computerUse || request.provider == "claude" ? L10n.text("Полный доступ к Mac, интернету и экрану") : L10n.text("Полный доступ к Mac и интернету"),
                   systemImage: "exclamationmark.shield")
                 .font(.title2.weight(.semibold)).foregroundStyle(.orange)
             Text(computerUse
@@ -31,7 +31,7 @@ struct AgentAccessSheet: View {
                  ?? L10n.text("Без проекта · команды начнут работу в домашней папке."))
                 .font(.callout).textSelection(.enabled)
             Text(request.provider == "claude"
-                 ? L10n.pick("Начальная папка не ограничивает доступ. Claude Code сможет читать и менять другие файлы Mac, выполнять команды и работать с интернетом с правами вашего пользователя. Контекст и результаты инструментов обрабатываются Anthropic. macOS продолжает управлять системными разрешениями.", "The initial folder is not an access boundary. Claude Code can read and change other Mac files, run commands and use the internet with your user permissions. Anthropic processes context and tool results. macOS still controls system permissions.")
+                 ? L10n.pick("Начальная папка не ограничивает доступ. Claude Code сможет читать и менять другие файлы Mac, выполнять команды, работать с интернетом, видеть экран и управлять приложениями мышью и клавиатурой с правами вашего пользователя, если macOS разрешила Proto-Mind запись экрана и универсальный доступ. Пока Claude работает в других приложениях, окна PM прячутся и возвращаются сами. Контекст, снимки экрана и результаты инструментов обрабатываются Anthropic. macOS продолжает управлять системными разрешениями.", "The initial folder is not an access boundary. Claude Code can read and change other Mac files, run commands, use the internet, see the screen and operate apps with the mouse and keyboard with your user permissions, if macOS allows Proto-Mind screen recording and accessibility. While Claude works in other apps, PM's windows hide and return by themselves. Anthropic processes context, screenshots and tool results. macOS still controls system permissions.")
                  : computerUse
                  ? L10n.text("Это начальная папка, не граница доступа. Доступны и другие файлы Mac и видимое содержимое экрана, включая личные данные. Запросы, страницы, скриншоты, прочитанный контекст и вывод инструментов могут обрабатываться OpenAI. Веб-страницы и экран считаются недоверенными данными. Это не root; macOS всё ещё управляет системными разрешениями.")
                  : L10n.text("Это начальная папка, не граница доступа. Доступны и другие файлы Mac, включая личные данные. Запросы, открытые страницы, прочитанный контекст и вывод инструментов могут передаваться OpenAI. Веб-страницы считаются недоверенными данными. Это не root; macOS всё ещё управляет системными разрешениями."))
@@ -189,7 +189,7 @@ struct AgentToolRow: View {
             let names = ["get_app_state": L10n.text("Состояние экрана"), "list_apps": L10n.text("Список приложений"), "click": L10n.text("Нажатие"),
                          "set_value": L10n.text("Ввод значения"), "type_text": L10n.text("Ввод текста"), "press_key": L10n.text("Клавиатура"),
                          "scroll": L10n.text("Прокрутка"), "drag": L10n.text("Перетаскивание"), "select_text": L10n.text("Выбор текста"),
-                         "perform_secondary_action": L10n.text("Дополнительное действие")]
+                         "perform_secondary_action": L10n.text("Дополнительное действие"), "move": L10n.text("Перемещение курсора")]
             let action = names[item["tool"].text] ?? "Computer Use"
             return item["app"].text.isEmpty ? action : "\(action) · \(item["app"].text)"
         default: return L10n.text("План работы")

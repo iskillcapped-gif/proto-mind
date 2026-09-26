@@ -1,6 +1,7 @@
 // Additional interface translations. Placeholders preserve dynamic content verbatim.
 extension L10n {
     static let additionalEnglish: [String: String] = [
+        "Перемещение курсора": "Pointer move",
         "читает файлы": "reading files",
         "чтение файлов": "file reads",
         "ищет по файлам": "searching files",

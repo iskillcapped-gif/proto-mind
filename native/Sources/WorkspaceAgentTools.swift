@@ -36,6 +36,7 @@ extension AppModel {
     static func delegatedTaskBody(_ text: String) -> String { delegatedTaskOrigin(text)?.body ?? text }
 
     func stopWorkspaceTools(for state: ConversationExecution) {
+        computerUse.restoreWindows()
         state.workspaceToolsAllowed = false
         state.workspaceWorker?.shutdown(); state.workspaceWorker = nil
         workspaceServices.cancel(owner: state.conversationID)
@@ -182,6 +183,16 @@ extension AppModel {
             guard case .object = arguments else { throw NativeError.message("MCP arguments must be a JSON object.") }
             let result = try await workspaceServices.perform(id: id, operation: name == "pm_call_service" ? "call" : "list", name: args["name"].text, arguments: arguments, cursor: args["cursor"].text, owner: source.id)
             _ = try requireWorkspaceTurn(state, request)
+            return result
+        case "pm_screen_capture", "pm_computer_action":
+            // Claude with Full Mac only: Codex has its own Computer Use and API chats never control the Mac.
+            guard source.provider == "claude", agentGrants[source.id] != nil else {
+                throw NativeError.message("Computer use is available to Claude with Full Mac access only.")
+            }
+            guard name == "pm_screen_capture" else { return try await computerUse.perform(args, capture: state.computerCapture) }
+            let (result, mapping) = try await computerUse.capture(app: args["app"].isNull ? nil : args["app"].text)
+            _ = try requireWorkspaceTurn(state, request)
+            state.computerCapture = mapping
             return result
         case "pm_list_projects":
             return .object(["projects": .array(liveVoiceProjects.map { .object(["path": .string($0), "name": .string(URL(fileURLWithPath: $0).lastPathComponent)]) })])

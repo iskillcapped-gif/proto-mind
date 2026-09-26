@@ -68,6 +68,7 @@ final class AppModel: ObservableObject {
     let sidebarProjectOrder: SidebarProjectOrder
     let desktop: DesktopPresentation
     let appUpdate = AppUpdateMonitor()
+    let computerUse = ComputerUseController()
     let presentations = WorkspacePresentations()
     let conversationRouting = ConversationRouting()
     @Published var showSettings = false
