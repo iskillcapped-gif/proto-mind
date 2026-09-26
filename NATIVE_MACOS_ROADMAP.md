@@ -4,6 +4,25 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Relative Changed Files — Native 0.74.8
+
+After the operator re-granted Screen Recording to the 0.74.7 bundle and
+restarted PM, `CGPreflightScreenCaptureAccess()` returned true in a model's
+shell and `screencapture -l` captured the real cube-mode windows. macOS
+attributes that process chain to PM; the earlier failures came only from ad-hoc
+signatures changing with every build.
+
+The first real capture showed the changed-files summary under a Claude answer
+with an absolute path. Paths inside the task's folder now read relative to it
+(`scripts/build_native_app.sh`), other paths use `~`, and the tooltip keeps the
+full path. The Claude action receipt carries `workspace_root` like the Codex
+receipt. This is also the first update signed with the stable local identity,
+so Screen Recording should survive it without a new grant.
+
+Verification on 2026-09-26: **2427 Python tests and 2005 Native checks
+passed**. The 0.74.8 (112) bundle was staged and installed in place; 0.74.7
+(111) is kept as `dist/Proto-Mind Native 0.74.7 (111).previous`.
+
 ## Stable Local Signing — Native 0.74.7
 
 The operator noticed that PM lost Screen Recording after updates. The developer
