@@ -107,7 +107,7 @@ extension AppModel {
             conversations[index].pendingFiles = []; conversations[index].pendingImages = []; conversations[index].pendingPDFs = []
         }
         if conversations[index].title == "Новый диалог" {
-            conversations[index].title = String(text.split(whereSeparator: \.isWhitespace).joined(separator: " ").prefix(54))
+            conversations[index].title = String(AppModel.delegatedTaskBody(text).split(whereSeparator: \.isWhitespace).joined(separator: " ").prefix(54))
         }
         conversations[index].updatedAt = Date()
         // The editor stays live while the initial request is being prepared.

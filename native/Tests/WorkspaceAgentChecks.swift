@@ -50,6 +50,14 @@ extension NativeChecks {
             _ = try await app.executeWorkspaceTool("pm_send_task_message", args: .object(["conversation_id": .string(id.uuidString), "text": .string("loop")]), state: state, request: "request-a")
             try check(false, "Self-delegation must fail")
         } catch { try check(true, "Self-delegation is rejected") }
+        let marked = AppModel.delegatedTaskMessage("  Review the draft  ", from: app.conversations.first { $0.id == id }!)
+        try check(marked.hasPrefix("[Proto-Mind: sent by the agent of task «") && marked.contains("(api")
+                  && marked.contains("the operator did not type it") && marked.hasSuffix("]\n\nReview the draft"),
+                  "An agent-sent task message names its source task before the text")
+        try check(AppModel.delegatedTaskBody(marked) == "Review the draft" && AppModel.delegatedTaskBody("[Plain] text") == "[Plain] text",
+                  "An untitled task is named after the delegated request, not its origin header")
+        try check(AppModel.delegatedTaskMessage(" \n ", from: app.conversations.first { $0.id == id }!).isEmpty,
+                  "An empty agent-sent message stays empty and is still rejected")
         state.requestID = "request-b"
         do {
             _ = try await app.executeWorkspaceTool("pm_list_tasks", args: .object([:]), state: state, request: "request-a")

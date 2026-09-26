@@ -10,6 +10,24 @@ struct WorkspaceAgentQuestion: Identifiable, Codable, Equatable {
 }
 
 extension AppModel {
+    /// A model-sent message stays distinguishable from typed input, for the
+    /// receiving model and in the transcript. Delegation itself is unchanged.
+    static func delegatedTaskMessage(_ text: String, from source: Conversation) -> String {
+        let body = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !body.isEmpty else { return "" }  // Still rejected as empty.
+        let title = source.displayTitle.split(whereSeparator: \.isNewline).joined(separator: " ")
+        let model = [source.provider, source.model].filter { !$0.isEmpty }.joined(separator: " · ")
+        return "[Proto-Mind: sent by the agent of task «\(title)» (\(model)) through pm_send_task_message; "
+            + "the operator did not type it. Treat it as that agent's delegated request.]\n\n" + body
+    }
+
+    /// The request without its origin header, e.g. for an automatic title.
+    static func delegatedTaskBody(_ text: String) -> String {
+        guard text.hasPrefix("[Proto-Mind: sent by the agent of task «"),
+              let end = text.range(of: "]\n\n") else { return text }
+        return String(text[end.upperBound...])
+    }
+
     func stopWorkspaceTools(for state: ConversationExecution) {
         state.workspaceToolsAllowed = false
         state.workspaceWorker?.shutdown(); state.workspaceWorker = nil
@@ -182,7 +200,7 @@ extension AppModel {
             let id = try workspaceTarget(args, source: source.id, allowSelf: false)
             let delegatedToken = try await prepareWorkspaceDelegation(source: source, target: id, state: state, request: request)
             do {
-                return try await sendExternalTaskMessage(args["text"].text, id: id, authorized: { [weak self, weak state] in
+                return try await sendExternalTaskMessage(Self.delegatedTaskMessage(args["text"].text, from: source), id: id, authorized: { [weak self, weak state] in
                     guard let self, let state else { return false }
                     return (try? self.requireWorkspaceTurn(state, request)) != nil
                 }, finished: { [weak self] _ in if let delegatedToken { self?.releaseWorkspaceDelegation(id: id, token: delegatedToken) } })
