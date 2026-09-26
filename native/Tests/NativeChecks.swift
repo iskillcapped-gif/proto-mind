@@ -28,6 +28,9 @@ struct NativeChecks {
         }
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("proto-native-checks-" + UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
+        if let gallery = LaunchConfiguration.argument("--ui-gallery") {
+            try await interfaceGallery(directory: URL(fileURLWithPath: gallery, isDirectory: true), root: root); return
+        }
         let portableRoot = FileManager.default.temporaryDirectory.appendingPathComponent("proto-portable-checks-" + UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: portableRoot) }
         try portableConfiguration(root: portableRoot)
