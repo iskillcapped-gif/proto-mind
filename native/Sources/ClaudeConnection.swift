@@ -74,9 +74,11 @@ struct ClaudeConnectionSettings: View {
             Text(L10n.pick("Вход через официальный Claude Code. Для работы по подписке выберите свой аккаунт Claude с доступом к Claude Code (например, Pro или Max). Вход через Console использует отдельную оплату API.", "Sign in through official Claude Code. For subscription usage, choose your Claude account with Claude Code access (such as Pro or Max). Console login uses separate API billing."))
                 .font(.callout).foregroundStyle(.secondary)
             HStack {
-                Button(L10n.pick("Войти в Claude", "Sign in to Claude")) { Task { await app.authenticateClaude("login") } }
-                Button(L10n.pick("Выйти", "Sign out")) { Task { await app.authenticateClaude("logout") } }
-                    .disabled(account.snapshot?.connected != true)
+                if account.snapshot?.connected == true {
+                    Button(L10n.pick("Выйти", "Sign out")) { Task { await app.authenticateClaude("logout") } }
+                } else {
+                    Button(L10n.pick("Войти в Claude", "Sign in to Claude")) { Task { await app.authenticateClaude("login") } }
+                }
                 Spacer()
                 Button(L10n.text("Обновить")) { Task { await app.refreshClaudeAccount() } }
             }.disabled(app.operationBusy || app.claudeTasksRunning || app.claudeAuthenticating || account.refreshing)
@@ -119,7 +121,7 @@ struct ClaudeModelControls: View {
                 Text(ClaudeSelection.effortTitle(effort)).tag(effort)
             }
         }
-        Text(L10n.pick("Доступность моделей и усилий определяет Claude Code для вашего аккаунта. Каждый запрос получает последние сообщения PM и выбранную память. Уточнения во время работы пока доступны только в Codex.", "Claude Code determines model and effort availability for your account. Each request receives recent PM messages and selected memory. Live steering is currently available only with Codex."))
+        Text(L10n.pick("Доступность моделей и усилий определяет Claude Code для вашего аккаунта. Беседа продолжает свою сессию Claude вместе с историей инструментов и каждый раз получает выбранную память. Пока Claude работает, новое сообщение доходит до него как уточнение.", "Claude Code determines model and effort availability for your account. A conversation continues its Claude session with its tool history and receives selected memory every turn. While Claude works, a new message reaches it as an update."))
             .font(.caption).foregroundStyle(.secondary)
         }.task { await account.refresh(app: app) }
     }

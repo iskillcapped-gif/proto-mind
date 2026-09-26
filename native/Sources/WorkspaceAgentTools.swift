@@ -21,12 +21,19 @@ extension AppModel {
             + "the operator did not type it. Treat it as that agent's delegated request.]\n\n" + body
     }
 
-    /// The request without its origin header, e.g. for an automatic title.
-    static func delegatedTaskBody(_ text: String) -> String {
-        guard text.hasPrefix("[Proto-Mind: sent by the agent of task «"),
-              let end = text.range(of: "]\n\n") else { return text }
-        return String(text[end.upperBound...])
+    /// The source task, its provider/model and the request of an agent-sent message.
+    static func delegatedTaskOrigin(_ text: String) -> (task: String, model: String, body: String)? {
+        let prefix = "[Proto-Mind: sent by the agent of task «"
+        guard text.hasPrefix(prefix) else { return nil }
+        let start = text.index(text.startIndex, offsetBy: prefix.count)
+        guard let title = text.range(of: "» (", range: start..<text.endIndex),
+              let model = text.range(of: ") through pm_send_task_message; ", range: title.upperBound..<text.endIndex),
+              let end = text.range(of: "]\n\n", range: model.upperBound..<text.endIndex) else { return nil }
+        return (String(text[start..<title.lowerBound]), String(text[title.upperBound..<model.lowerBound]), String(text[end.upperBound...]))
     }
+
+    /// The request without its origin header, e.g. for an automatic title.
+    static func delegatedTaskBody(_ text: String) -> String { delegatedTaskOrigin(text)?.body ?? text }
 
     func stopWorkspaceTools(for state: ConversationExecution) {
         state.workspaceToolsAllowed = false

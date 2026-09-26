@@ -535,7 +535,14 @@ struct MessageView: View {
             HStack(alignment: .top) {
                 Spacer(minLength: 65)
                 VStack(alignment: .leading, spacing: 10) {
-                    Text(BrowserReferencePresentation(message.text)?.instruction ?? message.text).font(NativeTheme.messageFont).lineSpacing(6).textSelection(.enabled)
+                    let origin = AppModel.delegatedTaskOrigin(message.text)
+                    if let origin {
+                        // The model still receives the full origin header; the reader sees who sent it.
+                        Label(L10n.format("От задачи «\(origin.task)» · \(origin.model)"), systemImage: "arrow.turn.down.right")
+                            .font(.system(size: 11.5)).foregroundStyle(.secondary).lineLimit(2)
+                            .help(L10n.text("Это сообщение отправила модель другой задачи через инструменты PM, а не вы."))
+                    }
+                    Text(origin?.body ?? BrowserReferencePresentation(message.text)?.instruction ?? message.text).font(NativeTheme.messageFont).lineSpacing(6).textSelection(.enabled)
                         .help(message.createdAt.formatted(date: .omitted, time: .shortened))
                     if let page = BrowserReferencePresentation(message.text) {
                         DisclosureGroup(L10n.pick("Материал из браузера", "Browser reference"), isExpanded: $showBrowserReference) {
@@ -561,7 +568,9 @@ struct MessageView: View {
                 if message.role == "report" {
                     Label(message.isError ? L10n.text("Нужна проверка") : L10n.text("Локальное ядро"), systemImage: message.isError ? "exclamationmark.circle" : "command")
                         .font(.system(size: 12)).foregroundStyle(message.isError ? Color.orange : .secondary)
-                    Text(message.text).font(NativeTheme.codeFont).textSelection(.enabled)
+                    // A failed turn explains itself in prose; command reports stay monospaced.
+                    Text(message.text).font(message.isError ? NativeTheme.responseFont : NativeTheme.codeFont).textSelection(.enabled)
+                        .lineSpacing(message.isError ? NativeTheme.responseLineSpacing : 0)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
                     MessageMarkdownView(text: message.text, copy: model.copy, openLink: { openLink($0) })

@@ -56,6 +56,10 @@ extension NativeChecks {
                   "An agent-sent task message names its source task before the text")
         try check(AppModel.delegatedTaskBody(marked) == "Review the draft" && AppModel.delegatedTaskBody("[Plain] text") == "[Plain] text",
                   "An untitled task is named after the delegated request, not its origin header")
+        let origin = AppModel.delegatedTaskOrigin(marked)
+        try check(origin?.body == "Review the draft" && origin?.model.hasPrefix("api") == true && origin?.task.isEmpty == false
+                  && AppModel.delegatedTaskOrigin("[Proto-Mind: sent by the agent of task «Broken") == nil,
+                  "The transcript shows an agent-sent request with its source task and model, not the raw header")
         try check(AppModel.delegatedTaskMessage(" \n ", from: app.conversations.first { $0.id == id }!).isEmpty,
                   "An empty agent-sent message stays empty and is still rejected")
         state.requestID = "request-b"

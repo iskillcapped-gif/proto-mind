@@ -17,7 +17,8 @@ struct ConversationWelcomeView: View {
                 Text(L10n.text("Разберём идею, поработаем над проектом\nили вспомним важное."))
                     .font(.system(size: 16)).foregroundStyle(.secondary).lineSpacing(5)
             }
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: 12)], alignment: .leading, spacing: 12) {
+            // Two columns keep the four cards balanced at every width (an adaptive grid gave 3 + 1).
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(minimum: 130), spacing: 12), count: 2), alignment: .leading, spacing: 12) {
                 card(L10n.text("Вернуться к работе"), detail: L10n.text("Найти и продолжить прежний диалог"), icon: "clock.arrow.circlepath") {
                     model.openConversationHistory()
                 }
@@ -42,6 +43,7 @@ struct ConversationWelcomeView: View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 10) {
                 Image(systemName: icon).font(.system(size: 19)).foregroundStyle(NativeTheme.accent)
+                    .frame(width: 24, height: 24, alignment: .leading)
                 Text(title).font(.system(size: 13, weight: .medium))
                 Text(detail).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(2)
             }.frame(maxWidth: .infinity, minHeight: 99, alignment: .topLeading).padding(16)

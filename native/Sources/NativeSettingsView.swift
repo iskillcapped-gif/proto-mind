@@ -30,7 +30,7 @@ enum NativeSettingsSection: String, CaseIterable, Identifiable {
         switch self {
         case .models: return L10n.text("Выберите, с какой моделью продолжить этот диалог.")
         case .voice: return L10n.text("Диктовка сообщений и голосовой разговор.")
-        case .appearance: return L10n.text("Прозрачность парящего рабочего пространства.")
+        case .appearance: return L10n.text("Язык, панели и прозрачность рабочего пространства.")
         case .persona: return L10n.text("Характер общения и использование памяти.")
         case .services: return L10n.text("Сервисы, которыми вы пользуетесь в работе.")
         case .data: return L10n.text("Ваши диалоги и способы их восстановить.")
@@ -40,6 +40,12 @@ enum NativeSettingsSection: String, CaseIterable, Identifiable {
 }
 
 struct NativeSettingsView: View {
+    /// Version and build, e.g. "0.74.4 (108)", to tell which installed build is running.
+    static var versionText: String {
+        guard let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String else { return L10n.text("Локальная сборка") }
+        return (Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String).map { "\(version) (\($0))" } ?? version
+    }
+
     @ObservedObject var model: AppModel
     @State private var confirmCodexThreadReset = false
     @State private var confirmPersonaActivation = false
@@ -150,7 +156,7 @@ struct NativeSettingsView: View {
                         if model.selected?.provider == "codex" { sessionSettings }
                         spineSettings
                         Section(L10n.text("О приложении")) {
-                            LabeledContent(L10n.text("Версия"), value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? L10n.text("Локальная сборка"))
+                            LabeledContent(L10n.text("Версия"), value: Self.versionText)
                             DisclosureGroup(L10n.text("Технические сведения")) {
                                 Text(L10n.format("Python: \(model.client.configuration.python.path)\nПроект: \(model.client.configuration.projectRoot.path)"))
                                     .font(.caption.monospaced()).textSelection(.enabled)

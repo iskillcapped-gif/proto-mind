@@ -1,6 +1,8 @@
 // Additional interface translations. Placeholders preserve dynamic content verbatim.
 extension L10n {
     static let additionalEnglish: [String: String] = [
+        "От задачи «{0}» · {1}": "From task «{0}» · {1}",
+        "Это сообщение отправила модель другой задачи через инструменты PM, а не вы.": "Another task's model sent this message through PM tools; you did not type it.",
         "Перезапустить Proto-Mind?": "Restart Proto-Mind?",
         "Перезапустить": "Restart",
         "Сейчас выполняются задачи: {0}. Перезапуск остановит их; уже сделанные изменения не отменяются.": "Tasks running now: {0}. Restarting stops them; changes already made are not undone.",

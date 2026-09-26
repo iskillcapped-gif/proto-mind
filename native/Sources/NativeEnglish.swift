@@ -237,7 +237,7 @@ extension L10n {
         "Дополнительно": "Advanced",
         "Выберите, с какой моделью продолжить этот диалог.": "Choose the model for this conversation.",
         "Диктовка сообщений и голосовой разговор.": "Message dictation and voice conversations.",
-        "Прозрачность парящего рабочего пространства.": "Floating workspace transparency.",
+        "Язык, панели и прозрачность рабочего пространства.": "Language, panels and workspace transparency.",
         "Характер общения и использование памяти.": "Conversation style and memory use.",
         "Сервисы, которыми вы пользуетесь в работе.": "Services you use for work.",
         "Ваши диалоги и способы их восстановить.": "Your conversations and ways to restore them.",

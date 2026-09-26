@@ -25,7 +25,12 @@ extension AppModel {
         flushDraft()
         var chat = Conversation()
         chat.codexAccountID = selected?.codexAccountID
-        if serviceClient.configuration.isPortable { chat.provider = "codex"; chat.model = "" }
+        if let source = selected {
+            // Like a panel conversation, keep the model the user was working with.
+            // Mac access and tool permissions stay per conversation and are not copied.
+            chat.provider = source.provider; chat.model = source.model; chat.reasoningEffort = source.reasoningEffort
+            chat.apiConnectionID = source.apiConnectionID
+        } else if serviceClient.configuration.isPortable { chat.provider = "codex"; chat.model = "" }
         conversations.insert(chat, at: 0)
         selectedID = chat.id
         transcriptDestination = nil

@@ -26,6 +26,13 @@ extension NativeChecks {
         try check(app.pendingAgentAccess?.provider == "claude", "Full Mac confirmation captures the Claude provider")
         await app.confirmAgentAccess()
         try check(app.fullAccessEnabled && app.agentGrants[id] != nil, "Claude receives a fresh conversation-bound Full Mac grant")
+        let draft = app.composer
+        app.newConversation()
+        try check(app.selected?.provider == "claude" && app.selected?.model == "sonnet" && app.selected?.reasoningEffort == "high"
+                  && app.selectedID != id && !app.fullAccessEnabled && app.agentGrants[app.selectedID!] == nil,
+                  "A new chat keeps the current model choice but never the previous chat's Mac access")
+        app.select(id)
+        app.setComposer(draft)
         let fullPreview = try await app.client.request("context_preview", app.contextRequestParameters!)
         _ = try NativeInstructionPreview(fullPreview["instruction_preview"])
         try check(fullPreview["instruction_preview"]["mode"].text == "full_access", "Native accepts exact Claude Full Mac instruction metadata")
