@@ -180,6 +180,39 @@ class ClaudeTests(unittest.TestCase):
         self.assertEqual(receipt['status'], 'accepted')
         self.assertIn('Also check the README', result['turn']['cognitive_turn']['response'])
 
+    def test_claude_tool_calls_become_readable_actions_and_a_saved_receipt(self):
+        transport = self.transport()
+        transport.full_access = True
+        events = []
+        transport.on_activity = events.append
+        self.assertEqual(transport.answer('claude-tools', 'instructions', [], 'go', lambda _: None), 'Done')
+        rows = {event['item']['id']: event['item'] for event in events if event.get('event') == 'agent_activity'}
+        self.assertEqual({key: row['kind'] for key, row in rows.items()},
+                         {'bash-1': 'commandExecution', 'edit-1': 'fileChange', 'read-1': 'fileRead', 'grep-1': 'search'})
+        self.assertEqual((rows['bash-1']['command'], rows['bash-1']['text'], rows['bash-1']['output_preview'], rows['bash-1']['status']),
+                         ('pytest -q', 'Run the tests', '3 passed in 0.1s', 'completed'))
+        self.assertIsInstance(rows['bash-1']['duration_ms'], int)
+        self.assertEqual(rows['edit-1']['file_changes'], [{'path': '/tmp/demo.py', 'additions': 2, 'deletions': 1}])
+        self.assertEqual(rows['edit-1']['diff_preview'], '- a = 1\n+ a = 2\n+ b = 3')
+        self.assertEqual((rows['grep-1']['query'], rows['grep-1']['path']), ('TODO', '/tmp'))
+        # A read file's contents are not repeated into PM's activity or receipt.
+        self.assertNotIn('PRIVATE FILE BODY', json.dumps(events))
+        receipt = [event['receipt'] for event in events if event.get('event') == 'agent_run'][-1]
+        self.assertEqual((receipt['schema'], receipt['status'], receipt['command_count'], len(receipt['items'])),
+                         ('proto_mind.claude_agent_run.v1', 'completed', 1, 4))
+        self.assertTrue(receipt['execution_may_have_occurred'])
+        self.assertEqual(self.transport().tool_rows, {})
+        root = self.root / 'project'
+        backend = NativeBackend(root, self.state, subscription_factory=FakeSubscription)
+        self.addCleanup(backend.close)
+        with patch.object(ProtoMindConfig, 'from_env', return_value=ProtoMindConfig(data_dir=root / 'proto_mind/data')):
+            result = backend.process({'text': 'Привет', 'provider': 'claude', 'model': 'claude-tools', 'conversation_id': str(uuid4()),
+                                      'cloud_consent': True}, lambda _: None, 'tools-request')
+        self.assertEqual([item['kind'] for item in result['agent_run']['items']], ['commandExecution', 'fileChange', 'fileRead', 'search'])
+        self.assertEqual([item['kind'] for item in result['work_session']['tools']], ['commandExecution', 'fileChange', 'fileRead', 'search'])
+        self.assertEqual([entry['tool_kind'] for entry in result['work_log']['entries'] if entry['kind'] == 'tool'],
+                         ['commandExecution', 'fileChange', 'fileRead', 'search'])
+
     def test_failed_disconnected_or_malformed_worker_is_never_success(self):
         for mode in ['failed','disconnect','malformed']:
             with self.subTest(mode=mode), self.assertRaises(RuntimeError) as error:

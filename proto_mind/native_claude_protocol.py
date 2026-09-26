@@ -1,7 +1,8 @@
-"""Content-free error categories and bounded pending tool replies."""
+"""Content-free error categories, public tool activity rows and bounded pending tool replies."""
 import asyncio
 from collections import deque
 import json
+import re
 from uuid import uuid4
 
 ERROR_CODES = {"authentication_failed", "billing_error", "rate_limit", "invalid_request", "server_error"}
@@ -22,6 +23,83 @@ def error_code(message, previous=None):
     if subtype == "error_max_turns": return "max_turns"
     if subtype == "error_max_budget_usd": return "max_budget"
     return previous if previous in ERROR_CODES else "unknown"
+
+
+_ANSI = re.compile(r"\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\\\))")
+FILE_CHANGE_TOOLS = {"Edit", "MultiEdit", "Write", "NotebookEdit"}
+
+
+def preview(value, limit, *, tail=False):
+    """Bounded display text without terminal control sequences."""
+    if not isinstance(value, str):
+        return ""
+    value = "".join(char for char in _ANSI.sub("", value) if char in "\n\t" or ord(char) >= 32)
+    if len(value) <= limit:
+        return value
+    if tail:
+        # Command results and errors are usually at the end.
+        head = limit // 4
+        return value[:head] + "\n[…]\n" + value[-(limit - head):]
+    return value[:limit] + "\n[preview truncated]"
+
+
+def _lines(value):
+    return len(value.splitlines()) if isinstance(value, str) else 0
+
+
+def tool_row(identifier, name, arguments):
+    """One Claude Code tool call as a public activity row in PM's shared item kinds."""
+    arguments = arguments if isinstance(arguments, dict) else {}
+    name = name if isinstance(name, str) else ""
+    text = lambda key, limit: preview(arguments.get(key), limit)
+    row = {"id": identifier, "status": "inProgress", "tool": name[:80]}
+    if name == "Bash":
+        row.update(kind="commandExecution", command=text("command", 1600), text=text("description", 300))
+    elif name in FILE_CHANGE_TOOLS:
+        path = text("file_path", 1024) or text("notebook_path", 1024)
+        edits = [edit for edit in arguments.get("edits", []) if isinstance(edit, dict)] if isinstance(arguments.get("edits"), list) else []
+        replacement = arguments.get("content", arguments.get("new_source")) if name in {"Write", "NotebookEdit"} else arguments.get("new_string")
+        pairs = [(edit.get("old_string"), edit.get("new_string")) for edit in edits] or [(arguments.get("old_string"), replacement)]
+        diff = "\n".join(line for old, new in pairs[:4] for line in
+                         [*("- " + part for part in (old.splitlines() if isinstance(old, str) else [])),
+                          *("+ " + part for part in (new.splitlines() if isinstance(new, str) else []))])
+        change = {"path": path, "additions": sum(_lines(new) for _, new in pairs)}
+        if name != "Write":  # An overwrite does not say what it replaced.
+            change["deletions"] = sum(_lines(old) for old, _ in pairs)
+        row.update(kind="fileChange", paths=[path] if path else [], change_count=1, diff_preview=preview(diff, 3000),
+                   file_changes=[change] if path else [])
+    elif name == "Read":
+        row.update(kind="fileRead", path=text("file_path", 1024))
+    elif name in {"Grep", "Glob"}:
+        row.update(kind="search", query=text("pattern", 400), path=text("path", 1024))
+    elif name in {"WebSearch", "WebFetch"}:
+        row.update(kind="webSearch", query=text("query", 1000) or text("prompt", 1000), url=text("url", 1600))
+    elif name.startswith("mcp__pm__"):
+        row.update(kind="dynamicToolCall", tool=name[len("mcp__pm__"):][:80])
+    else:
+        summary = next((value for value in (text(key, 300) for key in ("description", "query", "prompt", "skill")) if value), "")
+        row.update(kind="agentTool", text=summary)
+    return {key: value for key, value in row.items() if value not in ("", [])}
+
+
+def tool_result_text(content):
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "\n".join(block.get("text", "") for block in content if isinstance(block, dict) and block.get("type") == "text")
+    return ""
+
+
+def tool_finished(row, content, is_error, duration_ms):
+    """The same row after its result: status, duration and a bounded result preview."""
+    row = {**row, "status": "failed" if is_error else "completed", "duration_ms": max(0, int(duration_ms))}
+    result = tool_result_text(content)
+    if row.get("kind") == "commandExecution":
+        row["output_preview"] = preview(result, 3000, tail=True)
+    elif is_error or row.get("kind") in {"search", "webSearch", "dynamicToolCall", "agentTool"}:
+        # File contents are not repeated; failures and short results are.
+        row["output_preview"] = preview(result, 600)
+    return {key: value for key, value in row.items() if value != ""}
 
 
 class UsageMeter:

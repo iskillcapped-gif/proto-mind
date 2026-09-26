@@ -1,6 +1,14 @@
 // Additional interface translations. Placeholders preserve dynamic content verbatim.
 extension L10n {
     static let additionalEnglish: [String: String] = [
+        "читает файлы": "reading files",
+        "чтение файлов": "file reads",
+        "ищет по файлам": "searching files",
+        "поиск по файлам": "file search",
+        "другие инструменты": "other tools",
+        "Изменение · {0}": "Edit · {0}",
+        "Чтение · {0}": "Read · {0}",
+        "Поиск · {0}": "Search · {0}",
         "От задачи «{0}» · {1}": "From task «{0}» · {1}",
         "Это сообщение отправила модель другой задачи через инструменты PM, а не вы.": "Another task's model sent this message through PM tools; you did not type it.",
         "Перезапустить Proto-Mind?": "Restart Proto-Mind?",

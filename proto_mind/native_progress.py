@@ -63,7 +63,8 @@ class WorkLog:
                       "text": display_text(text, 4000), "status": "completed" if completed else "inProgress"}, force=completed)
 
     def tool(self, item: dict) -> None:
-        if item.get("kind") not in {"commandExecution", "fileChange", "imageView", "webSearch", "computerUse", "dynamicToolCall", "plan"}:
+        if item.get("kind") not in {"commandExecution", "fileChange", "imageView", "webSearch", "computerUse", "dynamicToolCall", "plan",
+                                    "fileRead", "search", "agentTool"}:
             return
         # The separately bounded agent receipt owns command/output bodies.
         self._record({"id": "tool:" + item["id"], "kind": "tool", "tool_id": item["id"],

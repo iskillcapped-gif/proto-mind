@@ -130,7 +130,8 @@ struct AgentToolRow: View {
                     Text(item["failure_message"].text).foregroundStyle(.orange)
                 }
                 if !item["recovery"].text.isEmpty { Text(item["recovery"].text) }
-                ForEach(["command", "query", "url", "output_preview", "diff_preview", "text", "path"], id: \.self) { key in
+                // A command's description is already its title.
+                ForEach(["command", "query", "url", "output_preview", "diff_preview", "text", "path"].filter { item["kind"].text != "commandExecution" || $0 != "text" }, id: \.self) { key in
                     if !item[key].text.isEmpty { Text(item[key].text).fixedSize(horizontal: false, vertical: true) }
                 }
                 ForEach(Array(item["paths"].items.enumerated()), id: \.offset) { _, path in Text(path.text) }
@@ -140,21 +141,50 @@ struct AgentToolRow: View {
                 .background(NativeTheme.composer, in: RoundedRectangle(cornerRadius: 9))
         } label: {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Image(systemName: item["kind"].text == "commandExecution" ? "terminal" : item["kind"].text == "webSearch" ? "globe" : item["kind"].text == "computerUse" ? "display.and.arrow.down" : "doc.text")
-                Text(title).lineLimit(1).truncationMode(.middle)
+                Image(systemName: Self.icon(item))
+                Text(Self.title(item)).lineLimit(1).truncationMode(.middle)
                 Spacer(minLength: 4)
                 Text(status).font(.system(size: 11)).foregroundStyle(item["status"].text == "failed" ? Color.orange : .secondary)
             }.font(.system(size: 13)).foregroundStyle(.secondary)
         }
     }
 
-    private var title: String {
+    static func icon(_ item: JSONValue) -> String {
         switch item["kind"].text {
-        case "commandExecution": return L10n.text("Команда в терминале")
-        case "fileChange": return L10n.format("Изменения файлов: \(item["change_count"].integer)")
+        case "commandExecution": return "terminal"
+        case "fileChange": return "pencil"
+        case "fileRead": return "doc.text"
+        case "search": return "magnifyingglass"
+        case "webSearch": return "globe"
+        case "computerUse": return "display.and.arrow.down"
+        case "dynamicToolCall": return "cube"
+        case "agentTool": return "wrench.and.screwdriver"
+        case "imageView": return "photo"
+        default: return "list.bullet"
+        }
+    }
+
+    static func title(_ item: JSONValue) -> String {
+        let name = { (path: String) in URL(fileURLWithPath: path).lastPathComponent }
+        switch item["kind"].text {
+        case "commandExecution":
+            // The model's own description reads better than a long command line.
+            let command = item["command"].text.split(whereSeparator: \.isNewline).first.map(String.init) ?? ""
+            return !item["text"].text.isEmpty ? item["text"].text : !command.isEmpty ? command : L10n.text("Команда в терминале")
+        case "fileChange":
+            let paths = item["paths"].items.map(\.text).filter { !$0.isEmpty }
+            return paths.count == 1 && item["change_count"].integer <= 1 ? L10n.format("Изменение · \(name(paths[0]))")
+                : L10n.format("Изменения файлов: \(item["change_count"].integer)")
+        case "fileRead": return L10n.format("Чтение · \(name(item["path"].text))")
+        case "search": return L10n.format("Поиск · \(item["query"].text)")
+        case "agentTool": return item["text"].text.isEmpty ? item["tool"].text : "\(item["tool"].text) · \(item["text"].text)"
         case "imageView": return L10n.text("Просмотр изображения")
-        case "dynamicToolCall": return "PM · " + item["tool"].text.replacingOccurrences(of: "pm_", with: "")
-        case "webSearch": return item["query"].text.isEmpty ? L10n.text("Поиск в интернете") : item["query"].text
+        case "dynamicToolCall":
+            let tool = item["tool"].text
+            // Earlier Claude turns recorded built-in tools (Bash, Read…) as PM tools.
+            guard tool.hasPrefix("pm_") || tool.hasPrefix("mcp__pm__") else { return tool }
+            return "PM · " + tool.replacingOccurrences(of: "mcp__pm__", with: "").replacingOccurrences(of: "pm_", with: "")
+        case "webSearch": return item["query"].text.isEmpty ? (item["url"].text.isEmpty ? L10n.text("Поиск в интернете") : item["url"].text) : item["query"].text
         case "computerUse":
             let names = ["get_app_state": L10n.text("Состояние экрана"), "list_apps": L10n.text("Список приложений"), "click": L10n.text("Нажатие"),
                          "set_value": L10n.text("Ввод значения"), "type_text": L10n.text("Ввод текста"), "press_key": L10n.text("Клавиатура"),
@@ -167,9 +197,10 @@ struct AgentToolRow: View {
     }
 
     private var status: String {
+        let duration = item["duration_ms"].isNull ? "" : " · " + WorkLogPresentation.duration(item["duration_ms"].integer)
         switch item["status"].text {
-        case "completed": return L10n.text("Завершено")
-        case "failed": return L10n.text("Ошибка")
+        case "completed": return L10n.text("Завершено") + duration
+        case "failed": return L10n.text("Ошибка") + duration
         case "declined": return L10n.text("Отклонено")
         case "unknown": return L10n.text("Исход неизвестен")
         default: return L10n.text("Выполняется")

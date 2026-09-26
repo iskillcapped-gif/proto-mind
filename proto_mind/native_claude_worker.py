@@ -8,8 +8,10 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
+import time
 from uuid import UUID, uuid4
-from proto_mind.native_claude_protocol import MAX_UPDATE_LINE, UsageMeter, WorkspaceReplies, WorkspaceReplyError, error_code
+from proto_mind.native_claude_protocol import (MAX_UPDATE_LINE, UsageMeter, WorkspaceReplies, WorkspaceReplyError, error_code,
+                                              tool_finished, tool_row)
 
 
 def emit(event):
@@ -128,8 +130,8 @@ async def run(payload):
                         if public or text: emit({"event": "commentary", "id": str(uuid4()), "text": public or text})
                         text, streamed = "", False
                     for block in calls:
-                        row = {"id": block.id, "kind": "dynamicToolCall", "tool": block.name[:200], "status": "inProgress"}
-                        activity[block.id] = row
+                        row = tool_row(block.id, block.name, getattr(block, "input", None))
+                        activity[block.id] = (row, time.monotonic())
                         emit({"event": "activity", "item": row})
                 elif isinstance(message, UserMessage):
                     if getattr(message, "uuid", None) in live["pending"]:
@@ -137,8 +139,9 @@ async def run(payload):
                         emit({"event": "update_delivered", "id": message.uuid})
                     for block in message.content if isinstance(message.content, list) else []:
                         if isinstance(block, ToolResultBlock) and block.tool_use_id in activity:
-                            row = activity.pop(block.tool_use_id)
-                            emit({"event": "activity", "item": {**row, "status": "failed" if block.is_error else "completed"}})
+                            row, started = activity.pop(block.tool_use_id)
+                            emit({"event": "activity", "item": tool_finished(row, getattr(block, "content", None), block.is_error,
+                                                                            (time.monotonic() - started) * 1000)})
                 elif isinstance(message, ResultMessage):
                     outcome = {"event": "result", "success": not message.is_error and message.subtype == "success"
                                and getattr(message, "terminal_reason", None) not in {"aborted_streaming", "aborted_tools"},

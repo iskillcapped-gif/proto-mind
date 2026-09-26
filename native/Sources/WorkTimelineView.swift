@@ -61,10 +61,13 @@ enum WorkTimelinePresentation {
         var parts: [String] = []
         if kinds.contains("fileChange") { parts.append(live ? L10n.text("Редактирует файлы") : L10n.text("Редактирование файлов")) }
         if kinds.contains("commandExecution") { parts.append(live ? L10n.text("выполняет команды") : L10n.text("команды в терминале")) }
+        if kinds.contains("fileRead") { parts.append(live ? L10n.text("читает файлы") : L10n.text("чтение файлов")) }
+        if kinds.contains("search") { parts.append(live ? L10n.text("ищет по файлам") : L10n.text("поиск по файлам")) }
         if kinds.contains("dynamicToolCall") { parts.append(L10n.pick("инструменты PM", "PM tools")) }
         if kinds.contains("webSearch") { parts.append(live ? L10n.text("ищет в интернете") : L10n.text("поиск в интернете")) }
         if kinds.contains("computerUse") { parts.append(live ? L10n.text("работает с приложениями") : L10n.text("работа с приложениями")) }
         if kinds.contains("imageView") { parts.append(live ? L10n.text("смотрит изображения") : L10n.text("просмотр изображений")) }
+        if kinds.contains("agentTool") { parts.append(L10n.text("другие инструменты")) }
         let text = parts.isEmpty ? L10n.text("Действия инструментов") : parts.joined(separator: ", ")
         return text.prefix(1).uppercased() + text.dropFirst()
     }
@@ -156,7 +159,8 @@ private struct WorkToolGroup: View {
         VStack(alignment: .leading, spacing: 10) {
             Button { expanded.toggle() } label: {
                 HStack(spacing: 8) {
-                    Image(systemName: hasErrors ? "exclamationmark.circle" : kinds.contains("fileChange") ? "pencil" : "terminal")
+                    Image(systemName: hasErrors ? "exclamationmark.circle" : kinds.contains("fileChange") ? "pencil"
+                          : kinds.contains("commandExecution") ? "terminal" : kinds.isSubset(of: ["fileRead", "search"]) ? "doc.text.magnifyingglass" : "wrench.and.screwdriver")
                     WorkingStatusText(text: WorkTimelinePresentation.toolSummary(kinds, live: running),
                                       active: running, color: hasErrors ? .orange : .secondary).lineLimit(2)
                     if !visible.isEmpty { Image(systemName: expanded ? "chevron.up" : "chevron.down").font(.system(size: 9)) }

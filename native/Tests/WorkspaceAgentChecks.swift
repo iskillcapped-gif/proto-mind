@@ -62,6 +62,20 @@ extension NativeChecks {
                   "The transcript shows an agent-sent request with its source task and model, not the raw header")
         try check(AppModel.delegatedTaskMessage(" \n ", from: app.conversations.first { $0.id == id }!).isEmpty,
                   "An empty agent-sent message stays empty and is still rejected")
+        let item = { (fields: [String: JSONValue]) in JSONValue.object(fields) }
+        try check(AgentToolRow.title(item(["kind": .string("commandExecution"), "command": .string("pytest -q"), "text": .string("Run the tests")])) == "Run the tests"
+                  && AgentToolRow.title(item(["kind": .string("commandExecution"), "command": .string("git status --short\nsecond")])) == "git status --short",
+                  "A command shows its description or first line instead of a bare tool name")
+        try check(AgentToolRow.title(item(["kind": .string("fileChange"), "paths": .array([.string("/tmp/SidebarView.swift")]), "change_count": .number(1)])).hasSuffix("SidebarView.swift")
+                  && AgentToolRow.title(item(["kind": .string("fileRead"), "path": .string("/tmp/AGENTS.md")])).hasSuffix("AGENTS.md")
+                  && AgentToolRow.icon(item(["kind": .string("search")])) == "magnifyingglass",
+                  "File edits, reads and searches name their file or pattern")
+        try check(AgentToolRow.title(item(["kind": .string("dynamicToolCall"), "tool": .string("Bash")])) == "Bash"
+                  && AgentToolRow.title(item(["kind": .string("dynamicToolCall"), "tool": .string("mcp__pm__pm_list_tasks")])) == "PM · list_tasks"
+                  && AgentToolRow.title(item(["kind": .string("dynamicToolCall"), "tool": .string("pm_open_task")])) == "PM · open_task",
+                  "Earlier Claude actions are not labeled as PM tools, while real PM tools still are")
+        try check(WorkTimelinePresentation.toolSummary(["fileRead", "search"], live: false) == "Чтение файлов, поиск по файлам",
+                  "A group of reads and searches is summarized as such, not as PM tools")
         state.requestID = "request-b"
         do {
             _ = try await app.executeWorkspaceTool("pm_list_tasks", args: .object([:]), state: state, request: "request-a")

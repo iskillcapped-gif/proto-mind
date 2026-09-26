@@ -77,6 +77,20 @@ class ClaudeSDKClient:
         def answer(text):
             return [StreamEvent(event={'type':'content_block_delta','delta':{'type':'text_delta','text':text}}),
                     AssistantMessage(content=[TextBlock(text=text)])]
+        if mode == 'claude-tools':
+            yield AssistantMessage(content=[
+                ToolUseBlock(id='bash-1', name='Bash', input={'command': 'pytest -q', 'description': 'Run the tests'}),
+                ToolUseBlock(id='edit-1', name='Edit', input={'file_path': '/tmp/demo.py', 'old_string': 'a = 1', 'new_string': 'a = 2\nb = 3'}),
+                ToolUseBlock(id='read-1', name='Read', input={'file_path': '/tmp/notes.txt'}),
+                ToolUseBlock(id='grep-1', name='Grep', input={'pattern': 'TODO', 'path': '/tmp'})])
+            yield UserMessage(content=[
+                ToolResultBlock(tool_use_id='bash-1', is_error=False, content=[{'type': 'text', 'text': '3 passed in 0.1s'}]),
+                ToolResultBlock(tool_use_id='edit-1', is_error=False, content='The file was updated'),
+                ToolResultBlock(tool_use_id='read-1', is_error=False, content='PRIVATE FILE BODY'),
+                ToolResultBlock(tool_use_id='grep-1', is_error=False, content='/tmp/a.py:1: TODO')])
+            for message in answer('Done'): yield message
+            yield ResultMessage(is_error=False, subtype='success', result='Done', session_id=session)
+            return
         if mode == 'steer':
             # The update arrives while a tool runs and is added before the next request.
             yield AssistantMessage(content=[ToolUseBlock(id='bash-1', name='Bash')])

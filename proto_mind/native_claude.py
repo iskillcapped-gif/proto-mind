@@ -16,10 +16,11 @@ import subprocess
 import sys
 import threading
 from contextlib import nullcontext
+from uuid import uuid4
 
 from proto_mind.native_api import NativeAPIReasoner
 from proto_mind.native_codex import TurnCancelled
-from proto_mind.native_progress import WorkLog
+from proto_mind.native_progress import WorkLog, timestamp
 from proto_mind.native_workspace_tools import TOOLS
 from proto_mind.native_claude_contract import turn_context_message, validate_effort
 from proto_mind.native_claude_sessions import INTERRUPTED_NOTICE, invalidate_login, text_hash
@@ -112,6 +113,7 @@ class ClaudeTransport:
         self.on_steering = lambda _: None
         self.write_lock = threading.Lock()
         self.update_acks = {}
+        self.tool_rows = {}
         self.cancelled = threading.Event()
         self.process = None
         self.lock = threading.Lock()
@@ -185,6 +187,16 @@ class ClaudeTransport:
         waiter.wait(10)
         return self.update_acks.pop(identifier)[1]
 
+    def _receipt(self, status):
+        rows = list(self.tool_rows.values())
+        kinds = [row.get("kind") for row in rows]
+        return {"schema": "proto_mind.claude_agent_run.v1", "provider": "claude", "run_id": str(uuid4()),
+                "status": status, "items": rows[-64:], "items_truncated": len(rows) > 64,
+                "command_count": kinds.count("commandExecution"), "web_search_count": kinds.count("webSearch"),
+                "computer_use_count": 0, "finished_at": timestamp(),
+                "execution_may_have_occurred": any(kind not in {"fileRead", "search", "webSearch"} for kind in kinds),
+                "network_access_performed": "webSearch" in kinds, "computer_use_performed": False, "screen_access_performed": False}
+
     def _abandon_unusable_session(self, progressed, code):
         # A resumed session that fails before producing anything, for no known
         # account/service reason, may be missing or damaged. Do not offer it again.
@@ -243,6 +255,7 @@ class ClaudeTransport:
                 elif kind == "stage": progress.stage(event["stage"])
                 elif kind == "activity":
                     row = event["item"]
+                    self.tool_rows.pop(row["id"], None); self.tool_rows[row["id"]] = row
                     self.on_activity({"event": "agent_activity", "item": row}); progress.tool(row)
                 elif kind == "tool":
                     call_id = event["id"]
@@ -286,6 +299,10 @@ class ClaudeTransport:
             raise RuntimeError("Claude transport failed. PM did not resubmit the task or change providers.") from None
         finally:
             self.on_steering(None)
+            if self.tool_rows:
+                # Saved answers keep their actions, as a Codex agent receipt does.
+                self.on_activity({"event": "agent_run", "receipt": self._receipt(
+                    "interrupted" if self.cancelled.is_set() else outcome)})
             if process is not None:
                 self._terminate(process)
                 for stream in [process.stdin, process.stdout]:
