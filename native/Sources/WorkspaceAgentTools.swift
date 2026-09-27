@@ -200,13 +200,13 @@ extension AppModel {
             let result = try await workspaceServices.perform(id: id, operation: name == "pm_call_service" ? "call" : "list", name: args["name"].text, arguments: arguments, cursor: args["cursor"].text, owner: source.id)
             _ = try requireWorkspaceTurn(state, request)
             return result
-        case "pm_screen_capture", "pm_computer_action", "pm_computer_batch":
+        case "pm_screen_capture", "pm_screen_zoom", "pm_computer_action", "pm_computer_batch":
             // Claude with Full Mac only: Codex has its own Computer Use and API chats never control the Mac.
             guard source.provider == "claude", agentGrants[source.id] != nil else {
                 throw NativeError.message("Computer use is available to Claude with Full Mac access only.")
             }
             switch name {
-            case "pm_screen_capture" where !args["region"].isNull:
+            case "pm_screen_zoom":
                 guard let capture = state.computerCapture else {
                     throw NativeError.message("Capture the screen first; region refers to the latest capture of this turn.")
                 }

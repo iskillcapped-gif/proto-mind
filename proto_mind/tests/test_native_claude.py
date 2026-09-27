@@ -251,8 +251,11 @@ class ClaudeTests(unittest.TestCase):
         typed = tool_row('t', 'mcp__pm__pm_computer_action', {**click, 'action': 'type', 'text': 'secret words'})
         self.assertEqual((typed['kind'], typed['tool']), ('computerUse', 'type_text'))
         self.assertNotIn('secret words', json.dumps(typed))  # Typed text and coordinates stay out of PM's journal.
-        self.assertEqual(tool_row('s', 'mcp__pm__pm_screen_capture', {'app': 'Safari', 'region': None})['app'], 'Safari')
-        self.assertEqual(tool_row('z', 'mcp__pm__pm_screen_capture', {'app': None, 'region': [0, 0, 300, 120]})['tool'], 'zoom')
+        self.assertEqual(tool_row('s', 'mcp__pm__pm_screen_capture', {'app': 'Safari'})['app'], 'Safari')
+        self.assertEqual(tool_row('z', 'mcp__pm__pm_screen_zoom', {'region': [0, 0, 300, 120]})['tool'], 'zoom')
+        # A long-lived session may keep an older schema copy: calls without the newer optional fields still work.
+        with self.assertRaises(RuntimeError):
+            tools.call('pm_computer_action', {key: value for key, value in click.items() if key not in {'direction', 'capture'}})
         # Like Anthropic's computer-use toolset: batches, zoom regions, scroll directions and a capture after actions.
         step = {key: value for key, value in click.items() if key != 'capture'}
         batch = {'steps': [step, {**step, 'action': 'type', 'x': None, 'y': None, 'text': 'secret words'},
@@ -263,7 +266,8 @@ class ClaudeTests(unittest.TestCase):
                               ('pm_computer_batch', {'steps': [{**step, 'capture': True}], 'capture': None}),
                               ('pm_computer_batch', {'steps': [{**step, 'action': 'shell'}], 'capture': None}),
                               ('pm_computer_action', {**click, 'direction': 'diagonal'}), ('pm_computer_action', {**click, 'capture': 'yes'}),
-                              ('pm_screen_capture', {'app': None, 'region': [0, 0, 300]}), ('pm_screen_capture', {'app': None, 'region': [0, 0, 1.5, 3]})]:
+                              ('pm_screen_zoom', {'region': [0, 0, 300]}), ('pm_screen_zoom', {'region': [0, 0, 1.5, 3]}),
+                              ('pm_screen_zoom', {'region': None}), ('pm_screen_capture', {'app': None, 'region': [0, 0, 5, 5]})]:
             with self.subTest(tool=name, arguments=invalid), self.assertRaises(ValueError):
                 tools.call(name, invalid)
         row = tool_row('b', 'mcp__pm__pm_computer_batch', batch)

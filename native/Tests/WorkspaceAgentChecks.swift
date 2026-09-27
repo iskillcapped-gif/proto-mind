@@ -90,6 +90,11 @@ extension NativeChecks {
             _ = try await app.executeWorkspaceTool("pm_computer_batch", args: .object(["steps": .array([]), "capture": .null]), state: state, request: "request-a")
             try check(false, "An API chat must not run computer batches")
         } catch { try check(error.localizedDescription.contains("Claude with Full Mac"), "Computer batches are refused outside Claude with Full Mac") }
+        do {
+            _ = try await app.executeWorkspaceTool("pm_screen_zoom", args: .object(["region": .array([.number(0), .number(0), .number(10), .number(10)])]),
+                                                   state: state, request: "request-a")
+            try check(false, "An API chat must not zoom into the screen")
+        } catch { try check(error.localizedDescription.contains("Claude with Full Mac"), "Screen zoom is refused outside Claude with Full Mac") }
         let mapping = ComputerCapture(originX: 182, originY: 38, pointsPerPixel: 0.5, width: 2468, height: 1854)
         try check(try mapping.point(878, 790) == CGPoint(x: 621, y: 433) && (try? mapping.point(3000, 10)) == nil
                   && mapping.pixel(CGPoint(x: 621, y: 433))! == (878, 790) && mapping.pixel(CGPoint(x: 10, y: 10)) == nil,

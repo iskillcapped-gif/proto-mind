@@ -79,7 +79,9 @@ def tool_row(identifier, name, arguments):
     elif name in {"WebSearch", "WebFetch"}:
         row.update(kind="webSearch", query=text("query", 1000) or text("prompt", 1000), url=text("url", 1600))
     elif name == "mcp__pm__pm_screen_capture":
-        row.update(kind="computerUse", tool="zoom" if arguments.get("region") is not None else "get_app_state", app=text("app", 120))
+        row.update(kind="computerUse", tool="get_app_state", app=text("app", 120))
+    elif name == "mcp__pm__pm_screen_zoom":
+        row.update(kind="computerUse", tool="zoom")
     elif name == "mcp__pm__pm_computer_action":
         # Like Codex's Computer Use rows: the action only, never typed text or coordinates.
         row.update(kind="computerUse", tool=COMPUTER_ROW_TOOLS.get(arguments.get("action"), "computer_action"))
