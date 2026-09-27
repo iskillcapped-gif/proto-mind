@@ -216,10 +216,12 @@ class Observer:
         r"виправ|реалізуй|перевір код|подивись|вивчи|відкрий|зроби|додай|видали|продовжуй|проаналізуй)\b")
     MAX_INVENTORY_HEURISTIC_CHARS = 300
 
-    # "Продолжим позже" defers the work; it does not refer back to earlier context.
-    DEFERRAL = re.compile(
-        r"(?:продолжим|продовжимо|продовжуємо|continue)(?:\s+\w+)?\s+(?:позже|потом|завтра|пізніше|потім|later|tomorrow)\b"
-        r"|(?:позже|потом|завтра|пізніше|потім|later|tomorrow)\s+(?:продолжим|продовжимо|продовжуємо|continue)\b")
+    # "Продолжим позже" or "продолжим, когда обновятся лимиты" defers the work; it does not refer back to earlier context.
+    _CONTINUE = r"(?:продолжим|продовжимо|продовжуємо|continue)"
+    _LATER = (r"(?:позже|потом|завтра|вечером|утром|днем|ночью|пізніше|потім|згодом|ввечері|вранці|later|tomorrow|tonight"
+              r"|(?:когда|после|коли|після|when|once|after)\s+\w+"
+              r"|(?:через|in)\s+(?:\w+\s+)?(?:минут\w*|час\w*|дн\w*|хвилин\w*|годин\w*|minutes?|hours?|days?))")
+    DEFERRAL = re.compile(rf"{_CONTINUE}(?:[\s,]+\w+)?[\s,]+{_LATER}\b|{_LATER}(?:[\s,]+\w+)?[\s,]+{_CONTINUE}\b")
 
     def analyze(self, user_input: str) -> ObserverState:
         lowered = self.DEFERRAL.sub(" ", normalize_text(user_input))

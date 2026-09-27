@@ -88,13 +88,18 @@ class MemoryIntentTests(unittest.TestCase):
     def test_deferring_to_later_is_not_a_continuity_follow_up(self):
         for text in ["Ладно, пока что делаем паузу, продолжим позже.", "Всё, на сегодня хватит, завтра продолжим.",
                      "OK, let's pause and continue later.", "Добре, продовжимо пізніше.",
-                     "Explain the user settings screen because it is confusing."]:
+                     "Explain the user settings screen because it is confusing.",
+                     "и да, кайф что мы успели доделать задачу до лимитов😁\n\nпродолжим когда обновятся",
+                     "Продолжим, когда лимиты обновятся.", "Когда лимиты сбросятся, продолжим.", "Продолжим после сброса лимитов.",
+                     "Продолжим вечером.", "Продолжим через пару часов.", "Let's continue when the limits reset.",
+                     "Продовжимо, коли оновляться ліміти."]:
             with self.subTest(text=text):
                 state = Observer().analyze(text)
                 self.assertNotEqual(state.query_type, "continuity_followup")
                 self.assertFalse(state.needs_memory)
         for text in ["Продолжим с того места, где остановились.", "Давай продолжим работу над памятью.",
-                     "Продолжим? Что мы решили раньше про хранение?"]:
+                     "Продолжим? Что мы решили раньше про хранение?", "Продолжим то, что делали, когда нас прервал лимит.",
+                     "Продолжим через терминал, как раньше."]:
             with self.subTest(text=text): self.assertTrue(Observer().analyze(text).needs_memory)
 
     def test_unrelated_important_memory_is_not_reported_as_ignored(self):
