@@ -109,22 +109,25 @@ struct WorkTimelineView: View, Equatable {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Button { expanded = !isExpanded } label: {
-                HStack(spacing: 8) {
-                    if live { WorkingMark() }
-                    WorkingStatusText(text: WorkLogPresentation.title(log, live: live), active: live)
-                    if live, let startedAt {
-                        TimelineView(.periodic(from: startedAt, by: 1)) { tick in
-                            Text(WorkLogPresentation.duration(Int(max(0, tick.date.timeIntervalSince(startedAt)) * 1000)))
-                                .monospacedDigit().foregroundStyle(.tertiary)
+            HStack(spacing: 0) {
+                // Only the words open the details; hovering brightens the letters, not the row.
+                Button { expanded = !isExpanded } label: {
+                    HStack(spacing: 8) {
+                        if live { WorkingMark() }
+                        WorkingStatusText(text: WorkLogPresentation.title(log, live: live), active: live)
+                        if live, let startedAt {
+                            TimelineView(.periodic(from: startedAt, by: 1)) { tick in
+                                Text(WorkLogPresentation.duration(Int(max(0, tick.date.timeIntervalSince(startedAt)) * 1000)))
+                                    .monospacedDigit().foregroundStyle(.tertiary)
+                            }
                         }
-                    }
-                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right").font(.system(size: 10, weight: .semibold))
-                    Spacer(minLength: 0)
-                }.font(.system(size: 12)).foregroundStyle(.secondary).contentShape(Rectangle())
-            }.buttonStyle(.nativeHover).accessibilityElement(children: .ignore)
-                .accessibilityAddTraits(.isButton)
-                .accessibilityLabel(L10n.text("Ход работы: ") + WorkLogPresentation.title(log, live: live))
+                        Image(systemName: isExpanded ? "chevron.down" : "chevron.right").font(.system(size: 10, weight: .semibold))
+                    }.font(.system(size: 12))
+                }.buttonStyle(.nativeText).accessibilityElement(children: .ignore)
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityLabel(L10n.text("Ход работы: ") + WorkLogPresentation.title(log, live: live))
+                Spacer(minLength: 0)
+            }
             if isExpanded {
                 VStack(alignment: .leading, spacing: 22) {
                     ForEach(WorkTimelinePresentation.sections(entries)) { section in
@@ -177,17 +180,19 @@ private struct WorkToolGroup: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Button { expanded.toggle() } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: hasErrors ? "exclamationmark.circle" : kinds.contains("fileChange") ? "pencil"
-                          : kinds.contains("commandExecution") ? "terminal" : kinds.isSubset(of: ["fileRead", "search"]) ? "doc.text.magnifyingglass" : "wrench.and.screwdriver")
-                    WorkingStatusText(text: WorkTimelinePresentation.toolSummary(kinds, live: running), active: running).lineLimit(2)
-                    if !visible.isEmpty { Image(systemName: expanded ? "chevron.up" : "chevron.down").font(.system(size: 9)) }
-                    if running { WorkingMark() }
-                    Spacer(minLength: 0)
-                }.font(.system(size: 13)).foregroundStyle(hasErrors ? Color.orange : .secondary)
-                    .contentShape(Rectangle())
-            }.buttonStyle(.nativeHover).disabled(visible.isEmpty)
+            HStack(spacing: 0) {
+                Button { expanded.toggle() } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: hasErrors ? "exclamationmark.circle" : kinds.contains("fileChange") ? "pencil"
+                              : kinds.contains("commandExecution") ? "terminal" : kinds.isSubset(of: ["fileRead", "search"]) ? "doc.text.magnifyingglass" : "wrench.and.screwdriver")
+                        WorkingStatusText(text: WorkTimelinePresentation.toolSummary(kinds, live: running), active: running).lineLimit(2)
+                        if !visible.isEmpty { Image(systemName: expanded ? "chevron.up" : "chevron.down").font(.system(size: 9)) }
+                        if running { WorkingMark() }
+                    }.font(.system(size: 13))
+                }.buttonStyle(.nativeText(hasErrors ? Color.orange.opacity(0.85) : .secondary, hover: hasErrors ? .orange : .primary.opacity(0.85)))
+                    .disabled(visible.isEmpty)
+                Spacer(minLength: 0)
+            }
             if expanded {
                 VStack(alignment: .leading, spacing: 12) {
                     ForEach(Array(visible.enumerated()), id: \.offset) { _, item in AgentToolRow(item: item) }

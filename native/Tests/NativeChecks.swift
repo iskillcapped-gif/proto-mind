@@ -1130,6 +1130,11 @@ struct NativeChecks {
         try check(app.selectedID != other && app.selected?.pendingImages.isEmpty == true
                   && app.conversations.first { $0.id == other }?.pendingImages == [sidePreview.source.value],
                   "An explicitly bound side image preview attaches only to its original chat without selecting it")
+        app.error = nil
+        await app.attachImageFile(jpeg.resolvingSymlinksInPath().path)
+        try check(app.imagePreview == nil && app.error == nil && app.selected?.pendingImages.count == 1
+                  && app.selected?.pendingImages.first?["mime_type"].text == "image/jpeg",
+                  "A chosen image attaches at once, without a confirmation sheet (\(app.error ?? "no error"), \(app.selected?.pendingImages.count ?? -1))")
         let corruptDirectory = root.appendingPathComponent("corrupt-image-state")
         try FileManager.default.createDirectory(at: corruptDirectory, withIntermediateDirectories: true)
         let corruptFile = corruptDirectory.appendingPathComponent("conversations.json")
@@ -1258,9 +1263,9 @@ struct NativeChecks {
         try check(app.receiveAttachmentDrop([provider]) && app.loadingDroppedAttachments && !app.receiveAttachmentDrop([provider]),
                   "Drop immediately reserves one preview; concurrent drop is refused")
         for _ in 0..<100 where app.loadingDroppedAttachments { try await Task.sleep(nanoseconds: 20_000_000) }
-        try check(app.attachmentDropPreview?.files.count == 1 && !app.loadingDroppedAttachments && (try fileBytes(state)) == attachedState,
-                  "Async Finder provider completes preview without metadata writes")
-        app.attachmentDropPreview = nil
+        try check(app.attachmentDropPreview == nil && !app.loadingDroppedAttachments && app.error == nil
+                  && app.selected?.pendingFiles == preview.files.map(\.metadata) && app.selected?.pendingImages == preview.images.map(\.source.value),
+                  "A Finder drop attaches at once without a confirmation sheet, merging with existing attachments")
         var changedWorkspace = app.selected!
         changedWorkspace.workspacePath = root.path
         var refused = false
@@ -1273,11 +1278,9 @@ struct NativeChecks {
         try check(refused && (try fileBytes(state)) == afterSwitch, "A stale drop cannot attach to a different conversation")
         try check(app.receiveAttachmentDrop([note], conversationID: preview.conversationID), "A side drop can begin while another conversation is selected")
         for _ in 0..<100 where app.loadingDroppedAttachments { try await Task.sleep(nanoseconds: 20_000_000) }
-        guard let sideDrop = app.attachmentDropPreview else { throw NativeError.message(app.error ?? "Missing side drop preview") }
-        try app.attachDrop(sideDrop); app.attachmentDropPreview = nil
-        try check(app.selectedID != sideDrop.conversationID && app.selected?.pendingFiles.isEmpty == true
-                  && app.conversations.first { $0.id == sideDrop.conversationID }?.pendingFiles == preview.files.map(\.metadata),
-                  "A bound side drop retains its original workspace and cannot populate the main chat")
+        try check(app.attachmentDropPreview == nil && app.selectedID != preview.conversationID && app.selected?.pendingFiles.isEmpty == true
+                  && app.conversations.first { $0.id == preview.conversationID }?.pendingFiles == preview.files.map(\.metadata),
+                  "A bound side drop attaches to its original conversation at once and cannot populate the main chat")
         let badState = root.appendingPathComponent("corrupt-drop-state")
         try FileManager.default.createDirectory(at: badState, withIntermediateDirectories: true)
         let badHistory = badState.appendingPathComponent("conversations.json")

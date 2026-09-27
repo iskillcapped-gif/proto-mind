@@ -57,6 +57,39 @@ extension View {
     func nativeHoverSurface() -> some View { modifier(NativeHoverFeedback()) }
 }
 
+/// Inline disclosure text, such as a work status or a tool-group summary: only the words are
+/// clickable, and hovering gently brightens the letters themselves, with no row highlight.
+struct NativeTextButtonStyle: ButtonStyle {
+    var color: Color = .secondary
+    var hover: Color = .primary.opacity(0.85)
+
+    func makeBody(configuration: Configuration) -> some View {
+        NativeTextButtonLabel(label: configuration.label, color: color, hover: hover, pressed: configuration.isPressed)
+    }
+}
+
+private struct NativeTextButtonLabel<Label: View>: View {
+    let label: Label
+    let color: Color
+    let hover: Color
+    let pressed: Bool
+    @Environment(\.isEnabled) private var enabled
+    @State private var hovered = false
+
+    var body: some View {
+        label
+            .foregroundStyle(enabled && hovered ? hover : color)
+            .opacity(pressed ? 0.75 : 1)
+            .contentShape(Rectangle())
+            .onHover { next in if hovered != next { hovered = next } }
+    }
+}
+
+extension ButtonStyle where Self == NativeTextButtonStyle {
+    static var nativeText: NativeTextButtonStyle { NativeTextButtonStyle() }
+    static func nativeText(_ color: Color, hover: Color) -> NativeTextButtonStyle { NativeTextButtonStyle(color: color, hover: hover) }
+}
+
 struct NativeDisclosureStyle: DisclosureGroupStyle {
     func makeBody(configuration: Configuration) -> some View {
         VStack(alignment: .leading, spacing: 5) {

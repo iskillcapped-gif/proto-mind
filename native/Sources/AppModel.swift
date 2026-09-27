@@ -885,11 +885,11 @@ final class AppModel: ObservableObject {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = false; panel.canChooseFiles = true; panel.allowsMultipleSelection = false
         panel.allowedContentTypes = [.png, .jpeg]; panel.resolvesAliases = false
-        panel.prompt = L10n.text("Просмотреть локально")
-        panel.message = L10n.text("Выберите PNG/JPEG до 4 МиБ. Этот шаг ничего не отправляет в модель.")
+        panel.prompt = L10n.text("Прикрепить")
+        panel.message = L10n.text("PNG или JPEG до 4 МиБ. Изображение прикрепится к сообщению и уйдёт в модель только вместе с ним.")
         let completion: (NSApplication.ModalResponse) -> Void = { [weak self] response in
             guard response == .OK, let url = panel.url, let self, (requestedID != nil || self.selectedID == conversationID) else { return }
-            Task { await self.previewImage(url.path, conversationID: requestedID, in: destination) }
+            Task { await self.attachImageFile(url.path, conversationID: requestedID, in: destination) }
         }
         presentFilePicker(panel, in: destination, completion: completion)
     }
@@ -914,6 +914,25 @@ final class AppModel: ObservableObject {
             imageThumbnails[preview.source.sha256] = preview.thumbnail
             if inWorkspacePanel { panel.open(.image(preview)) }
             else { presentations.prepare(preview.id, in: destination); imagePreview = preview }
+        } catch { reportAttachmentError(error, in: destination) }
+    }
+
+    /// Attaches a chosen image without a confirmation sheet, which the operator found redundant:
+    /// the composer shows the attachment and nothing is sent before Send.
+    func attachImageFile(_ path: String, conversationID requestedID: UUID? = nil, in source: WorkspacePresentations? = nil) async {
+        guard let conversationID = requestedID ?? selectedID, canEditAttachments(for: conversationID), !loadingImagePreview, !loadingDroppedAttachments,
+              !loadingPDFPreview, pdfPreview == nil, attachmentDropPreview == nil else { return }
+        let destination = source ?? presentations.currentDestination
+        loadingImagePreview = true
+        defer { loadingImagePreview = false }
+        do {
+            let result = try await execution(for: conversationID).client.request("image_preview", ["path": .string(path)])
+            guard (requestedID != nil || selectedID == conversationID), canEditAttachments(for: conversationID) else { return }
+            let preview = try NativeImagePreview(result, conversationID: conversationID, canAttach: true, requiresSelectedConversation: requestedID == nil)
+            guard preview.source.path == path else { throw NativeError.message(L10n.text("Предпросмотр относится к другому изображению. Ничего не прикреплено.")) }
+            if imageThumbnails.count >= 12 { imageThumbnails.removeAll() }
+            imageThumbnails[preview.source.sha256] = preview.thumbnail
+            try attachImage(preview)
         } catch { reportAttachmentError(error, in: destination) }
     }
 
@@ -981,10 +1000,14 @@ final class AppModel: ObservableObject {
     func previewDroppedAttachments(_ urls: [URL]) async {
         guard canReceiveAttachments, let conversation = selected else { return }
         loadingDroppedAttachments = true
-        await finishAttachmentDrop(conversation) { urls }
+        await finishAttachmentDrop(conversation, attach: false) { urls }
     }
 
-    private func finishAttachmentDrop(_ conversation: Conversation, in source: WorkspacePresentations? = nil, requiresSelection: Bool = true, load: () async throws -> [URL]) async {
+    /// Dropped or chosen images and text files attach at once (the operator found the confirmation
+    /// redundant; nothing is sent before Send). PDFs keep their page picker. `attach: false` only
+    /// builds the read-only preview.
+    private func finishAttachmentDrop(_ conversation: Conversation, in source: WorkspacePresentations? = nil, requiresSelection: Bool = true,
+                                      attach: Bool = true, load: () async throws -> [URL]) async {
         let destination = source ?? presentations.currentDestination
         let client = execution(for: conversation.id).client
         defer { loadingDroppedAttachments = false; attachmentDropTargeted = false }
@@ -1018,7 +1041,12 @@ final class AppModel: ObservableObject {
             guard (!requiresSelection || selectedID == conversation.id), let current = conversations.first(where: { $0.id == conversation.id }), canEditAttachments(for: conversation.id) else { return }
             let preview = NativeAttachmentDropPreview(conversationID: conversation.id, workspace: conversation.workspacePath, images: images, files: files, requiresSelectedConversation: requiresSelection)
             _ = try preview.merged(with: current)
-            presentations.prepare(preview.id, in: destination); attachmentDropPreview = preview
+            if attach {
+                loadingDroppedAttachments = false
+                try attachDrop(preview)
+            } else {
+                presentations.prepare(preview.id, in: destination); attachmentDropPreview = preview
+            }
         } catch {
             if !requiresSelection || selectedID == conversation.id { reportAttachmentError(error, in: destination) }
         }

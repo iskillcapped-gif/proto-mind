@@ -2,6 +2,7 @@
 extension L10n {
     static let additionalEnglish: [String: String] = [
         "Перемещение курсора": "Pointer move",
+        "PNG или JPEG до 4 МиБ. Изображение прикрепится к сообщению и уйдёт в модель только вместе с ним.": "PNG or JPEG up to 4 MiB. The image is attached to the message and reaches the model only with it.",
         "Приближение экрана": "Screen zoom",
         "Пауза": "Wait",
         "Позиция курсора": "Pointer position",
