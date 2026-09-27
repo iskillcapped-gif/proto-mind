@@ -4,6 +4,31 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Sidebar Title Glide Fix — Native 0.74.22
+
+The operator liked the compact sidebar, but the gliding titles misbehaved:
+some did not move, one kept going back and forth, and the text travelled too
+far and came back short. While a title glided, 0.74.21 swapped the truncated
+text for a fixed-size one. That widened the row and changed the measurement
+that decided whether to glide, so the glide switched itself off and on. Rows
+passing under a still pointer while the list scrolled could also stay
+"hovered" without an exit event.
+
+As the operator described it, a title now moves while the pointer rests on its
+row and snaps back to its start when the pointer leaves. It glides left like
+a ticker at 36 pt/s, followed by a second copy after a gap, rests a second at
+the start and repeats. The truncated title always sets the layout, and the
+moving copy is an overlay that never changes the row. One AppKit tracking
+area drives both the title and the hover card; scrolling, a hidden window or a
+removed row release it.
+
+Verification on 2026-09-28: **2032 Native checks passed** (no Python
+changes). A new check films a row in a transparent, click-through window: the
+title moves while hovered, the icon beside it never shifts, and the frame after
+leaving equals the one before. It fails on the 0.74.21 version. The 0.74.22
+(126) bundle was staged and installed in place; 0.74.21 (125) is kept as
+`dist/Proto-Mind Native 0.74.21 (125).previous`.
+
 ## Compact Sidebar With Hover Cards — Native 0.74.21
 
 The operator asked to tidy the sidebar: it felt spread out, long chat titles
