@@ -4,6 +4,44 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Live Updates Without Re-rendering the Conversation — Native 0.74.12
+
+With 0.74.11 installed, the operator saw the stutter return as soon as Claude
+started working. Every live update still cost the whole conversation: a
+streamed batch, a work-log row or a tool status. Executions forward each
+change to `AppModel`; every message view observes `AppModel`, so every message
+was re-evaluated and re-parsed its Markdown. In the running app, Core Animation
+commits then also spent time collecting animations across the large layer tree.
+
+A new benchmark mode, `scripts/test_native.sh --perf-bench <messages>`, hosts
+the real `WorkspaceView` in a visible window. It shows a conversation of long
+Markdown answers with work logs and changed files while a task runs, and
+measures main-thread CPU while idle, while text streams (ten batches and two
+work-log updates a second) and while scrolling. `--perf-sample <dir>` also
+records `sample` profiles and a capture of the window.
+
+The running turn's stream, work log and tool rows now live in
+`LiveTurnOutput`, which only the live section at the end of the transcript
+observes. A repeated status no longer notifies the app. The Markdown, work
+timeline and changed-files views are Equatable, so unchanged messages are
+skipped. With 80 messages the benchmark measured:
+
+| Main-thread share | 0.74.11 | 0.74.12 |
+| :--- | ---: | ---: |
+| Idle while a task runs | 1.4–2.6% | 1.0–1.4% |
+| Streaming | 61–65% | about 33% |
+| Scrolling while a task runs | 28–39% | 14–18% |
+
+Runs vary by about ten points on the operator's busy Mac. The remaining
+streaming cost barely depends on the conversation's length (31–33% for 20,
+40 and 80 messages): it is SwiftUI's own per-update graph and layout work.
+
+Verification on 2026-09-27: **2016 Native checks passed**, including a check
+that live output does not notify the app; Python code did not change. A window
+capture from the benchmark showed the live section following new text. The
+0.74.12 (116) bundle was staged and installed in place; 0.74.11 (115) is kept
+as `dist/Proto-Mind Native 0.74.11 (115).previous`.
+
 ## Smooth Scrolling While Tasks Run — Native 0.74.11
 
 On 2026-09-27 the operator noticed small freezes while scrolling the long
@@ -33,8 +71,10 @@ Verification on 2026-09-27: **2015 Native checks passed**, including new checks
 for batched stream text and Core Animation indicators; Python code did not
 change. The gallery's live work timeline renders as before. The 0.74.11 (115)
 bundle was staged and installed in place; 0.74.10 (114) is kept as
-`dist/Proto-Mind Native 0.74.10 (114).previous`. The profile of the running app
-is to be repeated after the operator's restart.
+`dist/Proto-Mind Native 0.74.10 (114).previous`. After the restart the operator
+found scrolling much smoother. A live profile without events showed rendering
+at 2.6% of the main thread instead of 23%, but the stutter returned while
+Claude worked (see 0.74.12).
 
 ## Computer Use Targeting and Compaction Rows — Native 0.74.10
 
