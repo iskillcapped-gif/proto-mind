@@ -26,8 +26,24 @@ Verification on 2026-09-27: **2016 Native checks passed**. The gallery shows
 the static marks in the live work timeline, and a benchmark capture shows the
 ring around the stop button. Python code did not change. The 0.74.13 (117)
 bundle was staged and installed in place; 0.74.12 (116) is kept as
-`dist/Proto-Mind Native 0.74.12 (116).previous`. A live profile after the
-operator's restart is pending.
+`dist/Proto-Mind Native 0.74.12 (116).previous`.
+
+Live profiles after the restart, with a task running: idle, the main thread
+is busy 9% of the time (0.74.10: 39%) and Core Animation's animation
+collection fell from 4% to 0.8%. Scrolling did not change, and a correction is
+due. The 0.74.10 "scrolling" profile contained no scroll-wheel handling at
+all: the synthetic events never reached PM, so it measured the animations
+alone. The benchmark's scrolling phase has the same flaw. Its profiles
+contain no scroll-wheel events, so its scrolling figures in 0.74.11–0.74.12
+reflect only the streamed updates during that phase. In the running app, each
+wheel step asks SwiftUI three times what is under the pointer: for scroll
+routing (`_routeScrollWheelEvent`), cursor updates (`_NSTrackingAreaAKManager`)
+and the system's text-input cursor indicator (`TUINSCursorUIController`).
+Each answer walks the responders of every rendered message. Together with
+layout, this costs about 10 ms per step (the main thread busy about 80% during
+continuous scrolling). That fits a 60 Hz frame but leaves little headroom. The
+cost grows with the rendered messages; fewer rendered messages or a
+virtualized transcript are the remaining levers.
 
 ## Live Updates Without Re-rendering the Conversation — Native 0.74.12
 

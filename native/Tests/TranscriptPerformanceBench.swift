@@ -40,6 +40,12 @@ extension NativeChecks {
         window.title = "PM transcript benchmark"
         window.contentView = NSHostingView(rootView: WorkspaceView(model: app))
         window.orderFrontRegardless()
+        if CommandLine.arguments.contains("--perf-active") {
+            // Cursor updates and text-input hit tests run only for the active app.
+            NSApp.setActivationPolicy(.regular)
+            NSApp.activate(ignoringOtherApps: true)
+            window.makeKeyAndOrderFront(nil)
+        }
         defer { window.orderOut(nil); window.close() }
         try await Task.sleep(for: .seconds(2))
 
@@ -80,7 +86,8 @@ extension NativeChecks {
         let point = CGPoint(x: frame.minX + frame.width * 0.62, y: top - frame.midY)
         CGEvent(mouseEventSource: nil, mouseType: .mouseMoved, mouseCursorPosition: point, mouseButton: .left)?.post(tap: .cghidEventTap)
         try await Task.sleep(for: .milliseconds(300))
-        profile("scrolling", seconds: 1.8)
+        profile("scrolling", seconds: 2.5)
+        if LaunchConfiguration.argument("--perf-sample") != nil { try await Task.sleep(for: .milliseconds(700)) }  // sample attaches
         start = cpu()
         for step in 0..<120 {
             let event = CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 1, wheel1: step < 60 ? 40 : -40, wheel2: 0, wheel3: 0)
