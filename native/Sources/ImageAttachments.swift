@@ -125,40 +125,61 @@ struct ImageAttachmentPreviewView: View {
     }
 }
 
+/// Images attached to the draft, shown as pictures the way chat apps show them: a click opens the
+/// checked local preview, the round corner button takes the image out of the message.
 struct PendingImageAttachmentsView: View {
     @ObservedObject var model: AppModel
     var conversationID: UUID? = nil
     @Environment(\.workspacePresentations) private var presentations
     private var context: ConversationComposerContext { ConversationComposerContext(app: model, id: conversationID ?? model.selectedID) }
+    static let tileHeight: CGFloat = 64
 
     var body: some View {
+        let destination = model.imageDestination(for: context.id)
+        let editable = context.canEditAttachments && !model.loadingImagePreview && !model.loadingDroppedAttachments
         VStack(alignment: .leading, spacing: 6) {
             ScrollView(.horizontal) {
                 HStack(spacing: 8) {
                     ForEach(Array((context.conversation?.pendingImages ?? []).enumerated()), id: \.offset) { _, image in
-                        HStack(spacing: 6) {
-                            Button { Task { await model.previewImage(image["path"].text, expectedSHA: image["sha256"].text, canAttach: false, conversationID: context.id, in: presentations) } } label: {
-                                HStack(spacing: 8) {
-                                    if let thumbnail = model.imageThumbnails[image["sha256"].text] {
-                                        Image(nsImage: thumbnail).resizable().scaledToFit().frame(width: 48, height: 40)
-                                    } else { Image(systemName: "photo").frame(width: 48, height: 40) }
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        Text(image["name"].text).lineLimit(1).frame(maxWidth: 150, alignment: .leading)
-                                        Text("\(image["width"].integer) × \(image["height"].integer)").foregroundStyle(.secondary)
-                                    }.font(.caption)
-                                }
-                            }.help(L10n.text("Просмотреть локально; файл будет проверен по SHA-256"))
-                            Button { model.removeConversationAttachment(image["path"].text, kind: .image, conversationID: context.id) } label: { Image(systemName: "xmark") }
-                                .help(L10n.text("Убрать изображение из сообщения")).accessibilityLabel(L10n.format("Убрать изображение \(image["name"].text)"))
-                        }.padding(5).background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 10))
+                        AttachedImageThumbnail(image: image, existing: model.imageThumbnails[image["sha256"].text], tileHeight: Self.tileHeight,
+                                               help: "\(image["name"].text) · \(image["width"].integer) × \(image["height"].integer)\n\(destination.notice)") {
+                            Task { await model.previewImage(image["path"].text, expectedSHA: image["sha256"].text, canAttach: false, conversationID: context.id, in: presentations) }
+                        }
+                        .overlay(alignment: .topTrailing) {
+                            PictureRemoveButton(label: L10n.format("Убрать изображение \(image["name"].text)")) {
+                                model.removeConversationAttachment(image["path"].text, kind: .image, conversationID: context.id)
+                            }.padding(4)
+                        }
                     }
                 }
-            }.frame(height: 60).scrollIndicators(.hidden)
-            // Split-view minimum-width probes must not turn this notice into a
-            // tall fixedSize column and push the whole window outside its bounds.
-            Text(model.imageDestinationNotice(for: context.id)).font(.caption).foregroundStyle(.secondary)
-                .lineLimit(3).help(model.imageDestinationNotice(for: context.id))
-        }.buttonStyle(.nativeHover).disabled(!context.canEditAttachments || model.loadingImagePreview || model.loadingDroppedAttachments).padding(.horizontal, 12).padding(.top, 10)
+            }.frame(height: Self.tileHeight).scrollIndicators(.hidden)
+            // Where images go on Send is in each picture's tooltip; only a reason they would not
+            // reach the model is spelled out. Split-view minimum-width probes must not turn this
+            // notice into a tall fixedSize column and push the whole window outside its bounds.
+            if !destination.ready {
+                Text(destination.notice).font(.caption).foregroundStyle(.orange)
+                    .lineLimit(3).help(destination.notice)
+            }
+        }.disabled(!editable).opacity(editable ? 1 : 0.6).padding(.horizontal, 12).padding(.top, 12)
+    }
+}
+
+/// The small round button in a picture's corner that takes it out of the message.
+private struct PictureRemoveButton: View {
+    let label: String
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "xmark").font(.system(size: 8, weight: .bold)).foregroundStyle(.white)
+                .frame(width: 18, height: 18)
+                .background(Circle().fill(Color.black.opacity(hovering ? 0.85 : 0.6)))
+                .overlay(Circle().strokeBorder(Color.white.opacity(0.35), lineWidth: 0.5))
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain).onHover { hovering = $0 }
+        .help(L10n.text("Убрать изображение из сообщения")).accessibilityLabel(label)
     }
 }
 
@@ -201,17 +222,39 @@ enum AttachmentThumbnails {
     }
 }
 
+/// A message's attached images as a row of pictures, like other chat apps show them.
+struct AttachedImagesRow: View {
+    let images: [JSONValue]
+    var existing: (String) -> NSImage? = { _ in nil }
+    let open: (JSONValue) -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            ForEach(Array(images.enumerated()), id: \.offset) { _, image in
+                AttachedImageThumbnail(image: image, existing: existing(image["sha256"].text),
+                                       maxSize: images.count > 1 ? CGSize(width: 180, height: 130) : CGSize(width: 260, height: 180)) { open(image) }
+            }
+        }
+    }
+}
+
 /// An attached image shown as a picture in its message; a click opens the checked local preview.
 /// Its size comes from the recorded dimensions, so the transcript does not jump while it loads.
 struct AttachedImageThumbnail: View {
     let image: JSONValue
     var existing: NSImage? = nil
     var maxSize = CGSize(width: 260, height: 180)
+    /// A fixed height, as in the composer's row of pictures; the width follows the picture's proportions within bounds.
+    var tileHeight: CGFloat? = nil
+    var help: String? = nil
     let open: () -> Void
     @State private var picture: NSImage?
 
     private var size: CGSize {
         let width = Double(max(1, image["width"].integer)), height = Double(max(1, image["height"].integer))
+        if let tileHeight {
+            return CGSize(width: min(tileHeight * 2, max(tileHeight * 0.75, tileHeight * width / height)), height: tileHeight)
+        }
         let scale = min(1, maxSize.width / width, maxSize.height / height)
         return CGSize(width: max(40, width * scale), height: max(30, height * scale))
     }
@@ -232,7 +275,7 @@ struct AttachedImageThumbnail: View {
             .contentShape(RoundedRectangle(cornerRadius: 10))
         }
         .buttonStyle(.plain)
-        .help("\(image["name"].text) · \(image["width"].integer) × \(image["height"].integer)")
+        .help(help ?? "\(image["name"].text) · \(image["width"].integer) × \(image["height"].integer)")
         .accessibilityLabel(image["name"].text)
         .task(id: image["sha256"].text) {
             if existing == nil, picture == nil, AttachmentThumbnails.cached(image["sha256"].text) == nil { picture = await AttachmentThumbnails.load(image) }

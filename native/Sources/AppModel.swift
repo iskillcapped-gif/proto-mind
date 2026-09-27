@@ -863,19 +863,29 @@ final class AppModel: ObservableObject {
     }
 
     var imageDestinationNotice: String { imageDestinationNotice(for: selectedID) }
-    func imageDestinationNotice(for id: UUID?) -> String {
+    func imageDestinationNotice(for id: UUID?) -> String { imageDestination(for: id).notice }
+    /// Where attached images go on Send; `ready` is false when they would not reach the model as things stand.
+    func imageDestination(for id: UUID?) -> (notice: String, ready: Bool) {
         let selected = conversations.first { $0.id == id }
-        guard selected?.provider == "codex" else {
-            return L10n.text("Изображения пока поддерживаются только через Codex. Выбор локальный; Ollama/Mock не получат эти файлы. Провайдер не меняется автоматически.")
+        switch selected?.provider {
+        case "claude":
+            guard cloudConsent else {
+                return (L10n.text("Сейчас всё остаётся на Mac. Для отправки изображений в Claude разрешите облачную обработку; выбор файла сам по себе её не включает."), false)
+            }
+            // Every current Claude model accepts images; the bridge runs no vision preflight for Claude.
+            return (L10n.text("После «Отправить» выбранные изображения уйдут в Claude вместе с сообщением и останутся в контексте этой сессии. До этого просмотр локальный."), true)
+        case "codex":
+            guard cloudConsent else {
+                return (L10n.text("Сейчас всё остаётся на Mac. Для отправки изображений в OpenAI разрешите облачную обработку; выбор файла сам по себе её не включает."), false)
+            }
+            let selectedModel = codexAccount(for: id).models.first { selected?.model.isEmpty == false ? $0["id"].text == selected?.model : $0["default"].flag }
+            guard selectedModel?["input_modalities"].items.contains(.string("image")) == true else {
+                return (L10n.text("Каталог пока не подтверждает изображения для выбранной модели. Обновите модели или выберите совместимую; Send повторно проверит поддержку."), false)
+            }
+            return (L10n.text("После «Отправить» выбранные изображения уйдут в OpenAI вместе с сообщением. До этого просмотр локальный. В следующих запросах они не пересылаются автоматически."), true)
+        default:
+            return (L10n.text("Изображения получают только Codex и Claude. Выбор локальный; Ollama, Mock и модели через API не получат эти файлы. Провайдер не меняется автоматически."), false)
         }
-        guard cloudConsent else {
-            return L10n.text("Сейчас всё остаётся на Mac. Для отправки изображений в OpenAI разрешите облачную обработку; выбор файла сам по себе её не включает.")
-        }
-        let selectedModel = codexAccount(for: id).models.first { selected?.model.isEmpty == false ? $0["id"].text == selected?.model : $0["default"].flag }
-        guard selectedModel?["input_modalities"].items.contains(.string("image")) == true else {
-            return L10n.text("Каталог пока не подтверждает изображения для выбранной модели. Обновите модели или выберите совместимую; Send повторно проверит поддержку.")
-        }
-        return L10n.text("После «Отправить» выбранные изображения уйдут в OpenAI вместе с сообщением. До этого просмотр локальный. В следующих запросах они не пересылаются автоматически.")
     }
 
     func chooseImage(conversationID requestedID: UUID? = nil, in source: WorkspacePresentations? = nil) {

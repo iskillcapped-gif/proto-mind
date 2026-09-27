@@ -32,6 +32,21 @@ extension NativeChecks {
         app.setComposer("")
         try await galleryRender(ComposerView(model: app).padding(20), size: NSSize(width: 820, height: 220), dark: false, to: file("composer-busy-empty"))
         app.busy = false
+        // A draft with an attached screenshot shows the picture itself; the second frame is a Claude chat without cloud permission.
+        if let index = app.conversations.firstIndex(where: { $0.id == selected }) {
+            let screenshot = galleryImage(root: root)
+            _ = await AttachmentThumbnails.load(screenshot)
+            app.conversations[index].pendingImages = [screenshot]
+            app.setComposer("Брат, посмотри на этот скрин")
+            app.cloudConsent = true
+            for dark in [true, false] {
+                try await galleryRender(ComposerView(model: app).padding(20), size: NSSize(width: 820, height: 300), dark: dark, to: file("composer-image-\(dark ? "dark" : "light")"))
+            }
+            app.cloudConsent = false
+            try await galleryRender(ComposerView(model: app).padding(20), size: NSSize(width: 820, height: 300), dark: true, to: file("composer-image-not-sent"))
+            app.conversations[index].pendingImages = []
+            app.setComposer("")
+        }
         for section in NativeSettingsSection.allCases {
             app.settingsSection = section
             try await galleryRender(NativeSettingsView(model: app), size: NSSize(width: 820, height: 700), dark: false, to: file("settings-\(section.rawValue)"))
@@ -85,6 +100,7 @@ extension NativeChecks {
         }
         var accepted = TaskUpdate(text: "И добавь, пожалуйста, проверку тёмной темы")
         accepted.state = .accepted
+        accepted.imageContext = [galleryImage(root: root)]
         let answer = """
         ## Итог проверки
 

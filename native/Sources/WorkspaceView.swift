@@ -353,7 +353,10 @@ struct ChatView: View {
                                         MessageView(message: message, model: model, conversationID: id, targetPanel: panel)
                                         if let updates = message.taskUpdates, !updates.isEmpty {
                                             TaskUpdatesView(updates: updates, active: state?.sourceMessageID == message.id,
-                                                            copy: model.copy)
+                                                            copy: model.copy) { image in
+                                                Task { await model.previewImage(image["path"].text, expectedSHA: image["sha256"].text, canAttach: false, inWorkspacePanel: true,
+                                                                                targetPanel: panel, conversationID: id, in: presentations) }
+                                            }
                                         }
                                     }.id(message.id)
                                         .background(destination?.conversationID == id
@@ -662,15 +665,9 @@ struct MessageView: View {
 
     /// Attached images as pictures, like other chat apps show them; a click opens the local preview.
     private var imageThumbnails: some View {
-        let images = message.imageContext ?? []
-        return HStack(alignment: .top, spacing: 8) {
-            ForEach(Array(images.enumerated()), id: \.offset) { _, image in
-                AttachedImageThumbnail(image: image, existing: model.imageThumbnails[image["sha256"].text],
-                                       maxSize: images.count > 1 ? CGSize(width: 180, height: 130) : CGSize(width: 260, height: 180)) {
-                    Task { await model.previewImage(image["path"].text, expectedSHA: image["sha256"].text, canAttach: false, inWorkspacePanel: true,
-                                                    targetPanel: targetPanel, conversationID: conversationID, in: presentations) }
-                }
-            }
+        AttachedImagesRow(images: message.imageContext ?? [], existing: { model.imageThumbnails[$0] }) { image in
+            Task { await model.previewImage(image["path"].text, expectedSHA: image["sha256"].text, canAttach: false, inWorkspacePanel: true,
+                                            targetPanel: targetPanel, conversationID: conversationID, in: presentations) }
         }
     }
 

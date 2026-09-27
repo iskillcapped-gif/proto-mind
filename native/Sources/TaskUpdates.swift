@@ -222,16 +222,19 @@ struct TaskUpdatesView: View {
     let updates: [TaskUpdate]
     let active: Bool
     let copy: (String) -> Void
+    /// Opens the checked local preview of an update's attached image.
+    var openImage: (JSONValue) -> Void = { _ in }
 
     var body: some View {
         ForEach(updates) { update in
             HStack {
                 Spacer(minLength: 65)
                 VStack(alignment: .leading, spacing: 7) {
-                    if update.hasAttachments {
-                        ForEach(Array(update.attachmentNames.enumerated()), id: \.offset) { _, name in
-                            Label(name, systemImage: "paperclip").font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(2)
-                        }
+                    // Images appear as pictures, as in the message itself; files and PDF pages by name.
+                    if let images = update.imageContext, !images.isEmpty { AttachedImagesRow(images: images, open: openImage) }
+                    ForEach(Array(((update.fileContext ?? []) + (update.pdfContext ?? [])).enumerated()), id: \.offset) { _, item in
+                        Label(URL(fileURLWithPath: item["path"].text).lastPathComponent, systemImage: "paperclip")
+                            .font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(2)
                     }
                     Text(update.text).font(NativeTheme.messageFont).lineSpacing(6).textSelection(.enabled)
                     HStack(spacing: 6) {

@@ -623,7 +623,7 @@ class NativeBackend:
         if not description["operator"] and params.get("images", []) != []:
             image_specifications(params["images"])
             if provider not in {"codex", "claude"}:
-                raise ValueError("Image input currently requires an explicitly selected vision-capable Codex model. Ollama/Mock images are not implemented; no provider was changed.")
+                raise ValueError("Image input requires an explicitly selected Codex or Claude model. Ollama, Mock and API images are not implemented; no provider was changed.")
             images = self.image_reader().selected(params["images"])
         pdfs = [] if description["operator"] else self.pdf_reader().selected(params.get("pdfs", []))
         logical_workspace = (workspace_identity(self.workspace(params).root)

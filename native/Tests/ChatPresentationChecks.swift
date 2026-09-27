@@ -171,6 +171,25 @@ extension NativeChecks {
         let picture = await AttachmentThumbnails.load(metadata(sha: sha))
         let other = await AttachmentThumbnails.load(metadata(sha: String(repeating: "0", count: 64)))
         try check(picture != nil && other == nil, "An attached image becomes a picture only while its file matches the recorded SHA-256")
+
+        // The draft shows the picture itself; a note appears only when the image would not reach the model.
+        let app = AppModel(configuration: LaunchConfiguration(projectRoot: root, python: root, stateDirectory: root.appendingPathComponent("picture-state")))
+        defer { app.shutdown() }
+        app.setProvider("claude")
+        guard let index = app.conversations.firstIndex(where: { $0.id == app.selectedID }) else { throw NativeError.message("No selected conversation") }
+        app.conversations[index].pendingImages = [metadata(sha: sha)]
+        func stripHeight() -> CGFloat {
+            NSHostingController(rootView: PendingImageAttachmentsView(model: app)).sizeThatFits(in: CGSize(width: 700, height: 400)).height
+        }
+        let withoutConsent = app.imageDestination(for: app.selectedID), noteHeight = stripHeight()
+        app.cloudConsent = true
+        let claude = app.imageDestination(for: app.selectedID), pictureHeight = stripHeight()
+        app.setProvider("ollama")
+        let local = app.imageDestination(for: app.selectedID)
+        try check(claude.ready && claude.notice.contains("Claude") && !withoutConsent.ready && !local.ready && local.notice.contains("Claude"),
+                  "Claude receives attached images; missing cloud permission or a local model is named instead of a Codex-only note")
+        try check(pictureHeight <= PendingImageAttachmentsView.tileHeight + 16 && noteHeight > pictureHeight + 10,
+                  "A draft's image is a bare picture when it will be sent, with the reason below it otherwise (\(pictureHeight), \(noteHeight))")
     }
 
     /// A running task must not re-render a long transcript for every animation frame or text delta.
