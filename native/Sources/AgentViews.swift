@@ -189,7 +189,9 @@ struct AgentToolRow: View {
             let names = ["get_app_state": L10n.text("Состояние экрана"), "list_apps": L10n.text("Список приложений"), "click": L10n.text("Нажатие"),
                          "set_value": L10n.text("Ввод значения"), "type_text": L10n.text("Ввод текста"), "press_key": L10n.text("Клавиатура"),
                          "scroll": L10n.text("Прокрутка"), "drag": L10n.text("Перетаскивание"), "select_text": L10n.text("Выбор текста"),
-                         "perform_secondary_action": L10n.text("Дополнительное действие"), "move": L10n.text("Перемещение курсора")]
+                         "perform_secondary_action": L10n.text("Дополнительное действие"), "move": L10n.text("Перемещение курсора"),
+                         "zoom": L10n.text("Приближение экрана"), "wait": L10n.text("Пауза"), "cursor": L10n.text("Позиция курсора"),
+                         "batch": L10n.text("Серия действий")]
             let action = names[item["tool"].text] ?? "Computer Use"
             return item["app"].text.isEmpty ? action : "\(action) · \(item["app"].text)"
         default: return L10n.text("План работы")

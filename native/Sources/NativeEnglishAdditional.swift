@@ -2,6 +2,10 @@
 extension L10n {
     static let additionalEnglish: [String: String] = [
         "Перемещение курсора": "Pointer move",
+        "Приближение экрана": "Screen zoom",
+        "Пауза": "Wait",
+        "Позиция курсора": "Pointer position",
+        "Серия действий": "Action series",
         "{0} → {1} токенов": "{0} → {1} tokens",
         "читает файлы": "reading files",
         "чтение файлов": "file reads",

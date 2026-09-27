@@ -25,6 +25,10 @@ def error_code(message, previous=None):
     return previous if previous in ERROR_CODES else "unknown"
 
 
+COMPUTER_ROW_TOOLS = {"click": "click", "double_click": "click", "triple_click": "click", "right_click": "click",
+                      "middle_click": "click", "mouse_down": "click", "mouse_up": "click", "move": "move", "drag": "drag",
+                      "scroll": "scroll", "type": "type_text", "key": "press_key", "hold_key": "press_key", "wait": "wait",
+                      "cursor_position": "cursor"}
 _ANSI = re.compile(r"\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\\\))")
 FILE_CHANGE_TOOLS = {"Edit", "MultiEdit", "Write", "NotebookEdit"}
 
@@ -75,12 +79,14 @@ def tool_row(identifier, name, arguments):
     elif name in {"WebSearch", "WebFetch"}:
         row.update(kind="webSearch", query=text("query", 1000) or text("prompt", 1000), url=text("url", 1600))
     elif name == "mcp__pm__pm_screen_capture":
-        row.update(kind="computerUse", tool="get_app_state", app=text("app", 120))
+        row.update(kind="computerUse", tool="zoom" if arguments.get("region") is not None else "get_app_state", app=text("app", 120))
     elif name == "mcp__pm__pm_computer_action":
         # Like Codex's Computer Use rows: the action only, never typed text or coordinates.
-        actions = {"click": "click", "double_click": "click", "right_click": "click", "move": "move",
-                   "drag": "drag", "scroll": "scroll", "type": "type_text", "key": "press_key"}
-        row.update(kind="computerUse", tool=actions.get(arguments.get("action"), "computer_action"))
+        row.update(kind="computerUse", tool=COMPUTER_ROW_TOOLS.get(arguments.get("action"), "computer_action"))
+    elif name == "mcp__pm__pm_computer_batch":
+        steps = arguments.get("steps") if isinstance(arguments.get("steps"), list) else []
+        names = [COMPUTER_ROW_TOOLS.get(step.get("action"), "computer_action") for step in steps[:16] if isinstance(step, dict)]
+        row.update(kind="computerUse", tool="batch", note=" · ".join(names))
     elif name.startswith("mcp__pm__"):
         row.update(kind="dynamicToolCall", tool=name[len("mcp__pm__"):][:80])
     else:

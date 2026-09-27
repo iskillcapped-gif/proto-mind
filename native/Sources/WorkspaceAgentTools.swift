@@ -133,6 +133,22 @@ extension AppModel {
         return panels.first { panel in panel.tabs.contains { if case .conversation(let value) = $0.content { return value == id }; return false } } ?? workspacePanel
     }
 
+    /// Anthropic recommends ending a group of computer actions with a screenshot; `capture: true`
+    /// attaches one to the result and makes it the latest capture, saving the model a call.
+    private func capturingAfter(_ result: JSONValue, state: ConversationExecution, request: String) async -> JSONValue {
+        guard case .object(var fields) = result else { return result }
+        do {
+            try await Task.sleep(for: .milliseconds(350))  // Let the interface respond first.
+            let (capture, mapping) = try await computerUse.capture(app: state.computerCapture?.app)
+            _ = try requireWorkspaceTurn(state, request)
+            state.computerCapture = mapping
+            if case .object(let image) = capture { fields.merge(image) { $1 } }
+        } catch {
+            fields["capture_error"] = .string(error.localizedDescription)
+        }
+        return .object(fields)
+    }
+
     func executeWorkspaceTool(_ name: String, args: JSONValue, state: ConversationExecution, request: String) async throws -> JSONValue {
         let source = try requireWorkspaceTurn(state, request)
         guard case .object = args else { throw NativeError.message("Invalid workspace arguments.") }
@@ -184,16 +200,38 @@ extension AppModel {
             let result = try await workspaceServices.perform(id: id, operation: name == "pm_call_service" ? "call" : "list", name: args["name"].text, arguments: arguments, cursor: args["cursor"].text, owner: source.id)
             _ = try requireWorkspaceTurn(state, request)
             return result
-        case "pm_screen_capture", "pm_computer_action":
+        case "pm_screen_capture", "pm_computer_action", "pm_computer_batch":
             // Claude with Full Mac only: Codex has its own Computer Use and API chats never control the Mac.
             guard source.provider == "claude", agentGrants[source.id] != nil else {
                 throw NativeError.message("Computer use is available to Claude with Full Mac access only.")
             }
-            guard name == "pm_screen_capture" else { return try await computerUse.perform(args, capture: state.computerCapture) }
-            let (result, mapping) = try await computerUse.capture(app: args["app"].isNull ? nil : args["app"].text)
-            _ = try requireWorkspaceTurn(state, request)
-            state.computerCapture = mapping
-            return result
+            switch name {
+            case "pm_screen_capture" where !args["region"].isNull:
+                guard let capture = state.computerCapture else {
+                    throw NativeError.message("Capture the screen first; region refers to the latest capture of this turn.")
+                }
+                let result = try await computerUse.zoom(args["region"].items.map(\.integer), of: capture)
+                _ = try requireWorkspaceTurn(state, request)
+                return result
+            case "pm_screen_capture":
+                let (result, mapping) = try await computerUse.capture(app: args["app"].isNull ? nil : args["app"].text)
+                _ = try requireWorkspaceTurn(state, request)
+                state.computerCapture = mapping
+                return result
+            case "pm_computer_action":
+                let result = try await computerUse.perform(args, capture: state.computerCapture)
+                return args["capture"].flag ? await capturingAfter(result, state: state, request: request) : result
+            default:
+                let steps = try ComputerUseController.plan(batch: args["steps"].items, capture: state.computerCapture)
+                let outcome = try await computerUse.run(steps, capture: state.computerCapture)
+                var result: [String: JSONValue] = ["done": .array(outcome.results)]
+                if let failure = outcome.failure {
+                    result["failed"] = .object(["step": .number(Double(outcome.results.count + 1)), "error": .string(failure)])
+                    result["skipped"] = .number(Double(steps.count - outcome.results.count - 1))
+                    result["notice"] = .string("Stopped at the first failure; later steps did not run.")
+                }
+                return args["capture"].flag ? await capturingAfter(.object(result), state: state, request: request) : .object(result)
+            }
         case "pm_list_projects":
             return .object(["projects": .array(liveVoiceProjects.map { .object(["path": .string($0), "name": .string(URL(fileURLWithPath: $0).lastPathComponent)]) })])
         case "pm_list_tasks":

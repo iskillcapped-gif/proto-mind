@@ -86,13 +86,51 @@ extension NativeChecks {
                 "x2": .null, "y2": .null, "amount": .null, "text": .null]), state: state, request: "request-a")
             try check(false, "An API chat must not control the Mac")
         } catch { try check(error.localizedDescription.contains("Claude with Full Mac"), "Computer use is refused outside Claude with Full Mac") }
+        do {
+            _ = try await app.executeWorkspaceTool("pm_computer_batch", args: .object(["steps": .array([]), "capture": .null]), state: state, request: "request-a")
+            try check(false, "An API chat must not run computer batches")
+        } catch { try check(error.localizedDescription.contains("Claude with Full Mac"), "Computer batches are refused outside Claude with Full Mac") }
         let mapping = ComputerCapture(originX: 182, originY: 38, pointsPerPixel: 0.5, width: 2468, height: 1854)
-        try check(try mapping.point(878, 790) == CGPoint(x: 621, y: 433) && (try? mapping.point(3000, 10)) == nil,
-                  "Capture pixels map to screen points and out-of-image coordinates are refused")
+        try check(try mapping.point(878, 790) == CGPoint(x: 621, y: 433) && (try? mapping.point(3000, 10)) == nil
+                  && mapping.pixel(CGPoint(x: 621, y: 433))! == (878, 790) && mapping.pixel(CGPoint(x: 10, y: 10)) == nil,
+                  "Capture pixels map to screen points and back, and out-of-image coordinates are refused")
         let shortcut = try ComputerUseController.keyStroke("cmd+shift+t")
         try check(shortcut.key == 17 && shortcut.flags.contains(.maskCommand) && shortcut.flags.contains(.maskShift)
                   && (try ComputerUseController.keyStroke("return")).key == 36 && (try? ComputerUseController.keyStroke("hyper+q")) == nil,
                   "Key names and modifiers become macOS key codes and flags")
+        try check((try ComputerUseController.keyStroke("Page_Down")).key == 121 && (try ComputerUseController.keyStroke("Return")).key == 36
+                  && (try ComputerUseController.keyStroke("super+l")).flags == .maskCommand
+                  && (try ComputerUseController.modifiers("shift+cmd")) == [.maskShift, .maskCommand] && (try ComputerUseController.modifiers("")).isEmpty
+                  && (try? ComputerUseController.modifiers("cmd+x")) == nil,
+                  "xdotool-style key names and click modifiers are understood")
+        func step(_ action: String, x: Int? = nil, y: Int? = nil, amount: Int? = nil, text: String? = nil, direction: String? = nil) -> JSONValue {
+            .object(["action": .string(action), "x": x.map { .number(Double($0)) } ?? .null, "y": y.map { .number(Double($0)) } ?? .null,
+                     "x2": .null, "y2": .null, "amount": amount.map { .number(Double($0)) } ?? .null, "text": text.map { .string($0) } ?? .null,
+                     "direction": direction.map { .string($0) } ?? .null])
+        }
+        let planned = try ComputerUseController.plan(batch: [step("click", x: 878, y: 790, text: "cmd"), step("type", text: "поиск"),
+                                                             step("key", amount: 3, text: "Down"), step("scroll", amount: 4, direction: "left"),
+                                                             step("wait", amount: 2), step("click")], capture: mapping)
+        try check(planned.map(\.action) == ["click", "type", "key", "scroll", "wait", "click"] && planned[0].flags == .maskCommand
+                  && planned[0].start == CGPoint(x: 621, y: 433) && planned[2].amount == 3 && planned[3].direction == "left"
+                  && planned[5].start == nil,
+                  "A batch is planned step by step; a click without coordinates acts at the pointer")
+        do {
+            _ = try ComputerUseController.plan(batch: [step("click", x: 10, y: 10), step("drag", x: 10, y: 10)], capture: mapping)
+            try check(false, "A malformed batch step must be rejected")
+        } catch { try check(error.localizedDescription.hasPrefix("Step 2:") && error.localizedDescription.hasSuffix("Nothing ran."),
+                            "A malformed step rejects the whole batch before anything runs") }
+        try check((try? ComputerUseController.plan(step("wait", amount: 31), capture: nil)) == nil
+                  && (try? ComputerUseController.plan(step("key", amount: 101, text: "Down"), capture: nil)) == nil
+                  && (try? ComputerUseController.plan(step("click", x: 5, y: 5), capture: nil)) == nil
+                  && (try? ComputerUseController.plan(step("cursor_position"), capture: nil)) != nil,
+                  "Waits, repeats and coordinates are bounded, and coordinates need a capture")
+        let small = CGContext(data: nil, width: 300, height: 120, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
+                              bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)!
+        small.setFillColor(CGColor(gray: 0.4, alpha: 1)); small.fill(CGRect(x: 0, y: 0, width: 300, height: 120))
+        let zoomed = try ComputerUseController.encode(small.makeImage()!, enlarge: true), plain = try ComputerUseController.encode(small.makeImage()!)
+        try check(zoomed.1 == 1200 && zoomed.2 == 480 && plain.1 == 300,
+                  "A zoomed region is enlarged to a normal capture size; a normal capture never is")
         let noise = CGContext(data: nil, width: 3420, height: 2214, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
                               bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)!
         for band in 0..<220 {
