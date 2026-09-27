@@ -1,6 +1,17 @@
 import Combine
 import Foundation
 
+/// The running turn's frequently changing output. Only the views that show it observe it:
+/// an execution change reaches every AppModel observer, and in a long conversation that
+/// re-evaluated every message for each streamed batch or work-log row.
+@MainActor
+final class LiveTurnOutput: ObservableObject {
+    @Published var stream = ""
+    @Published var agentItems: [JSONValue] = []
+    @Published var agentReceipt: JSONValue = .null
+    @Published var workLog: JSONValue = .null
+}
+
 /// One live turn and one provider connection belong to one conversation.
 /// AppModel remains the sole owner/writer of the complete dialog archive.
 @MainActor
@@ -9,17 +20,18 @@ final class ConversationExecution: ObservableObject {
     let client: BridgeClient
     var observation: AnyCancellable?
     @Published var running = false
-    @Published var stream = ""
+    let live = LiveTurnOutput()
+    var stream: String { get { live.stream } set { live.stream = newValue } }
+    var agentItems: [JSONValue] { get { live.agentItems } set { live.agentItems = newValue } }
+    var agentReceipt: JSONValue { get { live.agentReceipt } set { live.agentReceipt = newValue } }
+    var workLog: JSONValue { get { live.workLog } set { live.workLog = newValue } }
     private var pendingStream = ""
     private var streamFlush: Task<Void, Never>?
     @Published private var statusKey = "Готов"
     var status: String {
         get { L10n.text(statusKey) }
-        set { statusKey = newValue }
+        set { if statusKey != newValue { statusKey = newValue } }  // Tool rows repeat it; each change reaches all of AppModel.
     }
-    @Published var agentItems: [JSONValue] = []
-    @Published var agentReceipt: JSONValue = .null
-    @Published var workLog: JSONValue = .null
     @Published var startedAt: Date?
     @Published var autoSkillsReport: NativeAutoSkillsReport?
     @Published var personaReceipt: NativePersonaTurnReceipt?

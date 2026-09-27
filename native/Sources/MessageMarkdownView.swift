@@ -118,10 +118,15 @@ struct MarkdownBlock: Equatable {
     }
 }
 
-struct MessageMarkdownView: View {
+struct MessageMarkdownView: View, Equatable {
     let text: String
     let copy: (String) -> Void
     var openLink: ((URL) -> Void)? = nil
+
+    /// A message's actions stay the same while it is shown. Comparing only what is drawn
+    /// lets `.equatable()` skip unchanged messages whenever anything else in the app updates;
+    /// otherwise every message re-parsed its Markdown on each live update of a running task.
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.text == rhs.text && (lhs.openLink == nil) == (rhs.openLink == nil) }
 
     var body: some View {
         let blocks = MarkdownBlock.parse(text)

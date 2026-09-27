@@ -55,10 +55,12 @@ struct CompletedFileChanges {
     }
 }
 
-struct CompletedFileChangesView: View {
+struct CompletedFileChangesView: View, Equatable {
     let receipt: JSONValue
     let openLink: (URL) -> Void
     @State private var expanded = false
+
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.receipt == rhs.receipt }
 
     var body: some View {
         let summary = CompletedFileChanges.project(receipt)

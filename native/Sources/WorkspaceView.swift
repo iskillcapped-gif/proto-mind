@@ -362,12 +362,10 @@ struct ChatView: View {
                                         .font(.system(size: 12)).frame(maxWidth: .infinity).padding(.vertical, 8)
                                         .accessibilityLabel(L10n.text("Показать следующие сообщения"))
                                 }
-                                if state?.running == true {
-                                    VStack(alignment: .leading, spacing: 20) {
-                                        WorkTimelineView(log: state?.workLog ?? .null, agentReceipt: state?.agentReceipt ?? .null,
-                                                         toolItems: state?.agentItems ?? [], live: true, startedAt: state?.startedAt)
-                                        if !(state?.stream ?? "").isEmpty { MessageMarkdownView(text: (state?.stream ?? ""), copy: model.copy, openLink: openLink) }
-                                    }.frame(maxWidth: .infinity, alignment: .leading)
+                                if let state, state.running {
+                                    LiveTurnSection(live: state.live, startedAt: state.startedAt, copy: model.copy, openLink: openLink) {
+                                        if followOutput { scrollToLatest(proxy) }
+                                    }
                                 }
                             }.frame(maxWidth: NativeTheme.columnWidth)
                                 .padding(.horizontal, inset).padding(.vertical, 30)
@@ -404,9 +402,7 @@ struct ChatView: View {
                             )
                             if followOutput { scrollToLatest(proxy) }
                         }
-                        .onChange(of: (state?.stream ?? "").count) { _, _ in if followOutput { scrollToLatest(proxy) } }
                         .onChange(of: messages.last?.taskUpdates) { _, _ in if followOutput { scrollToLatest(proxy) } }
-                        .onChange(of: state?.workLog ?? .null) { _, _ in if followOutput { scrollToLatest(proxy) } }
                         .onChange(of: state?.running) { _, _ in if followOutput { scrollToLatest(proxy) } }
                         .overlay(alignment: .bottom) {
                             if !nearBottom || historyWindow != nil {
@@ -490,6 +486,25 @@ struct ChatView: View {
     }
 }
 
+/// The running turn's live output. It alone observes that output, so streamed text and
+/// work-log rows re-render this section instead of every message of the conversation.
+private struct LiveTurnSection: View {
+    @ObservedObject var live: LiveTurnOutput
+    let startedAt: Date?
+    let copy: (String) -> Void
+    let openLink: (URL) -> Void
+    let grew: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            WorkTimelineView(log: live.workLog, agentReceipt: live.agentReceipt, toolItems: live.agentItems, live: true, startedAt: startedAt).equatable()
+            if !live.stream.isEmpty { MessageMarkdownView(text: live.stream, copy: copy, openLink: openLink).equatable() }
+        }.frame(maxWidth: .infinity, alignment: .leading)
+            .onChange(of: live.stream.count) { _, _ in grew() }
+            .onChange(of: live.workLog) { _, _ in grew() }
+    }
+}
+
 private struct MainChatAttachmentDrop: ViewModifier {
     let model: AppModel
     let enabled: Bool
@@ -559,7 +574,7 @@ struct MessageView: View {
         } else {
             VStack(alignment: .leading, spacing: 18) {
                 if let work = message.workLog, work["schema"].text == "proto_mind.native_work_log.v1" {
-                    WorkTimelineView(log: work, agentReceipt: message.agentRun ?? .null)
+                    WorkTimelineView(log: work, agentReceipt: message.agentRun ?? .null).equatable()
                 } else if let receipt = message.agentRun, !receipt.isNull {
                     DisclosureGroup(L10n.text("Действия инструментов"), isExpanded: $showLegacyActions) {
                         AgentActivityView(items: receipt["items"].items, receipt: receipt).padding(.top, 8)
@@ -573,7 +588,7 @@ struct MessageView: View {
                         .lineSpacing(message.isError ? NativeTheme.responseLineSpacing : 0)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
-                    MessageMarkdownView(text: message.text, copy: model.copy, openLink: { openLink($0) })
+                    MessageMarkdownView(text: message.text, copy: model.copy, openLink: { openLink($0) }).equatable()
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 if message.agentRun?["computer_use_cleanup"]["status"].text == "unconfirmed" {
@@ -584,7 +599,7 @@ struct MessageView: View {
                 }
                 attachments
                 if conversationID == nil || conversationID == model.selectedID, let (report, text) = model.memorySuggestions(for: message) { MemorySuggestionCard(app: model, report: report, text: text) }
-                if let receipt = message.agentRun { CompletedFileChangesView(receipt: receipt, openLink: { openLink($0) }) }
+                if let receipt = message.agentRun { CompletedFileChangesView(receipt: receipt, openLink: { openLink($0) }).equatable() }
                 HStack(spacing: 17) {
                     ResponseCopyButton { model.copy(message.text) }
                     if message.role == "assistant", let sourceID = conversationID ?? model.selectedID {

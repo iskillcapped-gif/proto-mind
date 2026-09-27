@@ -92,13 +92,17 @@ enum WorkTimelinePresentation {
     }
 }
 
-struct WorkTimelineView: View {
+struct WorkTimelineView: View, Equatable {
     let log: JSONValue
     let agentReceipt: JSONValue
     var toolItems: [JSONValue]? = nil
     var live = false
     var startedAt: Date? = nil
     @State private var expanded: Bool? = nil
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.live == rhs.live && lhs.startedAt == rhs.startedAt && lhs.log == rhs.log && lhs.agentReceipt == rhs.agentReceipt && lhs.toolItems == rhs.toolItems
+    }
 
     private var isExpanded: Bool { expanded ?? live }
     private var entries: [JSONValue] { Array(log["entries"].items.prefix(96)) }
@@ -144,6 +148,7 @@ struct WorkTimelineView: View {
         switch entry["kind"].text {
         case "commentary":
             MessageMarkdownView(text: entry["text"].text, copy: { NSPasteboard.general.clearContents(); NSPasteboard.general.setString($0, forType: .string) })
+                .equatable()
         case "plan":
             DisclosureGroup(L10n.text("План работы")) {
                 VStack(alignment: .leading, spacing: 8) {

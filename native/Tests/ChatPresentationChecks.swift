@@ -167,6 +167,24 @@ extension NativeChecks {
         try await Task.sleep(for: .milliseconds(300))
         try check(execution.stream.isEmpty, "A reset also discards streamed text still waiting to be shown")
 
+        let suite = "pm-live-rendering-" + UUID().uuidString
+        let defaults = UserDefaults(suiteName: suite)!
+        let app = AppModel(configuration: LaunchConfiguration(projectRoot: root, python: root, stateDirectory: root.appendingPathComponent("live-rendering-app")),
+                           uiDefaults: defaults)
+        defer { app.shutdown(); defaults.removePersistentDomain(forName: suite) }
+        let state = app.execution(for: UUID())
+        var notices = 0
+        let observation = app.objectWillChange.sink { notices += 1 }
+        state.workLog = .object(["schema": .string("proto_mind.native_work_log.v1")])
+        state.agentItems = [.object(["id": .string("row")])]
+        state.appendStream("text")
+        try await Task.sleep(for: .milliseconds(300))
+        state.status = "Агент работает"
+        state.status = "Агент работает"
+        observation.cancel()
+        try check(notices == 1 && state.stream == "text" && state.workLog["schema"].text == "proto_mind.native_work_log.v1",
+                  "Live output reaches only the views that show it, and a repeated status notifies the app once (\(notices))")
+
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 200, height: 40), styleMask: [.borderless], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         defer { window.close() }

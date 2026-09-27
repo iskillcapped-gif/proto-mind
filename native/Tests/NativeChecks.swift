@@ -31,6 +31,9 @@ struct NativeChecks {
         if let gallery = LaunchConfiguration.argument("--ui-gallery") {
             try await interfaceGallery(directory: URL(fileURLWithPath: gallery, isDirectory: true), root: root); return
         }
+        if let messages = LaunchConfiguration.argument("--perf-bench") {
+            try await transcriptPerformance(root: root, messages: Int(messages) ?? 80); return
+        }
         let portableRoot = FileManager.default.temporaryDirectory.appendingPathComponent("proto-portable-checks-" + UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: portableRoot) }
         try portableConfiguration(root: portableRoot)
