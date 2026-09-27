@@ -4,6 +4,40 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Line Totals for Long Turns — Native 0.74.20
+
+The operator asked for the total of added and removed lines under an answer:
+the changed-files card listed counts per file but no sum. The card already
+shows a total in its header, but only when the receipt holds every edit. A
+Claude receipt kept only the latest 64 actions, and most working turns are
+longer, so the card counted as partial: the total was hidden, and edits made
+earlier in the turn were missing from the list. A rewritten file (`Write`) also
+had no removed-line count, which hides any total.
+
+The receipt now keeps the latest 64 actions whole and every earlier file edit
+without its diff preview (up to 400), marked `file_changes_complete`; the card
+then shows its total. Line counts come from Claude Code's structured patch for
+each edit, reported with the tool result: exactly the changed lines, all lines
+of a created file, and the real removals of a rewrite. Before, they were
+estimated from the edit arguments, which counted the unchanged lines of a
+replaced block too. Edits made by shell commands (scripts, `sed`) are not file
+edit actions and are not counted, as with Codex.
+
+Two operator-approved fixes came with it. The Observer took "продолжим, когда
+обновятся" (we'll continue when the limits reset) as a continuity follow-up and
+selected unrelated memory; pauses with "когда/после …", times of day and "через
+N часов" are now deferrals in Russian, Ukrainian and English. A task prompt about
+a Northstar proposal, captured on 2026-09-17 as a "decision" with importance
+0.95, kept being selected as relevant memory; it was soft-forgotten in working
+and persistent memory after a backup in `proto_mind/data/backups/`.
+
+Verification on 2026-09-27: **2431 Python tests and 2028 Native checks
+passed**. The 0.74.20 (124) bundle was staged and installed in place; 0.74.19
+(123) is kept as `dist/Proto-Mind Native 0.74.19 (123).previous`. A new Python
+test fails on the old code (earlier edits were dropped) and checks exact counts for an edit, a
+created file and a rewrite in a 73-action turn; a new Native check confirms the
+total for a long turn that kept every edit.
+
 ## Pictures in the Composer — Native 0.74.19
 
 After the 0.74.18 restart, the operator confirmed that sent images appear as
