@@ -1471,6 +1471,7 @@ extension L10n {
         "Не удалось открыть настройки Automation.": "Could not open Automation settings.",
         "Просмотр относится к другому файлу.": "The preview belongs to a different file.",
         "К одному сообщению можно выбрать до трёх файлов.": "You can select up to three files per message.",
+        "Сохранены последние действия и все правки файлов.": "The latest actions and every file edit were kept.",
         "Изображения получают только Codex и Claude. Выбор локальный; Ollama, Mock и модели через API не получат эти файлы. Провайдер не меняется автоматически.": "Only Codex and Claude receive images. Selection is local; Ollama, Mock and API models will not receive these files. The provider will not change automatically.",
         "Сейчас всё остаётся на Mac. Для отправки изображений в Claude разрешите облачную обработку; выбор файла сам по себе её не включает.": "Everything stays on your Mac for now. Allow cloud processing to send images to Claude; selecting a file does not enable it.",
         "После «Отправить» выбранные изображения уйдут в Claude вместе с сообщением и останутся в контексте этой сессии. До этого просмотр локальный.": "After Send, the selected images will go to Claude with your message and stay in this session's context. Until then, previews are local.",

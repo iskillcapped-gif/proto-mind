@@ -91,7 +91,8 @@ struct AgentActivityView: View {
             }
             if !receipt.isNull {
                 if receipt["items_truncated"].flag {
-                    Text(L10n.text("Сохранена последняя часть действий. Счётчики относятся к этому фрагменту."))
+                    Text(receipt["file_changes_complete"].flag ? L10n.text("Сохранены последние действия и все правки файлов.")
+                         : L10n.text("Сохранена последняя часть действий. Счётчики относятся к этому фрагменту."))
                         .font(.caption2).foregroundStyle(.secondary)
                 }
                 Text(L10n.format("Run \(receipt["run_id"].text.prefix(8)) · команд: \(receipt["command_count"].integer) · поисков: \(receipt["web_search_count"].integer) · экранных действий: \(receipt["computer_use_count"].integer) · \(receipt["finished_at"].text)"))

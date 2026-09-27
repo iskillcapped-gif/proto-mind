@@ -216,6 +216,24 @@ class ClaudeTests(unittest.TestCase):
         self.assertEqual([entry['tool_kind'] for entry in result['work_log']['entries'] if entry['kind'] == 'tool'],
                          ['commandExecution', 'fileChange', 'fileRead', 'search'])
 
+    def test_changed_line_counts_are_exact_and_cover_a_long_turn(self):
+        transport = self.transport()
+        transport.full_access = True
+        events = []
+        transport.on_activity = events.append
+        self.assertEqual(transport.answer('claude-edit-counts', 'instructions', [], 'go', lambda _: None), 'Done')
+        receipt = [event['receipt'] for event in events if event.get('event') == 'agent_run'][-1]
+        edits = {item['id']: item for item in receipt['items'] if item['kind'] == 'fileChange'}
+        # The patch counts only changed lines; a created file has no deletions; a rewrite's deletions are known.
+        self.assertEqual({key: item['file_changes'] for key, item in edits.items()}, {
+            'edit-1': [{'path': '/tmp/app.py', 'additions': 1, 'deletions': 1}],
+            'write-new': [{'path': '/tmp/new.md', 'additions': 4, 'deletions': 0}],
+            'write-over': [{'path': '/tmp/old.md', 'additions': 2, 'deletions': 5}]})
+        # Only the latest 64 actions stay whole, but every edit stays, without its diff.
+        self.assertTrue(receipt['items_truncated'] and receipt['file_changes_complete'])
+        self.assertEqual(len(receipt['items']), 3 + 64)
+        self.assertFalse(any('diff_preview' in item for item in edits.values()))
+
     def test_claude_code_compaction_is_one_work_log_row_with_its_counts(self):
         root = self.root / 'project'
         backend = NativeBackend(root, self.state, subscription_factory=FakeSubscription)

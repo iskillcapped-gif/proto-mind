@@ -103,6 +103,26 @@ class ClaudeSDKClient:
             for message in answer('Done'): yield message
             yield ResultMessage(is_error=False, subtype='success', result='Done', session_id=session)
             return
+        if mode == 'claude-edit-counts':
+            # Claude Code reports each tool result in its own message with a structured patch.
+            edits = [
+                ('edit-1', 'Edit', {'file_path': '/tmp/app.py', 'old_string': 'a = 1\nb = 2\nc = 3', 'new_string': 'a = 1\nb = 20\nc = 3'},
+                 {'filePath': '/tmp/app.py', 'structuredPatch': [{'oldStart': 1, 'oldLines': 3, 'newStart': 1, 'newLines': 3,
+                                                                  'lines': [' a = 1', '-b = 2', '+b = 20', ' c = 3']}]}),
+                ('write-new', 'Write', {'file_path': '/tmp/new.md', 'content': 'one\ntwo\nthree\nfour\n'},
+                 {'type': 'create', 'filePath': '/tmp/new.md', 'content': 'one\ntwo\nthree\nfour\n', 'structuredPatch': []}),
+                ('write-over', 'Write', {'file_path': '/tmp/old.md', 'content': 'x\ny\n'},
+                 {'type': 'update', 'filePath': '/tmp/old.md', 'content': 'x\ny\n', 'structuredPatch': [
+                     {'oldStart': 1, 'oldLines': 5, 'newStart': 1, 'newLines': 2, 'lines': ['-1', '-2', '-3', '-4', '-5', '+x', '+y']}]})]
+            for identifier, name, arguments, result in edits:
+                yield AssistantMessage(content=[ToolUseBlock(id=identifier, name=name, input=arguments)])
+                yield UserMessage(content=[ToolResultBlock(tool_use_id=identifier, is_error=False, content='ok')], tool_use_result=result)
+            for index in range(70):  # A long turn: the receipt keeps only the latest 64 actions whole.
+                yield AssistantMessage(content=[ToolUseBlock(id=f'bash-{index}', name='Bash', input={'command': 'true'})])
+                yield UserMessage(content=[ToolResultBlock(tool_use_id=f'bash-{index}', is_error=False, content='')])
+            for message in answer('Done'): yield message
+            yield ResultMessage(is_error=False, subtype='success', result='Done', session_id=session)
+            return
         if mode == 'steer':
             # The update arrives while a tool runs and is added before the next request.
             yield AssistantMessage(content=[ToolUseBlock(id='bash-1', name='Bash')])

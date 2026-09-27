@@ -142,11 +142,14 @@ async def run(payload):
                     if getattr(message, "uuid", None) in live["pending"]:
                         live["pending"].discard(message.uuid); waiting = False
                         emit({"event": "update_delivered", "id": message.uuid})
-                    for block in message.content if isinstance(message.content, list) else []:
-                        if isinstance(block, ToolResultBlock) and block.tool_use_id in activity:
-                            row, started = activity.pop(block.tool_use_id)
-                            emit({"event": "activity", "item": tool_finished(row, getattr(block, "content", None), block.is_error,
-                                                                            (time.monotonic() - started) * 1000)})
+                    results = [block for block in (message.content if isinstance(message.content, list) else [])
+                               if isinstance(block, ToolResultBlock) and block.tool_use_id in activity]
+                    # The structured result belongs to the message's only tool result.
+                    structured = getattr(message, "tool_use_result", None) if len(results) == 1 else None
+                    for block in results:
+                        row, started = activity.pop(block.tool_use_id)
+                        emit({"event": "activity", "item": tool_finished(row, getattr(block, "content", None), block.is_error,
+                                                                        (time.monotonic() - started) * 1000, structured)})
                 elif isinstance(message, ResultMessage):
                     outcome = {"event": "result", "success": not message.is_error and message.subtype == "success"
                                and getattr(message, "terminal_reason", None) not in {"aborted_streaming", "aborted_tools"},

@@ -190,8 +190,13 @@ class ClaudeTransport:
     def _receipt(self, status):
         rows = list(self.tool_rows.values())
         kinds = [row.get("kind") for row in rows]
+        # The latest actions stay whole; earlier file edits stay without their diff, so the
+        # answer's changed files and line totals cover the whole turn.
+        earlier_edits = [{key: value for key, value in row.items() if key != "diff_preview"}
+                         for row in rows[:-64] if row.get("kind") == "fileChange"]
         return {"schema": "proto_mind.claude_agent_run.v1", "provider": "claude", "run_id": str(uuid4()),
-                "status": status, "items": rows[-64:], "items_truncated": len(rows) > 64,
+                "status": status, "items": earlier_edits[-400:] + rows[-64:], "items_truncated": len(rows) > 64,
+                "file_changes_complete": len(earlier_edits) <= 400,
                 "workspace_root": str(self.workspace) if self.workspace else "",
                 "command_count": kinds.count("commandExecution"), "web_search_count": kinds.count("webSearch"),
                 "computer_use_count": kinds.count("computerUse"), "finished_at": timestamp(),

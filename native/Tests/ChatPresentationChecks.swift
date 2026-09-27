@@ -44,6 +44,10 @@ extension NativeChecks {
         let recent = CompletedFileChanges.project(.object(["status": .string("completed"), "items_truncated": .bool(true), "items": .array([one])]))
         try check(recent.partial && recent.additions == nil && recent.deletions == nil,
                   "A retained portion of a long task cannot claim complete file or line totals")
+        let longTurn = CompletedFileChanges.project(.object(["status": .string("completed"), "items_truncated": .bool(true),
+                                                              "file_changes_complete": .bool(true), "items": .array([one, two, three])]))
+        try check(!longTurn.partial && longTurn.additions == 38 && longTurn.deletions == 3,
+                  "A long Claude turn that kept every file edit shows its total added and removed lines")
         try check(result.files.map(\.path) == ["page.html", "style.css"] && result.additions == 38 && result.deletions == 3,
                   "Final changes deduplicate notifications, combine repeated file edits and exclude failed edits")
         var conversation = Conversation()

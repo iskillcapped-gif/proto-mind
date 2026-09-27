@@ -105,10 +105,27 @@ def tool_result_text(content):
     return ""
 
 
-def tool_finished(row, content, is_error, duration_ms):
+def edit_counts(result):
+    """Exact (added, removed) lines from Claude Code's structured edit result: the patch hunks,
+    or the whole content of a newly created file. None when the result has no patch."""
+    if not isinstance(result, dict) or not isinstance(result.get("structuredPatch"), list):
+        return None
+    patch = result["structuredPatch"]
+    if not patch and result.get("type") == "create" and isinstance(result.get("content"), str):
+        return _lines(result["content"]), 0
+    lines = [line for hunk in patch if isinstance(hunk, dict) and isinstance(hunk.get("lines"), list)
+             for line in hunk["lines"] if isinstance(line, str)]
+    return sum(line.startswith("+") for line in lines), sum(line.startswith("-") for line in lines)
+
+
+def tool_finished(row, content, is_error, duration_ms, structured=None):
     """The same row after its result: status, duration and a bounded result preview."""
     row = {**row, "status": "failed" if is_error else "completed", "duration_ms": max(0, int(duration_ms))}
     result = tool_result_text(content)
+    counts = edit_counts(structured) if row.get("kind") == "fileChange" and not is_error else None
+    if counts and len(row.get("file_changes") or []) == 1:
+        # The arguments only estimate an edit (a rewrite does not say what it replaced); the patch is exact.
+        row["file_changes"] = [{**row["file_changes"][0], "additions": counts[0], "deletions": counts[1]}]
     if row.get("kind") == "commandExecution":
         row["output_preview"] = preview(result, 3000, tail=True)
     elif is_error or row.get("kind") in {"search", "webSearch", "dynamicToolCall", "agentTool"}:
