@@ -4,6 +4,33 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Pictures in the Composer — Native 0.74.19
+
+After the 0.74.18 restart, the operator confirmed that sent images appear as
+pictures, but the composer still showed an attached image as a row: a tiny
+thumbnail, the file name and "2 872 × 1 712". Under it stood a note that
+images work only through Codex, although Claude has received them since the
+Claude connection shipped.
+
+The composer now shows each attached image as the picture itself, 64 points
+high with its own proportions (0.75–2 times as wide as high), and a round
+remove button in its corner, the way other chat apps show a draft's images. A
+click opens the checked local preview.
+
+The destination note names Claude. It appears under the pictures, in orange,
+only when an image would not reach the model: no cloud permission, a local,
+Mock or API model, or a Codex model whose catalog does not confirm images.
+Otherwise it lives in each picture's tooltip. The bridge's refusal text for
+other providers names Codex and Claude as well. Images attached to a task
+update now show as pictures too; files and PDF pages keep their lines.
+
+Verification on 2026-09-27: **2430 Python tests and 2027 Native checks
+passed**. A new check confirms that
+Claude is named as the destination and that a draft's image is a bare picture
+when it will be sent, with the reason below it otherwise. The gallery has new
+frames of a draft with an attached screenshot (dark, light, and without cloud
+permission).
+
 ## Attached Images as Pictures — Native 0.74.18
 
 After the 0.74.17 restart, `pm_screen_zoom` worked live. A Safari capture
