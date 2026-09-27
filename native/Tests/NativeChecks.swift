@@ -508,36 +508,38 @@ struct NativeChecks {
             totalCount: messages.count,
             messageLimit: TranscriptRenderingPolicy.initialMessageLimit
         )
-        try check(initialRange.count == 80 && initialRange.lowerBound == 920,
+        let first = TranscriptRenderingPolicy.initialMessageLimit, page = TranscriptRenderingPolicy.pageSize
+        try check(initialRange.count == first && initialRange.lowerBound == messages.count - first,
                   "Transcript initially renders only the latest bounded message window")
         let expanded = TranscriptRenderingPolicy.expandedLimit(
             totalCount: messages.count,
             messageLimit: TranscriptRenderingPolicy.initialMessageLimit
         )
-        try check(expanded == 140 && TranscriptRenderingPolicy.renderedRange(totalCount: messages.count, messageLimit: expanded).lowerBound == 860,
+        try check(expanded == first + page
+                  && TranscriptRenderingPolicy.renderedRange(totalCount: messages.count, messageLimit: expanded).lowerBound == messages.count - first - page,
                   "Loading an earlier page expands the window without dropping current messages")
-        try check(TranscriptRenderingPolicy.expandedLimit(totalCount: 90, messageLimit: 80) == 90,
+        try check(TranscriptRenderingPolicy.expandedLimit(totalCount: first + 10, messageLimit: first) == first + 10,
                   "Transcript paging clamps to the complete persisted conversation")
         let readingLimit = TranscriptRenderingPolicy.adjustedLimit(
             oldCount: 1_000, newCount: 1_001, messageLimit: expanded, followingLatest: false
         )
-        try check(readingLimit == 141
-                  && TranscriptRenderingPolicy.renderedRange(totalCount: 1_001, messageLimit: readingLimit).lowerBound == initialRange.lowerBound - 60,
+        try check(readingLimit == expanded + 1
+                  && TranscriptRenderingPolicy.renderedRange(totalCount: 1_001, messageLimit: readingLimit).lowerBound == initialRange.lowerBound - page,
                   "A new reply cannot evict the earliest rendered message while the operator reads history")
         try check(TranscriptRenderingPolicy.adjustedLimit(
             oldCount: 1_000, newCount: 1_001, messageLimit: expanded, followingLatest: true
         ) == expanded, "Following the latest reply keeps the bounded window size")
         var shortLimit = TranscriptRenderingPolicy.initialMessageLimit
         var visibleCounts: [Int] = []
-        for count in 1...80 {
+        for count in 1...first {
             shortLimit = TranscriptRenderingPolicy.adjustedLimit(oldCount: count - 1, newCount: count,
                 messageLimit: shortLimit, followingLatest: true)
             visibleCounts.append(TranscriptRenderingPolicy.renderedRange(totalCount: count, messageLimit: shortLimit).count)
         }
-        try check(visibleCounts == Array(1...80), "A short conversation keeps every message visible while growing to the initial page limit")
-        try check(TranscriptRenderingPolicy.adjustedLimit(oldCount: 80, newCount: 81, messageLimit: shortLimit, followingLatest: true) == 80
-                  && TranscriptRenderingPolicy.adjustedLimit(oldCount: 1000, newCount: 0, messageLimit: 80, followingLatest: true) == 80,
-                  "The rendering budget stays bounded after 80 messages and survives switching to an empty conversation")
+        try check(visibleCounts == Array(1...first), "A short conversation keeps every message visible while growing to the initial page limit")
+        try check(TranscriptRenderingPolicy.adjustedLimit(oldCount: first, newCount: first + 1, messageLimit: shortLimit, followingLatest: true) == first
+                  && TranscriptRenderingPolicy.adjustedLimit(oldCount: 1000, newCount: 0, messageLimit: first, followingLatest: true) == first,
+                  "The rendering budget stays bounded after the first page and survives switching to an empty conversation")
 
         let workspace = NSHostingController(rootView: WorkspaceView(model: app))
         for _ in 0..<3 {

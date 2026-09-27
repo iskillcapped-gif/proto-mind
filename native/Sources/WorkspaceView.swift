@@ -252,8 +252,11 @@ struct WorkspaceSplitView: View {
 }
 
 enum TranscriptRenderingPolicy {
-    static let initialMessageLimit = 80
-    static let pageSize = 60
+    // Every rendered message costs on each scroll step: macOS asks SwiftUI what is under
+    // the pointer several times per wheel event, and SwiftUI walks every rendered view.
+    // At 80 long messages that was about 10 ms per step; earlier messages load on request.
+    static let initialMessageLimit = 30
+    static let pageSize = 30
 
     static func renderedRange(totalCount: Int, messageLimit: Int) -> Range<Int> {
         let total = max(0, totalCount)

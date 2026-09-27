@@ -46,8 +46,8 @@ extension NativeChecks {
                   "The latest error remains visible instead of being hidden by an earlier successful reply")
         for target in [0, 2, 4999, 9999] {
             let range = TranscriptRenderingPolicy.focusedRange(totalCount: 10000, targetIndex: target)
-            try check(range?.contains(target) == true && range?.count == 80,
-                      "Jump to message \(target) mounts only an 80-message neighbourhood")
+            try check(range?.contains(target) == true && range?.count == TranscriptRenderingPolicy.initialMessageLimit,
+                      "Jump to message \(target) mounts only a bounded neighbourhood of one page")
         }
         try check(TranscriptRenderingPolicy.focusedRange(totalCount: 0, targetIndex: 0) == nil
                   && TranscriptRenderingPolicy.focusedRange(totalCount: 20, targetIndex: -1) == nil
