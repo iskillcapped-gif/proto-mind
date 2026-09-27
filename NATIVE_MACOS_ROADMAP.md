@@ -4,6 +4,37 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Attached Images as Pictures — Native 0.74.18
+
+After the 0.74.17 restart, `pm_screen_zoom` worked live. A Safari capture
+(1400x1052) was followed by a zoom on one tab title (250x32 pixels of the
+capture). It came back at the display's full resolution, enlarged to
+1400x178, with the text crisp. The operator found the hover and attachment
+changes good.
+
+The operator asked for attachments to show like the screenshot itself.
+Attached images now appear as pictures above the text of the message that
+carried them, as other chat apps show them, instead of a "name · width ×
+height" line; a click opens the checked local preview. An answer no longer
+repeats the same image line under itself.
+
+A picture comes from the attach-time thumbnail or from the original file. The
+file is read only while its size and SHA-256 match the recorded ones, it is a
+PNG or JPEG of at most 4 MiB, and it is not a symbolic link. Pictures are
+kept in memory (up to 40), and the recorded dimensions reserve their space,
+so the transcript does not jump while one loads. Changed or missing files
+show a neutral placeholder. Files and PDF pages keep their lines.
+
+The core-dwell desktop check could fail on a busy machine, because the
+preview timer (180 ms) ran past the check's fixed 260 ms wait. The check now
+waits for the preview for up to a second.
+
+Verification on 2026-09-27: **2430 Python tests and 2025 Native checks
+passed**, including a check that a picture is produced only for a matching
+hash. The gallery has a new frame of a message with an attached screenshot.
+The 0.74.18 (122) bundle was staged and installed in place; 0.74.17 (121) is
+kept as `dist/Proto-Mind Native 0.74.17 (121).previous`.
+
 ## Text-Only Status Toggles, Direct Attachments and Stable Tool Schemas — Native 0.74.17
 
 After the 0.74.16 restart, a live batch (pointer position, a one-second wait,
