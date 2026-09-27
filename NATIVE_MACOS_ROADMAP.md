@@ -4,6 +4,38 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Smooth Scrolling While Tasks Run — Native 0.74.11
+
+On 2026-09-27 the operator noticed small freezes while scrolling the long
+development conversation. `sample` profiles of the running app found the cause.
+During a Claude turn, even without scrolling, about 23% of the main thread went
+to SwiftUI rendering. The working spinner and the shimmer over its status were
+TimelineViews animating at 30 fps, and SwiftUI re-rendered the whole
+transcript, up to 80 messages, for each of their frames. Scroll frames competed
+with that work. While an answer streamed, every text delta re-rendered the
+transcript as well. Markdown parsing was only about 1.5% of the main thread.
+
+Both indicators are now Core Animation layers: a conic-gradient arc turned by
+a `CABasicAnimation`, and a gradient beam masked by the SwiftUI text. They move
+without main-thread work; reduced motion or an inactive scene stops them, as
+before. Streamed text reaches the transcript at most ten times a second.
+
+A benchmark window with 400 selectable text rows measured the change. The old
+indicator caused 126 outer renders per second and 15-17% main-thread time; the
+Core Animation one caused none and 0%. A first attempt that moved the SwiftUI
+indicators into nested hosting views did not help (126 renders, 28%). Scrolling
+itself still lays out the whole non-lazy transcript on each step. Per-row text
+selection doubled that cost in the benchmark, and a lazy stack halved it, but
+PM keeps the non-lazy stack because of the layout loop recorded in
+`WorkspaceView`.
+
+Verification on 2026-09-27: **2015 Native checks passed**, including new checks
+for batched stream text and Core Animation indicators; Python code did not
+change. The gallery's live work timeline renders as before. The 0.74.11 (115)
+bundle was staged and installed in place; 0.74.10 (114) is kept as
+`dist/Proto-Mind Native 0.74.10 (114).previous`. The profile of the running app
+is to be repeated after the operator's restart.
+
 ## Computer Use Targeting and Compaction Rows — Native 0.74.10
 
 The first live test of 0.74.9 through PM, on 2026-09-27, found a targeting
