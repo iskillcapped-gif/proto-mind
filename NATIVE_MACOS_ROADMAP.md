@@ -4,6 +4,45 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Computer Use Aligned With Anthropic's Toolset — Native 0.74.16
+
+At the operator's suggestion, Claude now checks the official Anthropic sources
+for work on Claude's own features, as Astra does with OpenAI's docs for Codex.
+The `claude-api` skill and the computer-use documentation describe the
+toolset Claude Opus 5.5 uses in the API, `computer_toolset_20260801`. Its 17
+members include `zoom`, batch actions, `wait`, modifier clicks and
+xdotool-style key names, all of which PM's own tools lacked. The official
+guidance also recommends ending each group of actions with a screenshot.
+Current models accept images up to a 2576 px long edge; about 1024x768 to
+1366x768 is recommended. PM's 1400 px captures stay within that.
+
+PM's tools now follow it while keeping their own schema:
+
+- `pm_screen_capture` takes `region` [x0, y0, x1, y1] in pixels of the latest
+  capture. It captures that area at the display's full resolution and
+  enlarges it to a normal capture size (up to 4x). Actions keep using the full
+  capture's coordinates, and the capture mapping is unchanged.
+- `pm_computer_action` adds triple and middle clicks, `mouse_down` and
+  `mouse_up`, `hold_key`, `wait`, `cursor_position`, and modifiers for clicks,
+  drags and scrolls (`text` such as `cmd` or `shift+cmd`). It also adds four
+  scroll directions, key repeat, and xdotool-style names such as `Page_Down`,
+  `super` and `KP_Enter`. A click without x/y acts at the pointer. With
+  `capture: true`, a fresh capture of the same target is attached after the
+  action and becomes the latest one.
+- `pm_computer_batch` runs 1–16 steps. Every step is checked before the first
+  one runs. Steps execute in order and stop at the first failure, reporting
+  what ran and how many were skipped; `capture` is optional.
+
+Work-log rows show zoom, wait, pointer position and action series by action
+name only, without typed text or coordinates.
+
+Verification on 2026-09-27: **2430 Python tests and 2022 Native checks
+passed**. They cover the new schemas and validation, the planning and
+rejection of batches, key names and modifiers, the inverse pixel mapping and
+the enlargement of zoomed regions. The live checks follow the operator's
+restart. The 0.74.16 (120) bundle was staged and installed in place; 0.74.15
+(119) is kept as `dist/Proto-Mind Native 0.74.15 (119).previous`.
+
 ## Label Shimmer Returns in Black — Native 0.74.15
 
 The operator watches the moving beam over "Работаю" and the running tool

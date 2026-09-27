@@ -1,6 +1,6 @@
 # Claude in Proto-Mind
 
-Development release: **0.74.15 (119)**. This local integration runs Anthropic's
+Development release: **0.74.16 (120)**. This local integration runs Anthropic's
 official **Claude Agent SDK 0.2.159 / Claude Code 2.1.281**. PM is an independent
 application, not an Anthropic product. No account is included.
 
@@ -78,7 +78,7 @@ again. API logins without a public email bootstrap fresh.
 Changing a provider or project can therefore start a new session; this release
 does not add cross-provider context-transfer features.
 
-Messages typed while Claude works reach the running turn as updates (0.74.4). With Full Mac, Claude can also see the screen and operate apps with the mouse and keyboard through PM (0.74.9), once macOS allows Proto-Mind Screen Recording and Accessibility. Claude reset actions and multiple Claude logins are not implemented.
+Messages typed while Claude works reach the running turn as updates (0.74.4). With Full Mac, Claude can also see the screen and operate apps with the mouse and keyboard through PM (0.74.9; zoom, batches and waits after Anthropic's computer toolset since 0.74.16), once macOS allows Proto-Mind Screen Recording and Accessibility. Claude reset actions and multiple Claude logins are not implemented.
 Brother Persona and automatic skill selection remain Codex/Ollama-specific;
 Claude still gets core memory and explicit selected skill guidance. The sidebar and Limits page separate Codex and Claude subscriptions. No automatic provider fallback or
 PM retry is performed after failure.
