@@ -16,7 +16,69 @@ private final class FixtureDictationSpeech: DictationRecognizing {
     func cancel() { cancellations += 1 }
 }
 
+@MainActor
+private final class MarqueeHover: ObservableObject {
+    @Published var on = false
+}
+
+private struct MarqueeProbe: View {
+    @ObservedObject var hover: MarqueeHover
+    var body: some View {
+        HStack(spacing: 8) {
+            SidebarMarqueeText(text: "Лендинг для кофейни с очень длинным названием, которое не помещается", active: hover.on)
+            Image(systemName: "pencil")
+        }.font(.system(size: 13)).frame(width: 180, height: 28).padding(.horizontal, 4)
+    }
+}
+
 extension NativeChecks {
+    /// Frames of a long title while its row is hovered and after the pointer leaves.
+    @MainActor
+    static func sidebarMarquee() async throws {
+        let hover = MarqueeHover()
+        let host = NSHostingView(rootView: MarqueeProbe(hover: hover))
+        host.frame = NSRect(x: 0, y: 0, width: 188, height: 28)
+        let window = NSWindow(contentRect: host.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = host
+        // Animations run only for a window on screen: this one is fully transparent and click-through.
+        window.alphaValue = 0; window.ignoresMouseEvents = true
+        window.orderFrontRegardless()
+        defer { window.orderOut(nil); window.contentView = nil; window.close() }
+        func frame() throws -> (title: Data, icon: Data) {
+            host.layoutSubtreeIfNeeded()
+            guard let bitmap = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { throw NativeError.message("Marquee bitmap unavailable") }
+            host.cacheDisplay(in: host.bounds, to: bitmap)
+            let width = bitmap.pixelsWide, rows = bitmap.pixelsHigh, bytes = bitmap.bytesPerRow, scale = width / 188
+            guard let pixels = bitmap.bitmapData else { throw NativeError.message("Marquee pixels unavailable") }
+            let buffer = UnsafeBufferPointer(start: pixels, count: bytes * rows)
+            // The title occupies the left part of the row; the icon stays in its last 24 points.
+            let split = (188 - 24) * scale * (bytes / width)
+            var title = Data(), icon = Data()
+            for row in 0..<rows {
+                let line = buffer[(row * bytes)..<(row * bytes + bytes)]
+                title.append(contentsOf: line.prefix(split - 40 * scale * (bytes / width)))
+                icon.append(contentsOf: line.suffix(bytes - split))
+            }
+            return (title, icon)
+        }
+        try await Task.sleep(for: .milliseconds(300))
+        let rest = try frame()
+        hover.on = true
+        try await Task.sleep(for: .milliseconds(1200))
+        let first = try frame()
+        try await Task.sleep(for: .milliseconds(600))
+        let second = try frame()
+        hover.on = false
+        try await Task.sleep(for: .milliseconds(200))
+        let back = try frame()
+        try check(first.title != rest.title && second.title != first.title,
+                  "A long sidebar title keeps gliding while its row is hovered")
+        try check(first.icon == rest.icon && second.icon == rest.icon && back.icon == rest.icon,
+                  "Gliding never shifts the row's other contents")
+        try check(back.title == rest.title, "When the pointer leaves, the title returns to its start at once")
+    }
+
     @MainActor
     static func sidebarProjectOrdering(root: URL) async throws {
         let suite = "proto-mind-sidebar-checks." + UUID().uuidString

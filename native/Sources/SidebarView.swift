@@ -145,14 +145,15 @@ struct SidebarView: View {
         .onReceive(model.presentations.$pages.map { $0.contains { $0.dismissalDisabled } }.removeDuplicates()) {
             presentationLocked = $0
         }
-        .onDisappear { projectDrag.finish() }
+        .onDisappear { projectDrag.finish(); hoverCards.release() }
         .modifier(SidebarProjectDragCompletion(drag: projectDrag))
     }
 
     private func conversationRow(_ chat: Conversation) -> some View {
         let isWorking = model.isRunning(chat.id)
         let selected = selectedConversationID == chat.id && model.section == .chat
-        return SidebarRowHover { hovered in
+        // The whole title, model and status appear in a card right of the row, not in a system tooltip.
+        return SidebarHoverRow(cards: hoverCards, card: { AnyView(hoverCard(chat)) }) { hovered in
             Button {
                 let query = model.conversationSearch.trimmingCharacters(in: .whitespacesAndNewlines)
                 let match = query.isEmpty ? nil : chat.messages.last { $0.searchableText.localizedCaseInsensitiveContains(query) }
@@ -173,8 +174,6 @@ struct SidebarView: View {
                     .background(selected ? NativeTheme.selection : .clear, in: RoundedRectangle(cornerRadius: 8))
             }.buttonStyle(.nativeHover).disabled(presentationLocked || !model.canNavigateConversations)
         }
-            // The whole title, model and status appear in a card right of the row, not in a system tooltip.
-            .background(SidebarHoverCardAnchor(cards: hoverCards) { AnyView(hoverCard(chat)) })
             .accessibilityLabel(chat.displayTitle + (isWorking ? L10n.text(" · Выполняется задача") : "")
                                 + (model.responseAttention.entry(for: chat).map { " · " + $0.label } ?? ""))
             .contextMenu {

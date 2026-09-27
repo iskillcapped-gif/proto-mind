@@ -35,13 +35,31 @@ final class SidebarHoverCards: ObservableObject {
     private weak var anchor: SidebarHoverCardAnchor.TrackingView?
     private var pending: DispatchWorkItem?
     private var monitor: Any?
+    private var scrollMonitor: Any?
+    private var hoverObservers: [NSObjectProtocol] = []
     private var observers: [NSObjectProtocol] = []
     private var hiddenAt = Date.distantPast
     var visible: Bool { panel != nil }
 
     fileprivate func enter(_ view: SidebarHoverCardAnchor.TrackingView) {
         pending?.cancel()
+        if let previous = anchor, previous !== view { previous.hover?(false) }
         anchor = view
+        view.hover?(true)
+        if scrollMonitor == nil {
+            // Rows move under a still pointer while the list scrolls, and AppKit may report the
+            // exit only on the next mouse move: the hovered row lets go of its title and card now.
+            scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+                MainActor.assumeIsolated { self?.release() }
+                return event
+            }
+            // A hidden or folded window sends no exit either.
+            for name in [NSWindow.didChangeOcclusionStateNotification, NSWindow.willCloseNotification, NSWindow.didMiniaturizeNotification] {
+                hoverObservers.append(NotificationCenter.default.addObserver(forName: name, object: view.window, queue: .main) { [weak self] _ in
+                    MainActor.assumeIsolated { self?.release() }
+                })
+            }
+        }
         let show = DispatchWorkItem { [weak self, weak view] in
             MainActor.assumeIsolated {
                 guard let self, let view, self.anchor === view else { return }
@@ -59,12 +77,23 @@ final class SidebarHoverCards: ObservableObject {
 
     fileprivate func exit(_ view: SidebarHoverCardAnchor.TrackingView) {
         guard anchor === view else { return }
+        view.hover?(false)
         anchor = nil
         pending?.cancel(); pending = nil
         // The pointer may be crossing into the next row, whose entry takes the card over.
         DispatchQueue.main.async { [weak self] in
-            if let self, self.anchor == nil { self.hide() }
+            if let self, self.anchor == nil { self.release() }
         }
+    }
+
+    /// No row is hovered any more: its title stops gliding and the card goes.
+    func release() {
+        anchor?.hover?(false)
+        anchor = nil
+        if let scrollMonitor { NSEvent.removeMonitor(scrollMonitor) }
+        scrollMonitor = nil
+        hoverObservers.forEach(NotificationCenter.default.removeObserver); hoverObservers = []
+        hide()
     }
 
     func hide() {
@@ -131,10 +160,12 @@ final class SidebarHoverCards: ObservableObject {
 struct SidebarHoverCardAnchor: NSViewRepresentable {
     let cards: SidebarHoverCards
     let card: () -> AnyView
+    let hover: (Bool) -> Void
 
     final class TrackingView: NSView {
         weak var cards: SidebarHoverCards?
         var card: (() -> AnyView)?
+        var hover: ((Bool) -> Void)?
         override func hitTest(_ point: NSPoint) -> NSView? { nil }
         override func updateTrackingAreas() {
             super.updateTrackingAreas()
@@ -144,19 +175,20 @@ struct SidebarHoverCardAnchor: NSViewRepresentable {
         override func mouseEntered(with event: NSEvent) { cards?.enter(self) }
         override func mouseExited(with event: NSEvent) { cards?.exit(self) }
         override func viewWillMove(toWindow newWindow: NSWindow?) {
-            if newWindow == nil { cards?.exit(self) }
+            // A row being removed takes its hover state with it; SwiftUI state is not written during removal.
+            if newWindow == nil { hover = nil; cards?.exit(self) }
             super.viewWillMove(toWindow: newWindow)
         }
     }
 
     func makeNSView(context: Context) -> TrackingView {
         let view = TrackingView()
-        view.cards = cards; view.card = card
+        view.cards = cards; view.card = card; view.hover = hover
         return view
     }
 
     func updateNSView(_ view: TrackingView, context: Context) {
-        view.cards = cards; view.card = card
+        view.cards = cards; view.card = card; view.hover = hover
     }
 }
 
@@ -177,75 +209,91 @@ struct SidebarHoverCardView: View {
     }
 }
 
-/// A one-line title that, while its row is hovered and the title does not fit, glides to show its
-/// end and back; otherwise it is truncated as usual. Motion starts only after a short rest, so
-/// rows passing under a still pointer while the list scrolls do not start it.
+/// A one-line title that glides left like a ticker while its row is hovered and the title does not
+/// fit, and snaps back to its start when the pointer leaves; otherwise it is truncated as usual.
+/// The truncated title always sets the layout and the moving copy is an overlay, so gliding never
+/// changes the row's size or the measurement that decides whether to glide.
 struct SidebarMarqueeText: View {
+    static let gap: CGFloat = 36
+    /// Points per second.
+    static let speed: Double = 36
     let text: String
     let active: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var fullWidth: CGFloat = 0
     @State private var boxWidth: CGFloat = 0
-    @State private var scrolling = false
+    @State private var gliding = false
     @State private var offset: CGFloat = 0
 
-    private var overflow: CGFloat { max(0, fullWidth - boxWidth) }
+    private var fits: Bool { fullWidth <= boxWidth + 0.5 }
 
     var body: some View {
-        ZStack(alignment: .leading) {
-            if scrolling {
-                Text(text).lineLimit(1).fixedSize().offset(x: offset)
-            } else {
-                Text(text).lineLimit(1).truncationMode(.tail)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .clipped()
-        .mask {
-            if scrolling {
-                HStack(spacing: 0) {
-                    LinearGradient(colors: [.clear, .black], startPoint: .leading, endPoint: .trailing).frame(width: offset < 0 ? 8 : 0)
-                    Rectangle()
-                    LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing).frame(width: 8)
+        Text(text).lineLimit(1).truncationMode(.tail)
+            .opacity(gliding ? 0 : 1)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .overlay(alignment: .leading) {
+                if gliding {
+                    HStack(spacing: Self.gap) { Text(text); Text(text) }
+                        .lineLimit(1).fixedSize().offset(x: offset).accessibilityHidden(true)
                 }
-            } else { Rectangle() }
-        }
-        .background(GeometryReader { box in
-            Color.clear.onAppear { boxWidth = box.size.width }.onChange(of: box.size.width) { _, width in boxWidth = width }
-        })
-        .background(alignment: .leading) {
-            Text(text).lineLimit(1).fixedSize().hidden().accessibilityHidden(true)
-                .background(GeometryReader { line in
-                    Color.clear.onAppear { fullWidth = line.size.width }.onChange(of: line.size.width) { _, width in fullWidth = width }
-                })
-        }
-        .task(id: active && overflow > 1 && !reduceMotion) {
-            guard active, overflow > 1, !reduceMotion else {
-                scrolling = false; offset = 0
-                return
             }
-            try? await Task.sleep(for: .milliseconds(600))
-            guard !Task.isCancelled else { return }
-            scrolling = true
-            let distance = overflow + 8
-            let duration = Double(distance) / 40 + 0.3
-            while !Task.isCancelled {
-                withAnimation(.easeInOut(duration: duration)) { offset = -distance }
-                try? await Task.sleep(for: .seconds(duration + 1.2))
-                guard !Task.isCancelled else { break }
-                withAnimation(.easeInOut(duration: duration)) { offset = 0 }
-                try? await Task.sleep(for: .seconds(duration + 1.2))
+            .clipped()
+            .mask {
+                if gliding {
+                    HStack(spacing: 0) {
+                        LinearGradient(colors: [.clear, .black], startPoint: .leading, endPoint: .trailing).frame(width: offset < 0 ? 6 : 0)
+                        Rectangle()
+                        LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing).frame(width: 10)
+                    }
+                } else { Rectangle() }
             }
-        }
+            .background(GeometryReader { box in
+                Color.clear.onAppear { boxWidth = box.size.width }.onChange(of: box.size.width) { _, width in boxWidth = width }
+            })
+            .background(alignment: .leading) {
+                Text(text).lineLimit(1).fixedSize().hidden().accessibilityHidden(true)
+                    .background(GeometryReader { line in
+                        Color.clear.onAppear { fullWidth = line.size.width }.onChange(of: line.size.width) { _, width in fullWidth = width }
+                    })
+            }
+            .task(id: active && !fits && !reduceMotion) {
+                guard active, !fits, !reduceMotion else { stop(); return }
+                try? await Task.sleep(for: .milliseconds(350))
+                guard !Task.isCancelled else { return }
+                gliding = true
+                let distance = fullWidth + Self.gap
+                let duration = Double(distance) / Self.speed
+                while !Task.isCancelled {
+                    withAnimation(.linear(duration: duration)) { offset = -distance }
+                    try? await Task.sleep(for: .seconds(duration))
+                    guard !Task.isCancelled else { break }
+                    // The second copy now stands where the first began: rest a moment, then again.
+                    jump { offset = 0 }
+                    try? await Task.sleep(for: .seconds(1))
+                }
+            }
+    }
+
+    private func stop() { jump { gliding = false; offset = 0 } }
+
+    private func jump(_ change: () -> Void) {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction, change)
     }
 }
 
-/// Gives a row's content its own hover state without re-rendering the other rows.
-struct SidebarRowHover<Content: View>: View {
+/// A sidebar row whose one AppKit tracking area drives both its gliding title and its hover card,
+/// so the title stops exactly when the pointer leaves, the list scrolls or the window hides.
+struct SidebarHoverRow<Content: View>: View {
+    let cards: SidebarHoverCards
+    let card: () -> AnyView
     @ViewBuilder let content: (Bool) -> Content
     @State private var hovered = false
 
     var body: some View {
-        content(hovered).onHover { next in if hovered != next { hovered = next } }
+        content(hovered).background(SidebarHoverCardAnchor(cards: cards, card: card) { next in
+            if hovered != next { hovered = next }
+        })
     }
 }
