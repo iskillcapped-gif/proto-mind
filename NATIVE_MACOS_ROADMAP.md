@@ -4,6 +4,41 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Text-Only Status Toggles, Direct Attachments and Stable Tool Schemas — Native 0.74.17
+
+After the 0.74.16 restart, a live batch (pointer position, a one-second wait,
+then `capture: true`) worked: the pointer was correctly reported as outside
+any capture, and a full-display capture came back attached. Zoom could not be
+tried, however. This long-lived Claude session had kept a cached copy of
+`pm_screen_capture` and `pm_computer_action` from before 0.74.16: new fields
+arrived as strings while calls were validated against the new schema, so a
+zoom `region` could not be passed at all. PM sessions persist across updates,
+so this would recur with every change to a tool. Zoom is now its own tool,
+`pm_screen_zoom(region)`; `pm_screen_capture` has its original `app`-only
+schema again. Fields added to an existing tool are optional (`direction` and
+`capture` on `pm_computer_action`, `direction` in batch steps), and
+`validate_arguments` passes omitted optional fields to Native as null.
+
+At the operator's request, two interface changes:
+
+- Work-status and tool-group lines ("Работаю", "Ответ получен · …",
+  "Команды в терминале…") open their details only from their words, not from
+  the whole row. Hovering gently brightens the letters (secondary to
+  primary at 85%; orange lines brighten to full orange) instead of drawing a
+  row highlight (`NativeTextButtonStyle`).
+- Dropped, pasted or chosen images and text files attach at once. There is
+  no confirmation sheet; the composer shows them, and nothing is sent before
+  Send. PDFs keep their page picker, which is a choice rather than a
+  confirmation. The read-only drop preview remains available to code and
+  checks through `previewDroppedAttachments`.
+
+Verification on 2026-09-27: **2430 Python tests and 2024 Native checks
+passed**. They include older-schema calls, the zoom gate, a chosen image
+attaching at once and drops attaching without a sheet. The gallery shows the
+status lines unchanged at rest. The 0.74.17 (121) bundle was staged and
+installed in place; 0.74.16 (120) is kept as
+`dist/Proto-Mind Native 0.74.16 (120).previous`.
+
 ## Computer Use Aligned With Anthropic's Toolset — Native 0.74.16
 
 At the operator's suggestion, Claude now checks the official Anthropic sources
@@ -18,7 +53,7 @@ Current models accept images up to a 2576 px long edge; about 1024x768 to
 
 PM's tools now follow it while keeping their own schema:
 
-- `pm_screen_capture` takes `region` [x0, y0, x1, y1] in pixels of the latest
+- `pm_screen_capture` took `region` [x0, y0, x1, y1] (moved to `pm_screen_zoom` in 0.74.17) in pixels of the latest
   capture. It captures that area at the display's full resolution and
   enlarges it to a normal capture size (up to 4x). Actions keep using the full
   capture's coordinates, and the capture mapping is unchanged.
