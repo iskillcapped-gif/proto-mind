@@ -4,6 +4,25 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Shorter Rendered Transcript — Native 0.74.14
+
+Scrolling cost scales with the rendered messages (see 0.74.13): each wheel step
+asks SwiftUI several times what is under the pointer, and each answer walks
+every rendered view. Apple's guidance on performant scrollable stacks is to
+keep regular stacks unless profiling shows that lazy loading pays off. The
+profiles do show that, but PM's September layout loop with a lazy stack of
+selectable rows (0.40.1) still rules one out. The existing page window is
+therefore smaller: a conversation renders its latest 30 messages instead of
+80, earlier ones load 30 at a time with the existing button, and a jump to a
+message mounts a 30-message neighbourhood. The history itself is unchanged.
+A tested AppKit-backed virtualized transcript remains the long-term option.
+
+Verification on 2026-09-27: **2016 Native checks passed**; the paging checks
+now derive their numbers from the policy constants. The 0.74.14 (118) bundle
+was staged and installed in place; 0.74.13 (117) is kept as
+`dist/Proto-Mind Native 0.74.13 (117).previous`. A live scroll profile follows
+the operator's restart.
+
 ## Static Transcript Indicators — Native 0.74.13
 
 After the 0.74.12 restart, a live profile of scrolling showed a new cost: about
