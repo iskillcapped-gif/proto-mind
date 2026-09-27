@@ -1,4 +1,5 @@
 import AppKit
+import CryptoKit
 import SwiftUI
 
 extension NativeChecks {
@@ -151,6 +152,25 @@ extension NativeChecks {
         }
         try check(!app.client.connected && !app.fullAccessEnabled && !FileManager.default.fileExists(atPath: root.appendingPathComponent("chat-ui").path),
                   "Chat presentation never starts providers, grants access or writes private state")
+    }
+
+    /// Attached images appear as pictures, read only while the file matches its recorded hash.
+    @MainActor static func attachmentPictures(root: URL) async throws {
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let context = CGContext(data: nil, width: 300, height: 200, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
+                                bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)!
+        context.setFillColor(CGColor(red: 0.2, green: 0.4, blue: 0.8, alpha: 1)); context.fill(CGRect(x: 0, y: 0, width: 300, height: 200))
+        let data = NSBitmapImageRep(cgImage: context.makeImage()!).representation(using: .png, properties: [:])!
+        let file = root.appendingPathComponent("attached-picture.png")
+        try data.write(to: file)
+        func metadata(sha: String) -> JSONValue {
+            .object(["schema": .string("proto_mind.native_image.v1"), "path": .string(file.path), "name": .string(file.lastPathComponent), "sha256": .string(sha),
+                     "mime_type": .string("image/png"), "size_bytes": .number(Double(data.count)), "width": .number(300), "height": .number(200)])
+        }
+        let sha = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        let picture = await AttachmentThumbnails.load(metadata(sha: sha))
+        let other = await AttachmentThumbnails.load(metadata(sha: String(repeating: "0", count: 64)))
+        try check(picture != nil && other == nil, "An attached image becomes a picture only while its file matches the recorded SHA-256")
     }
 
     /// A running task must not re-render a long transcript for every animation frame or text delta.

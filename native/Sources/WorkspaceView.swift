@@ -560,6 +560,7 @@ struct MessageView: View {
                             .font(.system(size: 11.5)).foregroundStyle(.secondary).lineLimit(2)
                             .help(L10n.text("Это сообщение отправила модель другой задачи через инструменты PM, а не вы."))
                     }
+                    if !(message.imageContext ?? []).isEmpty { imageThumbnails }
                     Text(origin?.body ?? BrowserReferencePresentation(message.text)?.instruction ?? message.text).font(NativeTheme.messageFont).lineSpacing(6).textSelection(.enabled)
                         .help(message.createdAt.formatted(date: .omitted, time: .shortened))
                     if let page = BrowserReferencePresentation(message.text) {
@@ -659,6 +660,20 @@ struct MessageView: View {
         } else { model.openWorkspaceLink(url) }
     }
 
+    /// Attached images as pictures, like other chat apps show them; a click opens the local preview.
+    private var imageThumbnails: some View {
+        let images = message.imageContext ?? []
+        return HStack(alignment: .top, spacing: 8) {
+            ForEach(Array(images.enumerated()), id: \.offset) { _, image in
+                AttachedImageThumbnail(image: image, existing: model.imageThumbnails[image["sha256"].text],
+                                       maxSize: images.count > 1 ? CGSize(width: 180, height: 130) : CGSize(width: 260, height: 180)) {
+                    Task { await model.previewImage(image["path"].text, expectedSHA: image["sha256"].text, canAttach: false, inWorkspacePanel: true,
+                                                    targetPanel: targetPanel, conversationID: conversationID, in: presentations) }
+                }
+            }
+        }
+    }
+
     private var attachments: some View {
         Group {
         ForEach(Array((message.fileContext ?? []).enumerated()), id: \.offset) { _, file in
@@ -666,15 +681,7 @@ struct MessageView: View {
                 .font(.system(size: 11)).foregroundStyle(.secondary).textSelection(.enabled)
                 .help(L10n.format("\(file["path"].text) · \(file["included_chars"].integer) символов · SHA \(file["sha256"].text.prefix(8))"))
             }
-            ForEach(Array((message.imageContext ?? []).enumerated()), id: \.offset) { _, image in
-                Button {
-                    Task { await model.previewImage(image["path"].text, expectedSHA: image["sha256"].text, canAttach: false, inWorkspacePanel: true, targetPanel: targetPanel, conversationID: conversationID, in: presentations) }
-                } label: {
-                    Label("\(image["name"].text) · \(image["width"].integer) × \(image["height"].integer)", systemImage: "photo")
-                        .font(.caption).foregroundStyle(.secondary)
-                }.buttonStyle(.nativeHover).disabled(ConversationComposerContext(app: model, id: conversationID ?? model.selectedID).busy || model.loadingImagePreview)
-                    .help(L10n.text("Локальный просмотр исходного файла с проверкой SHA-256. Изображение не отправляется повторно."))
-            }
+            // Images appear as pictures in the user's message; an answer does not repeat them.
             ForEach(Array((message.pdfContext ?? []).enumerated()), id: \.offset) { _, pdf in
                 Button { Task { await model.previewPDF(pdf["path"].text, expected: pdf, canAttach: false, inWorkspacePanel: true, targetPanel: targetPanel, conversationID: conversationID, in: presentations) } } label: {
                     Label(L10n.format("\(pdf["name"].text) · стр. \(pdf["pages"].items.map { String($0["number"].integer) }.joined(separator: ", "))"), systemImage: "doc.richtext")

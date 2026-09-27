@@ -161,3 +161,81 @@ struct PendingImageAttachmentsView: View {
         }.buttonStyle(.nativeHover).disabled(!context.canEditAttachments || model.loadingImagePreview || model.loadingDroppedAttachments).padding(.horizontal, 12).padding(.top, 10)
     }
 }
+
+/// Pictures of attached images for the transcript. A picture is read from the original file only
+/// while it still has the size and SHA-256 recorded at attachment, and is kept in memory.
+@MainActor
+enum AttachmentThumbnails {
+    private static var cache: [String: NSImage] = [:]
+    private static var order: [String] = []
+
+    static func cached(_ sha: String) -> NSImage? { cache[sha] }
+
+    static func load(_ metadata: JSONValue) async -> NSImage? {
+        let sha = metadata["sha256"].text
+        if let image = cache[sha] { return image }
+        let path = metadata["path"].text, size = metadata["size_bytes"].integer
+        let type = metadata["mime_type"].text == "image/png" ? "public.png" : "public.jpeg"
+        let picture = await Task.detached(priority: .utility) { () -> CGImage? in
+            let url = URL(fileURLWithPath: path)
+            guard (1...NativeImageAttachment.maximumBytes).contains(size),
+                  let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey]),
+                  values.isRegularFile == true, values.isSymbolicLink != true, values.fileSize == size,
+                  let data = try? Data(contentsOf: url), data.count == size,
+                  SHA256.hash(data: data).map({ String(format: "%02x", $0) }).joined() == sha,
+                  let source = CGImageSourceCreateWithData(data as CFData, [kCGImageSourceShouldCache: false] as CFDictionary),
+                  CGImageSourceGetType(source) as String? == type else { return nil }
+            return CGImageSourceCreateThumbnailAtIndex(source, 0, [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceCreateThumbnailWithTransform: true,
+                kCGImageSourceThumbnailMaxPixelSize: 640,
+                kCGImageSourceShouldCacheImmediately: true,
+            ] as CFDictionary)
+        }.value
+        guard let picture else { return nil }
+        let image = NSImage(cgImage: picture, size: .zero)
+        cache[sha] = image
+        order.append(sha)
+        if order.count > 40 { cache[order.removeFirst()] = nil }
+        return image
+    }
+}
+
+/// An attached image shown as a picture in its message; a click opens the checked local preview.
+/// Its size comes from the recorded dimensions, so the transcript does not jump while it loads.
+struct AttachedImageThumbnail: View {
+    let image: JSONValue
+    var existing: NSImage? = nil
+    var maxSize = CGSize(width: 260, height: 180)
+    let open: () -> Void
+    @State private var picture: NSImage?
+
+    private var size: CGSize {
+        let width = Double(max(1, image["width"].integer)), height = Double(max(1, image["height"].integer))
+        let scale = min(1, maxSize.width / width, maxSize.height / height)
+        return CGSize(width: max(40, width * scale), height: max(30, height * scale))
+    }
+
+    var body: some View {
+        Button(action: open) {
+            ZStack {
+                if let shown = picture ?? existing ?? AttachmentThumbnails.cached(image["sha256"].text) {
+                    Image(nsImage: shown).resizable().scaledToFill()
+                } else {
+                    Color.primary.opacity(0.06)
+                    Image(systemName: "photo").font(.system(size: 18)).foregroundStyle(.tertiary)
+                }
+            }
+            .frame(width: size.width, height: size.height)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color.primary.opacity(0.1)))
+            .contentShape(RoundedRectangle(cornerRadius: 10))
+        }
+        .buttonStyle(.plain)
+        .help("\(image["name"].text) · \(image["width"].integer) × \(image["height"].integer)")
+        .accessibilityLabel(image["name"].text)
+        .task(id: image["sha256"].text) {
+            if existing == nil, picture == nil, AttachmentThumbnails.cached(image["sha256"].text) == nil { picture = await AttachmentThumbnails.load(image) }
+        }
+    }
+}

@@ -1,4 +1,5 @@
 import AppKit
+import CryptoKit
 import SwiftUI
 
 /// Renders representative screens to PNG files for visual review:
@@ -12,7 +13,7 @@ extension NativeChecks {
         let state = root.appendingPathComponent("gallery-state")
         let app = AppModel(configuration: LaunchConfiguration(projectRoot: root, python: root, stateDirectory: state), uiDefaults: defaults)
         defer { app.shutdown(); defaults.removePersistentDomain(forName: suite); L10n.language = .russian }
-        let selected = galleryConversations(app)
+        let selected = galleryConversations(app, root: root)
         func file(_ name: String) -> URL { directory.appendingPathComponent(name + ".png") }
         for language in [InterfaceLanguage.russian, .english] {
             L10n.language = language
@@ -35,6 +36,11 @@ extension NativeChecks {
             app.settingsSection = section
             try await galleryRender(NativeSettingsView(model: app), size: NSSize(width: 820, height: 700), dark: false, to: file("settings-\(section.rawValue)"))
         }
+        if let withImage = app.conversations.first(where: { $0.id == selected })?.messages.first(where: { !($0.imageContext ?? []).isEmpty }) {
+            for image in withImage.imageContext ?? [] { _ = await AttachmentThumbnails.load(image) }
+            try await galleryRender(MessageView(message: withImage, model: app).padding(24), size: NSSize(width: 820, height: 320), dark: true,
+                                    to: file("message-image-dark"))
+        }
         let (log, receipt) = galleryWork()
         for dark in [true, false] {
             try await galleryRender(WorkTimelineView(log: log, agentReceipt: receipt, live: true, startedAt: Date().addingTimeInterval(-95)).padding(24),
@@ -47,7 +53,24 @@ extension NativeChecks {
         print("Interface gallery: \(directory.path)")
     }
 
-    @MainActor private static func galleryConversations(_ app: AppModel) -> UUID {
+    /// A small attached screenshot, so the transcript shows an image the way a message carries it.
+    private static func galleryImage(root: URL) -> JSONValue {
+        let context = CGContext(data: nil, width: 1440, height: 860, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
+                                bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)!
+        context.setFillColor(CGColor(red: 0.13, green: 0.14, blue: 0.17, alpha: 1)); context.fill(CGRect(x: 0, y: 0, width: 1440, height: 860))
+        context.setFillColor(CGColor(red: 0.2, green: 0.45, blue: 0.9, alpha: 1)); context.fill(CGRect(x: 80, y: 620, width: 520, height: 120))
+        context.setFillColor(CGColor(gray: 0.85, alpha: 1)); context.fill(CGRect(x: 80, y: 420, width: 1100, height: 40))
+        context.setFillColor(CGColor(gray: 0.55, alpha: 1)); context.fill(CGRect(x: 80, y: 340, width: 860, height: 30))
+        let data = NSBitmapImageRep(cgImage: context.makeImage()!).representation(using: .png, properties: [:])!
+        let file = root.appendingPathComponent("Снимок экрана.png")
+        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try? data.write(to: file)
+        return .object(["schema": .string("proto_mind.native_image.v1"), "path": .string(file.path), "name": .string(file.lastPathComponent),
+                        "sha256": .string(SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()), "mime_type": .string("image/png"),
+                        "size_bytes": .number(Double(data.count)), "width": .number(1440), "height": .number(860)])
+    }
+
+    @MainActor private static func galleryConversations(_ app: AppModel, root: URL) -> UUID {
         func message(_ role: String, _ text: String, minutesAgo: Double, notices: [String] = [], error: Bool = false, updates: [TaskUpdate]? = nil) -> ChatMessage {
             var value = ChatMessage(role: role, text: text)
             value.createdAt = Date().addingTimeInterval(-minutesAgo * 60)
@@ -83,7 +106,9 @@ extension NativeChecks {
         Файл `SidebarView.swift`, ссылка: [документация](https://developer.apple.com).
         """
         let main = conversation("Аудит интерфейса Proto-Mind", provider: "claude", model: "claude-opus-5-5", path: "/Users/demo/proto_mind", hoursAgo: 0.1, messages: [
-            message("user", "Брат, проведи аудит интерфейса и найди, что можно улучшить", minutesAgo: 30, updates: [accepted]),
+            { var value = message("user", "Брат, проведи аудит интерфейса и найди, что можно улучшить", minutesAgo: 30, updates: [accepted])
+              value.imageContext = [galleryImage(root: root)]
+              return value }(),
             message("assistant", answer, minutesAgo: 25, notices: ["Claude usage for this turn: 12 model requests, context up to 142K tokens."]),
             message("user", "[Proto-Mind: sent by the agent of task «Проверка тестов» (claude · claude-opus-5-5) through pm_send_task_message; the operator did not type it. Treat it as that agent's delegated request.]\n\nПроверь, пожалуйста, что тесты проходят после правки.", minutesAgo: 12),
             message("report", "Claude: достигнут лимит. После обновления (время — в разделе «Лимиты») следующее сообщение продолжит эту же сессию; автоматического повтора не было.", minutesAgo: 10, error: true),

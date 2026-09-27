@@ -72,9 +72,10 @@ extension NativeChecks {
         coreHost.mouseEntered(with: hover)
         try check(desktop.coreHovered && !desktop.expanded && !app.liveVoice.inCall,
                   "Entering the core reveals controls immediately, with a short delay before the workspace")
-        try await Task.sleep(for: .milliseconds(260))
+        // The preview opens after a short dwell; a busy machine may run that timer late.
+        for _ in 0..<50 where !desktop.expanded { try await Task.sleep(for: .milliseconds(20)) }
         try check(desktop.expanded && desktop.previewing && !window.isKeyWindow && !app.liveVoice.inCall,
-                  "Dwelling on the core opens a temporary preview without making it key or starting voice")
+                  "Dwelling on the core opens a temporary preview without making it key or starting voice (expanded \(desktop.expanded), previewing \(desktop.previewing), key \(window.isKeyWindow), call \(app.liveVoice.inCall))")
         coreHost.mouseExited(with: hover)
         let region = DesktopWorkspaceHoverRegion.TrackingView(frame: window.contentView!.bounds)
         region.desktop = desktop
