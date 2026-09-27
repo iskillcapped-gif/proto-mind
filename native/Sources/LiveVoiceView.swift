@@ -23,9 +23,9 @@ struct LiveVoiceButton: View {
     var body: some View {
         Button { app.presentLiveVoice(openSettings: { openSettings() }) } label: {
             Image(systemName: voice.inCall ? "waveform.circle.fill" : "waveform")
-                .font(.system(size: 20, weight: .regular))
+                .font(.system(size: 16, weight: .regular))
                 .foregroundStyle(voice.inCall ? NativeTheme.accent : .secondary)
-                .frame(width: 30, height: 32)
+                .frame(width: 28, height: 28)
         }.buttonStyle(.nativeHover)
             .help(voice.connected ? L10n.text("Голосовой разговор подключён") : voice.inCall ? L10n.text("Подключение голосового разговора") : L10n.text("Поговорить с Proto-Mind"))
             .accessibilityLabel(L10n.text("Голос Proto-Mind"))

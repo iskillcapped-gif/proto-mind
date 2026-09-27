@@ -106,26 +106,26 @@ struct SidebarView: View {
                             }
                         }
                     }.padding(.horizontal, 12)
-                }.frame(minHeight: 0, maxHeight: .infinity).padding(.bottom, 10)
+                }.frame(minHeight: 0, maxHeight: .infinity).padding(.bottom, 6)
                 Divider().padding(.horizontal, 17)
-                HStack(spacing: 4) {
+                HStack(spacing: 2) {
                     SidebarMenuView(app: model, usage: model.codexUsage, client: model.serviceClient, openSettings: openSettings, columnWidth: max(1, geometry.size.width - 24))
                     LiveVoiceButton(app: model, voice: model.liveVoice)
                     Button { toolsOpen.toggle() } label: {
-                        Image(systemName: "ellipsis").frame(width: 28, height: 32)
+                        Image(systemName: "ellipsis").frame(width: 28, height: 28)
                     }.buttonStyle(.nativeHover).help(L10n.text("Команды, диагностика и копии")).accessibilityLabel(L10n.text("Инструменты"))
                         .composerPopover(isPresented: $toolsOpen, width: min(245, max(1, geometry.size.width - 24)), trailing: true) {
-                            VStack(spacing: 2) {
+                            VStack(spacing: 0) {
                                 ComposerMenuRow(title: L10n.text("Команды"), icon: "command") { toolsOpen = false; navigate { model.section = .commands } }
                                 ComposerMenuRow(title: L10n.text("Диагностика"), icon: "waveform.path.ecg") { toolsOpen = false; navigate { model.section = .overview } }
-                                Divider().padding(.vertical, 4)
+                                Divider().padding(.vertical, 3)
                                 ComposerMenuRow(title: L10n.text("Копии и восстановление"), icon: "clock.arrow.circlepath") {
                                     toolsOpen = false
                                     Task { @MainActor in await Task.yield(); model.openHistoryBackups() }
                                 }.disabled(model.globalBusy || model.client.turnOutstanding)
-                            }.padding(6)
+                            }.padding(4)
                         }
-                }.padding(.horizontal, 12).padding(.vertical, 9)
+                }.padding(.horizontal, 10).padding(.vertical, 5)
             }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 .disclosureGroupStyle(NativeDisclosureStyle())
                 .background { if !desktopGlass { SidebarMaterial().ignoresSafeArea() } }

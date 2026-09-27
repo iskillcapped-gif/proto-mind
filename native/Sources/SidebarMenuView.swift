@@ -29,20 +29,20 @@ struct SidebarMenuView: View {
     var body: some View {
         TimelineView(.periodic(from: .now, by: 15)) { context in
             Button { open.toggle() } label: {
-                HStack(spacing: 10) {
-                    Image(systemName: "line.3.horizontal").font(.system(size: 16)).foregroundStyle(.secondary)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(L10n.text("Меню")).font(.system(size: 13))
+                HStack(spacing: 8) {
+                    Image(systemName: "line.3.horizontal").font(.system(size: 13)).foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(L10n.text("Меню")).font(.system(size: 12))
                         HStack(spacing: 4) {
                             Text(open ? L10n.text("Настройки и лимиты") : compactLabel).lineLimit(1).minimumScaleFactor(0.85)
                             if !open, stale(at: context.date), !windows.isEmpty {
-                                Image(systemName: "clock").font(.system(size: 9))
+                                Image(systemName: "clock").font(.system(size: 8))
                             }
-                        }.font(.system(size: 10.5)).monospacedDigit().foregroundStyle(.secondary)
+                        }.font(.system(size: 10)).monospacedDigit().foregroundStyle(.secondary)
                     }
                     Spacer(minLength: 0)
-                    Image(systemName: "chevron.up").font(.system(size: 9)).foregroundStyle(.secondary)
-                }.padding(10).contentShape(Rectangle())
+                    Image(systemName: "chevron.up").font(.system(size: 8)).foregroundStyle(.secondary)
+                }.padding(.horizontal, 8).padding(.vertical, 4).contentShape(Rectangle())
             }.buttonStyle(.nativeHover).accessibilityLabel(L10n.text("Меню"))
                 .accessibilityValue("\(compactLabel)\(stale(at: context.date) ? L10n.pick(", требуется обновление", ", refresh needed") : "")")
                 .help(L10n.pick("Настройки и лимиты Codex / Claude. Показан остаток.", "Settings and Codex / Claude limits. Shows remaining quota."))
@@ -94,7 +94,7 @@ struct SidebarMenuView: View {
 
     private var menuContent: some View {
         VStack(alignment: .leading, spacing: 0) {
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 9) {
                 SubscriptionProviderPicker(provider: Binding(get: { provider }, set: { chosenProvider = $0 }))
                 HStack {
                     Text(isClaude ? "Claude" : "Codex").font(.system(size: 12, weight: .medium))
@@ -107,7 +107,7 @@ struct SidebarMenuView: View {
                         .font(.system(size: 12)).foregroundStyle(.secondary)
                 } else {
                     ForEach(windows) { window in
-                        VStack(spacing: 7) {
+                        VStack(spacing: 5) {
                             HStack {
                                 Text(window.title).foregroundStyle(.secondary)
                                 Spacer()
@@ -128,9 +128,9 @@ struct SidebarMenuView: View {
                 if stale(at: Date()), !windows.isEmpty {
                     Label(L10n.text("Данные устарели"), systemImage: "clock").font(.system(size: 10)).foregroundStyle(.secondary)
                 }
-            }.padding(16)
+            }.padding(.horizontal, 13).padding(.vertical, 11)
             Divider().padding(.horizontal, 10)
-            VStack(spacing: 2) {
+            VStack(spacing: 0) {
                 ComposerMenuRow(title: L10n.text("Настройки"), icon: "gearshape") {
                     open = false
                     Task { @MainActor in await Task.yield(); openSettings() }
@@ -144,7 +144,7 @@ struct SidebarMenuView: View {
                     open = false
                     Task { @MainActor in await Task.yield(); app.desktop.toggleMode() }
                 }
-            }.padding(6)
+            }.padding(4)
         }
     }
 }

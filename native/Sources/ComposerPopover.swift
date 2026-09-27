@@ -182,7 +182,7 @@ struct ComposerMenuRow: View {
                 }
                 Spacer(minLength: 6)
                 if selected { Image(systemName: "checkmark").font(.system(size: 11, weight: .semibold)) }
-            }.font(.system(size: 13)).padding(.horizontal, 10).padding(.vertical, 8)
+            }.font(.system(size: 13)).padding(.horizontal, 10).padding(.vertical, 5)
                 .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
         }.buttonStyle(.nativeHover).accessibilityAddTraits(selected ? [.isSelected] : [])
     }

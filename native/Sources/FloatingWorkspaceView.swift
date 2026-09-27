@@ -103,19 +103,21 @@ struct DesktopCoreView: View {
     private var voiceLevel: Double { max(voice.inputLevel, voice.outputLevel) }
     var body: some View {
         HStack(spacing: 4) {
-            VStack(spacing: 6) {
+            // Small controls; their groups keep the former slots, so the cube itself never moves.
+            VStack(spacing: 2) {
                 ForEach(DesktopCompanionID.allCases) { id in
                     Button { desktop.companions.toggle(id) } label: {
-                        Text(id == .first ? "1" : "2").font(.system(size: 11, weight: .medium))
-                            .frame(width: 34, height: 34).contentShape(Rectangle())
-                            .background(desktop.companions.surface(id).visible ? Color.teal.opacity(0.22) : .clear, in: RoundedRectangle(cornerRadius: 8))
-                    }.buttonStyle(.nativeHover).foregroundStyle(.primary)
+                        Text(id == .first ? "1" : "2").font(.system(size: 10, weight: .medium))
+                            .frame(width: 22, height: 22).contentShape(Rectangle())
+                            .background(desktop.companions.surface(id).visible ? Color.teal.opacity(0.22) : .clear, in: RoundedRectangle(cornerRadius: 6))
+                    }.buttonStyle(.nativeHover(minSize: 22)).foregroundStyle(.primary)
                         .help(L10n.text("Показать или скрыть · ") + id.title)
                         .accessibilityLabel(L10n.text("Боковое ") + id.title.lowercased())
                         .accessibilityValue(desktop.companions.surface(id).visible ? L10n.text("Показано") : L10n.text("Скрыто"))
                 }
-            }.padding(3).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
-                .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.white.opacity(0.15)).allowsHitTesting(false))
+            }.padding(2).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+                .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.white.opacity(0.15)).allowsHitTesting(false))
+                .frame(width: 40, alignment: .trailing)
                 .padding(.bottom, 38)
                 .opacity(desktop.coreHovered ? 1 : 0).allowsHitTesting(desktop.coreHovered)
                 .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: desktop.coreHovered)
@@ -140,19 +142,20 @@ struct DesktopCoreView: View {
             }.frame(width: 80, height: 78)
                 .overlay(DesktopCoreHandle(desktop: desktop))
                 .overlay(alignment: .topTrailing) { CoreResponseBadge(app: app).offset(x: 3, y: -2) }
-            HStack(spacing: 6) {
+            HStack(spacing: 1) {
                 Button { desktop.openVoice() } label: {
                     Image(systemName: voice.inCall ? (voice.muted ? "mic.slash.fill" : "mic.fill") : "mic")
                         .foregroundStyle(voice.inCall ? Color.teal : .primary)
-                        .frame(width: 34, height: 32).contentShape(Rectangle())
+                        .frame(width: 26, height: 22).contentShape(Rectangle())
                 }.help(voice.inCall ? L10n.text("Управление разговором") : L10n.text("Начать голосовой разговор"))
                     .accessibilityLabel(L10n.text("Голос Proto-Mind"))
                 Button { desktop.restoreWindow() } label: {
-                    Image(systemName: "arrow.up.left.and.arrow.down.right").frame(width: 34, height: 32).contentShape(Rectangle())
+                    Image(systemName: "arrow.up.left.and.arrow.down.right").frame(width: 26, height: 22).contentShape(Rectangle())
                 }.help(L10n.text("Обычное окно")).accessibilityLabel(L10n.text("Обычное окно"))
-            }.font(.system(size: 11, weight: .medium)).buttonStyle(.nativeHover).padding(3)
+            }.font(.system(size: 10, weight: .medium)).buttonStyle(.nativeHover(minSize: 22, cornerRadius: 11)).padding(2)
                 .background(.regularMaterial, in: Capsule())
                 .overlay(Capsule().strokeBorder(.white.opacity(0.15)).allowsHitTesting(false))
+                .frame(height: 38, alignment: .top)
                 .opacity(desktop.coreHovered ? 1 : 0)
                 .allowsHitTesting(desktop.coreHovered)
                 .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: desktop.coreHovered)

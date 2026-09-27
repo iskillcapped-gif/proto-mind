@@ -21,17 +21,18 @@ private struct NativeHoverFeedback: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var hovered = false
     var pressed = false
+    var cornerRadius: CGFloat = 8
 
     func body(content: Content) -> some View {
         let state = NativeHoverState(enabled: enabled, hovered: hovered, pressed: pressed)
         let animation: Animation? = NativeInteractionPerformance.hoverAnimationEnabled && !reduceMotion
             ? .easeOut(duration: 0.12) : nil
         content
-            .contentShape(RoundedRectangle(cornerRadius: 8))
+            .contentShape(RoundedRectangle(cornerRadius: cornerRadius))
             .overlay {
-                RoundedRectangle(cornerRadius: 8)
+                RoundedRectangle(cornerRadius: cornerRadius)
                     .fill(Color.primary.opacity(state.fill))
-                    .overlay { RoundedRectangle(cornerRadius: 8).strokeBorder(Color.primary.opacity(state.border), lineWidth: 1) }
+                    .overlay { RoundedRectangle(cornerRadius: cornerRadius).strokeBorder(Color.primary.opacity(state.border), lineWidth: 1) }
                     .allowsHitTesting(false).accessibilityHidden(true)
             }
             .onHover { next in
@@ -42,15 +43,22 @@ private struct NativeHoverFeedback: ViewModifier {
 }
 
 struct NativeHoverButtonStyle: ButtonStyle {
+    var minSize: CGFloat = 28
+    var cornerRadius: CGFloat = 8
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .frame(minWidth: 28, minHeight: 28)
-            .modifier(NativeHoverFeedback(pressed: configuration.isPressed))
+            .frame(minWidth: minSize, minHeight: minSize)
+            .modifier(NativeHoverFeedback(pressed: configuration.isPressed, cornerRadius: cornerRadius))
     }
 }
 
 extension ButtonStyle where Self == NativeHoverButtonStyle {
     static var nativeHover: NativeHoverButtonStyle { NativeHoverButtonStyle() }
+    /// The same feedback for small controls, such as the buttons around the desktop cube.
+    static func nativeHover(minSize: CGFloat, cornerRadius: CGFloat = 6) -> NativeHoverButtonStyle {
+        NativeHoverButtonStyle(minSize: minSize, cornerRadius: cornerRadius)
+    }
 }
 
 extension View {
