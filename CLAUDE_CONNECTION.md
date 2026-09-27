@@ -1,6 +1,6 @@
 # Claude in Proto-Mind
 
-Development release: **0.74.20 (124)**. This local integration runs Anthropic's
+Development release: **0.74.21 (125)**. This local integration runs Anthropic's
 official **Claude Agent SDK 0.2.159 / Claude Code 2.1.281**. PM is an independent
 application, not an Anthropic product. No account is included.
 

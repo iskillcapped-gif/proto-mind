@@ -4,6 +4,34 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Compact Sidebar With Hover Cards — Native 0.74.21
+
+The operator asked to tidy the sidebar: it felt spread out, long chat titles
+were cut off, the hover popup appeared near the pointer instead of beside the
+chat, and the text looked heavy on the glass.
+
+- Rows are denser: navigation and chat rows use 13 pt text and are about
+  28 pt tall (before: 14 pt, about 38 pt with 3 pt gaps); project headings are
+  28 pt (36), the header and the "Диалоги" heading have less padding.
+- Unselected chat titles are slightly softer than the selected one.
+- A title that does not fit glides to show its end and back while its row is
+  hovered, after a short rest, with faded edges; at rest it is truncated as
+  before. Reduce Motion turns the motion off.
+- The system tooltip is replaced by a card that stands just right of the
+  sidebar, centred on the hovered row: the whole title, the model and the last
+  activity, and the chat's state (task running, new response, draft). One
+  nonactivating panel serves the whole sidebar. It appears after 0.45 s, moves
+  at once to the next row the pointer reaches, never takes focus or clicks, and
+  hides on exit, click, key press or scroll; rows passing under a still pointer
+  while the list scrolls wait for the scrolling to stop. When the screen has no
+  room on the right, the card stands left of the row.
+
+Verification on 2026-09-27: **2029 Native checks passed** (no Python changes).
+The 0.74.21 (125) bundle was staged and installed in place; 0.74.20 (124) is kept
+as `dist/Proto-Mind Native 0.74.20 (124).previous`. A new check places the card
+beside, left of and inside the screen. The gallery has new frames of the
+sidebar at the cube's width and of a hover card.
+
 ## Line Totals for Long Turns — Native 0.74.20
 
 The operator asked for the total of added and removed lines under an answer:
