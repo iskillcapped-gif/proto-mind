@@ -14,11 +14,13 @@ For current development guidance, see [`AGENTS.md`](AGENTS.md). The [current pri
 
 ## Native macOS Direction
 
-The current native workspace is **Native 0.74.12 / Live Updates**, built with SwiftUI/AppKit over the existing Python cognitive core. Models can work with PM projects, conversations, browser pages, documents and explicitly connected services. This development line is separate from the earlier submitted Build Week baseline and published download.
+The current native workspace is **Native 0.74.13 / Static Transcript Indicators**, built with SwiftUI/AppKit over the existing Python cognitive core. Models can work with PM projects, conversations, browser pages, documents and explicitly connected services. This development line is separate from the earlier submitted Build Week baseline and published download.
 
 **Claude Code:** sign in through **Settings → Connections → Claude**, then select Claude in any chat. The official SDK/CLI supports the user's own Claude Code subscription or explicit API login. Claude shares PM's editor, memory and journal; tools require the conversation's Mac access. Each conversation resumes its exact saved Claude session, including tool history. New sessions bootstrap from up to 300,000 characters of local conversation with explicit omissions; the former 12 × 2,000 limit no longer applies to Claude. While Claude works, a message typed in the chat reaches it as an update, as with Codex. [Setup and current limits](CLAUDE_CONNECTION.md).
 
 **Claude continuity (0.74.2):** a resumed Claude session receives current memory and Observer labels on every turn, and an interrupted session continues on the next message. A failed or stopped request stays visible to every model, marked incomplete. Long pastes no longer become automatic memories, and isolated worktree tasks share their project's memory. [Release details](NATIVE_MACOS_ROADMAP.md#claude-continuity-and-memory-bounds--native-0742).
+
+**Static transcript indicators (0.74.13):** the moving working spinner is now a ring around the composer's send/stop button; rows in the conversation show a static mark, so scrolling does not make macOS re-check the whole conversation under the cursor. [Release details](NATIVE_MACOS_ROADMAP.md#static-transcript-indicators--native-07413).
 
 **Live updates (0.74.12):** while a task runs, its streamed text and work log update only the live part of the conversation, not every message. [Release details](NATIVE_MACOS_ROADMAP.md#live-updates-without-re-rendering-the-conversation--native-07412).
 

@@ -4,6 +4,31 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Static Transcript Indicators — Native 0.74.13
+
+After the 0.74.12 restart, a live profile of scrolling showed a new cost: about
+40% of the main thread went to cursor updates. On every scrolled frame AppKit
+recomputed its tracking regions (`_NSTrackingAreaAKManager`) and hit-tested
+the whole transcript through SwiftUI. The 0.74.10 profile had none of this.
+The trigger was the Core Animation spinner and shimmer from 0.74.11: they were
+the first AppKit views inside the scrolling transcript. The benchmark does not
+show it, because AppKit updates the cursor only for the active app. SF Symbol
+effects are no alternative either: SwiftUI animates them frame by frame, and
+in a benchmark they caused 122–126 renders a second, as a TimelineView did.
+
+Rows inside a transcript now show a static in-progress mark (`circle.dotted`)
+and plain status text; the elapsed-time label still updates once a second. The
+one moving spinner is a Core Animation ring around the composer's send/stop
+button while the conversation runs, outside the scrolling content; the sidebar
+keeps its spinner for running conversations. The shimmer was removed.
+
+Verification on 2026-09-27: **2016 Native checks passed**. The gallery shows
+the static marks in the live work timeline, and a benchmark capture shows the
+ring around the stop button. Python code did not change. The 0.74.13 (117)
+bundle was staged and installed in place; 0.74.12 (116) is kept as
+`dist/Proto-Mind Native 0.74.12 (116).previous`. A live profile after the
+operator's restart is pending.
+
 ## Live Updates Without Re-rendering the Conversation — Native 0.74.12
 
 With 0.74.11 installed, the operator saw the stutter return as soon as Claude
