@@ -20,8 +20,13 @@ A tested AppKit-backed virtualized transcript remains the long-term option.
 Verification on 2026-09-27: **2016 Native checks passed**; the paging checks
 now derive their numbers from the policy constants. The 0.74.14 (118) bundle
 was staged and installed in place; 0.74.13 (117) is kept as
-`dist/Proto-Mind Native 0.74.13 (117).previous`. A live scroll profile follows
-the operator's restart.
+`dist/Proto-Mind Native 0.74.13 (117).previous`.
+
+Live profiles after the restart, with a task running. The same synthetic test
+as for 0.74.13 (280 wheel steps over the conversation) kept the main thread
+busy 41% of the time instead of 81%. Hit tests took 16% instead of 42%,
+layout 21% instead of 40%, and a step cost about 6 ms instead of 11. The
+operator's own scrolling during the turn measured 40%.
 
 ## Static Transcript Indicators — Native 0.74.13
 
