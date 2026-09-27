@@ -2,12 +2,12 @@ import AppKit
 import QuartzCore
 import SwiftUI
 
-// No continuous animation lives inside a conversation transcript. A SwiftUI TimelineView
-// or symbol effect re-rendered the whole transcript on every frame (15-25% of the main
-// thread in a long chat), and an AppKit view inside the scrolling content made AppKit
-// hit-test the whole transcript for the cursor on every scrolled frame. The transcript
-// shows a static mark; the moving spinner stays outside scrolling content (the composer's
-// send button and the sidebar), where Core Animation turns it without main-thread work.
+// Continuous animations inside a transcript run on Core Animation only. A SwiftUI
+// TimelineView or symbol effect re-rendered the whole transcript on every frame (15-25% of
+// the main thread in a long chat); Core Animation moves these layers in the render server.
+// Scrolling cost comes from SwiftUI hit tests over every rendered message, with or without
+// these views (measured in 0.74.12-0.74.14). The moving spinner is a ring on the composer's
+// send button and in the sidebar; transcript rows show a static mark and a shimmering label.
 
 /// Static "in progress" mark for rows inside a transcript.
 struct WorkingMark: View {
@@ -26,6 +26,31 @@ struct WorkingIndicator: View {
         SpinnerRepresentable(animates: !reduceMotion && scenePhase == .active)
             .frame(width: size, height: size).allowsHitTesting(false).accessibilityHidden(true)
     }
+}
+
+/// Status text with a dark beam sweeping across its letters while the work is active.
+struct WorkingStatusText: View {
+    let text: String
+    var active = true
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
+
+    var body: some View {
+        Text(text)
+            .overlay {
+                if active && !reduceMotion && !text.isEmpty {
+                    ShimmerRepresentable(animates: scenePhase == .active)
+                        .mask(alignment: .leading) { Text(text) }
+                        .allowsHitTesting(false).accessibilityHidden(true)
+                }
+            }
+    }
+}
+
+private struct ShimmerRepresentable: NSViewRepresentable {
+    let animates: Bool
+    func makeNSView(context: Context) -> WorkingShimmerView { WorkingShimmerView() }
+    func updateNSView(_ view: WorkingShimmerView, context: Context) { view.animates = animates }
 }
 
 private struct SpinnerRepresentable: NSViewRepresentable {
@@ -120,5 +145,59 @@ final class WorkingSpinnerView: NSView {
         spin.duration = 1.15
         spin.repeatCount = .infinity
         rotor.add(spin, forKey: "spin")
+    }
+}
+
+/// A dark beam that crosses the view in 2 s and rests 0.6 s; the caller masks it with the text.
+final class WorkingShimmerView: NSView {
+    private let beam = CAGradientLayer()
+    private var drawnSize = CGSize.zero
+    var animates = true { didSet { if animates != oldValue { restart() } } }
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        wantsLayer = true
+        layer?.masksToBounds = true
+        beam.startPoint = CGPoint(x: 0, y: 0.5)
+        beam.endPoint = CGPoint(x: 1, y: 0.5)
+        beam.anchorPoint = .zero
+        // Black in both appearances, as the operator asked.
+        beam.colors = [CGColor.clear, CGColor(gray: 0, alpha: 0.12), CGColor(gray: 0, alpha: 0.9), CGColor(gray: 0, alpha: 0.12), CGColor.clear]
+        layer?.addSublayer(beam)
+    }
+
+    required init?(coder: NSCoder) { nil }
+    override var isFlipped: Bool { true }
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    override func layout() {
+        super.layout()
+        guard bounds.size != drawnSize else { return }
+        drawnSize = bounds.size
+        restart()
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        restart()
+    }
+
+    private func restart() {
+        beam.removeAnimation(forKey: "sweep")
+        let width = min(110, max(40, bounds.width * 0.45))
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        beam.bounds = CGRect(x: 0, y: 0, width: width, height: bounds.height)
+        beam.position = CGPoint(x: -width, y: 0)
+        CATransaction.commit()
+        guard animates, window != nil, bounds.width > 0 else { return }
+        let sweep = CABasicAnimation(keyPath: "position.x")
+        sweep.fromValue = -width
+        sweep.toValue = bounds.width
+        sweep.duration = 2
+        let cycle = CAAnimationGroup()
+        cycle.animations = [sweep]
+        cycle.duration = 2.6
+        cycle.repeatCount = .infinity
+        beam.add(cycle, forKey: "sweep")
     }
 }
