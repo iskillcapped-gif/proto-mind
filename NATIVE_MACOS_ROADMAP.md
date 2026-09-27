@@ -4,6 +4,26 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Label Shimmer Returns in Black — Native 0.74.15
+
+The operator watches the moving beam over "Работаю" and the running tool
+labels while Claude works; static text is not an acceptable replacement. The
+0.74.13 and 0.74.14 profiles also corrected the reason for removing it: the
+scroll cost comes from SwiftUI hit tests over every rendered message whether
+or not Core Animation views are present (0.74.12 with them and 0.74.13 without
+them both measured about 80% busy while scrolling). The Core Animation shimmer
+therefore returns to transcript labels. At the operator's request the beam is
+black in both appearances, so it darkens the letters it crosses. The spinner
+stays on the composer's send button; transcript rows keep the static mark.
+The operator also allowed a 20-message window if scrolling needs it; it stays
+at 30 until a profile shows the need.
+
+Verification on 2026-09-27: **2016 Native checks passed**, including Core
+Animation checks for the spinner and the shimmer. Captures of a real window
+showed the black beam crossing the text in dark and light appearances. The
+0.74.15 (119) bundle was staged and installed in place; 0.74.14 (118) is kept
+as `dist/Proto-Mind Native 0.74.14 (118).previous`.
+
 ## Shorter Rendered Transcript — Native 0.74.14
 
 Scrolling cost scales with the rendered messages (see 0.74.13): each wheel step
