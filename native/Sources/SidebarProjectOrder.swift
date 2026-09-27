@@ -177,11 +177,11 @@ private struct SidebarProjectSection<Row: View>: View {
     private var edge: SidebarProjectEdge? { drag.insertion?.group == group.id ? drag.insertion?.edge : nil }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: 1) {
             SidebarProjectHeading(group: group, app: app, order: order, drag: drag)
             ForEach(group.conversations) { row($0) }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 3)
         .contentShape(Rectangle())
         .background {
             GeometryReader { geometry in
@@ -257,8 +257,8 @@ private struct SidebarProjectHeading: View {
             Spacer(minLength: 0)
             Image(systemName: "line.3.horizontal").font(.system(size: 10))
                 .opacity(hovered ? 0.6 : 0)
-        }.font(.system(size: 13)).foregroundStyle(.secondary)
-            .padding(.horizontal, 11).frame(height: 36).contentShape(Rectangle())
+        }.font(.system(size: 12)).foregroundStyle(.secondary)
+            .padding(.horizontal, 11).frame(height: 28).contentShape(Rectangle())
             .background(hovered ? Color.primary.opacity(0.035) : .clear, in: RoundedRectangle(cornerRadius: 7))
             .onHover { hovered = $0 }
             .help((group.workspace ?? L10n.pick("Диалоги без папки проекта", "Conversations without a project")) + L10n.pick("\nПеретащите, чтобы изменить порядок проектов", "\nDrag to reorder projects"))

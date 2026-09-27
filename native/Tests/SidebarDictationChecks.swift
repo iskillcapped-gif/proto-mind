@@ -74,6 +74,13 @@ extension NativeChecks {
                   && SidebarProjectEdge.at(y: 58, height: 120, previous: .after) == .after
                   && SidebarProjectEdge.at(y: 70, height: 120, previous: .before) == .after,
                   "The insertion indicator stays stable near the midpoint and changes after crossing it")
+        let screen = CGRect(x: 0, y: 0, width: 1440, height: 900)
+        let beside = SidebarHoverCardPlacement.frame(row: CGRect(x: 12, y: 500, width: 199, height: 28), size: CGSize(width: 220, height: 60), screen: screen)
+        let atRightEdge = SidebarHoverCardPlacement.frame(row: CGRect(x: 1230, y: 500, width: 199, height: 28), size: CGSize(width: 220, height: 60), screen: screen)
+        let atBottom = SidebarHoverCardPlacement.frame(row: CGRect(x: 12, y: 2, width: 199, height: 28), size: CGSize(width: 220, height: 60), screen: screen)
+        try check(beside == CGRect(x: 231, y: 484, width: 220, height: 60) && atRightEdge.maxX <= 1230 - 20 && atRightEdge.midY == 514
+                  && atBottom.minY == 6 && atBottom.minX == 231,
+                  "A chat's hover card stands just right of the sidebar, centred on its row, and stays on screen")
         var buttonDown = true
         let drag = SidebarProjectDragSession(primaryButtonDown: { buttonDown })
         defer { drag.finish() }

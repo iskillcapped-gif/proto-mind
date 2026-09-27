@@ -24,6 +24,14 @@ extension NativeChecks {
         }
         L10n.language = .russian
         try await galleryRender(WorkspaceView(model: app), size: NSSize(width: 960, height: 640), dark: false, to: file("workspace-small"))
+        // The sidebar at the cube's width, and the card a chat row shows beside it on hover.
+        try await galleryRender(SidebarView(model: app, libraryExpanded: .constant(false), openSettings: {}), size: NSSize(width: 230, height: 760), dark: true,
+                                to: file("sidebar-narrow-dark"))
+        try await galleryRender(SidebarHoverCardView(title: "Лендинг для кофейни с очень длинным названием, которое не помещается в строку",
+                                                     detail: "Codex · 20 ч назад", status: ("pencil", "Есть черновик"))
+                                    .padding(.horizontal, 12).padding(.vertical, 9).frame(width: 290, alignment: .leading)
+                                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10)).padding(20),
+                                size: NSSize(width: 340, height: 150), dark: true, to: file("sidebar-hover-card-dark"))
         app.showInspector = false
         try await galleryRender(EvidenceInspectorView(model: app), size: NSSize(width: 560, height: 680), dark: false, to: file("inspector"))
         app.setComposer("Ещё проверь, пожалуйста, тёмную тему")
