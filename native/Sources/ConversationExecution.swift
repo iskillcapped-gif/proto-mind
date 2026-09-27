@@ -10,6 +10,8 @@ final class ConversationExecution: ObservableObject {
     var observation: AnyCancellable?
     @Published var running = false
     @Published var stream = ""
+    private var pendingStream = ""
+    private var streamFlush: Task<Void, Never>?
     @Published private var statusKey = "Готов"
     var status: String {
         get { L10n.text(statusKey) }
@@ -40,9 +42,28 @@ final class ConversationExecution: ObservableObject {
         client = BridgeClient(configuration: configuration, codexAccountID: codexAccountID)
     }
 
+    /// Shows streamed text at most ten times a second. Every change re-renders the whole
+    /// conversation, and a provider can send deltas several times faster than that.
+    func appendStream(_ delta: String) {
+        pendingStream += delta
+        guard streamFlush == nil else { return }
+        streamFlush = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(100))
+            guard !Task.isCancelled, let self else { return }
+            streamFlush = nil
+            stream += pendingStream
+            pendingStream = ""
+        }
+    }
+
+    func resetStream() {
+        streamFlush?.cancel(); streamFlush = nil
+        pendingStream = ""; stream = ""
+    }
+
     func clearTurn() {
         workspaceWorker?.shutdown(); workspaceWorker = nil; workspaceToolsAllowed = false
-        running = false; stream = ""; requestID = nil; agentItems = []
+        running = false; resetStream(); requestID = nil; agentItems = []
         agentReceipt = .null; workLog = .null; startedAt = nil
         autoSkillsReport = nil; sourceMessageID = nil; computerCapture = nil
     }
@@ -104,8 +125,8 @@ extension AppModel {
         guard state.running, event["request_id"].text == state.requestID else { return }
         switch event["event"].text {
         case "workspace_tool": receiveWorkspaceTool(event, state: state)
-        case "answer_delta": state.stream += event["delta"].text
-        case "answer_reset": state.stream = ""
+        case "answer_delta": state.appendStream(event["delta"].text)
+        case "answer_reset": state.resetStream()
         case "steering_ready": receiveTaskUpdateTarget(event, execution: state)
         case "auto_skills":
             if let report = try? NativeAutoSkillsReport(event["report"]) {

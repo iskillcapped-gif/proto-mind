@@ -1,21 +1,18 @@
+import AppKit
+import QuartzCore
 import SwiftUI
 
-/// Small local animations: only their drawing updates, not the surrounding transcript.
+// Working indicators are moved by Core Animation. A SwiftUI TimelineView re-rendered the
+// whole hosting view on every frame; in a long transcript that took 15-25% of the main
+// thread while a task ran and made scrolling stutter.
+
 struct WorkingIndicator: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: reduceMotion || scenePhase != .active)) { tick in
-            ZStack {
-                Circle().stroke(Color.primary.opacity(0.16), lineWidth: 1.7)
-                Circle().trim(from: 0, to: 0.76)
-                    .stroke(AngularGradient(colors: [.primary.opacity(0.08), .primary.opacity(0.8)],
-                                            center: .center, startAngle: .degrees(0), endAngle: .degrees(274)),
-                            style: StrokeStyle(lineWidth: 1.7, lineCap: .round))
-                    .rotationEffect(.degrees(reduceMotion ? -90 : tick.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1.15) / 1.15 * 360))
-            }.padding(1)
-        }.frame(width: 15, height: 15).accessibilityHidden(true)
+        SpinnerRepresentable(animates: !reduceMotion && scenePhase == .active)
+            .frame(width: 15, height: 15).accessibilityHidden(true)
     }
 }
 
@@ -30,19 +27,176 @@ struct WorkingStatusText: View {
         Text(text).foregroundStyle(color)
             .overlay {
                 if active && !reduceMotion && !text.isEmpty {
-                    GeometryReader { geometry in
-                        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: scenePhase != .active)) { tick in
-                            let beam = min(110, max(40, geometry.size.width * 0.45))
-                            let cycle = tick.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 2.6)
-                            let progress = min(1, cycle / 2)
-                            LinearGradient(colors: [.clear, .primary.opacity(0.12), .primary.opacity(0.9), .primary.opacity(0.12), .clear],
-                                           startPoint: .leading, endPoint: .trailing)
-                                .frame(width: beam, height: geometry.size.height)
-                                .offset(x: -beam + (geometry.size.width + beam) * progress)
-                        }
-                    }.mask(alignment: .leading) { Text(text) }
+                    ShimmerRepresentable(animates: scenePhase == .active)
+                        .mask(alignment: .leading) { Text(text) }
                         .allowsHitTesting(false).accessibilityHidden(true)
                 }
             }
+    }
+}
+
+private struct SpinnerRepresentable: NSViewRepresentable {
+    let animates: Bool
+    func makeNSView(context: Context) -> WorkingSpinnerView { WorkingSpinnerView() }
+    func updateNSView(_ view: WorkingSpinnerView, context: Context) { view.animates = animates }
+}
+
+private struct ShimmerRepresentable: NSViewRepresentable {
+    let animates: Bool
+    func makeNSView(context: Context) -> WorkingShimmerView { WorkingShimmerView() }
+    func updateNSView(_ view: WorkingShimmerView, context: Context) { view.animates = animates }
+}
+
+/// Label color at a fraction of its own opacity, like SwiftUI's `.primary.opacity(_:)`.
+private func labelTone(_ opacity: CGFloat, in appearance: NSAppearance) -> CGColor {
+    var color = CGColor.clear
+    appearance.performAsCurrentDrawingAppearance {
+        let label = NSColor.labelColor.usingColorSpace(.sRGB) ?? .labelColor
+        color = label.withAlphaComponent(label.alphaComponent * opacity).cgColor
+    }
+    return color
+}
+
+/// A faint ring with a gradient arc that turns clockwise once every 1.15 s.
+final class WorkingSpinnerView: NSView {
+    private let track = CAShapeLayer(), arc = CAShapeLayer(), gradient = CAGradientLayer(), rotor = CALayer()
+    private var drawnSize = CGSize.zero
+    var animates = true { didSet { if animates != oldValue { restart() } } }
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        wantsLayer = true
+        layer?.addSublayer(track)
+        gradient.type = .conic
+        gradient.mask = arc
+        rotor.addSublayer(gradient)
+        layer?.addSublayer(rotor)
+    }
+
+    required init?(coder: NSCoder) { nil }
+    override var isFlipped: Bool { true }
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }  // Clicks reach the enclosing control.
+
+    override func layout() {
+        super.layout()
+        guard bounds.size != drawnSize else { return }
+        drawnSize = bounds.size
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        let lineWidth: CGFloat = 1.7
+        let center = CGPoint(x: bounds.midX, y: bounds.midY), radius = max(1, min(bounds.width, bounds.height) / 2 - 1)
+        for item in [track, rotor, gradient, arc] as [CALayer] { item.frame = bounds }
+        track.path = CGPath(ellipseIn: CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2), transform: nil)
+        track.lineWidth = lineWidth
+        track.fillColor = nil
+        let path = CGMutablePath()
+        path.addArc(center: center, radius: radius, startAngle: 0, endAngle: .pi * 2 * 0.76, clockwise: false)
+        arc.path = path
+        arc.lineWidth = lineWidth
+        arc.lineCap = .round
+        arc.fillColor = nil
+        arc.strokeColor = .black
+        // Faint at the tail, strongest at the head; fading again past it keeps the tail's cap faint.
+        gradient.startPoint = CGPoint(x: 0.5, y: 0.5)
+        gradient.endPoint = CGPoint(x: 1, y: 0.5)
+        gradient.locations = [0, NSNumber(value: 274.0 / 360), 1]
+        CATransaction.commit()
+        updateColors()
+        restart()
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        updateColors()
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        restart()
+    }
+
+    private func updateColors() {
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        track.strokeColor = labelTone(0.16, in: effectiveAppearance)
+        gradient.colors = [labelTone(0.08, in: effectiveAppearance), labelTone(0.8, in: effectiveAppearance), labelTone(0.08, in: effectiveAppearance)]
+        CATransaction.commit()
+    }
+
+    private func restart() {
+        rotor.removeAnimation(forKey: "spin")
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        rotor.transform = animates ? CATransform3DIdentity : CATransform3DMakeRotation(-.pi / 2, 0, 0, 1)
+        CATransaction.commit()
+        guard animates, window != nil else { return }
+        let spin = CABasicAnimation(keyPath: "transform.rotation.z")
+        spin.fromValue = 0
+        spin.toValue = CGFloat.pi * 2
+        spin.duration = 1.15
+        spin.repeatCount = .infinity
+        rotor.add(spin, forKey: "spin")
+    }
+}
+
+/// A light beam that crosses the view in 2 s and rests 0.6 s; the caller masks it with the text.
+final class WorkingShimmerView: NSView {
+    private let beam = CAGradientLayer()
+    private var drawnSize = CGSize.zero
+    var animates = true { didSet { if animates != oldValue { restart() } } }
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        wantsLayer = true
+        layer?.masksToBounds = true
+        beam.startPoint = CGPoint(x: 0, y: 0.5)
+        beam.endPoint = CGPoint(x: 1, y: 0.5)
+        beam.anchorPoint = .zero
+        layer?.addSublayer(beam)
+    }
+
+    required init?(coder: NSCoder) { nil }
+    override var isFlipped: Bool { true }
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    override func layout() {
+        super.layout()
+        guard bounds.size != drawnSize else { return }
+        drawnSize = bounds.size
+        restart()
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        updateColors()
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        restart()
+    }
+
+    private func updateColors() {
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        beam.colors = [CGColor.clear, labelTone(0.12, in: effectiveAppearance), labelTone(0.9, in: effectiveAppearance),
+                       labelTone(0.12, in: effectiveAppearance), CGColor.clear]
+        CATransaction.commit()
+    }
+
+    private func restart() {
+        beam.removeAnimation(forKey: "sweep")
+        let width = min(110, max(40, bounds.width * 0.45))
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        beam.bounds = CGRect(x: 0, y: 0, width: width, height: bounds.height)
+        beam.position = CGPoint(x: -width, y: 0)
+        CATransaction.commit()
+        updateColors()
+        guard animates, window != nil, bounds.width > 0 else { return }
+        let sweep = CABasicAnimation(keyPath: "position.x")
+        sweep.fromValue = -width
+        sweep.toValue = bounds.width
+        sweep.duration = 2
+        let cycle = CAAnimationGroup()
+        cycle.animations = [sweep]
+        cycle.duration = 2.6
+        cycle.repeatCount = .infinity
+        beam.add(cycle, forKey: "sweep")
     }
 }

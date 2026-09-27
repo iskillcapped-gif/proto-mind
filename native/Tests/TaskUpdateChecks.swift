@@ -38,7 +38,10 @@ extension NativeChecks {
         while app.messages.first?.taskUpdates?.first?.state != .accepted && Date() < deadline { try await Task.sleep(for: .milliseconds(10)) }
         try check(app.busy && app.messages.first?.taskUpdates?.first?.state == .accepted,
                   "Queued update reaches the same running model turn before its answer")
-        while !app.stream.isEmpty && Date() < deadline { try await Task.sleep(for: .milliseconds(10)) }
+        // Streamed text is shown in batches, so an empty stream alone does not mean the boundary passed.
+        while !(app.stream.isEmpty && app.workLog.pretty.contains("Предварительный ответ")) && Date() < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
         try check(app.stream.isEmpty && app.workLog.pretty.contains("Предварительный ответ"),
                   "A steering boundary clears the superseded live answer and preserves it in public work history")
         await app.codexUsage.refreshLimits(app: app)

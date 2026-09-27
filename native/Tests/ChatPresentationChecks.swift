@@ -152,4 +152,35 @@ extension NativeChecks {
         try check(!app.client.connected && !app.fullAccessEnabled && !FileManager.default.fileExists(atPath: root.appendingPathComponent("chat-ui").path),
                   "Chat presentation never starts providers, grants access or writes private state")
     }
+
+    /// A running task must not re-render a long transcript for every animation frame or text delta.
+    @MainActor static func liveWorkRendering(root: URL) async throws {
+        let execution = ConversationExecution(conversationID: UUID(), configuration: LaunchConfiguration(
+            projectRoot: root, python: root, stateDirectory: root.appendingPathComponent("live-rendering")))
+        execution.appendStream("Пишу ")
+        execution.appendStream("ответ")
+        try check(execution.stream.isEmpty, "Streamed text is batched instead of re-rendering the conversation for every delta")
+        try await Task.sleep(for: .milliseconds(300))
+        try check(execution.stream == "Пишу ответ", "Batched streamed text appears in order within a fraction of a second")
+        execution.appendStream(" дальше")
+        execution.resetStream()
+        try await Task.sleep(for: .milliseconds(300))
+        try check(execution.stream.isEmpty, "A reset also discards streamed text still waiting to be shown")
+
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 200, height: 40), styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        defer { window.close() }
+        let spinner = WorkingSpinnerView(frame: NSRect(x: 0, y: 0, width: 15, height: 15))
+        let shimmer = WorkingShimmerView(frame: NSRect(x: 20, y: 0, width: 120, height: 16))
+        for view in [spinner, shimmer] as [NSView] {
+            window.contentView?.addSubview(view)
+            view.needsLayout = true
+            view.layoutSubtreeIfNeeded()
+        }
+        func animated(_ view: NSView) -> Bool { view.layer?.sublayers?.contains { !($0.animationKeys() ?? []).isEmpty } == true }
+        try check(animated(spinner) && animated(shimmer), "Working indicators run as Core Animation animations, without per-frame SwiftUI updates")
+        spinner.animates = false
+        shimmer.animates = false
+        try check(!animated(spinner) && !animated(shimmer), "Reduced motion or an inactive window stops the working animations")
+    }
 }

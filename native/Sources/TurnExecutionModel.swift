@@ -122,7 +122,7 @@ extension AppModel {
         state.workspaceCreatedTasks = []
         state.workspaceToolCalls = []; state.workspaceToolsAllowed = !operatorInput && (grant != nil || conversation.provider == "api" && apiWorkspaceToolsAllowed(conversation))
         state.workspaceToolBinding = workspaceToolBinding(conversation)
-        state.stream = ""; state.agentItems = []; state.agentReceipt = .null; state.workLog = .null; state.autoSkillsReport = nil
+        state.resetStream(); state.agentItems = []; state.agentReceipt = .null; state.workLog = .null; state.autoSkillsReport = nil
         state.startedAt = Date()
         state.status = grant == nil ? "Proto-Mind думает" : "Агент подключается · полный доступ + интернет"
         guard persist() else {
