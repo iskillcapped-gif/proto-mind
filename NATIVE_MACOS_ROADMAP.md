@@ -4,6 +4,29 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Smaller Cube Controls and Compact Menus — Native 0.74.23
+
+The operator liked the fixed sidebar and asked for neater controls around the
+desktop cube, a slimmer menu row at the bottom of the sidebar and less space
+between menu items.
+
+- The controls that appear when the cube is hovered are smaller: the companion
+  toggles "1"/"2" are 22 pt (34), the voice and window buttons in the capsule
+  26x22 pt (34x32), with smaller glyphs and gaps. Their groups keep the former
+  slots, so the cube itself does not move. The shared hover button style gains a
+  small variant (`nativeHover(minSize:cornerRadius:)`).
+- The sidebar's menu row is about 46 pt instead of about 70: 12/10 pt text, a
+  13 pt icon and tighter padding; the voice and tools buttons are 28 pt.
+- In the menu, the limits block uses 9 pt gaps (14) and less padding; menu rows
+  are about 28 pt (33) with no gaps. The composer's attachment and tools menus
+  share the row and are tighter too.
+
+Verification on 2026-09-28: **2032 Native checks passed** (no Python
+changes); the menu row was reviewed in the gallery; the cube controls were not
+rendered offscreen (they appear only while the real cube is hovered). The
+0.74.23 (127) bundle was staged and installed in place; 0.74.22 (126) is kept as
+`dist/Proto-Mind Native 0.74.22 (126).previous`.
+
 ## Sidebar Title Glide Fix — Native 0.74.22
 
 The operator liked the compact sidebar, but the gliding titles misbehaved:

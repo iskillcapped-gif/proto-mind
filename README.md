@@ -14,11 +14,13 @@ For current development guidance, see [`AGENTS.md`](AGENTS.md). The [current pri
 
 ## Native macOS Direction
 
-The current native workspace is **Native 0.74.22 / Sidebar Title Glide Fix**, built with SwiftUI/AppKit over the existing Python cognitive core. Models can work with PM projects, conversations, browser pages, documents and explicitly connected services. This development line is separate from the earlier submitted Build Week baseline and published download.
+The current native workspace is **Native 0.74.23 / Smaller Cube Controls and Compact Menus**, built with SwiftUI/AppKit over the existing Python cognitive core. Models can work with PM projects, conversations, browser pages, documents and explicitly connected services. This development line is separate from the earlier submitted Build Week baseline and published download.
 
 **Claude Code:** sign in through **Settings → Connections → Claude**, then select Claude in any chat. The official SDK/CLI supports the user's own Claude Code subscription or explicit API login. Claude shares PM's editor, memory and journal; tools require the conversation's Mac access. Each conversation resumes its exact saved Claude session, including tool history. New sessions bootstrap from up to 300,000 characters of local conversation with explicit omissions; the former 12 × 2,000 limit no longer applies to Claude. While Claude works, a message typed in the chat reaches it as an update, as with Codex. [Setup and current limits](CLAUDE_CONNECTION.md).
 
 **Claude continuity (0.74.2):** a resumed Claude session receives current memory and Observer labels on every turn, and an interrupted session continues on the next message. A failed or stopped request stays visible to every model, marked incomplete. Long pastes no longer become automatic memories, and isolated worktree tasks share their project's memory. [Release details](NATIVE_MACOS_ROADMAP.md#claude-continuity-and-memory-bounds--native-0742).
+
+**Compact controls (0.74.23):** smaller buttons around the desktop cube, a slimmer menu row and tighter menus. [Release details](NATIVE_MACOS_ROADMAP.md#smaller-cube-controls-and-compact-menus--native-07423).
 
 **Title glide fix (0.74.22):** a long chat title glides while its row is hovered and snaps back when the pointer leaves, without shifting the row. [Release details](NATIVE_MACOS_ROADMAP.md#sidebar-title-glide-fix--native-07422).
 
