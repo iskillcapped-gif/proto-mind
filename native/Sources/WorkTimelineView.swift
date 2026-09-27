@@ -111,8 +111,8 @@ struct WorkTimelineView: View, Equatable {
         VStack(alignment: .leading, spacing: 20) {
             Button { expanded = !isExpanded } label: {
                 HStack(spacing: 8) {
-                    if live { WorkingIndicator() }
-                    WorkingStatusText(text: WorkLogPresentation.title(log, live: live), active: live)
+                    if live { WorkingMark() }
+                    Text(WorkLogPresentation.title(log, live: live))
                     if live, let startedAt {
                         TimelineView(.periodic(from: startedAt, by: 1)) { tick in
                             Text(WorkLogPresentation.duration(Int(max(0, tick.date.timeIntervalSince(startedAt)) * 1000)))
@@ -181,10 +181,9 @@ private struct WorkToolGroup: View {
                 HStack(spacing: 8) {
                     Image(systemName: hasErrors ? "exclamationmark.circle" : kinds.contains("fileChange") ? "pencil"
                           : kinds.contains("commandExecution") ? "terminal" : kinds.isSubset(of: ["fileRead", "search"]) ? "doc.text.magnifyingglass" : "wrench.and.screwdriver")
-                    WorkingStatusText(text: WorkTimelinePresentation.toolSummary(kinds, live: running),
-                                      active: running, color: hasErrors ? .orange : .secondary).lineLimit(2)
+                    Text(WorkTimelinePresentation.toolSummary(kinds, live: running)).lineLimit(2)
                     if !visible.isEmpty { Image(systemName: expanded ? "chevron.up" : "chevron.down").font(.system(size: 9)) }
-                    if running { WorkingIndicator() }
+                    if running { WorkingMark() }
                     Spacer(minLength: 0)
                 }.font(.system(size: 13)).foregroundStyle(hasErrors ? Color.orange : .secondary)
                     .contentShape(Rectangle())

@@ -189,16 +189,12 @@ extension NativeChecks {
         window.isReleasedWhenClosed = false
         defer { window.close() }
         let spinner = WorkingSpinnerView(frame: NSRect(x: 0, y: 0, width: 15, height: 15))
-        let shimmer = WorkingShimmerView(frame: NSRect(x: 20, y: 0, width: 120, height: 16))
-        for view in [spinner, shimmer] as [NSView] {
-            window.contentView?.addSubview(view)
-            view.needsLayout = true
-            view.layoutSubtreeIfNeeded()
-        }
+        window.contentView?.addSubview(spinner)
+        spinner.needsLayout = true
+        spinner.layoutSubtreeIfNeeded()
         func animated(_ view: NSView) -> Bool { view.layer?.sublayers?.contains { !($0.animationKeys() ?? []).isEmpty } == true }
-        try check(animated(spinner) && animated(shimmer), "Working indicators run as Core Animation animations, without per-frame SwiftUI updates")
+        try check(animated(spinner), "The working spinner runs as a Core Animation animation, without per-frame SwiftUI updates")
         spinner.animates = false
-        shimmer.animates = false
-        try check(!animated(spinner) && !animated(shimmer), "Reduced motion or an inactive window stops the working animations")
+        try check(!animated(spinner), "Reduced motion or an inactive window stops the working spinner")
     }
 }

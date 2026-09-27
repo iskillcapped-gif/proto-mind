@@ -216,7 +216,13 @@ struct ComposerView: View {
         }.padding(.vertical, 5).frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    @ViewBuilder private var sendButton: some View {
+    /// While the task runs, a ring turns around this button: the one moving indicator of a
+    /// running conversation, kept outside the scrolling transcript (see WorkingIndicators).
+    private var sendButton: some View {
+        sendOrStopButton.overlay { if context.state?.running == true { WorkingIndicator(size: 40) } }
+    }
+
+    @ViewBuilder private var sendOrStopButton: some View {
         if context.showsStop {
             Button { stop() } label: {
                 Image(systemName: "stop.fill").font(.system(size: 12)).foregroundStyle(NativeTheme.canvas)
