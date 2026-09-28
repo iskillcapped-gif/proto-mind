@@ -9,9 +9,25 @@ ERROR_CODES = {"authentication_failed", "billing_error", "rate_limit", "invalid_
 MAX_UPDATE_LINE = 16 * 1024 * 1024
 
 
+def resume_point_missing(value):
+    """Claude Code refused --resume-session-at while loading, before any model request."""
+    data = getattr(value, "data", None)
+    turns = data.get("num_turns") if isinstance(data, dict) else getattr(value, "num_turns", None)
+    errors = getattr(value, "errors", None)
+    return (getattr(value, "subtype", None) == "error_during_execution" and turns == 0 and isinstance(errors, list)
+            and any(isinstance(item, str) and item.startswith("No message found with message.uuid of:") for item in errors))
+
+
+def failure_code(error):
+    """The category of an exception that ended the worker, without its text."""
+    if isinstance(error, WorkspaceReplyError): return "workspace_connection"
+    return "resume_point" if resume_point_missing(error) else "unknown"
+
+
 def error_code(message, previous=None):
     category = getattr(message, "error", None)
     if category in ERROR_CODES: return category
+    if resume_point_missing(message): return "resume_point"
     status = getattr(message, "api_error_status", None)
     if status == 401: return "authentication_failed"
     if status == 403: return "access_denied"

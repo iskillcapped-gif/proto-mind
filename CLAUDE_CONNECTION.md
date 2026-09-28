@@ -75,6 +75,12 @@ next user-initiated turn from the same local position continues that session wit
 an explicit interruption notice; nothing is replayed or retried automatically. A
 resumed session that fails before any output for an unknown reason is not offered
 again. API logins without a public email bootstrap fresh.
+A completed turn continues exactly after its last answer. Claude Code sometimes
+writes that answer's parent entry after the answer and records the parent as the
+session's end, which leaves the answer outside the chain it loads. Before resuming,
+the worker then appends Claude Code's own explicit `last-prompt` record naming the
+answer; if Claude Code still refuses the point, no request reached the model and
+the next message continues the same session.
 Changing a provider or project can therefore start a new session; this release
 does not add cross-provider context-transfer features.
 

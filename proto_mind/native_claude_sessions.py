@@ -14,6 +14,7 @@ from pathlib import Path
 import stat
 from uuid import UUID, uuid4
 
+from proto_mind.native_claude_transcripts import transcript_files
 from proto_mind.native_locks import open_sidecar
 from proto_mind.native_private_backup import atomic_file, read_file, safe_directory, encoded
 from proto_mind.private_state_gate import generation, require_available
@@ -52,20 +53,7 @@ def continuity_hash(history):
 
 
 def transcript_exists(state, session_id):
-    """Claude Code stores each session as projects/<cwd>/<id>.jsonl; it may prune old ones."""
-    projects = state / "claude-profile" / "projects"
-    try:
-        with os.scandir(projects) as entries:
-            for entry in entries:
-                if entry.is_dir(follow_symlinks=False):
-                    try:
-                        if stat.S_ISREG(os.lstat(os.path.join(entry.path, session_id + ".jsonl")).st_mode):
-                            return True
-                    except FileNotFoundError:
-                        continue
-    except (FileNotFoundError, NotADirectoryError):
-        return False
-    return False
+    return bool(transcript_files(state / "claude-profile", session_id))
 
 
 def bootstrap_history(value):

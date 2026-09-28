@@ -7,11 +7,14 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
+from pathlib import Path
 import sys
 import time
 from uuid import UUID, uuid4
 from proto_mind.native_claude_protocol import (MAX_UPDATE_LINE, UsageMeter, WorkspaceReplies, WorkspaceReplyError, error_code,
-                                              tool_finished, tool_row)
+                                              failure_code, tool_finished, tool_row)
+from proto_mind.native_claude_transcripts import pin_resume_point
 
 
 def emit(event):
@@ -48,6 +51,9 @@ async def run(payload):
                        handler=handler(row["name"])) for row in payload["tools"]]
     mcp = {"pm": create_sdk_mcp_server(name="pm", version="1.0.0", tools=tools)} if tools else {}
     full = payload["full_access"] is True
+    resume_at = payload.get("resume_at") if payload.get("resume") else None
+    if resume_at and not pin_resume_point(Path(os.environ["CLAUDE_CONFIG_DIR"]), payload["session_id"], resume_at):
+        resume_at = None  # The answer is not in the transcript: continue from Claude Code's own point.
     options = ClaudeAgentOptions(
         cli_path=payload["cli"], cwd=payload["workspace"], model=payload["model"] or None,
         effort=payload["effort"] or None,
@@ -60,7 +66,7 @@ async def run(payload):
         # with Read; a 1 MiB cap ended a turn at a 1.25 MB screenshot.
         include_partial_messages=True, max_buffer_size=64 * 1024 * 1024,
         resume=payload.get("session_id") if payload.get("resume") else None,
-        resume_session_at=payload.get("resume_at") if payload.get("resume") else None,
+        resume_session_at=resume_at,
         session_id=payload.get("session_id") if not payload.get("resume") else None,
         # Echoed user messages show when an operator update enters the conversation.
         extra_args={"replay-user-messages": None, **({} if payload.get("session_id") else {"no-session-persistence": None})},
@@ -199,7 +205,7 @@ def main():
         if len(raw) > 40_000_000: raise ValueError("Oversized request")
         asyncio.run(run(json.loads(raw)))
     except Exception as error:
-        emit({"event": "error", "error_code": "workspace_connection" if isinstance(error, WorkspaceReplyError) else "unknown"})
+        emit({"event": "error", "error_code": failure_code(error)})
 
 
 if __name__ == "__main__":

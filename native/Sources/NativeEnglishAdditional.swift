@@ -33,6 +33,7 @@ extension L10n {
         "Claude: связь с инструментами PM прервана. Проверьте результат перед продолжением.": "Claude: the PM tool connection was interrupted. Inspect the result before continuing.",
         "Claude: достигнут предел шагов провайдера. Проверьте частичный результат.": "Claude: the provider's step limit was reached. Inspect the partial result.",
         "Claude: достигнут предел бюджета провайдера. Проверьте частичный результат.": "Claude: the provider's budget limit was reached. Inspect the partial result.",
+        "Claude Code не нашёл точку продолжения этой сессии. Запрос к модели не отправлялся; следующее сообщение продолжит эту же сессию.": "Claude Code could not find where to continue this session. No request reached the model; your next message continues this same session.",
         "Claude не подтвердил завершение ответа. Проверьте подключение и частичный результат; автоматического повтора не было.": "Claude did not confirm a completed response. Check the connection and partial result; there was no automatic retry.",
         "Полный доступ к Mac, интернету и экрану": "Full access to Mac, internet and screen",
         "Полный доступ к Mac и интернету": "Full access to Mac and internet",

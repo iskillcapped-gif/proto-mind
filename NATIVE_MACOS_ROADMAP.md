@@ -4,6 +4,43 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Core Update After Native 0.74.23 — Claude Resume Point Pinned
+
+Twice on 2026-09-27 a Claude turn failed within two seconds, before any model
+request, with "Claude did not confirm a completed response", and the next message
+began a fresh session from local history, without the session's tool history.
+Both turns resumed at the saved answer (`--resume-session-at`, from the core
+update after 0.74.8). Claude Code 2.1.281 had written that answer's parent, a
+`deferred_tools_record` attachment, after the answer and recorded the parent as
+the session's leaf. On resume it follows its recorded leaf, moves down to the last
+written entry only when that entry descends from it, and then up to the nearest
+message; the chain therefore ended at the tool result before the answer, and it
+refused the point with "No message found with message.uuid of: …". PM saw an
+unknown failure without output and did not offer the session again. The same
+ordering, which had caused the synthetic "No response requested." before, ended
+about one turn in twenty; turns whose recorded parent had been written before the
+answer resumed normally.
+
+Before resuming at an answer, the worker now reads the transcript's recent tail
+(`native_claude_transcripts.pin_resume_point`). If the transcript does not
+already end at the answer, it appends the explicit `last-prompt` record that
+Claude Code writes itself for rewinds and forks, naming the answer. A missing
+answer, a torn last line, a linked file or two transcripts with the session's ID
+leave the file untouched, and the session resumes plainly. A refusal that still
+happens (the SDK's `ResultError` with `error_during_execution`, no turns and that
+message) is `resume_point`: PM says that no request reached the model, and the
+next message continues the same session instead of a fresh one.
+
+Verification on 2026-09-28: **2439 Python tests passed**. The offline SDK fixture
+now models Claude Code's leaf choice, and the new regression test fails on the
+previous code with the operator's exact error. On a copy of the failed session,
+with the API pointed at a closed local port, the real CLI refused the answer
+without the record; with it, the fixed worker loaded the session and Claude Code
+attached the new prompt directly to the answer. The real SDK's refusal maps to
+`resume_point`. The worker loads with every turn, so the fix applies from the next
+turn; the refusal text needs a bridge restart, and its English translation ships
+with the next Native build.
+
 ## Smaller Cube Controls and Compact Menus — Native 0.74.23
 
 The operator liked the fixed sidebar and asked for neater controls around the

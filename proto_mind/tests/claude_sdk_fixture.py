@@ -1,8 +1,10 @@
 """Offline substitute imported ONLY by disposable Claude worker tests."""
 import asyncio
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
+from uuid import uuid4
 
 class ClaudeAgentOptions(SimpleNamespace): pass
 class SdkMcpTool(SimpleNamespace): pass
@@ -15,7 +17,40 @@ class TextBlock(SimpleNamespace): pass
 class ToolUseBlock(SimpleNamespace): pass
 class ToolResultBlock(SimpleNamespace): pass
 
+class ResultError(Exception):
+    """Like the SDK: the CLI reported a failed result and exited."""
+    def __init__(self, message, data):
+        super().__init__(message)
+        self.data, self.subtype, self.errors = data, data.get('subtype'), data.get('errors') or []
+
 def create_sdk_mcp_server(**values): return values
+
+def transcript_mode():
+    mode = Path(os.environ['CLAUDE_CONFIG_DIR'], 'transcript-mode')
+    return mode.read_text() if mode.exists() else ''
+
+def resumed_chain(entries):
+    """The chain Claude Code 2.1.281 loads on resume: its recorded leaf, moved down to the last
+    written entry when that entry descends from it (unless the record is explicit), then up to
+    the nearest user or assistant message."""
+    messages = {entry['uuid']: entry for entry in entries if 'parentUuid' in entry}
+    last = recorded = None; explicit = False
+    for entry in entries:
+        if 'parentUuid' in entry: last, explicit = entry['uuid'], False
+        elif entry.get('type') == 'last-prompt' and entry.get('leafUuid'):
+            explicit = entry.get('explicit') is True or explicit and entry['leafUuid'] == recorded
+            recorded = entry['leafUuid']
+    point = recorded if recorded in messages else last
+    if point and not explicit and last != point:
+        walk = last
+        while walk:
+            if walk == point: point = last; break
+            walk = messages.get(walk, {}).get('parentUuid')
+    while point in messages and messages[point]['type'] not in {'user', 'assistant'}:
+        point = messages[point]['parentUuid']
+    chain = []
+    while point in messages: chain.append(point); point = messages[point]['parentUuid']
+    return chain
 
 class ClaudeSDKClient:
     def __init__(self, *, options): self.options = options; self._query = self
@@ -56,13 +91,24 @@ class ClaudeSDKClient:
         # Like Claude Code: persisted sessions live in projects/<cwd>/<id>.jsonl,
         # and an explicit resume of a missing transcript fails before any model call.
         session = options.resume or options.session_id
+        self.transcript = self.prompt = None
         if session:
-            import os
             transcript = Path(os.environ['CLAUDE_CONFIG_DIR'], 'projects', 'fixture', session + '.jsonl')
             if options.resume and not transcript.exists():
                 raise RuntimeError('No conversation found with session ID: ' + session)
+            chain, point = [], getattr(options, 'resume_session_at', None)
+            if options.resume:
+                chain = resumed_chain([json.loads(line) for line in transcript.read_text().splitlines()])
+            if point and (point not in chain or transcript_mode() == 'reject-resume-point'):
+                # Claude Code refuses the point while loading, before any model request.
+                raise ResultError('Claude Code returned an error result: No message found with message.uuid of: ' + point,
+                                  {'subtype': 'error_during_execution', 'num_turns': 0, 'is_error': True,
+                                   'errors': ['No message found with message.uuid of: ' + point]})
             transcript.parent.mkdir(parents=True, exist_ok=True)
-            with transcript.open('a') as stream: stream.write(json.dumps({'type': 'user'}) + '\n')
+            self.transcript, self.prompt = transcript, str(uuid4())
+            parent = point or (chain[0] if chain else None)
+            with transcript.open('a') as stream:
+                stream.write(json.dumps({'type': 'user', 'uuid': self.prompt, 'parentUuid': parent}) + '\n')
         full = options.permission_mode == 'bypassPermissions'
         assert options.tools == ({'type':'preset','preset':'claude_code'} if full else [])
         Path(options.cwd, 'sdk-observed.json').write_text(json.dumps({
@@ -181,7 +227,18 @@ class ClaudeSDKClient:
         yield StreamEvent(event={'type':'content_block_delta','delta':{'type':'thinking_delta','thinking':'PRIVATE THOUGHTS'}})
         yield StreamEvent(event={'type':'content_block_delta','delta':{'type':'text_delta','text':'Offline answer'}})
         # Like the CLI, the answer's transcript entry has a UUID that a later resume can target.
-        yield AssistantMessage(content=[TextBlock(text='Offline answer')], uuid=str(__import__('uuid').uuid4()))
+        answer, record = str(uuid4()), str(uuid4())
+        if self.transcript is not None:
+            # Its parent is a deferred_tools_record attachment. Claude Code usually writes that
+            # parent first; sometimes after the answer, and then it records the parent as the leaf.
+            parent = {'type': 'attachment', 'uuid': record, 'parentUuid': self.prompt, 'attachment': {'type': 'deferred_tools_record'}}
+            entries = [{'type': 'assistant', 'uuid': answer, 'parentUuid': record}]
+            late = transcript_mode() == 'late-parent'
+            entries = entries + [parent] if late else [parent] + entries
+            entries.append({'type': 'last-prompt', 'leafUuid': record if late else answer})
+            with self.transcript.open('a') as stream:
+                stream.writelines(json.dumps(entry) + '\n' for entry in entries)
+        yield AssistantMessage(content=[TextBlock(text='Offline answer')], uuid=answer)
         if mode == 'disconnect': return
         yield ResultMessage(is_error=mode == 'failed', subtype='error' if mode == 'failed' else 'success', result='Offline answer',
                             session_id=self.options.resume or self.options.session_id)

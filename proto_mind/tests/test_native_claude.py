@@ -372,6 +372,44 @@ class ClaudeTests(unittest.TestCase):
         self.assertTrue(interrupted.interrupted)
         self.assertIsNone(interrupted.resume_at)
 
+    def test_resume_continues_after_an_answer_written_before_its_parent(self):
+        # Claude Code sometimes writes an answer's deferred_tools_record parent after the answer and
+        # records that parent as the leaf. Resuming at the answer then failed before any model call
+        # (twice on 2026-09-27), and the next message began a fresh session from local history.
+        (self.state / 'claude-profile/transcript-mode').write_text('late-parent')
+        conversation, history = str(uuid4()), [{'role': 'user', 'content': 'first'}]
+        first = self.session_plan(conversation, history)
+        self.transport(session_plan=first).answer('sonnet', 'instructions', history, 'first', lambda _: None)
+        leaf = json.loads(first.leaf_path.read_text())['leaf']
+        history += [{'role': 'assistant', 'content': 'Offline answer'}]
+        self.assertEqual(self.transport(session_plan=self.session_plan(conversation, history)).answer(
+            'sonnet', 'instructions', history, 'second', lambda _: None), 'Offline answer')
+        observed = json.loads((self.state / 'claude-profile/sdk-observed.json').read_text())
+        self.assertEqual((observed['resume'], observed['resume_session_at']), (first.session_id, leaf))
+        transcript = next((self.state / 'claude-profile/projects').glob('*/' + first.session_id + '.jsonl'))
+        pins = [entry for entry in map(json.loads, transcript.read_text().splitlines()) if entry.get('explicit')]
+        self.assertEqual(pins, [{'type': 'last-prompt', 'leafUuid': leaf, 'explicit': True, 'sessionId': first.session_id}])
+
+    def test_a_refused_resume_point_keeps_the_session_for_the_next_message(self):
+        from proto_mind.native_claude_sessions import INCOMPLETE_REQUEST
+        conversation, history = str(uuid4()), [{'role': 'user', 'content': 'first'}]
+        first = self.session_plan(conversation, history)
+        self.transport(session_plan=first).answer('sonnet', 'instructions', history, 'first', lambda _: None)
+        history += [{'role': 'assistant', 'content': 'Offline answer'}]
+        (self.state / 'claude-profile/transcript-mode').write_text('reject-resume-point')
+        with self.assertRaises(RuntimeError) as error:
+            self.transport(session_plan=self.session_plan(conversation, history)).answer(
+                'sonnet', 'instructions', history, 'second', lambda _: None)
+        self.assertIn('точку продолжения', str(error.exception))
+        # Nothing reached the model: the same session continues from Claude Code's own point.
+        history += [{'role': 'user', 'content': INCOMPLETE_REQUEST + 'second'}]
+        continued = self.session_plan(conversation, history)
+        self.assertTrue(continued.resumed and continued.interrupted)
+        self.assertIsNone(continued.resume_at)
+        self.transport(session_plan=continued).answer('sonnet', 'instructions', history, 'third', lambda _: None)
+        observed = json.loads((self.state / 'claude-profile/sdk-observed.json').read_text())
+        self.assertEqual((observed['resume'], observed['resume_session_at']), (first.session_id, None))
+
     def session_plan(self, conversation, history):
         from proto_mind.native_claude_sessions import ClaudeSessionPlan
         return ClaudeSessionPlan(self.state, conversation, account=status(self.state), workspace=None,
