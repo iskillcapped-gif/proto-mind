@@ -4,6 +4,49 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Attachment Library — Native 0.74.25
+
+The operator suggested that PM keep what is sent to chats, so a picture or a
+document stays available after its original is deleted. Messages had only
+referenced attachments by path and SHA-256: of the seven pictures sent from PM
+so far, five were screenshots later deleted from the desktop, and the messages
+showed placeholders instead.
+
+- Every picture, PDF and project text file a sent message or task update
+  carried is copied to `<state>/attachment_library/<sha256>/` (`entry.json` plus
+  the file under its original name in `original/`) off the main thread, only
+  while the source still has the recorded SHA-256 and never through a symlink.
+  Sending the same file again adds the message to its entry; nothing is copied
+  twice.
+- Library → **Images** shows the pictures as a grid and Library → **Files** the
+  PDFs and text files as a list, each with its date and conversation. An item
+  opens (a picture with zoom, a document in Quick Look), shows the message that
+  sent it, is attached again to the current draft, shown in Finder or deleted
+  after a confirmation; nothing leaves the library by itself.
+- A sent message's picture or PDF whose original was moved, changed or deleted
+  shows and opens from the verified copy. A draft's attachment never does: if
+  its file changed, the preview still says so, because sending would fail.
+- The bridge never reads PM's own data as an attachment, so attaching a kept
+  item again goes through a temporary copy and the usual checks.
+- Like the original attachments, the library is outside private backups.
+  Earlier sends were not imported; the operator chose to start from now.
+
+Private backups had been failing since 2026-09-06: a native-check fixture had
+once written `steering-rpc.jsonl` into the operator's data folder, and the
+backup inventory refuses unknown sections by design. The stray file was moved to
+the Trash, the fixture now refuses the real data folder, and the inventory knows
+the library as a deliberately excluded section.
+
+Verification on 2026-09-28: **2061 Native checks** and **2440 Python tests**
+passed. The new checks cover candidates from messages, copies with private
+modes, one copy per SHA-256 with every message recorded, the fallback for a
+deleted original, a changed file and a symlink that are never kept, unsafe names,
+deletion back to a placeholder, and a sent picture that opens as it was sent
+while a changed draft picture is still reported. The gallery shows both library
+sections and the sidebar. The 0.74.25 (129) bundle was staged, verified with the
+same signing requirement and installed in place; 0.74.24 (128) is kept as
+`dist/Proto-Mind Native 0.74.24 (128).previous`.
+
 ## Zoomable Pictures — Native 0.74.24
 
 The operator noticed that a picture opened from the chat could not be magnified.
