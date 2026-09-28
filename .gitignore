@@ -22,6 +22,7 @@ dist/
 native/.build/
 native/.swiftpm/
 ios/build/
+ios/build-device/
 ios/DerivedData/
 **/xcuserdata/
 *.xcuserstate
