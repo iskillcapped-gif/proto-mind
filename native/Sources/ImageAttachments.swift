@@ -49,6 +49,10 @@ struct NativeImagePreview: Identifiable {
     let conversationID: UUID
     let source: NativeImageAttachment
     let thumbnail: NSImage
+    /// The verified original, decoded in full only when the picture is magnified past the thumbnail.
+    let bytes: Data
+    /// The picture's size at 100%, upright: pixels at its recorded DPI (a Retina screenshot is half its pixels).
+    let pointSize: CGSize
     let canAttach: Bool
     // Main-chat previews expire on navigation; explicitly bound panel previews retain their owner.
     let requiresSelectedConversation: Bool
@@ -79,9 +83,27 @@ struct NativeImagePreview: Identifiable {
         }
         self.source = source
         self.thumbnail = NSImage(cgImage: thumbnail, size: .zero)
+        self.bytes = bytes
+        let turned = (5...8).contains(properties[kCGImagePropertyOrientation] as? Int ?? 1)
+        let pixels = CGSize(width: source.value[turned ? "height" : "width"].integer, height: source.value[turned ? "width" : "height"].integer)
+        let dpi = (properties[kCGImagePropertyDPIWidth] as? Double).flatMap { (36...720).contains($0) ? $0 : nil } ?? 72
+        self.pointSize = CGSize(width: pixels.width * 72 / dpi, height: pixels.height * 72 / dpi)
         self.conversationID = conversationID
         self.canAttach = canAttach
         self.requiresSelectedConversation = requiresSelectedConversation
+    }
+
+    /// The whole picture at full resolution and upright, from bytes this preview already verified.
+    static func fullResolution(_ bytes: Data) -> CGImage? {
+        guard let source = CGImageSourceCreateWithData(bytes as CFData, [kCGImageSourceShouldCache: false] as CFDictionary),
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let width = properties[kCGImagePropertyPixelWidth] as? Int, let height = properties[kCGImagePropertyPixelHeight] as? Int else { return nil }
+        return CGImageSourceCreateThumbnailAtIndex(source, 0, [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: max(width, height),
+            kCGImageSourceShouldCacheImmediately: true,
+        ] as CFDictionary)
     }
 }
 
@@ -90,18 +112,20 @@ struct ImageAttachmentPreviewView: View {
     let preview: NativeImagePreview
     @WorkspaceDismiss private var dismiss
     @State private var error: String?
+    @StateObject private var zoom = ImageZoomModel()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
                 Label(preview.source.name, systemImage: "photo").font(.headline).lineLimit(1)
                 Spacer()
+                ImageZoomControls(zoom: zoom)
                 Text(L10n.text("Локальный просмотр")).font(.caption).foregroundStyle(.secondary)
             }
-            Image(nsImage: preview.thumbnail).resizable().scaledToFit()
+            ZoomableImage(preview: preview, zoom: zoom, inset: 10, label: L10n.format("Локальный предпросмотр \(preview.source.name)"))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
-                .accessibilityLabel(L10n.format("Локальный предпросмотр \(preview.source.name)"))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
             Text("\(preview.source.value["width"].integer) × \(preview.source.value["height"].integer) · \(ByteCountFormatter.string(fromByteCount: Int64(preview.source.value["size_bytes"].integer), countStyle: .binary)) · SHA \(preview.source.sha256.prefix(12))")
                 .font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
             Text(preview.source.path).font(.caption).foregroundStyle(.secondary).textSelection(.enabled).lineLimit(2)

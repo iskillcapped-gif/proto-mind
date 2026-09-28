@@ -277,11 +277,13 @@ private struct WorkspaceImageView: View {
     @ObservedObject var model: AppModel
     let panel: WorkspacePanelModel
     let preview: NativeImagePreview
+    @StateObject private var zoom = ImageZoomModel()
     var body: some View {
         VStack(spacing: 0) {
             HStack {
                 Text(preview.source.name).font(.callout).lineLimit(1)
                 Spacer()
+                ImageZoomControls(zoom: zoom)
                 if preview.canAttach {
                     Button {
                         do { try model.attachImage(preview) } catch { panel.error = error.localizedDescription }
@@ -292,9 +294,8 @@ private struct WorkspaceImageView: View {
                 documentMenu(URL(fileURLWithPath: preview.source.path))
             }.padding(14).workspacePanelHeader()
             Divider().workspacePanelHeader()
-            Image(nsImage: preview.thumbnail).resizable().scaledToFit().padding(20)
+            ZoomableImage(preview: preview, zoom: zoom, inset: 20, label: L10n.format("Изображение \(preview.source.name)"))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .accessibilityLabel(L10n.format("Изображение \(preview.source.name)"))
             Text("\(preview.source.value["width"].integer) × \(preview.source.value["height"].integer)")
                 .font(.caption).foregroundStyle(.secondary).padding(10)
         }

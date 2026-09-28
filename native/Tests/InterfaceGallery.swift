@@ -64,6 +64,18 @@ extension NativeChecks {
             try await galleryRender(MessageView(message: withImage, model: app).padding(24), size: NSSize(width: 820, height: 320), dark: true,
                                     to: file("message-image-dark"))
         }
+        // A screenshot opened from a message fills a side panel; a double click shows it at 100%.
+        let panel = app.workspacePanel, shown = panel.visible
+        if let tab = panel.open(.image(try zoomPreview(width: 2872, height: 1712, dpi: 144))) {
+            try await galleryRender(WorkspacePanelView(model: app, panel: panel), size: NSSize(width: 560, height: 640), dark: true, to: file("image-panel-fit-dark"))
+            try await galleryRender(WorkspacePanelView(model: app, panel: panel), size: NSSize(width: 560, height: 640), dark: true, to: file("image-panel-100-dark")) { host in
+                guard let zoom = galleryZoomView(in: host) else { throw NativeError.message("Gallery picture unavailable") }
+                zoom.toggle(at: NSPoint(x: 1436 * 0.3, y: 856 * 0.45))
+                for _ in 0..<40 where !zoom.showsOriginal { try await Task.sleep(for: .milliseconds(50)) }
+            }
+            panel.close(tab)
+        }
+        panel.visible = shown
         let (log, receipt) = galleryWork()
         for dark in [true, false] {
             try await galleryRender(WorkTimelineView(log: log, agentReceipt: receipt, live: true, startedAt: Date().addingTimeInterval(-95)).padding(24),
@@ -74,6 +86,11 @@ extension NativeChecks {
         try await galleryRender(WorkspaceView(model: app), size: NSSize(width: 1320, height: 860), dark: true, to: file("welcome-dark"))
         app.select(selected)
         print("Interface gallery: \(directory.path)")
+    }
+
+    @MainActor private static func galleryZoomView(in view: NSView) -> ImageZoomScrollView? {
+        if let zoom = view as? ImageZoomScrollView { return zoom }
+        return view.subviews.lazy.compactMap { galleryZoomView(in: $0) }.first
     }
 
     /// A small attached screenshot, so the transcript shows an image the way a message carries it.
@@ -187,7 +204,8 @@ extension NativeChecks {
         return (log, receipt)
     }
 
-    @MainActor private static func galleryRender<Content: View>(_ content: Content, size: NSSize, dark: Bool, to destination: URL) async throws {
+    @MainActor private static func galleryRender<Content: View>(_ content: Content, size: NSSize, dark: Bool, to destination: URL,
+                                                               prepare: ((NSView) async throws -> Void)? = nil) async throws {
         let appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
         let window = NSWindow(contentRect: NSRect(origin: .zero, size: size), styleMask: [.borderless], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
@@ -199,6 +217,7 @@ extension NativeChecks {
         window.contentView = host
         defer { window.contentView = nil; window.close() }
         host.layoutSubtreeIfNeeded()
+        try await prepare?(host)
         try await Task.sleep(for: .milliseconds(400))
         host.layoutSubtreeIfNeeded()
         guard let bitmap = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { throw NativeError.message("Gallery bitmap unavailable") }
