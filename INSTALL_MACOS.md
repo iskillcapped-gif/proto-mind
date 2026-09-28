@@ -9,14 +9,17 @@ Technical core reports may still contain Russian.
 
 1. Open the DMG and drag **Proto-Mind.app** to **Applications**. Eject the DMG,
    then launch Proto-Mind from Applications.
-2. Follow the welcome screen. Sign into your **own ChatGPT account with Codex
-   access** in the browser, then return to Proto-Mind. Available models and
-   limits depend on that account. No API key is needed for text tasks.
-3. Enable cloud processing when you are ready to send messages to OpenAI.
+2. Follow the welcome screen for your **own ChatGPT account with Codex access**,
+   or open **Settings → Connections → Claude · Claude Code** for the official
+   Claude sign-in. Choose the provider and model in the chat. Available models
+   and limits depend on your account; subscription tasks do not require an API
+   key. Claude Console/API login has separate billing.
+3. Enable cloud processing when you are ready to send messages to a cloud model.
    This consent is separate from signing in. You can skip setup and reopen it
    from Menu → Settings → Models → first connection help.
 
-Python and Codex are included. Homebrew, Node, Xcode and the source repository
+Python, Codex and the official Claude Code runtime are included. Homebrew, Node,
+Xcode and the source repository
 are not needed to run the app. Developer tools needed by your own projects
 are still separate installations.
 
@@ -52,9 +55,23 @@ no account, API key or pre-generated answer.
 - **Mac access:** use the access selector in the composer. Chat-only is the
   default. Full access allows operations on this Mac, including outside a
   selected project, and can be remembered when you explicitly choose it.
-- **Screen control:** additionally needs the signed Computer Use helper from
-  Codex Desktop and its macOS permissions. It is not redistributed in this app.
-  Without it, permitted file/command work can still run; screen control cannot.
+- **Screen control:** Codex additionally needs the signed Computer Use helper
+  from Codex Desktop and its macOS permissions; that helper is not redistributed.
+  Claude uses PM's own screen tools and requires Screen Recording and
+  Accessibility permission for Proto-Mind. Both require explicit Mac access in
+  the conversation. API/local routes do not inherit those screen tools.
+- **Claude:** uses the unmodified Claude Code sign-in and the account's available
+  models and usage limits. PM supports one Claude login; multiple ChatGPT
+  accounts remain independent. See [Claude setup](CLAUDE_CONNECTION.md).
+- **Connected tools:** add your own MCP connections in Settings → Connections.
+  Enabled services can perform actions on your behalf in authorized tasks.
+- **Saved attachments:** Library → Images / Files keeps copies of sent pictures,
+  PDFs and project text files until you delete them. Picture previews support
+  zooming. These copies are outside the private-backup scope.
+- **iPhone preview:** the optional PM Remote connection starts off. The separate
+  iOS project needs Xcode installation and private Tailscale pairing; no iPhone
+  app is included in this DMG or published on the App Store. Physical-phone
+  verification is still pending. See [PM Remote setup](ios/README.md).
 - **GitHub:** connect your own account in Settings → Connections. GitHub CLI
   (`gh`) is currently a separate prerequisite; follow the connection screen.
 - **Local models:** install and run Ollama separately, then select it in
@@ -76,7 +93,7 @@ automatic updater in this beta.
 Use Settings → Data and backups to create a private backup before an update.
 Recovery currently requires the same profile paths; automatic migration to a
 different macOS user or Mac is not implemented. These backups exclude service
-credentials, provider history, source attachments and files in your working
+credentials, provider history, the attachment library, source attachments and files in your working
 projects. Deleting the app alone does not delete your profile.
 
 The development edition **Proto-Mind Native.app** uses its existing, separate
