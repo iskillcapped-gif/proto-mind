@@ -73,6 +73,15 @@ struct NativeChecks {
             print("Native Live voice checks: \(passed) OK")
             return
         }
+        if CommandLine.arguments.contains("--mobile-only"),
+           let fixture = LaunchConfiguration.argument("--fixture"), let python = LaunchConfiguration.argument("--python"),
+           let service = LaunchConfiguration.argument("--steering-service") {
+            try mobileContracts(root: root)
+            try await mobileRemote(fixture: URL(fileURLWithPath: fixture), service: URL(fileURLWithPath: service), python: URL(fileURLWithPath: python), root: root)
+            try await mobileClient()
+            print("Native + iPhone remote checks: \(passed) OK")
+            return
+        }
         if CommandLine.arguments.contains("--messengers-only"),
            let fixture = LaunchConfiguration.argument("--fixture"), let python = LaunchConfiguration.argument("--python"),
            let service = LaunchConfiguration.argument("--steering-service") {
@@ -249,6 +258,12 @@ struct NativeChecks {
             try await liveVoiceIntegration(fixture: URL(fileURLWithPath: fixture), service: URL(fileURLWithPath: service),
                                            python: URL(fileURLWithPath: python), root: root)
             try await telegramRemote(fixture: URL(fileURLWithPath: fixture), service: URL(fileURLWithPath: service), python: URL(fileURLWithPath: python), root: root)
+        }
+        try mobileContracts(root: root)
+        try await mobileClient()
+        if let fixture = LaunchConfiguration.argument("--fixture"), let python = LaunchConfiguration.argument("--python"),
+           let service = LaunchConfiguration.argument("--steering-service") {
+            try await mobileRemote(fixture: URL(fileURLWithPath: fixture), service: URL(fileURLWithPath: service), python: URL(fileURLWithPath: python), root: root)
         }
         try privateBackupContracts(root: root)
         try await codexUsageContracts(root: root)

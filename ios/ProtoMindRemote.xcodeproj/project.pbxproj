@@ -1,0 +1,355 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		2219DA3C82A78B51210BDE16 /* RemoteStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78D5D3D1AE338E89ADAEF796 /* RemoteStorage.swift */; };
+		31762088F6383C188ABACC28 /* RemotePreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35BC1F9089270EF8E8596B1F /* RemotePreview.swift */; };
+		3EF6B3B5FE8C0962F0FE8F62 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D86FFDB0174B412D5A981138 /* Assets.xcassets */; };
+		6722E03C21A2BE92713317DB /* ProtoMindRemoteApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F54E89E1B63E167EA8EA0EC /* ProtoMindRemoteApp.swift */; };
+		6C29F394A7F1D6D2A1E187A0 /* RemoteChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F088CEA78FDA41439AD51AB7 /* RemoteChatView.swift */; };
+		7E68DDB414B57FD9B449D694 /* RemoteQRScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A06EDCE39CB7B94D27BA094 /* RemoteQRScanner.swift */; };
+		7F1E2629D49B17BC6DE2727C /* RemoteModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAEC6453CD972778947040EE /* RemoteModel.swift */; };
+		B151599735AFB01137E33BB8 /* MobileRemoteProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 776D537570CB42434E383CA5 /* MobileRemoteProtocol.swift */; };
+		BEA142160CBF74A8F81AE8B4 /* RemoteTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDCA711E61D365A04BA29F9D /* RemoteTransport.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		24C37BFDC92F1C3C85573261 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		35BC1F9089270EF8E8596B1F /* RemotePreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemotePreview.swift; sourceTree = "<group>"; };
+		4F54E89E1B63E167EA8EA0EC /* ProtoMindRemoteApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProtoMindRemoteApp.swift; sourceTree = "<group>"; };
+		5A06EDCE39CB7B94D27BA094 /* RemoteQRScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteQRScanner.swift; sourceTree = "<group>"; };
+		735ACEC005136F89BADCC7D0 /* ProtoMindRemote.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = ProtoMindRemote.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		776D537570CB42434E383CA5 /* MobileRemoteProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileRemoteProtocol.swift; sourceTree = "<group>"; };
+		78D5D3D1AE338E89ADAEF796 /* RemoteStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteStorage.swift; sourceTree = "<group>"; };
+		AAEC6453CD972778947040EE /* RemoteModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteModel.swift; sourceTree = "<group>"; };
+		D86FFDB0174B412D5A981138 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		F088CEA78FDA41439AD51AB7 /* RemoteChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteChatView.swift; sourceTree = "<group>"; };
+		FDCA711E61D365A04BA29F9D /* RemoteTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteTransport.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		167339529328E53130EF716F /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				735ACEC005136F89BADCC7D0 /* ProtoMindRemote.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		5A58626C3159A8825A5EC1FA = {
+			isa = PBXGroup;
+			children = (
+				FEBA922C6862F8F3C40E5E57 /* ProtoMindRemote */,
+				60E1C288EC7D67E4EA6FEB8A /* Shared */,
+				668082B9C79F8F6FAFF013BF /* Sources */,
+				167339529328E53130EF716F /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		60E1C288EC7D67E4EA6FEB8A /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				AAEC6453CD972778947040EE /* RemoteModel.swift */,
+				FDCA711E61D365A04BA29F9D /* RemoteTransport.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		668082B9C79F8F6FAFF013BF /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				776D537570CB42434E383CA5 /* MobileRemoteProtocol.swift */,
+			);
+			name = Sources;
+			path = ../native/Sources;
+			sourceTree = "<group>";
+		};
+		FEBA922C6862F8F3C40E5E57 /* ProtoMindRemote */ = {
+			isa = PBXGroup;
+			children = (
+				D86FFDB0174B412D5A981138 /* Assets.xcassets */,
+				24C37BFDC92F1C3C85573261 /* Info.plist */,
+				4F54E89E1B63E167EA8EA0EC /* ProtoMindRemoteApp.swift */,
+				F088CEA78FDA41439AD51AB7 /* RemoteChatView.swift */,
+				35BC1F9089270EF8E8596B1F /* RemotePreview.swift */,
+				5A06EDCE39CB7B94D27BA094 /* RemoteQRScanner.swift */,
+				78D5D3D1AE338E89ADAEF796 /* RemoteStorage.swift */,
+			);
+			path = ProtoMindRemote;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		F15A1257D87EDC40365194AF /* ProtoMindRemote */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 21506D4441B9E4AB6E2668C3 /* Build configuration list for PBXNativeTarget "ProtoMindRemote" */;
+			buildPhases = (
+				313CC3856D072E0774B2A71A /* Sources */,
+				183DBD39637FC2322E68F084 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ProtoMindRemote;
+			packageProductDependencies = (
+			);
+			productName = ProtoMindRemote;
+			productReference = 735ACEC005136F89BADCC7D0 /* ProtoMindRemote.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		40A6DE67014909AAC905FB97 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					F15A1257D87EDC40365194AF = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 004A5B272ED158592322C9FD /* Build configuration list for PBXProject "ProtoMindRemote" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 5A58626C3159A8825A5EC1FA;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 167339529328E53130EF716F /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				F15A1257D87EDC40365194AF /* ProtoMindRemote */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		183DBD39637FC2322E68F084 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3EF6B3B5FE8C0962F0FE8F62 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		313CC3856D072E0774B2A71A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B151599735AFB01137E33BB8 /* MobileRemoteProtocol.swift in Sources */,
+				6722E03C21A2BE92713317DB /* ProtoMindRemoteApp.swift in Sources */,
+				6C29F394A7F1D6D2A1E187A0 /* RemoteChatView.swift in Sources */,
+				7F1E2629D49B17BC6DE2727C /* RemoteModel.swift in Sources */,
+				31762088F6383C188ABACC28 /* RemotePreview.swift in Sources */,
+				7E68DDB414B57FD9B449D694 /* RemoteQRScanner.swift in Sources */,
+				2219DA3C82A78B51210BDE16 /* RemoteStorage.swift in Sources */,
+				BEA142160CBF74A8F81AE8B4 /* RemoteTransport.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		3E8F614CD909DC230175F5BE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		4AAC00EF597C0802FCC5CB22 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ProtoMindRemote/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.virencore.ProtoMindRemote;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		52FEF74E5E433B3335D2C7D9 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		C5B42A2BB21015E080D08513 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ProtoMindRemote/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.virencore.ProtoMindRemote;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		004A5B272ED158592322C9FD /* Build configuration list for PBXProject "ProtoMindRemote" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				52FEF74E5E433B3335D2C7D9 /* Debug */,
+				3E8F614CD909DC230175F5BE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		21506D4441B9E4AB6E2668C3 /* Build configuration list for PBXNativeTarget "ProtoMindRemote" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C5B42A2BB21015E080D08513 /* Debug */,
+				4AAC00EF597C0802FCC5CB22 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 40A6DE67014909AAC905FB97 /* Project object */;
+}

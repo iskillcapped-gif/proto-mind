@@ -4,6 +4,46 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## PM Remote Preview — Native 0.75.0 / iOS 0.1.0
+
+An optional iPhone connection now shares explicitly selected PM chats through
+the existing per-conversation execution and sole history writer. The native iOS
+client lists projects/chats, reads saved and live answers, sends tasks/updates,
+stops an exact turn, and creates chats without inheriting Full Mac/API tool access.
+Mac drafts, account bindings and navigation remain independent of the phone.
+
+The Mac listener binds only to loopback; the intended remote route is private
+Tailscale Serve HTTPS. Pairing requires an expiring one-use QR secret and approval
+on the Mac. Phone tokens stay in device-bound Keychain; the Mac stores hashes.
+The connection starts off after each PM launch. Its separately locked state and
+command receipts stay outside restored backups; restore generations invalidate
+device authority. Commands are reserved before execution; reconnection checks
+receipts without replaying requests. Dates use stable integer milliseconds.
+
+Verification to date: **2099 Native checks passed**, including real loopback
+HTTP, disposable concurrent provider tasks, live corrections, targeted Stop,
+revocation, restore-generation invalidation and the shared iPhone client's
+lost-reply/restart behavior. A subsequent date-encoding boundary check rejected
+nonfinite/out-of-range timestamps and preserved 1000 command fingerprints.
+The final focused run passed **59 mobile checks**. The Mac setup view was rendered
+in RU/dark and EN/light; Vision decoded the actual displayed pairing QR in both.
+Unsigned iOS Simulator Debug and iPhone Release builds passed in Xcode 27.
+The project list and chat were inspected on an iOS 27 simulator using isolated
+RU/EN fixtures. Device Hub's accessibility interface timed out, so these captures
+do not establish interactive simulator acceptance.
+
+Tailscale 1.102.4 is installed on the operator's Mac with a private Serve route;
+Funnel is disabled. A disposable Mac profile passed real HTTPS requests through
+that route: valid TLS, unpaired rejection, approval-pending rejection and approved
+access. It used no personal chats or paid model requests. This is a same-Mac
+network check, not an iPhone/cellular test.
+
+The operator's iPhone XS Max runs iOS 18 and has no suitable cable available yet.
+Its first Xcode pairing, Personal Team signing, physical phone UI/Keychain/camera
+and cellular connection remain unverified. iOS 27's cable-free first pairing does
+not apply to this phone. This is a development preview, not a published release.
+See [iPhone setup and current scope](ios/README.md).
+
 ## Attachment Library — Native 0.74.25
 
 The operator suggested that PM keep what is sent to chats, so a picture or a

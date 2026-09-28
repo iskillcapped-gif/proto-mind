@@ -21,3 +21,7 @@ dist/
 # Native macOS build products; never commit local account state.
 native/.build/
 native/.swiftpm/
+ios/build/
+ios/DerivedData/
+**/xcuserdata/
+*.xcuserstate

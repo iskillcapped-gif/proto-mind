@@ -63,6 +63,7 @@ final class AppModel: ObservableObject {
     @Published var workspaceDelegationEnabled: Set<UUID> = []
     let messengers: MessengerConnections
     let telegram: TelegramRemoteModel
+    let mobile: MobileRemoteModel
     let liveVoice: LiveVoiceModel
     let dictation: DictationModel
     let responseAttention: ResponseAttention
@@ -265,6 +266,7 @@ final class AppModel: ObservableObject {
         workspaceServices = WorkspaceServices(configuration: configuration, defaults: uiDefaults)
         messengers = MessengerConnections(profile: configuration.stateDirectory)
         self.telegram = telegram ?? TelegramRemoteModel(profile: configuration.stateDirectory)
+        self.mobile = MobileRemoteModel(profile: configuration.stateDirectory)
         desktop = DesktopPresentation(stateDirectory: configuration.stateDirectory, defaults: uiDefaults)
         liveVoice = LiveVoiceModel(stateDirectory: configuration.stateDirectory)
         dictation = DictationModel(stateDirectory: configuration.stateDirectory, defaults: uiDefaults, speech: dictationSpeech)

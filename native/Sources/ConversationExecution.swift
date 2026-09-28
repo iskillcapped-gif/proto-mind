@@ -121,6 +121,7 @@ extension AppModel {
         appUpdate.stop()
         closeClaudeAuthentication()
         telegram.stop()
+        mobile.stop()
         workspaceServices.shutdown()
         workspacePanels.closeAll()
         dictation.shutdown()

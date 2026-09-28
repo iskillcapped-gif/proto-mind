@@ -19,7 +19,7 @@ for source_file in native/Sources/*.swift; do
 done
 BIN_DIR="$(swift build "${PROTO_MIND_SWIFT_BUILD_ARGS[@]}" --show-bin-path)"
 TERMINAL_OBJECTS=("${BIN_DIR}"/SwiftTerm.build/*.o)
-swiftc -sdk "${PROTO_MIND_SELECTED_SDK}" -I "${BIN_DIR}/Modules" -parse-as-library "${SOURCES[@]}" native/Tests/*.swift "${TERMINAL_OBJECTS[@]}" -o "${TEMP_DIR}/native-checks"
+swiftc -sdk "${PROTO_MIND_SELECTED_SDK}" -I "${BIN_DIR}/Modules" -parse-as-library "${SOURCES[@]}" ios/Shared/*.swift native/Tests/*.swift "${TERMINAL_OBJECTS[@]}" -o "${TEMP_DIR}/native-checks"
 "${PYTHON_BIN}" scripts/native_smoke_fixture.py "${TEMP_DIR}/project"
 "${PYTHON_BIN}" scripts/native_smoke_fixture.py "${TEMP_DIR}/session-spine-project" \
   --session-spine-state "${TEMP_DIR}/session-spine-state"

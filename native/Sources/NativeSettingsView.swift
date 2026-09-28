@@ -147,6 +147,7 @@ struct NativeSettingsView: View {
                         WorkspaceServiceSettings(app: model, services: model.workspaceServices)
                         MessengerSettings(app: model, connections: model.messengers)
                         TelegramRemoteSettings(app: model, remote: model.telegram)
+                        MobileRemoteSettings(app: model, remote: model.mobile)
                         ModelAPIConnectionSettings(app: model, connections: model.apiConnections)
                         Section { GitHubConnectionView(app: model, github: model.github) }
                             .task { await model.github.refresh(app: model) }
