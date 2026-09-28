@@ -2,11 +2,12 @@ import Foundation
 import Security
 
 final class RemoteStorage: RemotePersistence {
-    private let service = "com.virencore.protomind.remote.connection"
+    private let service: String
     private var query: [String: Any] { [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: "paired-mac"] }
     private let directory: URL
-    init() {
-        directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("PMRemote", isDirectory: true)
+    init(directory: URL? = nil, service: String = "com.virencore.protomind.remote.connection") {
+        self.service = service
+        self.directory = directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("PMRemote", isDirectory: true)
     }
     func connection() throws -> RemoteConnection? {
         var q = query; q[kSecReturnData as String] = true; q[kSecMatchLimit as String] = kSecMatchLimitOne

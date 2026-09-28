@@ -12,16 +12,29 @@
 		3EF6B3B5FE8C0962F0FE8F62 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D86FFDB0174B412D5A981138 /* Assets.xcassets */; };
 		6722E03C21A2BE92713317DB /* ProtoMindRemoteApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F54E89E1B63E167EA8EA0EC /* ProtoMindRemoteApp.swift */; };
 		6C29F394A7F1D6D2A1E187A0 /* RemoteChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F088CEA78FDA41439AD51AB7 /* RemoteChatView.swift */; };
+		7B4EFA76D5F6BBA4E1AA9765 /* RemoteStorageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55F3A9024B5483ED7EF73A66 /* RemoteStorageTests.swift */; };
 		7E68DDB414B57FD9B449D694 /* RemoteQRScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A06EDCE39CB7B94D27BA094 /* RemoteQRScanner.swift */; };
 		7F1E2629D49B17BC6DE2727C /* RemoteModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAEC6453CD972778947040EE /* RemoteModel.swift */; };
 		B151599735AFB01137E33BB8 /* MobileRemoteProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 776D537570CB42434E383CA5 /* MobileRemoteProtocol.swift */; };
 		BEA142160CBF74A8F81AE8B4 /* RemoteTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDCA711E61D365A04BA29F9D /* RemoteTransport.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		A9B53145F8432B50EE985D34 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 40A6DE67014909AAC905FB97 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F15A1257D87EDC40365194AF;
+			remoteInfo = ProtoMindRemote;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
+		0133694016339518E6064CE0 /* ProtoMindRemoteTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = ProtoMindRemoteTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		24C37BFDC92F1C3C85573261 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		35BC1F9089270EF8E8596B1F /* RemotePreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemotePreview.swift; sourceTree = "<group>"; };
 		4F54E89E1B63E167EA8EA0EC /* ProtoMindRemoteApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProtoMindRemoteApp.swift; sourceTree = "<group>"; };
+		55F3A9024B5483ED7EF73A66 /* RemoteStorageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteStorageTests.swift; sourceTree = "<group>"; };
 		5A06EDCE39CB7B94D27BA094 /* RemoteQRScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteQRScanner.swift; sourceTree = "<group>"; };
 		735ACEC005136F89BADCC7D0 /* ProtoMindRemote.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = ProtoMindRemote.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		776D537570CB42434E383CA5 /* MobileRemoteProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileRemoteProtocol.swift; sourceTree = "<group>"; };
@@ -37,6 +50,7 @@
 			isa = PBXGroup;
 			children = (
 				735ACEC005136F89BADCC7D0 /* ProtoMindRemote.app */,
+				0133694016339518E6064CE0 /* ProtoMindRemoteTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -47,6 +61,7 @@
 				FEBA922C6862F8F3C40E5E57 /* ProtoMindRemote */,
 				60E1C288EC7D67E4EA6FEB8A /* Shared */,
 				668082B9C79F8F6FAFF013BF /* Sources */,
+				EA660C241C029F8C66132A9D /* Tests */,
 				167339529328E53130EF716F /* Products */,
 			);
 			sourceTree = "<group>";
@@ -69,6 +84,14 @@
 			path = ../native/Sources;
 			sourceTree = "<group>";
 		};
+		EA660C241C029F8C66132A9D /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				55F3A9024B5483ED7EF73A66 /* RemoteStorageTests.swift */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
 		FEBA922C6862F8F3C40E5E57 /* ProtoMindRemote */ = {
 			isa = PBXGroup;
 			children = (
@@ -86,6 +109,24 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		C3DEEA7688896DC011F47EE3 /* ProtoMindRemoteTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0184DBFD98F3FD1181702DC9 /* Build configuration list for PBXNativeTarget "ProtoMindRemoteTests" */;
+			buildPhases = (
+				B09803984727FBEF92E9E628 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				DE6227202F53A6CDE1BFECC5 /* PBXTargetDependency */,
+			);
+			name = ProtoMindRemoteTests;
+			packageProductDependencies = (
+			);
+			productName = ProtoMindRemoteTests;
+			productReference = 0133694016339518E6064CE0 /* ProtoMindRemoteTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		F15A1257D87EDC40365194AF /* ProtoMindRemote */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 21506D4441B9E4AB6E2668C3 /* Build configuration list for PBXNativeTarget "ProtoMindRemote" */;
@@ -113,6 +154,9 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					C3DEEA7688896DC011F47EE3 = {
+						ProvisioningStyle = Automatic;
+					};
 					F15A1257D87EDC40365194AF = {
 						ProvisioningStyle = Automatic;
 					};
@@ -133,6 +177,7 @@
 			projectRoot = "";
 			targets = (
 				F15A1257D87EDC40365194AF /* ProtoMindRemote */,
+				C3DEEA7688896DC011F47EE3 /* ProtoMindRemoteTests */,
 			);
 		};
 /* End PBXProject section */
@@ -164,7 +209,23 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		B09803984727FBEF92E9E628 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7B4EFA76D5F6BBA4E1AA9765 /* RemoteStorageTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		DE6227202F53A6CDE1BFECC5 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = F15A1257D87EDC40365194AF /* ProtoMindRemote */;
+			targetProxy = A9B53145F8432B50EE985D34 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		3E8F614CD909DC230175F5BE /* Release */ = {
@@ -311,6 +372,23 @@
 			};
 			name = Debug;
 		};
+		6DB8D91AAD21D8F79CDBB682 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.virencore.ProtoMindRemoteTests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ProtoMindRemote.app/ProtoMindRemote";
+			};
+			name = Debug;
+		};
 		C5B42A2BB21015E080D08513 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -328,6 +406,23 @@
 			};
 			name = Debug;
 		};
+		CF98668D014DD88408A3BE4F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.virencore.ProtoMindRemoteTests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ProtoMindRemote.app/ProtoMindRemote";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -336,6 +431,15 @@
 			buildConfigurations = (
 				52FEF74E5E433B3335D2C7D9 /* Debug */,
 				3E8F614CD909DC230175F5BE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		0184DBFD98F3FD1181702DC9 /* Build configuration list for PBXNativeTarget "ProtoMindRemoteTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6DB8D91AAD21D8F79CDBB682 /* Debug */,
+				CF98668D014DD88408A3BE4F /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

@@ -27,7 +27,14 @@ lost-reply/restart behavior. A subsequent date-encoding boundary check rejected
 nonfinite/out-of-range timestamps and preserved 1000 command fingerprints.
 The final focused run passed **59 mobile checks**. The Mac setup view was rendered
 in RU/dark and EN/light; Vision decoded the actual displayed pairing QR in both.
-Unsigned iOS Simulator Debug and iPhone Release builds passed in Xcode 27.
+An ad-hoc-signed iOS Simulator Debug build and an unsigned iPhone Release build
+passed in Xcode 27. The simulator build keeps Xcode's application identity:
+disabling signing caused Keychain error -34018 on the real onboarding screen.
+Two app-hosted iOS tests now pass for actual Keychain create/update/read/delete
+and durable draft/pending-command reload. The separate physical-device file
+protection check is explicitly skipped in the simulator; it remains pending.
+The real onboarding screen was checked again after the signing fix, without the
+storage error.
 The project list and chat were inspected on an iOS 27 simulator using isolated
 RU/EN fixtures. Device Hub's accessibility interface timed out, so these captures
 do not establish interactive simulator acceptance.
@@ -37,6 +44,11 @@ Funnel is disabled. A disposable Mac profile passed real HTTPS requests through
 that route: valid TLS, unpaired rejection, approval-pending rejection and approved
 access. It used no personal chats or paid model requests. This is a same-Mac
 network check, not an iPhone/cellular test.
+
+Native 0.75.0 (130) was installed with the stable local signature, retaining
+0.74.25 (129) as a fallback bundle, then relaunched through PM's update control.
+The private HTTPS address is saved in Connections. Remote commands remain off,
+with no phone paired and no chats shared yet.
 
 The operator's iPhone XS Max runs iOS 18 and has no suitable cable available yet.
 Its first Xcode pairing, Personal Team signing, physical phone UI/Keychain/camera

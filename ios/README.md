@@ -36,13 +36,16 @@ team needs one. No paid Apple membership is needed for testing on your own devic
 Free provisioning is time-limited (Apple currently specifies seven days); rerun
 from Xcode to renew it. This is not an App Store/TestFlight distribution.
 
-For an unsigned simulator build:
+For a simulator build with a local ad-hoc signature (no Apple account needed):
 
 ```sh
 bash scripts/build_ios.sh
 ```
 
 The script requires the full Xcode/iOS SDK and never changes `xcode-select`.
+Keep simulator signing enabled: Xcode injects the application identity needed
+by Keychain. Disabling signing can render fixture screens but does not validate
+the real connection store.
 The generated project is checked in. If target/source configuration changes,
 install XcodeGen with Homebrew and run `xcodegen generate --spec ios/project.yml`.
 Do not commit a personal team, signing credentials or `xcuserdata`.
@@ -111,6 +114,13 @@ transports, with no paid model calls.
 This does not replace the iOS SDK build, simulator/UI check, Keychain/camera check
 on a phone, or a real Tailscale link over cellular. Record those separately in the
 release notes; never infer them from the portable protocol tests.
+
+The app-hosted `ProtoMindRemoteTests` target exercises the real iOS Keychain and
+draft storage with disposable keychain services and temporary folders. Run the
+scheme's tests in Xcode, or use `xcodebuild test` with an installed simulator's
+destination and `CODE_SIGN_IDENTITY=-`. The file-protection assertion is a
+separate test explicitly skipped on the simulator; run it on the physical phone
+as well. These tests never connect to a provider or the operator's Mac profile.
 
 References: [Apple account capabilities](https://developer.apple.com/help/account/basics/about-your-developer-account),
 [Apple device pairing](https://developer.apple.com/documentation/xcode/pairing-your-devices-with-your-mac),

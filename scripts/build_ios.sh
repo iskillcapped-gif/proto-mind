@@ -12,4 +12,4 @@ if ! xcrun --sdk iphonesimulator --show-sdk-path >/dev/null 2>&1; then
 fi
 xcodebuild -project ios/ProtoMindRemote.xcodeproj -scheme ProtoMindRemote \
   -configuration Debug -destination 'generic/platform=iOS Simulator' \
-  -derivedDataPath ios/build -jobs 2 CODE_SIGNING_ALLOWED=NO build
+  -derivedDataPath ios/build -jobs 2 CODE_SIGN_IDENTITY=- build

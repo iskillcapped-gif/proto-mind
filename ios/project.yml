@@ -37,8 +37,19 @@ targets:
             CFBundleURLSchemes: [protomind-remote]
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
+  ProtoMindRemoteTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [Tests]
+    dependencies:
+      - target: ProtoMindRemote
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
 schemes:
   ProtoMindRemote:
     build:
       targets:
         ProtoMindRemote: all
+    test:
+      targets: [ProtoMindRemoteTests]
