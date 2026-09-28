@@ -4,6 +4,37 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Zoomable Pictures — Native 0.74.24
+
+The operator noticed that a picture opened from the chat could not be magnified.
+A message's picture opens in a side panel, and a draft's in a preview sheet; both
+showed a thumbnail of at most 1440 pixels scaled to fit.
+
+- Both viewers use `ZoomableImage` (`ImageZoom.swift`), AppKit magnification in
+  the manner of Preview: pinch, a two-finger double tap or a double click (from
+  the fitted picture to 100% around the pointer, and back), ⌘+/⌘−/⌘0 and ⌘ with
+  the scroll wheel; scroll or drag to move around a magnified picture. The
+  header shows the scale between zoom-out and zoom-in buttons; a click on the
+  scale fits the picture again.
+- A picture opens whole and centred, fitted to its view and never enlarged past
+  100%, and follows the view while it resizes until the operator zooms. 100%
+  follows the image's DPI, so a Retina screenshot shows its pixels at their
+  original size; the limit is 800%.
+- Past the thumbnail's resolution the view decodes the original from the bytes
+  the preview has already verified (SHA-256, type and dimensions), so magnified
+  text stays sharp; nothing is read from disk again.
+- Hidden panel tabs stay mounted, so only the enabled picture takes ⌘ + − 0.
+- The English text of the Claude resume-point notice from the core update below
+  ships with this build.
+
+Verification on 2026-09-28: **2046 Native checks passed**, 14 of them new for
+zooming: fitting and centring, steps and limits, a double click around the
+clicked point, dragging, resizing with and without the operator's zoom, the
+original past the thumbnail, a small picture and a hidden tab. The gallery shows
+a panel with a Retina screenshot fitted (36%) and at 100%. The 0.74.24 (128)
+bundle was staged, verified with the same signing requirement and installed in
+place; 0.74.23 (127) is kept as `dist/Proto-Mind Native 0.74.23 (127).previous`.
+
 ## Core Update After Native 0.74.23 — Claude Resume Point Pinned
 
 Twice on 2026-09-27 a Claude turn failed within two seconds, before any model
