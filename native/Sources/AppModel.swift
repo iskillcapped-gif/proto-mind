@@ -4,8 +4,10 @@ import Foundation
 import UniformTypeIdentifiers
 
 enum WorkspaceSection: String {
-    case chat, commands, overview, workspace, memory, goals, skills, github
+    case chat, commands, overview, workspace, memory, goals, skills, github, images, files
     var libraryCollection: LibraryCollection? { LibraryCollection(rawValue: rawValue) }
+    /// The library's pictures and files sent to chats.
+    var attachmentLibrary: Bool { self == .images || self == .files }
 }
 
 struct PendingOperatorAction: Identifiable {
@@ -67,6 +69,8 @@ final class AppModel: ObservableObject {
     private var attentionObservation: AnyCancellable?
     let sidebarProjectOrder: SidebarProjectOrder
     let desktop: DesktopPresentation
+    /// Copies of the pictures and files sent to chats, kept until the operator deletes them.
+    let attachmentLibrary: AttachmentLibraryModel
     let appUpdate = AppUpdateMonitor()
     let computerUse = ComputerUseController()
     let presentations = WorkspacePresentations()
@@ -265,6 +269,9 @@ final class AppModel: ObservableObject {
         liveVoice = LiveVoiceModel(stateDirectory: configuration.stateDirectory)
         dictation = DictationModel(stateDirectory: configuration.stateDirectory, defaults: uiDefaults, speech: dictationSpeech)
         responseAttention = ResponseAttention(stateDirectory: configuration.stateDirectory, defaults: uiDefaults)
+        let library = AttachmentLibraryModel(stateDirectory: configuration.stateDirectory)
+        attachmentLibrary = library
+        AttachmentThumbnails.library = library.folder
         sidebarProjectOrder = SidebarProjectOrder(stateDirectory: configuration.stateDirectory, defaults: uiDefaults)
         serviceClient = BridgeClient(configuration: configuration)
         codexAccounts = CodexAccounts(configuration: configuration, defaults: uiDefaults, mainClient: serviceClient)
@@ -904,7 +911,8 @@ final class AppModel: ObservableObject {
         presentFilePicker(panel, in: destination, completion: completion)
     }
 
-    func previewImage(_ path: String, expectedSHA: String? = nil, canAttach: Bool = true, inWorkspacePanel: Bool = false, targetPanel: WorkspacePanelModel? = nil, conversationID requestedID: UUID? = nil, in source: WorkspacePresentations? = nil) async {
+    /// `sent`: a picture of a sent message, which falls back to its library copy; a draft's picture never does.
+    func previewImage(_ path: String, expectedSHA: String? = nil, canAttach: Bool = true, inWorkspacePanel: Bool = false, targetPanel: WorkspacePanelModel? = nil, conversationID requestedID: UUID? = nil, in source: WorkspacePresentations? = nil, sent: Bool = false) async {
         let panel = targetPanel ?? workspacePanel
         guard let conversationID = requestedID ?? selectedID, canEditAttachments(for: conversationID), !loadingImagePreview, !loadingDroppedAttachments, !loadingPDFPreview,
               pdfPreview == nil, attachmentDropPreview == nil else { return }
@@ -924,7 +932,13 @@ final class AppModel: ObservableObject {
             imageThumbnails[preview.source.sha256] = preview.thumbnail
             if inWorkspacePanel { panel.open(.image(preview)) }
             else { presentations.prepare(preview.id, in: destination); imagePreview = preview }
-        } catch { reportAttachmentError(error, in: destination) }
+        } catch {
+            // A sent picture whose original was moved, changed or deleted opens from the library copy.
+            if sent, let expectedSHA, let preview = attachmentLibrary.imagePreview(expectedSHA, conversationID: conversationID) {
+                if inWorkspacePanel { panel.open(.image(preview)) }
+                else { presentations.prepare(preview.id, in: destination); imagePreview = preview }
+            } else { reportAttachmentError(error, in: destination) }
+        }
     }
 
     /// Attaches a chosen image without a confirmation sheet, which the operator found redundant:
@@ -1129,7 +1143,7 @@ final class AppModel: ObservableObject {
         return preview
     }
 
-    func previewPDF(_ path: String, expected: JSONValue? = nil, canAttach: Bool = true, inWorkspacePanel: Bool = false, targetPanel: WorkspacePanelModel? = nil, conversationID requestedID: UUID? = nil, in source: WorkspacePresentations? = nil) async {
+    func previewPDF(_ path: String, expected: JSONValue? = nil, canAttach: Bool = true, inWorkspacePanel: Bool = false, targetPanel: WorkspacePanelModel? = nil, conversationID requestedID: UUID? = nil, in source: WorkspacePresentations? = nil, sent: Bool = false) async {
         let panel = targetPanel ?? workspacePanel
         guard let id = requestedID ?? selectedID, canReceiveAttachments(for: id),
               let conversation = conversations.first(where: { $0.id == id }) else { return }
@@ -1146,7 +1160,12 @@ final class AppModel: ObservableObject {
             guard requestedID != nil || selectedID == conversation.id else { return }
             if inWorkspacePanel { panel.open(.pdf(preview)) }
             else { presentations.prepare(preview.id, in: destination); pdfPreview = preview }
-        } catch { reportAttachmentError(error, in: destination) }
+        } catch {
+            // A sent PDF whose original is gone opens from the library copy in Quick Look.
+            if sent, let sha = expected?["sha256"].text, let copy = attachmentLibrary.verifiedCopy(sha, kind: .pdf) {
+                panel.open(.document(WorkspaceDocumentPreview(conversationID: conversation.id, url: copy, sha256: sha)))
+            } else { reportAttachmentError(error, in: destination) }
+        }
     }
 
     func reloadPDFPreview(_ preview: NativePDFPreview, pages: [Int]) async throws -> NativePDFPreview {

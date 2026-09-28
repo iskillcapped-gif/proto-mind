@@ -87,6 +87,8 @@ struct SidebarView: View {
                             ForEach(LibraryCollection.allCases) { collection in
                                 navigation(collection == .memory ? L10n.text("Общая память") : collection.title, icon: collection.symbol, section: collection.section)
                             }
+                            navigation(L10n.text("Изображения"), icon: "photo.on.rectangle.angled", section: .images)
+                            navigation(L10n.text("Файлы"), icon: "doc.on.doc", section: .files)
                         } label: {
                             Label(L10n.text("Библиотека"), systemImage: "books.vertical").font(Self.rowFont).padding(.vertical, 6)
                         }.padding(.horizontal, 10)

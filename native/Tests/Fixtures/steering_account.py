@@ -21,6 +21,10 @@ def delayed_steering_reply(state, steering, params):
 
 class FixtureRPC:
     def __init__(self, state):
+        # On 2026-09-06 this fixture's log landed in the operator's own data folder, and every
+        # private backup was refused from then on as an unknown section. Checks use disposable folders.
+        if Path(state).resolve() == (Path.home() / "Library/Application Support/ProtoMindNative").resolve():
+            raise RuntimeError("The steering fixture never writes into the operator's Proto-Mind data.")
         self.state, self.closed = state, False
         self.thread_id, self.turn_id = "fixture-" + str(uuid4()), None
 

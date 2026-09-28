@@ -157,6 +157,7 @@ struct NativeChecks {
             try await liveWorkRendering(root: root)
             try await attachmentPictures(root: root.appendingPathComponent("attachment-pictures"))
             try await imageZoom()
+            try await attachmentLibrary(root: root.appendingPathComponent("attachment-library"))
             try workspacePanelContracts(root: root)
             try interfaceLanguage(root: root)
             try await workspacePanelsContracts(root: root)
@@ -295,6 +296,7 @@ struct NativeChecks {
         try await liveWorkRendering(root: root)
         try await attachmentPictures(root: root.appendingPathComponent("attachment-pictures"))
         try await imageZoom()
+        try await attachmentLibrary(root: root.appendingPathComponent("attachment-library"))
         try workspacePanelContracts(root: root)
         try interfaceLanguage(root: root)
         try hoverFeedback()
@@ -1117,6 +1119,15 @@ struct NativeChecks {
         await app.previewImage(preview.source.path, expectedSHA: preview.source.sha256, canAttach: false)
         try check(app.imagePreview == nil && app.error?.contains("changed") == true && app.selected?.pendingImages == [preview.source.value],
                   "Changed image is not silently replaced in preview or draft")
+        // A sent message's picture opens as it was sent: the library kept that version.
+        try bytes.write(to: file)
+        await app.attachmentLibrary.capture(app.libraryCandidates(images: [preview.source.value], pdfs: [], files: [], conversation: app.selected!,
+                                                                  messageID: UUID(), sentAt: Date()))?.value
+        try changed.write(to: file)
+        await app.previewImage(preview.source.path, expectedSHA: preview.source.sha256, canAttach: false, inWorkspacePanel: true, sent: true)
+        let opened = app.workspacePanel.tabs.compactMap { tab -> NativeImagePreview? in if case .image(let image) = tab.content { return image }; return nil }.last
+        try check(opened?.source.sha256 == preview.source.sha256 && opened?.bytes == bytes,
+                  "A sent picture whose file changed opens as it was sent, from the library")
         try bytes.write(to: file)
         let loaded = AppModel(configuration: LaunchConfiguration(projectRoot: fixture, python: python, stateDirectory: state))
         try check(loaded.selected?.pendingImages == [preview.source.value] && loaded.imageThumbnails.isEmpty && !loaded.client.connected,

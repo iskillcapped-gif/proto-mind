@@ -93,6 +93,13 @@ struct NativeImagePreview: Identifiable {
         self.requiresSelectedConversation = requiresSelectedConversation
     }
 
+    /// A preview of bytes PM already holds, such as a library copy, checked like one from the bridge.
+    init(bytes: Data, metadata: JSONValue, conversationID: UUID) throws {
+        try self.init(.object(["schema": .string("proto_mind.native_image_preview.v1"), "read_only": .bool(true), "no_execution": .bool(true),
+                               "image": metadata, "data_base64": .string(bytes.base64EncodedString())]),
+                      conversationID: conversationID, canAttach: false, requiresSelectedConversation: false)
+    }
+
     /// The whole picture at full resolution and upright, from bytes this preview already verified.
     static func fullResolution(_ bytes: Data) -> CGImage? {
         guard let source = CGImageSourceCreateWithData(bytes as CFData, [kCGImageSourceShouldCache: false] as CFDictionary),
@@ -208,34 +215,44 @@ private struct PictureRemoveButton: View {
 }
 
 /// Pictures of attached images for the transcript. A picture is read from the original file only
-/// while it still has the size and SHA-256 recorded at attachment, and is kept in memory.
+/// while it still has the size and SHA-256 recorded at attachment, otherwise from PM's library copy,
+/// and is kept in memory.
 @MainActor
 enum AttachmentThumbnails {
     private static var cache: [String: NSImage] = [:]
     private static var order: [String] = []
+    /// PM's copies of sent attachments (`AttachmentLibraryStore`), for originals moved or deleted since.
+    static var library: URL?
 
     static func cached(_ sha: String) -> NSImage? { cache[sha] }
+
+    static func forget(_ sha: String) {
+        cache[sha] = nil
+        order.removeAll { $0 == sha }
+    }
 
     static func load(_ metadata: JSONValue) async -> NSImage? {
         let sha = metadata["sha256"].text
         if let image = cache[sha] { return image }
-        let path = metadata["path"].text, size = metadata["size_bytes"].integer
+        let path = metadata["path"].text, size = metadata["size_bytes"].integer, library = library
         let type = metadata["mime_type"].text == "image/png" ? "public.png" : "public.jpeg"
         let picture = await Task.detached(priority: .utility) { () -> CGImage? in
-            let url = URL(fileURLWithPath: path)
-            guard (1...NativeImageAttachment.maximumBytes).contains(size),
-                  let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey]),
-                  values.isRegularFile == true, values.isSymbolicLink != true, values.fileSize == size,
-                  let data = try? Data(contentsOf: url), data.count == size,
-                  SHA256.hash(data: data).map({ String(format: "%02x", $0) }).joined() == sha,
-                  let source = CGImageSourceCreateWithData(data as CFData, [kCGImageSourceShouldCache: false] as CFDictionary),
-                  CGImageSourceGetType(source) as String? == type else { return nil }
-            return CGImageSourceCreateThumbnailAtIndex(source, 0, [
-                kCGImageSourceCreateThumbnailFromImageAlways: true,
-                kCGImageSourceCreateThumbnailWithTransform: true,
-                kCGImageSourceThumbnailMaxPixelSize: 640,
-                kCGImageSourceShouldCacheImmediately: true,
-            ] as CFDictionary)
+            func picture(_ url: URL) -> CGImage? {
+                guard (1...NativeImageAttachment.maximumBytes).contains(size),
+                      let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey]),
+                      values.isRegularFile == true, values.isSymbolicLink != true, values.fileSize == size,
+                      let data = try? Data(contentsOf: url), data.count == size,
+                      SHA256.hash(data: data).map({ String(format: "%02x", $0) }).joined() == sha,
+                      let source = CGImageSourceCreateWithData(data as CFData, [kCGImageSourceShouldCache: false] as CFDictionary),
+                      CGImageSourceGetType(source) as String? == type else { return nil }
+                return CGImageSourceCreateThumbnailAtIndex(source, 0, [
+                    kCGImageSourceCreateThumbnailFromImageAlways: true,
+                    kCGImageSourceCreateThumbnailWithTransform: true,
+                    kCGImageSourceThumbnailMaxPixelSize: 640,
+                    kCGImageSourceShouldCacheImmediately: true,
+                ] as CFDictionary)
+            }
+            return picture(URL(fileURLWithPath: path)) ?? library.flatMap { AttachmentLibraryStore.copy(of: sha, in: $0) }.flatMap(picture)
         }.value
         guard let picture else { return nil }
         let image = NSImage(cgImage: picture, size: .zero)

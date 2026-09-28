@@ -29,7 +29,7 @@ struct WorkspaceView: View {
         .font(NativeTheme.interfaceFont)
         .buttonStyle(.nativeHover)
         .disclosureGroupStyle(NativeDisclosureStyle())
-        .onChange(of: model.section) { _, next in if next.libraryCollection != nil { libraryExpanded = true } }
+        .onChange(of: model.section) { _, next in if next.libraryCollection != nil || next.attachmentLibrary { libraryExpanded = true } }
         .workspaceSheet(item: $model.exitPrompt) { WorkspaceExitView(app: model, prompt: $0) }
         .workspaceSheet(isPresented: $model.showSettings, routingKey: "settings") { NativeSettingsView(model: model) }
         .workspaceSheet(isPresented: $model.showFirstLaunch, onDismiss: {
@@ -151,6 +151,8 @@ struct WorkspaceView: View {
         case .workspace: return L10n.text("Папка проекта")
         case .github: return "GitHub"
         case .memory, .goals, .skills: return model.section.libraryCollection?.title ?? L10n.text("Библиотека")
+        case .images: return L10n.text("Изображения")
+        case .files: return L10n.text("Файлы")
         }
     }
 }
@@ -247,6 +249,7 @@ struct WorkspaceSplitView: View {
         case .overview: OverviewView(model: model)
         case .github: GitHubView(app: model, github: model.github)
         case .memory, .goals, .skills: LibraryView(model: model)
+        case .images, .files: AttachmentLibraryView(model: model, library: model.attachmentLibrary, pictures: model.section == .images).id(model.section)
         }
     }
 }
@@ -355,7 +358,7 @@ struct ChatView: View {
                                             TaskUpdatesView(updates: updates, active: state?.sourceMessageID == message.id,
                                                             copy: model.copy) { image in
                                                 Task { await model.previewImage(image["path"].text, expectedSHA: image["sha256"].text, canAttach: false, inWorkspacePanel: true,
-                                                                                targetPanel: panel, conversationID: id, in: presentations) }
+                                                                                targetPanel: panel, conversationID: id, in: presentations, sent: true) }
                                             }
                                         }
                                     }.id(message.id)
@@ -667,7 +670,7 @@ struct MessageView: View {
     private var imageThumbnails: some View {
         AttachedImagesRow(images: message.imageContext ?? [], existing: { model.imageThumbnails[$0] }) { image in
             Task { await model.previewImage(image["path"].text, expectedSHA: image["sha256"].text, canAttach: false, inWorkspacePanel: true,
-                                            targetPanel: targetPanel, conversationID: conversationID, in: presentations) }
+                                            targetPanel: targetPanel, conversationID: conversationID, in: presentations, sent: true) }
         }
     }
 
@@ -680,7 +683,7 @@ struct MessageView: View {
             }
             // Images appear as pictures in the user's message; an answer does not repeat them.
             ForEach(Array((message.pdfContext ?? []).enumerated()), id: \.offset) { _, pdf in
-                Button { Task { await model.previewPDF(pdf["path"].text, expected: pdf, canAttach: false, inWorkspacePanel: true, targetPanel: targetPanel, conversationID: conversationID, in: presentations) } } label: {
+                Button { Task { await model.previewPDF(pdf["path"].text, expected: pdf, canAttach: false, inWorkspacePanel: true, targetPanel: targetPanel, conversationID: conversationID, in: presentations, sent: true) } } label: {
                     Label(L10n.format("\(pdf["name"].text) · стр. \(pdf["pages"].items.map { String($0["number"].integer) }.joined(separator: ", "))"), systemImage: "doc.richtext")
                         .font(.caption).foregroundStyle(.secondary)
                 }.buttonStyle(.nativeHover).disabled((conversationID ?? model.selectedID).map { model.canReceiveAttachments(for: $0) } != true)

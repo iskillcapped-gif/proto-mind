@@ -76,6 +76,21 @@ extension NativeChecks {
             panel.close(tab)
         }
         panel.visible = shown
+        // The library keeps what was sent to chats: pictures in a grid, PDFs and text files in a list.
+        let fixtures = try libraryFixtures(root: root.appendingPathComponent("gallery-library"))
+        await app.attachmentLibrary.capture(AttachmentLibraryStore.candidates(images: fixtures.images + [galleryImage(root: root)], pdfs: fixtures.pdfs,
+                                                                              files: fixtures.files, workspace: fixtures.workspace.path,
+                                                                              conversationID: selected, messageID: UUID(), sentAt: Date()))?.value
+        await app.attachmentLibrary.reload()
+        for entry in app.attachmentLibrary.entries where entry.kind == .image {
+            if let copy = app.attachmentLibrary.copy(of: entry) { _ = await AttachmentThumbnails.load(entry.imageMetadata(copy: copy)) }
+        }
+        for pictures in [true, false] {
+            try await galleryRender(AttachmentLibraryView(model: app, library: app.attachmentLibrary, pictures: pictures), size: NSSize(width: 900, height: 520),
+                                    dark: true, to: file(pictures ? "library-images-dark" : "library-files-dark"))
+        }
+        try await galleryRender(SidebarView(model: app, libraryExpanded: .constant(true), openSettings: {}), size: NSSize(width: 230, height: 760), dark: true,
+                                to: file("sidebar-library-dark"))
         let (log, receipt) = galleryWork()
         for dark in [true, false] {
             try await galleryRender(WorkTimelineView(log: log, agentReceipt: receipt, live: true, startedAt: Date().addingTimeInterval(-95)).padding(24),

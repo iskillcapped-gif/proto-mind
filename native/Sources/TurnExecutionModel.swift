@@ -136,6 +136,8 @@ extension AppModel {
             state.running = false; state.startedAt = nil
             return
         }
+        attachmentLibrary.capture(libraryCandidates(images: images, pdfs: pdfs, files: files, conversation: conversation,
+                                                    messageID: userMessage.id, sentAt: userMessage.createdAt))
         state.sourceMessageID = !operatorInput && Self.updatableProviders.contains(conversation.provider) ? userMessage.id : nil
         state.updateTarget = nil; state.updatesStopped = false
         do {

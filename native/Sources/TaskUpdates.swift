@@ -112,6 +112,8 @@ extension AppModel {
             setConversationDraft(text, id: conversationID)
             return
         }
+        attachmentLibrary.capture(libraryCandidates(images: update.imageContext ?? [], pdfs: update.pdfContext ?? [], files: update.fileContext ?? [],
+                                                    conversation: previous, messageID: sourceID, sentAt: update.createdAt))
         await flushTaskUpdates(execution: state)
     }
 

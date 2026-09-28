@@ -122,6 +122,15 @@ class PrivateBackupTests(unittest.TestCase):
         self.manager.export(target)
         self.assertNotIn(b"NEVER-COPY-CLAUDE", b"".join(p.read_bytes() for p in target.rglob("*") if p.is_file()))
 
+    def test_attachment_library_copies_stay_outside_private_backup(self):
+        # Like the original attachments, the library's copies of sent pictures and files are not archived.
+        self.write(self.state / ("attachment_library/" + "a" * 64 + "/entry.json"), {"name": "NEVER-COPY-LIBRARY"})
+        (self.state / ("attachment_library/" + "a" * 64 + "/original")).mkdir(parents=True)
+        (self.state / ("attachment_library/" + "a" * 64 + "/original/picture.png")).write_bytes(b"NEVER-COPY-LIBRARY")
+        target = self.work / "library-excluded.protomind-backup"
+        self.manager.export(target)
+        self.assertNotIn(b"NEVER-COPY-LIBRARY", b"".join(p.read_bytes() for p in target.rglob("*") if p.is_file()))
+
     def test_hash_corruption_is_refused_before_live_writes(self):
         (self.source / "payload/core/identity.json").write_text("corrupt")
         before = self.hashes()
