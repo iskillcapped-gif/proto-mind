@@ -4,6 +4,52 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Connections Settings by Purpose — Native 0.75.1
+
+The operator found Settings → Connections unfinished: seven services stacked in
+one long form, with explanations between controls and their buttons in uneven
+rows. The tab is now a list, and each connection has its own page.
+
+- **The list** groups the connections by purpose: models (Claude, API models),
+  task tools (MCP services, GitHub), control from the phone (iPhone · PM Remote,
+  Telegram bot) and chats (messengers). Each row shows an icon, what is
+  connected (an account, a bot, a phone or the connection names) and a state:
+  connected or on, off, not set up, or needing the operator (a sign-in or an
+  approval). A row opens its page.
+- **A page** starts with a back link (⌘[), the connection's icon, name, state
+  and one-line purpose, followed by sections with headers and short footers in
+  place of the paragraphs between controls. Actions are buttons; secondary
+  ones (edit, check tools, delete, reset a messenger's sign-in, replace or
+  disconnect the bot's token) sit in a ⋯ menu that a right click also opens.
+- Claude and GitHub show the signed-in account and its plan or CLI login. An MCP
+  connection's switch sits at the end of its row, and a tools check shows the
+  count under its address. The Telegram token is a visible field, a paired
+  iPhone shows when it was paired, and the Mac address example no longer renders
+  as a link.
+- Links such as **Claude connection…** in the model menu or **Connect API…** open
+  the matching page; leaving Connections returns it to the list. The list checks
+  the Claude account at most once a minute, because each check starts a Claude
+  Code worker; the Claude page still checks when it opens and on request.
+
+Since 2026-09-29 the Mac has Xcode 27 selected for the iPhone app, so Native
+builds and checks use Xcode's Swift toolchain and SDK. Under it one presentation
+check failed with unchanged code: when Settings open in one window were requested
+from another, PM closed the page, which cleared its binding, and set the binding
+again in the same turn. SwiftUI did not re-evaluate a sheet modifier whose inputs
+compared equal (the check's page closure captures nothing), so the reopening was
+lost. The app's own Settings closure captures its view, so it was most likely not
+affected, but the move depended on that. Now a page already open for the routing
+key moves to the requesting window with its binding still set, without a close
+and reopen or its `onDismiss`; pages above it still close. A new check confirms a
+moved page is not dismissed on the way; it fails with the previous code.
+
+Verification on 2026-10-01: **2104 Native checks** passed, including the new
+checks that every connection is listed exactly once, that a link opens its page
+and that leaving Connections returns to the list. Python was not changed. The
+gallery shows the list in RU light/dark, EN and a narrow window, and every
+connection's page; colors in an inactive offscreen window can differ from the
+real one.
+
 ## PM Remote Preview — Native 0.75.0 / iOS 0.1.0
 
 An optional iPhone connection now shares explicitly selected PM chats through
