@@ -59,6 +59,25 @@ extension NativeChecks {
             app.settingsSection = section
             try await galleryRender(NativeSettingsView(model: app), size: NSSize(width: 820, height: 700), dark: false, to: file("settings-\(section.rawValue)"))
         }
+        // Connections: the list by purpose, then each connection's own page.
+        var service = WorkspaceService(); service.name = "Linear"; service.endpoint = "https://mcp.linear.app/mcp"; service.enabled = true
+        try? app.workspaceServices.save(service)
+        app.settingsSection = .services
+        for dark in [false, true] {
+            try await galleryRender(NativeSettingsView(model: app), size: NSSize(width: 820, height: 760), dark: dark, to: file("settings-connections-\(dark ? "dark" : "light")"))
+        }
+        try await galleryRender(NativeSettingsView(model: app), size: NSSize(width: 600, height: 760), dark: true, to: file("settings-connections-narrow"))
+        L10n.language = .english
+        try await galleryRender(NativeSettingsView(model: app), size: NSSize(width: 820, height: 760), dark: true, to: file("settings-connections-en"))
+        app.settingsConnection = .mcp
+        try await galleryRender(NativeSettingsView(model: app), size: NSSize(width: 820, height: 760), dark: true, to: file("settings-connection-mcp-en"))
+        L10n.language = .russian
+        for kind in ConnectionKind.allCases {
+            app.settingsConnection = kind
+            try await galleryRender(NativeSettingsView(model: app), size: NSSize(width: 820, height: 760), dark: true, to: file("settings-connection-\(kind.rawValue)"))
+        }
+        app.settingsConnection = nil
+        try? app.workspaceServices.remove(service)
         if let withImage = app.conversations.first(where: { $0.id == selected })?.messages.first(where: { !($0.imageContext ?? []).isEmpty }) {
             for image in withImage.imageContext ?? [] { _ = await AttachmentThumbnails.load(image) }
             try await galleryRender(MessageView(message: withImage, model: app).padding(24), size: NSSize(width: 820, height: 320), dark: true,

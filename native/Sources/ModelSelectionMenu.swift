@@ -137,7 +137,7 @@ struct ModelSelectionChoices: View {
                     ClaudeModelChoices(app: model, account: claude, conversationID: context.id) { open = false }
                     ComposerMenuRow(title: L10n.pick("Подключение Claude…", "Claude connection…"), icon: "person.crop.circle") {
                         open = false
-                        Task { @MainActor in await Task.yield(); model.settingsSection = .services; openSettings() }
+                        Task { @MainActor in await Task.yield(); model.settingsConnection = .claude; model.settingsSection = .services; openSettings() }
                     }
                 } else {
                     choice(localModelLabel, selected: true) { open = false }

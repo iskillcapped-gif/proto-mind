@@ -77,10 +77,16 @@ struct NativeSettingsView: View {
                         .workspaceBackground(NativeTheme.sidebar)
                 }
                 VStack(alignment: .leading, spacing: 0) {
-                    VStack(alignment: .leading, spacing: 7) {
-                        Text(model.settingsSection.title).font(.system(size: 23, weight: .semibold))
-                        Text(model.settingsSection.subtitle).font(.system(size: 13)).foregroundStyle(.secondary)
-                    }.padding(.horizontal, 24).padding(.top, compact ? 12 : 28).padding(.bottom, 12)
+                    Group {
+                        if model.settingsSection == .services, let kind = model.settingsConnection {
+                            ConnectionHeader(app: model, kind: kind)
+                        } else {
+                            VStack(alignment: .leading, spacing: 7) {
+                                Text(model.settingsSection.title).font(.system(size: 23, weight: .semibold))
+                                Text(model.settingsSection.subtitle).font(.system(size: 13)).foregroundStyle(.secondary)
+                            }
+                        }
+                    }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 24).padding(.top, compact ? 12 : 28).padding(.bottom, 12)
                     settingsForm
                 }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
@@ -143,14 +149,8 @@ struct NativeSettingsView: View {
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                     case .services:
-                        ClaudeConnectionSettings(app: model)
-                        WorkspaceServiceSettings(app: model, services: model.workspaceServices)
-                        MessengerSettings(app: model, connections: model.messengers)
-                        TelegramRemoteSettings(app: model, remote: model.telegram)
-                        MobileRemoteSettings(app: model, remote: model.mobile)
-                        ModelAPIConnectionSettings(app: model, connections: model.apiConnections)
-                        Section { GitHubConnectionView(app: model, github: model.github) }
-                            .task { await model.github.refresh(app: model) }
+                        if let kind = model.settingsConnection { ConnectionDetailSections(app: model, kind: kind) }
+                        else { ConnectionsOverview(app: model) }
                     case .data: dataSettings
                     case .advanced:
                         accessSettings
@@ -190,11 +190,11 @@ struct NativeSettingsView: View {
                     if let id = model.selectedID { model.setAPIWorkspaceTools(value, id: id) }
                 })).disabled(model.busy)
                 Text(L10n.pick("Модель сможет работать с задачами, проектной памятью и браузером PM. Нужна поддержка function calling; обращения к API оплачиваются по тарифу провайдера.", "The model can use PM tasks, project memory and browser tools. Requires function calling; API usage is billed by your provider.")).font(.caption).foregroundStyle(.secondary)
-                Button(L10n.text("Настроить API-подключения")) { model.settingsSection = .services }
+                Button(L10n.text("Настроить API-подключения")) { model.settingsConnection = .api; model.settingsSection = .services }
             } else if model.selected?.provider == "claude" {
                 ClaudeModelControls(app: model, conversationID: model.selectedID)
                 Toggle(L10n.text("Разрешить облачную обработку"), isOn: $model.cloudConsent).disabled(model.globalBusy)
-                Button(L10n.pick("Подключить Claude", "Connect Claude")) { model.settingsSection = .services }
+                Button(L10n.pick("Подключить Claude", "Connect Claude")) { model.settingsConnection = .claude; model.settingsSection = .services }
             } else if model.selected?.provider == "ollama" {
                 TextField(L10n.text("Модель Ollama"), text: Binding(get: { model.selected?.model ?? "" }, set: model.setModel), prompt: Text(model.bootstrap["ollama_model"].text))
                     .disabled(model.globalBusy)

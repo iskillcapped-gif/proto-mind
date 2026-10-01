@@ -132,23 +132,42 @@ struct WorkspaceServiceSettings: View {
     @State private var token = ""
     @State private var arguments = "[]"
     @State private var error: String?
-    @State private var notice: String?
+    @State private var checking: Set<UUID> = []
+    @State private var toolCounts: [UUID: Int] = [:]
 
     var body: some View {
-        Section("MCP") {
-            Text(L10n.pick("Подключите инструменты своих сервисов. Включённые подключения доступны задачам с инструментами PM и могут выполнять действия от вашего имени.", "Connect your services' tools. Enabled connections are available to tasks with PM tools and can act on your behalf.")).font(.caption).foregroundStyle(.secondary)
+        Section {
+            if services.items.isEmpty {
+                Text(L10n.pick("Пока нет подключений.", "No connections yet.")).foregroundStyle(.secondary)
+            }
             ForEach(services.items) { item in
-                HStack {
-                    Toggle(item.name, isOn: Binding(get: { item.enabled }, set: { enabled in
+                HStack(spacing: 10) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(item.name)
+                        Text(subtitle(item)).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                    }
+                    Spacer(minLength: 8)
+                    if checking.contains(item.id) { ProgressView().controlSize(.small) }
+                    Menu { actions(item) } label: { Image(systemName: "ellipsis") }
+                        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().help(L10n.text("Действия"))
+                    Toggle(L10n.pick("Разрешить задачам использовать подключение", "Allow tasks to use this connection"), isOn: Binding(get: { item.enabled }, set: { enabled in
                         var next = item; next.enabled = enabled
-                        do { try services.save(next) } catch { self.error = error.localizedDescription }
-                    }))
-                    Button(L10n.text("Изменить")) { draft = item; token = ""; arguments = (try? String(data: JSONEncoder().encode(item.arguments), encoding: .utf8)) ?? "[]"; editing = true }
-                    Button { do { try services.remove(item) } catch { self.error = error.localizedDescription } } label: { Image(systemName: "trash") }
+                        do { try services.save(next); error = nil } catch { self.error = error.localizedDescription }
+                    })).labelsHidden().help(L10n.pick("Разрешить задачам использовать подключение", "Allow tasks to use this connection"))
+                }.contextMenu { actions(item) }
+            }
+            if !editing {
+                HStack {
+                    Spacer()
+                    Button(L10n.pick("Добавить MCP", "Add MCP")) { draft = WorkspaceService(); token = ""; arguments = "[]"; editing = true; error = nil }
                 }
             }
-            Button(L10n.pick("Добавить MCP", "Add MCP")) { draft = WorkspaceService(); token = ""; arguments = "[]"; editing = true; error = nil; notice = nil }
-            if editing {
+        } header: { Text(L10n.pick("Подключения", "Connections")) } footer: {
+            Text(L10n.pick("Подключите инструменты своих сервисов. Включённые подключения доступны задачам с инструментами PM и могут выполнять действия от вашего имени.", "Connect your services' tools. Enabled connections are available to tasks with PM tools and can act on your behalf."))
+                .font(.caption).foregroundStyle(.secondary)
+        }.disabled(app.globalBusy)
+        if editing {
+            Section {
                 TextField(L10n.text("Название"), text: $draft.name)
                 Picker(L10n.pick("Подключение", "Connection"), selection: $draft.transport) { Text("Streamable HTTP").tag("http"); Text("Local stdio").tag("stdio") }
                     .onChange(of: draft.transport) { _, value in if value == "stdio" { draft.usesToken = false } }
@@ -159,27 +178,57 @@ struct WorkspaceServiceSettings: View {
                 } else {
                     TextField(L10n.pick("Путь к программе", "Executable path"), text: $draft.command)
                     TextField(L10n.pick("Аргументы (JSON-массив)", "Arguments (JSON array)"), text: $arguments)
-                    Text(L10n.pick("Вход выполните средствами самого сервиса. Не помещайте ключи в аргументы.", "Sign in using the service's own tools. Keep keys out of arguments.")).font(.caption).foregroundStyle(.secondary)
                 }
                 Toggle(L10n.pick("Разрешить задачам использовать подключение", "Allow tasks to use this connection"), isOn: $draft.enabled)
                 HStack {
-                    Button(L10n.text("Сохранить")) {
-                        do { draft.arguments = try JSONDecoder().decode([String].self, from: Data(arguments.utf8)); try services.save(draft, token: token); token = ""; editing = false; error = nil }
-                        catch { self.error = error.localizedDescription }
-                    }
+                    Spacer()
                     Button(L10n.text("Отмена")) { token = ""; editing = false }
+                    Button(L10n.text("Сохранить")) {
+                        do {
+                            draft.arguments = try JSONDecoder().decode([String].self, from: Data(arguments.utf8)); try services.save(draft, token: token)
+                            toolCounts[draft.id] = nil; token = ""; editing = false; error = nil
+                        } catch { self.error = error.localizedDescription }
+                    }.buttonStyle(.borderedProminent)
                 }
-            }
-            if let error { Text(error).font(.caption).foregroundStyle(.orange) }
-            if let notice { Text(notice).font(.caption).foregroundStyle(.secondary) }
-            ForEach(services.items.filter(\.enabled)) { item in
-                Button(L10n.pick("Проверить инструменты · ", "Check tools · ") + item.name) {
-                    Task {
-                        do { let count = try await services.checkTools(id: item.id); notice = "\(item.name): \(count) " + L10n.pick("инструментов", "tools"); error = nil }
-                        catch { self.error = error.localizedDescription }
-                    }
+            } header: {
+                Text(services.items.contains { $0.id == draft.id } ? L10n.pick("Изменить подключение", "Edit connection") : L10n.pick("Новое подключение", "New connection"))
+            } footer: {
+                if draft.transport != "http" {
+                    Text(L10n.pick("Вход выполните средствами самого сервиса. Не помещайте ключи в аргументы.", "Sign in using the service's own tools. Keep keys out of arguments."))
+                        .font(.caption).foregroundStyle(.secondary)
                 }
-            }
-        }.disabled(app.globalBusy)
+            }.disabled(app.globalBusy)
+        }
+        if let error {
+            Section { Label(error, systemImage: "exclamationmark.circle").font(.caption).foregroundStyle(.orange).textSelection(.enabled) }
+        }
+    }
+
+    /// Where the connection points, and how many tools its last check found.
+    private func subtitle(_ item: WorkspaceService) -> String {
+        let place = item.transport == "stdio" ? item.command : item.endpoint
+        guard let count = toolCounts[item.id] else { return place }
+        return place + " · " + L10n.pick("инструменты: ", "tools: ") + String(count)
+    }
+
+    @ViewBuilder private func actions(_ item: WorkspaceService) -> some View {
+        Button(L10n.pick("Проверить инструменты", "Check tools")) { check(item) }
+            .disabled(!item.enabled || checking.contains(item.id))
+        Button(L10n.pick("Изменить…", "Edit…")) {
+            draft = item; token = ""; arguments = (try? String(data: JSONEncoder().encode(item.arguments), encoding: .utf8)) ?? "[]"; editing = true; error = nil
+        }
+        Divider()
+        Button(L10n.pick("Удалить", "Remove"), role: .destructive) {
+            do { try services.remove(item); toolCounts[item.id] = nil; error = nil } catch { self.error = error.localizedDescription }
+        }
+    }
+
+    private func check(_ item: WorkspaceService) {
+        checking.insert(item.id)
+        Task {
+            defer { checking.remove(item.id) }
+            do { toolCounts[item.id] = try await services.checkTools(id: item.id); error = nil }
+            catch { toolCounts[item.id] = nil; self.error = item.name + ": " + error.localizedDescription }
+        }
     }
 }

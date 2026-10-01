@@ -16,19 +16,7 @@ struct GitHubConnectionView: View {
                 Spacer()
                 if github.loading { ProgressView().controlSize(.small) }
             }
-            HStack(spacing: 12) {
-                if github.connected {
-                    Button(L10n.text("Отключить")) { Task { await github.disconnect(app: app) } }
-                } else if !github.status["available_login"].text.isEmpty {
-                    Button(L10n.format("Подключить @\(github.status["available_login"].text)")) { Task { await github.connect(app: app) } }.buttonStyle(.borderedProminent)
-                } else if !github.status.isNull {
-                    Button(github.status["installed"].flag ? L10n.text("Войти в GitHub…") : L10n.text("Установить GitHub CLI…")) { github.openLogin() }
-                }
-                Button(L10n.text("Проверить")) { Task { await github.refresh(app: app) } }
-                if github.status["enabled"].flag && !github.connected {
-                    Button(L10n.text("Отключить")) { Task { await github.disconnect(app: app) } }
-                }
-            }.disabled(github.loading || app.busy)
+            HStack(spacing: 12) { GitHubConnectionActions(app: app, github: github) }
             if !github.status["notice"].text.isEmpty {
                 Text(github.status["notice"].text).font(.system(size: 12)).foregroundStyle(.secondary)
             }
@@ -36,6 +24,59 @@ struct GitHubConnectionView: View {
                 .font(.system(size: 12)).foregroundStyle(.secondary)
             if let error = github.error { Text(error).font(.system(size: 12)).foregroundStyle(.orange).textSelection(.enabled) }
         }.padding(.vertical, 8)
+    }
+}
+
+/// Connect, sign in, check or disconnect, whichever applies; shared by the GitHub page and Settings.
+struct GitHubConnectionActions: View {
+    @ObservedObject var app: AppModel
+    @ObservedObject var github: GitHubModel
+
+    var body: some View {
+        Group {
+            if github.connected {
+                Button(L10n.text("Отключить")) { Task { await github.disconnect(app: app) } }
+            } else if !github.status["available_login"].text.isEmpty {
+                Button(L10n.format("Подключить @\(github.status["available_login"].text)")) { Task { await github.connect(app: app) } }.buttonStyle(.borderedProminent)
+            } else if !github.status.isNull {
+                Button(github.status["installed"].flag ? L10n.text("Войти в GitHub…") : L10n.text("Установить GitHub CLI…")) { github.openLogin() }
+            }
+            Button(L10n.text("Проверить")) { Task { await github.refresh(app: app) } }
+            if github.status["enabled"].flag && !github.connected {
+                Button(L10n.text("Отключить")) { Task { await github.disconnect(app: app) } }
+            }
+        }.disabled(github.loading || app.busy)
+    }
+}
+
+/// Settings → Connections → GitHub.
+struct GitHubConnectionSettings: View {
+    @ObservedObject var app: AppModel
+    @ObservedObject var github: GitHubModel
+
+    var body: some View {
+        Section {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(github.connected ? "@" + github.status["login"].text : L10n.pick("Не подключено", "Not connected"))
+                        .font(.system(size: 13, weight: .medium)).textSelection(.enabled)
+                    Text(github.connected ? L10n.pick("Вход через GitHub CLI", "Signed in through GitHub CLI")
+                         : github.status["available_login"].text.isEmpty
+                         ? (github.status.isNull || github.status["installed"].flag ? L10n.pick("Нужен вход в GitHub CLI", "Sign in to GitHub CLI") : L10n.pick("GitHub CLI не установлен", "GitHub CLI is not installed"))
+                         : L10n.pick("В GitHub CLI выполнен вход как @", "GitHub CLI is signed in as @") + github.status["available_login"].text)
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                if github.loading { ProgressView().controlSize(.small) }
+                GitHubConnectionActions(app: app, github: github)
+            }
+            if !github.status["notice"].text.isEmpty { Text(github.status["notice"].text).font(.caption).foregroundStyle(.secondary) }
+            if let error = github.error { Text(error).font(.caption).foregroundStyle(.orange).textSelection(.enabled) }
+        } header: { Text(L10n.pick("Аккаунт", "Account")) } footer: {
+            Text(L10n.text("Используется вход GitHub CLI на этом Mac. Для работы помощника с GitHub включите «Доступ к Mac» в диалоге."))
+                .font(.caption).foregroundStyle(.secondary)
+        }
+        .task { await github.refresh(app: app) }
     }
 }
 

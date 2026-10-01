@@ -130,7 +130,11 @@ final class AppModel: ObservableObject {
     @Published var error: String?
     @Published var historyPersistence = HistoryPersistenceState()
     @Published var showHistoryBackups = false
-    @Published var settingsSection: NativeSettingsSection = .models
+    @Published var settingsSection: NativeSettingsSection = .models {
+        didSet { if settingsSection != .services { settingsConnection = nil } }
+    }
+    /// The connection whose page is open in Settings → Connections; nil shows the list.
+    @Published var settingsConnection: ConnectionKind?
     @Published var historyBackupPreview: ChatBackupPreview?
     @Published var historyBackupItems: [ChatBackupSummary] = []
     @Published var historyBackupError: String?

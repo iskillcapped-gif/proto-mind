@@ -73,23 +73,31 @@ struct MessengerSettings: View {
     @WorkspaceDismiss private var dismiss
     @State private var reset: MessengerService?
     var body: some View {
-        Section(L10n.pick("Мессенджеры", "Messengers")) {
-            Text(L10n.pick("Переписка рядом с задачей. Вход сохраняется на этом Mac отдельно для каждого сервиса. Выделите сообщения и нажмите «В задачу», чтобы обсудить их с PM.", "Chat beside your work. Sign-in stays on this Mac separately for each service. Select messages and choose Use in a task to discuss them with PM."))
-                .font(.callout).foregroundStyle(.secondary)
+        Section {
             ForEach(MessengerService.allCases) { service in
-                HStack {
-                    Label(service.title, systemImage: "message")
+                HStack(spacing: 10) {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous).fill((service == .telegram ? Color(red: 0.16, green: 0.62, blue: 0.9) : Color.green).gradient)
+                        .frame(width: 24, height: 24)
+                        .overlay(Image(systemName: service == .telegram ? "paperplane.fill" : "phone.fill").font(.system(size: 11, weight: .semibold)).foregroundStyle(.white))
+                        .accessibilityHidden(true)
+                    Text(service.title)
                     Spacer()
+                    if connections.clearing.contains(service) { ProgressView().controlSize(.small) }
                     Button(L10n.pick("Открыть", "Open")) {
                         guard presentations?.locked != true else { return }
                         let panel = app.allWorkspacePanels.first { $0.presentations === presentations && presentations != nil }
                         dismiss()
                         app.openMessenger(service, in: panel)
                     }
-                    Button(L10n.pick("Сбросить вход…", "Reset sign-in…")) { reset = service }
+                    Menu {
+                        Button(L10n.pick("Сбросить вход…", "Reset sign-in…"), role: .destructive) { reset = service }
+                    } label: { Image(systemName: "ellipsis") }
+                        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().help(L10n.text("Действия"))
                 }.disabled(connections.clearing.contains(service))
+                    .contextMenu { Button(L10n.pick("Сбросить вход…", "Reset sign-in…"), role: .destructive) { reset = service } }
             }
-            Text(L10n.pick("Звонки и системные уведомления пока не поддерживаются. Для скачивания файлов используйте внешний браузер.", "Calls and system notifications are not supported yet. Use your external browser for downloads."))
+        } header: { Text(L10n.pick("Сервисы", "Services")) } footer: {
+            Text(L10n.pick("Вход сохраняется на этом Mac отдельно для каждого сервиса. Выделите сообщения и нажмите «В задачу», чтобы обсудить их с PM. Звонки и системные уведомления пока не поддерживаются; для скачивания файлов используйте внешний браузер.", "Sign-in stays on this Mac separately for each service. Select messages and choose Use in a task to discuss them with PM. Calls and system notifications are not supported yet; use your external browser for downloads."))
                 .font(.caption).foregroundStyle(.secondary)
         }.workspaceConfirmationDialog(L10n.pick("Сбросить вход на этом Mac?", "Reset sign-in on this Mac?"),
             isPresented: Binding(get: { reset != nil }, set: { if !$0 { reset = nil } }), titleVisibility: .visible) {

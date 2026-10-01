@@ -115,26 +115,37 @@ struct ModelAPIConnectionSettings: View {
     @State private var draft = ModelAPIConnection()
     @State private var secret = ""
     @State private var error: String?
-    @State private var notice: String?
     @State private var editor = false
 
     var body: some View {
-        Section(L10n.text("Модели через API")) {
-            Toggle(L10n.text("Разрешить облачную обработку"), isOn: $app.cloudConsent).disabled(app.globalBusy)
+        Section {
+            if connections.items.isEmpty {
+                Text(L10n.pick("Пока нет подключений.", "No connections yet.")).foregroundStyle(.secondary)
+            }
             ForEach(connections.items) { connection in
-                HStack {
+                HStack(spacing: 10) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(connection.name)
-                        Text(connection.model).font(.caption).foregroundStyle(.secondary)
+                        Text([connection.model, URL(string: connection.endpoint)?.host ?? ""].filter { !$0.isEmpty }.joined(separator: " · "))
+                            .font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                     }
+                    Spacer(minLength: 8)
+                    Menu { actions(connection) } label: { Image(systemName: "ellipsis") }
+                        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().help(L10n.text("Действия"))
+                }.contextMenu { actions(connection) }
+            }
+            if !editor {
+                HStack {
                     Spacer()
-                    Button(L10n.text("Изменить")) { draft = connection; secret = ""; editor = true; error = nil; notice = nil }
-                    Button { do { try connections.remove(connection) } catch { self.error = error.localizedDescription } } label: { Image(systemName: "trash") }
-                        .help(L10n.text("Удалить подключение и его ключ")).disabled(app.globalBusy)
+                    Button(L10n.text("Добавить API-подключение")) { draft = ModelAPIConnection(); secret = ""; editor = true; error = nil }
                 }
             }
-            Button(L10n.text("Добавить API-подключение")) { draft = ModelAPIConnection(); secret = ""; editor = true; error = nil; notice = nil }
-            if editor {
+        } header: { Text(L10n.pick("Подключения", "Connections")) } footer: {
+            Text(L10n.pick("Каждое подключение появляется в меню модели любого диалога.", "Each connection appears in every chat’s model menu."))
+                .font(.caption).foregroundStyle(.secondary)
+        }
+        if editor {
+            Section {
                 TextField(L10n.text("Название"), text: $draft.name, prompt: Text(L10n.text("Мой OpenAI / локальный сервер")))
                 Picker(L10n.text("Формат"), selection: $draft.format) {
                     Text("OpenAI Responses").tag("responses")
@@ -143,22 +154,38 @@ struct ModelAPIConnectionSettings: View {
                 TextField(L10n.text("Базовый URL"), text: $draft.endpoint)
                 TextField(L10n.text("ID модели"), text: $draft.model, prompt: Text(L10n.text("Точное имя из каталога провайдера")))
                 SecureField(L10n.text("API-ключ"), text: $secret, prompt: Text(L10n.text("Оставьте пустым, чтобы сохранить прежний")))
+                HStack {
+                    Spacer()
+                    Button(L10n.text("Отмена")) { editor = false; secret = "" }
+                    Button(L10n.text("Сохранить")) {
+                        do { try connections.save(draft, secret: secret); secret = ""; editor = false; error = nil }
+                        catch { self.error = error.localizedDescription }
+                    }.buttonStyle(.borderedProminent).disabled(app.globalBusy)
+                }
+            } header: {
+                Text(connections.items.contains { $0.id == draft.id } ? L10n.pick("Изменить подключение", "Edit connection") : L10n.pick("Новое подключение", "New connection"))
+            } footer: {
                 Text(L10n.text("Ключ отправляется только на этот адрес и хранится в Связке ключей. API оплачивается отдельно от подписки ChatGPT. Локальному серверу ключ не обязателен."))
                     .font(.caption).foregroundStyle(.secondary)
-                HStack {
-                    Button(L10n.text("Отмена")) { editor = false; secret = "" }
-                    Spacer()
-                    Button(L10n.text("Сохранить")) {
-                        do { try connections.save(draft, secret: secret); secret = ""; editor = false; error = nil; notice = L10n.text("Подключение сохранено. Выберите его в меню модели любого диалога.") }
-                        catch { self.error = error.localizedDescription }
-                    }.disabled(app.globalBusy)
-                }
             }
-            if let error { Text(error).font(.caption).foregroundStyle(.orange) }
-            if let notice { Text(notice).font(.caption).foregroundStyle(.secondary) }
+        }
+        if let error {
+            Section { Label(error, systemImage: "exclamationmark.circle").font(.caption).foregroundStyle(.orange).textSelection(.enabled) }
+        }
+        Section {
+            Toggle(L10n.text("Разрешить облачную обработку"), isOn: $app.cloudConsent).disabled(app.globalBusy)
+        } header: { Text(L10n.pick("Доступ", "Access")) } footer: {
             Text(L10n.pick("API поддерживает диалог и выбранный контекст. Инструменты PM включаются отдельно для каждого чата: задачи, браузер, документы и MCP. Управление Mac и уточнения во время выполнения остаются в маршрутах Codex и Claude.", "API supports conversations and selected context. Enable PM tools per chat for tasks, browser, documents and MCP. Mac control and live steering use Codex or Claude."))
                 .font(.caption).foregroundStyle(.secondary)
         }
+    }
+
+    @ViewBuilder private func actions(_ connection: ModelAPIConnection) -> some View {
+        Button(L10n.pick("Изменить…", "Edit…")) { draft = connection; secret = ""; editor = true; error = nil }
+        Divider()
+        Button(L10n.text("Удалить подключение и его ключ"), role: .destructive) {
+            do { try connections.remove(connection); error = nil } catch { self.error = error.localizedDescription }
+        }.disabled(app.globalBusy)
     }
 }
 
@@ -218,7 +245,7 @@ struct ConversationProviderChoices: View {
                         .font(.caption).padding(.horizontal, 8)
                 }
                 ComposerMenuRow(title: L10n.text("Подключить API…"), icon: "plus") {
-                    chosen(); app.settingsSection = .services; app.openSettings(in: presentations)
+                    chosen(); app.settingsConnection = .api; app.settingsSection = .services; app.openSettings(in: presentations)
                 }
             }.padding(.top, 6)
         }.disclosureGroupStyle(ModelSourceDisclosureStyle()).font(.system(size: 12)).padding(8)

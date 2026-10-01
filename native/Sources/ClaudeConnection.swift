@@ -63,38 +63,56 @@ struct ClaudeConnectionSettings: View {
     @Environment(\.workspacePresentations) private var presentations
     init(app: AppModel) { self.app = app; self.account = app.claudeAccount }
     var body: some View {
-        Section("Claude · Claude Code") {
-            LabeledContent(L10n.pick("Подключение", "Connection"), value: account.snapshot == nil
-                ? L10n.pick("Не проверено", "Not checked") : account.snapshot?.connected == true
-                ? L10n.pick("Подключено", "Connected") : L10n.pick("Нужен вход", "Sign in required"))
-            if let snapshot = account.snapshot {
-                Text([snapshot.email, snapshot.plan.capitalized].filter { !$0.isEmpty }.joined(separator: " · "))
-                    .font(.callout).textSelection(.enabled)
-            }
-            Text(L10n.pick("Вход через официальный Claude Code. Для работы по подписке выберите свой аккаунт Claude с доступом к Claude Code (например, Pro или Max). Вход через Console использует отдельную оплату API.", "Sign in through official Claude Code. For subscription usage, choose your Claude account with Claude Code access (such as Pro or Max). Console login uses separate API billing."))
-                .font(.callout).foregroundStyle(.secondary)
-            HStack {
+        Section {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
+                    if let snapshot = account.snapshot, snapshot.connected {
+                        Text(snapshot.email.isEmpty ? L10n.pick("Аккаунт Claude", "Claude account") : snapshot.email)
+                            .font(.system(size: 13, weight: .medium)).textSelection(.enabled)
+                        Text(snapshot.plan.isEmpty ? L10n.pick("Вход через Claude Code", "Signed in through Claude Code")
+                             : L10n.pick("План ", "Plan ") + snapshot.plan.capitalized + L10n.pick(" · вход через Claude Code", " · signed in through Claude Code"))
+                            .font(.caption).foregroundStyle(.secondary)
+                    } else {
+                        Text(account.snapshot != nil ? L10n.pick("Вход не выполнен", "Not signed in")
+                             : account.refreshing ? L10n.pick("Проверяем…", "Checking…") : L10n.pick("Не проверено", "Not checked"))
+                            .font(.system(size: 13, weight: .medium))
+                        Text(L10n.pick("Вход через официальный Claude Code", "Sign in through official Claude Code")).font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                Spacer()
+                if account.refreshing { ProgressView().controlSize(.small) }
+                Button { Task { await app.refreshClaudeAccount() } } label: { Image(systemName: "arrow.clockwise") }
+                    .help(L10n.text("Обновить")).accessibilityLabel(L10n.text("Обновить"))
                 if account.snapshot?.connected == true {
                     Button(L10n.pick("Выйти", "Sign out")) { Task { await app.authenticateClaude("logout") } }
                 } else {
-                    Button(L10n.pick("Войти в Claude", "Sign in to Claude")) { Task { await app.authenticateClaude("login") } }
+                    Button(L10n.pick("Войти в Claude", "Sign in to Claude")) { Task { await app.authenticateClaude("login") } }.buttonStyle(.borderedProminent)
                 }
-                Spacer()
-                Button(L10n.text("Обновить")) { Task { await app.refreshClaudeAccount() } }
             }.disabled(app.operationBusy || app.claudeTasksRunning || app.claudeAuthenticating || account.refreshing)
             if let terminal = app.claudeAuthenticationTerminal {
                 WorkspaceTerminalView(terminal: terminal).frame(height: 270).clipShape(RoundedRectangle(cornerRadius: 10))
-                Button(L10n.pick("Закрыть вход", "Close sign-in")) { app.closeClaudeAuthentication() }
+                HStack { Spacer(); Button(L10n.pick("Закрыть вход", "Close sign-in")) { app.closeClaudeAuthentication() } }
             }
             if let error = app.claudeAccountError { Text(error).font(.caption).foregroundStyle(.orange) }
             if let error = account.error { Text(error).font(.caption).foregroundStyle(.secondary) }
-            Button(L10n.pick("Посмотреть лимиты Claude", "View Claude limits")) {
-                app.presentations.prepare("codexUsage", in: presentations ?? app.presentations)
-                app.openAccountUsage("claude")
-            }
-            Text(L10n.pick("Пароль и токены обрабатывает Claude Code. PM не копирует их в диалоги или резервные копии. После входа выберите Claude в меню модели любого чата.", "Claude Code handles passwords and tokens. PM does not copy them into chats or backups. After sign-in, choose Claude in any chat’s model menu."))
+        } header: { Text(L10n.pick("Аккаунт", "Account")) } footer: {
+            Text(L10n.pick("Для работы по подписке войдите в аккаунт Claude с доступом к Claude Code (например, Pro или Max). Вход через Console использует отдельную оплату API. Пароль и токены обрабатывает Claude Code; PM не копирует их в диалоги или резервные копии.", "For subscription usage, sign in with a Claude account that includes Claude Code (such as Pro or Max). Console login uses separate API billing. Claude Code handles passwords and tokens; PM never copies them into chats or backups."))
                 .font(.caption).foregroundStyle(.secondary)
-        }.task { await app.refreshClaudeAccount() }
+        }
+        .task { await app.refreshClaudeAccount() }
+        Section {
+            HStack {
+                Text(L10n.pick("Лимиты подписки", "Subscription limits"))
+                Spacer()
+                Button(L10n.pick("Посмотреть лимиты", "View limits")) {
+                    app.presentations.prepare("codexUsage", in: presentations ?? app.presentations)
+                    app.openAccountUsage("claude")
+                }
+            }
+        } header: { Text(L10n.pick("Использование", "Usage")) } footer: {
+            Text(L10n.pick("После входа выберите Claude в меню модели любого чата.", "After signing in, choose Claude in any chat’s model menu."))
+                .font(.caption).foregroundStyle(.secondary)
+        }
     }
 }
 

@@ -8,12 +8,10 @@ struct MobileRemoteSettings: View {
     @State private var endpoint = ""
     @State private var showSetup = false
     var body: some View {
-        Section("iPhone · PM Remote") {
-            Text(L10n.pick("Ваши проекты и чаты — с телефона. Читайте ответы, отправляйте задачи и уточнения, останавливайте работу. PM должен быть открыт, а Mac — бодрствовать.", "Your projects and chats, on your phone. Read replies, send tasks and updates, and stop work. PM must be open and your Mac awake."))
-                .font(.callout).foregroundStyle(.secondary)
+        Section {
             HStack {
-                TextField(L10n.pick("Адрес Mac", "Mac address"), text: $endpoint, prompt: Text("https://your-mac.your-tailnet.ts.net"))
-                    .textFieldStyle(.roundedBorder).disabled(remote.running || remote.connecting)
+                TextField(L10n.pick("Адрес Mac", "Mac address"), text: $endpoint, prompt: Text(verbatim: "https://your-mac.your-tailnet.ts.net"))
+                    .textFieldStyle(.roundedBorder).labelsHidden().disabled(remote.running || remote.connecting)
                     .accessibilityLabel(L10n.pick("Защищённый адрес Mac", "Secure Mac address"))
                 Button(L10n.text("Сохранить")) { act { try remote.setEndpoint(endpoint) } }
                     .disabled(remote.running || remote.connecting || MobileWire.endpoint(endpoint) == nil)
@@ -27,6 +25,11 @@ struct MobileRemoteSettings: View {
                     Link(L10n.pick("Инструкция Tailscale Serve", "Tailscale Serve guide"), destination: URL(string: "https://tailscale.com/docs/features/tailscale-serve")!)
                 }.font(.caption).padding(.vertical, 6)
             }
+        } header: { Text(L10n.pick("Адрес Mac", "Mac address")) } footer: {
+            Text(L10n.pick("Ваши проекты и чаты — с телефона. Читайте ответы, отправляйте задачи и уточнения, останавливайте работу. PM должен быть открыт, а Mac — бодрствовать.", "Your projects and chats, on your phone. Read replies, send tasks and updates, and stop work. PM must be open and your Mac awake."))
+                .font(.caption).foregroundStyle(.secondary)
+        }.onAppear { endpoint = remote.state.endpoint }
+        Section {
             Toggle(L10n.pick("Принимать команды из PM Remote", "Accept commands from PM Remote"), isOn: Binding(
                 get: { remote.running || remote.connecting }, set: { value in
                     if value { act { try remote.start(app: app) } } else { remote.stop() }
@@ -41,9 +44,10 @@ struct MobileRemoteSettings: View {
                     Text(L10n.pick("Подтверждайте только свой телефон. Он получит доступ к выбранным ниже чатам и их текущим разрешениям.", "Approve only your own phone. It will have access to the chats selected below and their current permissions."))
                         .font(.caption).foregroundStyle(.secondary)
                     HStack {
+                        Spacer()
+                        Button(L10n.pick("Отклонить", "Reject")) { act { try remote.beginPairing() } }
                         Button(L10n.pick("Разрешить этому iPhone", "Approve this iPhone")) { act { try remote.approve() } }
                             .buttonStyle(.borderedProminent)
-                        Button(L10n.pick("Отклонить", "Reject")) { act { try remote.beginPairing() } }
                     }
                 }
             } else if remote.running {
@@ -64,17 +68,31 @@ struct MobileRemoteSettings: View {
                         }
                     }.padding(.vertical, 6)
                 } else {
-                    Button(L10n.pick("Подключить iPhone", "Pair an iPhone")) { act { try remote.beginPairing() } }
-                        .disabled(remote.state.devices.count >= 8)
+                    HStack {
+                        Spacer()
+                        Button(L10n.pick("Подключить iPhone", "Pair an iPhone")) { act { try remote.beginPairing() } }
+                            .buttonStyle(.borderedProminent).disabled(remote.state.devices.count >= 8)
+                    }
                 }
             }
-            ForEach(remote.state.devices) { device in
-                HStack {
-                    Label(device.name, systemImage: "iphone")
-                    Spacer()
-                    Button(L10n.pick("Отвязать", "Unpair")) { act { try remote.revoke(device.id) } }
+        } header: { Text(L10n.pick("Подключение", "Connection")) }
+        if !remote.state.devices.isEmpty {
+            Section {
+                ForEach(remote.state.devices) { device in
+                    HStack(spacing: 10) {
+                        Image(systemName: "iphone").font(.system(size: 15)).foregroundStyle(.secondary).frame(width: 20).accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(device.name)
+                            Text(L10n.pick("Подключён ", "Paired ") + device.pairedAt.formatted(.dateTime.day().month(.abbreviated).hour().minute().locale(L10n.locale)))
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 8)
+                        Button(L10n.pick("Отвязать", "Unpair")) { act { try remote.revoke(device.id) } }
+                    }
                 }
-            }
+            } header: { Text(L10n.pick("Устройства", "Devices")) }
+        }
+        Section {
             DisclosureGroup(L10n.pick("Доступные чаты", "Shared chats") + " · \(remote.state.allowed.count)") {
                 Text(L10n.pick("Телефон сможет читать переписку и запускать задачи с уже выданными этому чату правами, включая доступ к Mac. Новые чаты с телефона начинают без полного доступа. Закрытие приложения на iPhone не останавливает принятые задачи.", "Your phone can read conversations and run tasks with permissions already granted to each chat, including Mac access. Chats created on your phone start without full access. Closing the iPhone app does not stop accepted tasks."))
                     .font(.caption).foregroundStyle(.secondary)
@@ -89,7 +107,7 @@ struct MobileRemoteSettings: View {
                 }
             }
             if let error = remote.error { Text(error).font(.caption).foregroundStyle(.orange).textSelection(.enabled) }
-        }.onAppear { endpoint = remote.state.endpoint }
+        }
     }
     private func act(_ operation: () throws -> Void) {
         do { try operation(); remote.error = nil } catch { remote.error = error.localizedDescription }
