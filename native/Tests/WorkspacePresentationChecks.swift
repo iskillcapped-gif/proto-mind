@@ -140,10 +140,13 @@ extension NativeChecks {
         try await settle()
         try check(center.pages.isEmpty && remote.pages.count == 1 && probe.rendered == "Updated in companion",
                   "A forwarded source binding stays live inside its captured companion")
+        let dismissalsBeforeMove = probe.parentDismissals
         center.prepare("probe", in: center); probe.shown = true
         try await settle()
         try check(center.pages.count == 1 && remote.pages.isEmpty && probe.shown,
                   "Reopening the same bound screen from another window moves only that presentation")
+        try check(probe.parentDismissals == dismissalsBeforeMove && probe.rendered == "Updated in companion",
+                  "A moved page keeps its binding and is not dismissed on the way")
         center.dismissAll()
         try await settle()
         app.openSettings(in: remote)

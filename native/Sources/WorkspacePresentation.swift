@@ -37,9 +37,40 @@ final class WorkspacePresentations: ObservableObject {
     }
 
     /// Capture an operation's origin before awaiting. Consume it when its binding opens.
+    /// A page already open for this key in another window moves there with its binding still set.
     func prepare(_ key: AnyHashable, in destination: WorkspacePresentations) {
-        if let id = activeKeys[key], (forwarded[id] ?? self) !== destination { remove(id: id) }
+        if let id = activeKeys[key], (forwarded[id] ?? self) !== destination {
+            if relocate(id: id, to: destination) { prepared[key] = nil; return }
+            remove(id: id)
+        }
         prepared[key] = WeakDestination(destination)
+    }
+
+    /// Closing and reopening the binding in one turn is a change SwiftUI may never report, so a
+    /// move keeps the page itself: no cleared binding and no onDismiss. Pages above it close.
+    private func relocate(id: UUID, to destination: WorkspacePresentations) -> Bool {
+        guard let page = (forwarded[id] ?? self).detach(id: id) else { return false }
+        forwarded[id] = destination === self ? nil : destination
+        destination.attach(page)
+        return true
+    }
+
+    private func detach(id: UUID) -> Page? {
+        guard let index = pages.firstIndex(where: { $0.id == id }) else { return nil }
+        let page = pages[index]
+        let above = Array(pages[(index + 1)...].reversed())
+        pages.removeSubrange(index...)
+        for child in above { child.clearBinding(); child.onDismiss() }
+        if pages.isEmpty, window?.isKeyWindow == true, let priorResponder { window?.makeFirstResponder(priorResponder) }
+        return page
+    }
+
+    private func attach(_ page: Page) {
+        if pages.isEmpty { priorResponder = window?.firstResponder }
+        pages.append(Page(id: page.id, content: page.content, clearBinding: page.clearBinding, onDismiss: page.onDismiss,
+                          dismiss: { [weak self] in self?.dismiss(id: page.id) }, dismissalDisabled: page.dismissalDisabled))
+        reveal()
+        window?.makeFirstResponder(nil)
     }
 
     func present(id: UUID, content: AnyView, clearBinding: @escaping () -> Void, onDismiss: @escaping () -> Void = {}, routingKey: AnyHashable? = nil) {
