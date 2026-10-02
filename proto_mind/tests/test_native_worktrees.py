@@ -31,6 +31,7 @@ class IsolatedWorktreeTests(unittest.TestCase):
     def test_isolated_task_shares_its_main_checkout_memory_scope(self):
         from proto_mind.native_bridge import _canonical_hash, memory_scope
         from proto_mind.native_work_sessions import workspace_identity
+        from proto_mind.native_workspace_key import workspace_key
         with tempfile.TemporaryDirectory() as temporary:
             base=Path(temporary).resolve(); root=base/'repo'; root.mkdir()
             subprocess.run(['/usr/bin/git','init','-q',str(root)],check=True)
@@ -45,14 +46,16 @@ class IsolatedWorktreeTests(unittest.TestCase):
             self.assertTrue((relative/'.git').read_text().startswith('gitdir: ../'))
             self.assertEqual(main_checkout(relative), root)
             main=workspace_identity(root)
-            # The main checkout keeps the exact scope existing records were saved with.
-            self.assertEqual(memory_scope(main), _canonical_hash(main))
+            # The scope is the folder's path and inode: a volume's device number can
+            # change after a reboot, and the scope must not change with it.
+            self.assertEqual(memory_scope(main), _canonical_hash(workspace_key(main)))
+            self.assertEqual(memory_scope({**main, 'device': main['device'] + 1}), memory_scope(main))
             self.assertEqual(memory_scope(workspace_identity(work)), memory_scope(main))
             # A copied or crafted .git file that the repository never registered keeps its own scope.
             other=base/'other'; other.mkdir()
             (other/'.git').write_text((work/'.git').read_text())
             self.assertIsNone(main_checkout(other))
-            self.assertEqual(memory_scope(workspace_identity(other)), _canonical_hash(workspace_identity(other)))
+            self.assertEqual(memory_scope(workspace_identity(other)), _canonical_hash(workspace_key(workspace_identity(other))))
 
     def test_isolated_task_reads_and_saves_its_main_checkout_project_notes(self):
         from uuid import uuid4

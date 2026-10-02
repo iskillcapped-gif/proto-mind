@@ -283,6 +283,19 @@ class NativeProjectMemoryTests(unittest.TestCase):
         self.workspace.mkdir()
         self.assertEqual(self.call("project_memory_list")["items"], [])
 
+    def test_reboot_changing_the_volume_device_number_keeps_notes_and_their_state(self):
+        note = self.save()
+        current = workspace_identity(self.workspace)
+        rebooted = NativeProjectMemory(self.root, self.state, self.conversation, {**current, "device": current["device"] + 1})
+        self.assertEqual(rebooted.listing()["items"], [note])
+        self.assertEqual(rebooted.selected([self.spec(note)])[0]["content"], note["content"])
+        request = {"record_id": note["id"], "record_hash": note["record_hash"], "action": "archive"}
+        preview = rebooted.preview_state(request)
+        rebooted.save_state({**request, "preview_fingerprint": preview["preview_fingerprint"],
+                             "confirmation_token": preview["confirmation_token"], "acknowledge_memory_change": True})
+        self.assertEqual(self.call("project_memory_list")["items"], [])
+        self.assertEqual(self.memory().store.scan(validate_project_memory)[1], [])
+
     def test_superseding_is_an_append_and_old_version_is_excluded(self):
         old = self.save("Решили использовать SQLite.", kind="decision")
         path = self.state / "project_memory" / (old["id"] + ".json")

@@ -6,6 +6,7 @@ from uuid import UUID
 from proto_mind.native_desk import injection_state
 from proto_mind.native_private_records import HASH, snapshot_hash
 from proto_mind.native_project_memory import NativeProjectMemory
+from proto_mind.native_workspace_key import same_workspace
 from proto_mind.project_recall_terms import content_terms as tokens
 from proto_mind.project_recall_search import ALGORITHM, rank_notes
 
@@ -56,7 +57,7 @@ def validate_project_recall(value, *, notes=None, record=None):
                                                         or not HASH.fullmatch(value["source_snapshot_hash"]))):
         raise ValueError("Inconsistent automatic recall state/counts.")
     if notes is not None and ([row["id"] for row in notes] != value["selected_ids"]
-            or any(row["workspace"] != workspace for row in notes)
+            or any(not same_workspace(row["workspace"], workspace) for row in notes)
             or sum(row["characters"] for row in notes) > value["characters"]):
         raise ValueError("Recalled note provenance differs from the selection.")
     if record is not None and (value["conversation_id"] != record.get("conversation_id")

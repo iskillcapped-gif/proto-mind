@@ -112,6 +112,17 @@ for index in range(4):
             self.store.touch(self.conversation, "thread-fixture", self.workspace,
                              mode="full_access", model="second")
 
+    def test_reboot_changing_the_volume_device_number_keeps_the_binding(self):
+        self.store.record_new(self.conversation, "thread-chat", self.workspace, mode="chat", model="first")
+        rebooted = {**self.workspace, "device": 99}
+        self.assertTrue(self.store.status(self.conversation, rebooted, mode="chat")["workspace_matches"])
+        self.assertEqual(self.store.binding(self.conversation, rebooted, mode="chat")["thread_id"], "thread-chat")
+        self.store.touch(self.conversation, "thread-chat", rebooted, mode="chat", model="second")
+        self.store.record_new(self.conversation, "thread-full", rebooted, mode="full_access", model="full")
+        self.assertEqual(self.store.binding(self.conversation, self.workspace, mode="full_access")["thread_id"], "thread-full")
+        with self.assertRaisesRegex(threads.CodexThreadStoreError, "another workspace"):
+            self.store.binding(self.conversation, {**rebooted, "inode": 35}, mode="chat")
+
     def test_chat_and_full_access_keep_separate_mode_bound_threads(self):
         self.store.record_new(self.conversation, "thread-chat", self.workspace, mode="chat", model="chat-model")
         self.store.record_new(self.conversation, "thread-full", self.workspace, mode="full_access", model="full-model")

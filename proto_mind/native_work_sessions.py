@@ -17,6 +17,7 @@ import time
 from uuid import UUID, uuid4
 
 from proto_mind.native_locks import open_sidecar
+from proto_mind.native_workspace_key import same_workspace
 from proto_mind.native_progress import COMPACTION_COUNTS, display_text
 from proto_mind.native_desk import CONTEXT_SCHEMA, valid_artifact_snapshot
 from proto_mind.native_images import validate_image_metadata
@@ -255,7 +256,7 @@ class WorkSessionStore:
                 if recall is not None:
                     from proto_mind.native_project_recall import validate_project_recall
                     validate_project_recall(recall, record=record)
-                if any(row["workspace"] != record.get("workspace") for row in (manifest.get("knowledge_context") or {}).get("project_memory", [])):
+                if any(not same_workspace(row["workspace"], record.get("workspace")) for row in (manifest.get("knowledge_context") or {}).get("project_memory", [])):
                     raise ValueError()
                 skill = (manifest.get("knowledge_context") or {}).get("skill_task")
                 if skill is not None and (skill["workspace"] != record.get("workspace") or skill["conversation_id"] != record["conversation_id"]
@@ -408,7 +409,7 @@ class WorkSessionStore:
             if record.get("parent_run_id") == parent_id:
                 child = record
         if (parent is None or parent["project_root"] != self.project_root or parent["conversation_id"] != conversation
-                or parent.get("workspace") != workspace or continuation.get("fingerprint") != fingerprint(parent)):
+                or not same_workspace(parent.get("workspace"), workspace) or continuation.get("fingerprint") != fingerprint(parent)):
             raise WorkSessionError("Saved work or its folder changed. Inspect the journal again before preparing a continuation.")
         if parent_id in (active or set()):
             raise WorkSessionError("This work is still owned by an active writer. No continuation was prepared.")

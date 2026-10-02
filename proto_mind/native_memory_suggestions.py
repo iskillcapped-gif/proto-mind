@@ -9,6 +9,7 @@ from proto_mind.native_desk import injection_state
 from proto_mind.native_private_records import HASH
 from proto_mind.native_project_memory import NativeProjectMemory
 from proto_mind.native_work_sessions import WorkSessionError, WorkSessionStore, workspace_identity
+from proto_mind.native_workspace_key import same_workspace
 
 
 SCHEMA = "proto_mind.native_memory_suggestions.v1"
@@ -75,7 +76,7 @@ def explicit_statements(text):
 
 def _check_source(run, text, workspace):
     if (not isinstance(run, dict) or run.get("status") != "completed" or run.get("display_status") != "completed"
-            or run.get("provider") != "codex" or not workspace or run.get("workspace") != workspace
+            or run.get("provider") != "codex" or not workspace or not same_workspace(run.get("workspace"), workspace)
             or not isinstance(text, str) or not 1 <= len(text) <= 32_000
             or run.get("input_sha256") != text_hash(text) or run.get("input_chars") != len(text)
             or not HASH.fullmatch(str(run.get("fingerprint", "")))):
@@ -95,7 +96,7 @@ def suggestions(root, state_dir, run, text):
     if not candidates:
         return report
     try:
-        if injection_state(root)["enabled"] is not False or workspace_identity(Path(workspace["path"])) != workspace:
+        if injection_state(root)["enabled"] is not False or not same_workspace(workspace_identity(Path(workspace["path"])), workspace):
             raise ValueError("Scope or Context setting changed.")
         memory = NativeProjectMemory(root, state_dir, run["conversation_id"], workspace)
         _, records, replaced, issues = memory._read()

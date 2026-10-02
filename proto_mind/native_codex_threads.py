@@ -17,6 +17,7 @@ import threading
 from uuid import UUID, uuid4
 
 from proto_mind.native_locks import open_sidecar
+from proto_mind.native_workspace_key import same_workspace
 
 
 LEGACY_SCHEMA = "proto_mind.native_codex_threads.v1"
@@ -183,7 +184,7 @@ class CodexThreadStore:
             for row in result:
                 workspaces.setdefault(row["conversation_id"], []).append(row["workspace"])
             if (len(pairs) != len(result) or len({row["thread_id"] for row in result}) != len(result)
-                    or any(any(workspace != values[0] for workspace in values[1:])
+                    or any(any(not same_workspace(workspace, values[0]) for workspace in values[1:])
                            for values in workspaces.values())):
                 raise CodexThreadStoreError("Duplicate Codex thread binding; no automatic repair was attempted.")
             return result
@@ -252,7 +253,7 @@ class CodexThreadStore:
                     "available_modes": [], "legacy_binding": False,
                     "refresh_required": False, "stale_modes": [],
                     "notice": "Следующее сообщение создаст новую постоянную сессию Codex."}
-        matches = all(row["workspace"] == identity for row in rows)
+        matches = all(same_workspace(row["workspace"], identity) for row in rows)
         mode_rows = [row for row in rows if row["instruction_mode"] in MODES]
         available = sorted(row["instruction_mode"] for row in mode_rows)
         selected = (next((row for row in mode_rows if row["instruction_mode"] == mode), None)
@@ -299,7 +300,7 @@ class CodexThreadStore:
             raise CodexThreadStoreError("Invalid Codex thread access mode.")
         with self.lock:
             rows = [item for item in self._load() if item["conversation_id"] == identifier]
-        if rows and any(row["workspace"] != identity for row in rows):
+        if rows and any(not same_workspace(row["workspace"], identity) for row in rows):
             raise CodexThreadStoreError(
                 "Saved Codex session belongs to another workspace. Use Model Settings > Start New Codex Session; no fallback was used."
             )
@@ -339,7 +340,7 @@ class CodexThreadStore:
             rows = self._load()
             index = next((i for i, item in enumerate(rows)
                           if (item["conversation_id"], item["instruction_mode"]) == (identifier, mode)), None)
-            if index is None or rows[index]["thread_id"] != provider_id or rows[index]["workspace"] != identity:
+            if index is None or rows[index]["thread_id"] != provider_id or not same_workspace(rows[index]["workspace"], identity):
                 raise CodexThreadStoreError("Codex thread binding changed before dispatch; no turn was started.")
             if rows[index]["instruction_contract_hash"] != _contract_hash(instruction_contract_hash):
                 raise CodexThreadStoreError("Codex instruction contract changed before dispatch; no turn was started.")
@@ -368,7 +369,7 @@ class CodexThreadStore:
             index = next((i for i, item in enumerate(rows)
                           if (item["conversation_id"], item["instruction_mode"]) == (identifier, mode)), None)
             if (index is None or rows[index]["thread_id"] != previous_id
-                    or rows[index]["workspace"] != identity):
+                    or not same_workspace(rows[index]["workspace"], identity)):
                 raise CodexThreadStoreError("Codex thread binding changed before contract refresh; no turn was started.")
             if rows[index]["instruction_contract_hash"] == current_contract:
                 raise CodexThreadStoreError("Codex instruction contract was already current; no replacement was saved.")

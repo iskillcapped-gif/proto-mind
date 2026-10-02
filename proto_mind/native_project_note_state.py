@@ -2,6 +2,7 @@
 from uuid import UUID
 
 from proto_mind.native_private_records import HASH
+from proto_mind.native_workspace_key import same_workspace
 
 
 SCHEMA = "proto_mind.native_project_note_state.v1"
@@ -35,7 +36,7 @@ def project_states(notes, events):
         body = event["body"]
         note = by_note.get(body["note_id"])
         if (note is None or note["record_hash"] != body["note_record_hash"]
-                or any(note["body"][key] != body[key] for key in ("project_root", "workspace"))):
+                or note["body"]["project_root"] != body["project_root"] or not same_workspace(note["body"]["workspace"], body["workspace"])):
             issues.append("Project-note state points to a missing, changed or foreign note.")
             continue
         grouped.setdefault(note["id"], []).append(event)

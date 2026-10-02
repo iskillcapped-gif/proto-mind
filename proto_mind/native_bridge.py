@@ -90,6 +90,7 @@ from proto_mind.native_github import GitHubConnection, METHODS as GITHUB_METHODS
 from proto_mind.native_private_restore import PrivateRestore, METHODS as PRIVATE_BACKUP_METHODS
 from proto_mind.private_state_gate import generation, require_available
 from proto_mind.native_work_sessions import WorkSessionStore, WorkSessionError, workspace_identity
+from proto_mind.native_workspace_key import same_workspace, workspace_key
 from proto_mind.native_desk import context_manifest, context_preview, capture_artifacts, review_observations
 from proto_mind.native_review import CONFIRM_REVIEW, criteria_context_message, validate_criteria, review_preview
 from proto_mind.observer import Observer
@@ -115,9 +116,10 @@ def _canonical_hash(value: object) -> str:
 
 def memory_scope(workspace: dict | None) -> str | None:
     """Core-memory project scope. A linked Git worktree, such as an isolated PM
-    task, shares its main checkout's scope; any other folder keeps its own."""
+    task, shares its main checkout's scope; any other folder keeps its own. The
+    volume's device number is left out: it can change after a reboot."""
     from proto_mind.native_worktrees import project_workspace
-    return _canonical_hash(project_workspace(workspace)) if workspace else None
+    return _canonical_hash(workspace_key(project_workspace(workspace))) if workspace else None
 
 
 class _NoLocalRedirect(request.HTTPRedirectHandler):
@@ -809,7 +811,7 @@ class NativeBackend:
                     coordinator.reasoner = MockReasoner()
             if work_session is not None:
                 saved_workspace = work_session.record["workspace"]
-                if saved_workspace and workspace_identity(Path(saved_workspace["path"])) != saved_workspace:
+                if saved_workspace and not same_workspace(workspace_identity(Path(saved_workspace["path"])), saved_workspace):
                     raise WorkSessionError("Workspace changed before dispatch. Choose and inspect the folder again.")
                 revalidate_knowledge()
                 work_session.dispatch()
@@ -918,7 +920,7 @@ class NativeBackend:
             if not params.get("workspace_root") or not record.get("workspace"):
                 return None
             reader = self.workspace(params)
-            return reader if workspace_identity(reader.root) == record["workspace"] else None
+            return reader if same_workspace(workspace_identity(reader.root), record["workspace"]) else None
         except (OSError, ValueError):
             return None
 

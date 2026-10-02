@@ -59,6 +59,13 @@ class SessionTests(unittest.TestCase):
                 self.assertFalse(candidate.resumed)
                 self.assertNotEqual(candidate.session_id, original.session_id)
 
+    def test_reboot_changing_the_volume_device_number_still_resumes(self):
+        original = self.completed()
+        rebooted = self.plan(workspace={"path": "/fixture", "device": 7, "inode": 2})
+        self.assertTrue(rebooted.resumed)
+        self.assertEqual(rebooted.session_id, original.session_id)
+        self.assertFalse(self.plan(workspace={"path": "/fixture", "device": 7, "inode": 3}).resumed)
+
     def test_login_and_restore_invalidate_continuation(self):
         self.completed()
         invalidate_login(self.state)

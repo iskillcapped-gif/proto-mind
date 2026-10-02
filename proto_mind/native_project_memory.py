@@ -7,6 +7,7 @@ from proto_mind.native_desk import injection_state
 from proto_mind.project_recall_search import ALGORITHM, rank_notes
 from proto_mind.native_private_records import PrivateRecordStore, digest, encoded, snapshot_hash, HASH
 from proto_mind.native_work_sessions import workspace_identity
+from proto_mind.native_workspace_key import same_workspace
 from proto_mind.native_worktrees import project_workspace
 from proto_mind.native_project_note_state import SCHEMA as STATE_SCHEMA, ACTIONS, project_states, validate_state
 
@@ -83,7 +84,7 @@ class NativeProjectMemory:
         self.store = PrivateRecordStore(state_dir, "project_memory")
 
     def _same_scope(self, body):
-        return body["project_root"] == str(self.root) and body["workspace"] == self.scope
+        return body["project_root"] == str(self.root) and same_workspace(body["workspace"], self.scope)
 
     def _read(self):
         all_records, issues = self.store.scan(validate_project_memory)
@@ -116,7 +117,7 @@ class NativeProjectMemory:
         return all_records, records, excluded, list(dict.fromkeys(issues))
 
     def _check_workspace(self):
-        if workspace_identity(Path(self.workspace["path"])) != self.workspace:
+        if not same_workspace(workspace_identity(Path(self.workspace["path"])), self.workspace):
             raise ValueError("The selected project folder changed. Select and inspect it again.")
 
     def _base(self, kind, *, write=False):

@@ -17,6 +17,7 @@ from uuid import UUID, uuid4
 from proto_mind.native_claude_transcripts import transcript_files
 from proto_mind.native_locks import open_sidecar
 from proto_mind.native_private_backup import atomic_file, read_file, safe_directory, encoded
+from proto_mind.native_workspace_key import workspace_key
 from proto_mind.private_state_gate import generation, require_available
 
 SCHEMA = "proto_mind.claude_session.v1"
@@ -78,6 +79,12 @@ def bootstrap_history(value):
     return selected
 
 
+def _comparable(binding):
+    """A binding as resume compares it: the folder by path and inode, since its
+    volume's device number can change after a reboot."""
+    return {**binding, "workspace": workspace_key(binding.get("workspace"))} if isinstance(binding, dict) else binding
+
+
 def auth_epoch(state):
     path = state / "claude_sessions" / "auth_epoch"
     return read_file(path, 128).decode() if os.path.lexists(path) else ""
@@ -108,7 +115,7 @@ class ClaudeSessionPlan:
         self.continuity = continuity_hash(history)
         # A confirmed answer or an interrupted turn started from the same local
         # position continues; any other local change starts a new session.
-        self.resumed = bool(account.get("email") and previous and previous["binding"] == self.binding
+        self.resumed = bool(account.get("email") and previous and _comparable(previous["binding"]) == _comparable(self.binding)
                             and self.continuity is not None and previous["answer_hash"] == self.continuity
                             and transcript_exists(self.state, previous["session_id"]))
         self.interrupted = self.resumed and previous["state"] == "in_flight"

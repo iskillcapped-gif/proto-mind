@@ -9,6 +9,7 @@ from proto_mind.native_skill_inspection import NativeSkillInspection, parse_skil
 from proto_mind.native_skill_outcome import NativeSkillOutcome
 from proto_mind.native_skill_authoring import _hash
 from proto_mind.native_work_sessions import workspace_identity
+from proto_mind.native_workspace_key import same_workspace
 from proto_mind.experience_learning_skill_outcome_capture import (
     ProceduralSkillOutcomeCaptureReceipt, procedural_skill_outcome_capture_receipt_hash, is_valid_procedural_skill_outcome_event_batch,
 )
@@ -98,7 +99,7 @@ class NativeLearningHistory:
         self.store = PrivateRecordStore(state_dir, "learning_history")
 
     def _scope(self, body: dict) -> bool:
-        return (body["project_root"] == str(self.root) and body["workspace"] == self.workspace
+        return (body["project_root"] == str(self.root) and same_workspace(body["workspace"], self.workspace)
                 and body["conversation_id"] == self.request["conversation_id"] and body["skill_id"] == self.request["skill_id"])
 
     def _body(self) -> dict:
@@ -128,7 +129,7 @@ class NativeLearningHistory:
                 "automatic_learning": False, "quality_verification": "not_independently_verified"}
         validate_history(body)
         source._check_sources()
-        if self.workspace and workspace_identity(Path(self.workspace["path"])) != self.workspace:
+        if self.workspace and not same_workspace(workspace_identity(Path(self.workspace["path"])), self.workspace):
             raise ValueError("Workspace identity changed during history review.")
         return body
 
