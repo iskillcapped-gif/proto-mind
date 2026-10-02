@@ -131,41 +131,45 @@ struct LiveVoiceView: View {
     }
 }
 
+/// Settings → Voice: the OpenAI key for voice conversations, kept in this Mac's Keychain.
 struct LiveVoiceKeySettings: View {
     @ObservedObject var voice: LiveVoiceModel
     @State private var key = ""
     @State private var message: String?
     @State private var failed = false
+    @State private var replacing = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label(voice.hasKey ? L10n.text("API-ключ сохранён") : L10n.text("Подключите OpenAI API"), systemImage: voice.hasKey ? "key.fill" : "key")
-                .font(.headline)
-            SecureField(voice.hasKey ? L10n.text("Новый ключ для замены") : L10n.text("API-ключ OpenAI"), text: $key)
-                .textFieldStyle(.roundedBorder).disabled(voice.inCall).accessibilityLabel(L10n.text("API-ключ OpenAI"))
-            HStack {
-                Button(L10n.text("Сохранить ключ")) {
-                    do { try voice.saveKey(key); key = ""; message = L10n.text("Ключ сохранён в Связке ключей macOS."); failed = false }
-                    catch { message = error.localizedDescription; failed = true }
-                }.disabled(key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || voice.inCall)
-                if voice.hasKey {
-                    Button(L10n.text("Удалить")) {
-                        do { try voice.removeKey(); message = L10n.text("Ключ удалён с этого Mac."); failed = false }
-                        catch { message = error.localizedDescription; failed = true }
+        Section {
+            if voice.hasKey && !replacing {
+                SettingsRow(title: L10n.text("API-ключ сохранён"), detail: L10n.pick("Хранится в Связке ключей этого Mac", "Kept in this Mac's Keychain"), symbol: "key.fill") {
+                    SettingsMoreMenu {
+                        Button(L10n.pick("Заменить ключ…", "Replace key…")) { replacing = true; key = ""; message = nil }
+                        Divider()
+                        Button(L10n.text("Удалить"), role: .destructive) {
+                            do { try voice.removeKey(); message = L10n.text("Ключ удалён с этого Mac."); failed = false }
+                            catch { message = error.localizedDescription; failed = true }
+                        }
                     }.disabled(voice.inCall)
                 }
+            } else {
+                SecureField(L10n.text("API-ключ OpenAI"), text: $key, prompt: Text(voice.hasKey ? L10n.text("Новый ключ для замены") : L10n.text("API-ключ OpenAI")))
+                    .textFieldStyle(.roundedBorder).labelsHidden().disabled(voice.inCall).accessibilityLabel(L10n.text("API-ключ OpenAI"))
+                HStack {
+                    Link(L10n.text("Открыть API-ключи OpenAI"), destination: URL(string: "https://platform.openai.com/api-keys")!)
+                    Spacer()
+                    if replacing { Button(L10n.text("Отмена")) { replacing = false; key = "" } }
+                    Button(L10n.text("Сохранить ключ")) {
+                        do { try voice.saveKey(key); key = ""; replacing = false; message = nil; failed = false }
+                        catch { message = error.localizedDescription; failed = true }
+                    }.buttonStyle(.borderedProminent).disabled(key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || voice.inCall)
+                }
             }
-            if let message { Text(message).font(.caption).foregroundStyle(failed ? Color.orange : .secondary) }
-            Text(L10n.text("Ключ хранится на этом Mac, отдельно от истории и резервных копий. Разговор включается только по кнопке; после запуска приложения микрофон выключен."))
-                .font(.caption).foregroundStyle(.secondary)
-            Text(L10n.text("Во время разговора OpenAI получает звук, названия проектов и результаты запрошенных задач."))
-                .font(.caption).foregroundStyle(.secondary)
-            Text(L10n.text("Голос: GPT Live 1 · команды: GPT-5.6 Luna. Работа над проектами использует модель выбранной задачи и её память."))
-                .font(.caption).foregroundStyle(.secondary)
-            Text(L10n.text("Реплики разговора видны до следующего звонка. Поручения и уточнения сохраняются в истории соответствующих задач; аудиозапись на диск не ведётся."))
-                .font(.caption).foregroundStyle(.secondary)
-            Link(L10n.text("Открыть API-ключи OpenAI"), destination: URL(string: "https://platform.openai.com/api-keys")!)
-                .font(.callout)
+            if let message { SettingsNotice(text: message, failed: failed) }
+        } header: { Text(L10n.pick("Ключ OpenAI API", "OpenAI API key")) } footer: {
+            SettingsFooter(L10n.text("Ключ хранится на этом Mac, отдельно от истории и резервных копий. Разговор включается только по кнопке; после запуска приложения микрофон выключен.")
+                           + " " + L10n.text("Во время разговора OpenAI получает звук, названия проектов и результаты запрошенных задач.")
+                           + " " + L10n.text("Реплики разговора видны до следующего звонка. Поручения и уточнения сохраняются в истории соответствующих задач; аудиозапись на диск не ведётся."))
         }
     }
 }

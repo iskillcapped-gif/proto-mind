@@ -89,10 +89,9 @@ struct MessengerSettings: View {
                         dismiss()
                         app.openMessenger(service, in: panel)
                     }
-                    Menu {
+                    SettingsMoreMenu {
                         Button(L10n.pick("Сбросить вход…", "Reset sign-in…"), role: .destructive) { reset = service }
-                    } label: { Image(systemName: "ellipsis") }
-                        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().help(L10n.text("Действия"))
+                    }
                 }.disabled(connections.clearing.contains(service))
                     .contextMenu { Button(L10n.pick("Сбросить вход…", "Reset sign-in…"), role: .destructive) { reset = service } }
             }

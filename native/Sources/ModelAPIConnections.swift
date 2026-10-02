@@ -130,8 +130,7 @@ struct ModelAPIConnectionSettings: View {
                             .font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                     }
                     Spacer(minLength: 8)
-                    Menu { actions(connection) } label: { Image(systemName: "ellipsis") }
-                        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().help(L10n.text("Действия"))
+                    SettingsMoreMenu { actions(connection) }
                 }.contextMenu { actions(connection) }
             }
             if !editor {

@@ -139,8 +139,6 @@ struct ClaudeModelControls: View {
                 Text(ClaudeSelection.effortTitle(effort)).tag(effort)
             }
         }
-        Text(L10n.pick("Доступность моделей и усилий определяет Claude Code для вашего аккаунта. Беседа продолжает свою сессию Claude вместе с историей инструментов и каждый раз получает выбранную память. Пока Claude работает, новое сообщение доходит до него как уточнение.", "Claude Code determines model and effort availability for your account. A conversation continues its Claude session with its tool history and receives selected memory every turn. While Claude works, a new message reaches it as an update."))
-            .font(.caption).foregroundStyle(.secondary)
         }.task { await account.refresh(app: app) }
     }
 }

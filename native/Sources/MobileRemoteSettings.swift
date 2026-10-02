@@ -14,7 +14,7 @@ struct MobileRemoteSettings: View {
                     .textFieldStyle(.roundedBorder).labelsHidden().disabled(remote.running || remote.connecting)
                     .accessibilityLabel(L10n.pick("Защищённый адрес Mac", "Secure Mac address"))
                 Button(L10n.text("Сохранить")) { act { try remote.setEndpoint(endpoint) } }
-                    .disabled(remote.running || remote.connecting || MobileWire.endpoint(endpoint) == nil)
+                    .disabled(remote.running || remote.connecting || MobileWire.endpoint(endpoint) == nil || endpoint == remote.state.endpoint)
             }
             DisclosureGroup(L10n.pick("Как подключить", "Connection setup"), isExpanded: $showSetup) {
                 VStack(alignment: .leading, spacing: 8) {

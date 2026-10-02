@@ -87,13 +87,17 @@ struct InterfaceMessage: ExpressibleByStringLiteral, ExpressibleByStringInterpol
 
 struct InterfaceLanguagePicker: View {
     let configuration: LaunchConfiguration
+    /// Settings shows the note as its section footer instead.
+    var showsNote = true
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
             Picker(L10n.text("Язык"), selection: Binding(get: { L10n.language }, set: { L10n.select($0, configuration: configuration) })) {
                 ForEach(InterfaceLanguage.allCases) { Text($0.title).tag($0) }
             }
-            Text(L10n.pick("Язык меняется сразу во всех окнах. Ваши сообщения и файлы остаются как есть.", "The language changes immediately in every window. Your messages and files stay as they are."))
-                .font(.caption).foregroundStyle(.secondary)
+            if showsNote {
+                Text(L10n.pick("Язык меняется сразу во всех окнах. Ваши сообщения и файлы остаются как есть.", "The language changes immediately in every window. Your messages and files stay as they are."))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
         }
     }
 }

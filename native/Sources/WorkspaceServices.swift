@@ -148,8 +148,7 @@ struct WorkspaceServiceSettings: View {
                     }
                     Spacer(minLength: 8)
                     if checking.contains(item.id) { ProgressView().controlSize(.small) }
-                    Menu { actions(item) } label: { Image(systemName: "ellipsis") }
-                        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().help(L10n.text("Действия"))
+                    SettingsMoreMenu { actions(item) }
                     Toggle(L10n.pick("Разрешить задачам использовать подключение", "Allow tasks to use this connection"), isOn: Binding(get: { item.enabled }, set: { enabled in
                         var next = item; next.enabled = enabled
                         do { try services.save(next); error = nil } catch { self.error = error.localizedDescription }

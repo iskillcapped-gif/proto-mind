@@ -29,8 +29,7 @@ struct TelegramRemoteSettings: View {
                         Text(L10n.pick("Токен хранится в Связке ключей этого Mac", "The token is kept in this Mac's Keychain")).font(.caption).foregroundStyle(.secondary)
                     }
                     Spacer(minLength: 8)
-                    Menu { botActions } label: { Image(systemName: "ellipsis") }
-                        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().help(L10n.text("Действия"))
+                    SettingsMoreMenu { botActions }
                 }.contextMenu { botActions }
             }
         } header: { Text(L10n.pick("Бот", "Bot")) } footer: {

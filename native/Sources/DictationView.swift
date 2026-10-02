@@ -58,9 +58,5 @@ struct DictationSettings: View {
         Picker(L10n.text("Язык"), selection: Binding(get: { dictation.language }, set: dictation.setLanguage)) {
             ForEach(DictationLanguage.allCases) { Text($0.title).tag($0) }
         }
-        Text(L10n.text("Микрофон в поле сообщения набирает текст. Отправляете его вы; API-ключ и лимиты ChatGPT для диктовки не нужны."))
-            .font(.callout).foregroundStyle(.secondary)
-        Text(L10n.text("Распознавание выполняет Apple: на устройстве, если язык поддерживает этот режим, иначе — на серверах Apple. Аудиозапись в Proto-Mind не сохраняется."))
-            .font(.caption).foregroundStyle(.secondary)
     }
 }

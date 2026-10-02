@@ -79,7 +79,7 @@ enum ConnectionGroup: CaseIterable, Identifiable {
 
 /// A connection's state in a few words, and whether it works, needs the operator or is off.
 struct ConnectionState: Equatable {
-    enum Tone { case on, attention, off }
+    typealias Tone = StatusBadge.Tone
     let text: String
     let tone: Tone
     let detail: String
@@ -100,20 +100,7 @@ struct ConnectionIcon: View {
 
 struct ConnectionBadge: View {
     let state: ConnectionState
-
-    private var color: Color {
-        switch state.tone { case .on: return .green; case .attention: return .orange; case .off: return .secondary }
-    }
-
-    var body: some View {
-        HStack(spacing: 5) {
-            Circle().fill(color).frame(width: 6, height: 6)
-            Text(state.text).lineLimit(1)
-        }
-        .font(.system(size: 11, weight: .medium)).foregroundStyle(state.tone == .off ? .secondary : .primary)
-        .padding(.horizontal, 8).padding(.vertical, 3)
-        .background(color.opacity(state.tone == .off ? 0.1 : 0.16), in: Capsule())
-    }
+    var body: some View { StatusBadge(text: state.text, tone: state.tone) }
 }
 
 /// Settings → Connections: every connection by purpose, with its state. A row opens its page.
@@ -142,11 +129,6 @@ struct ConnectionDetailSections: View {
     let kind: ConnectionKind
 
     var body: some View {
-        // Actions read as buttons here, not as rows of text.
-        Group { pages }.buttonStyle(.bordered)
-    }
-
-    @ViewBuilder private var pages: some View {
         switch kind {
         case .claude: ClaudeConnectionSettings(app: app)
         case .api: ModelAPIConnectionSettings(app: app, connections: app.apiConnections)
@@ -184,8 +166,9 @@ struct ConnectionHeader: View {
     }
 }
 
-/// One overview row: symbol, name, what is connected and its state.
-private struct ConnectionStatusRow: View {
+/// One overview row: symbol, name, what is connected and its state. Other tabs use it to
+/// point to a connection's page.
+struct ConnectionStatusRow: View {
     @ObservedObject var app: AppModel
     let kind: ConnectionKind
 

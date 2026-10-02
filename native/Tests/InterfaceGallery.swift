@@ -57,7 +57,26 @@ extension NativeChecks {
         }
         for section in NativeSettingsSection.allCases {
             app.settingsSection = section
-            try await galleryRender(NativeSettingsView(model: app), size: NSSize(width: 820, height: 700), dark: false, to: file("settings-\(section.rawValue)"))
+            for dark in [false, true] {
+                try await galleryRender(NativeSettingsView(model: app), size: NSSize(width: 820, height: 1000), dark: dark,
+                                        to: file("settings-\(section.rawValue)-\(dark ? "dark" : "light")"))
+            }
+        }
+        L10n.language = .english
+        for section in NativeSettingsSection.allCases where section != .services {
+            app.settingsSection = section
+            try await galleryRender(NativeSettingsView(model: app), size: NSSize(width: 820, height: 1000), dark: true, to: file("settings-\(section.rawValue)-en"))
+        }
+        L10n.language = .russian
+        // Models for each kind of source; Settings follows the selected chat.
+        if let index = app.conversations.firstIndex(where: { $0.id == selected }) {
+            let original = app.conversations[index]
+            app.settingsSection = .models
+            for provider in ["codex", "ollama", "api"] {
+                app.conversations[index].provider = provider
+                try await galleryRender(NativeSettingsView(model: app), size: NSSize(width: 820, height: 1000), dark: true, to: file("settings-models-\(provider)"))
+            }
+            app.conversations[index] = original
         }
         // Connections: the list by purpose, then each connection's own page.
         var service = WorkspaceService(); service.name = "Linear"; service.endpoint = "https://mcp.linear.app/mcp"; service.enabled = true
