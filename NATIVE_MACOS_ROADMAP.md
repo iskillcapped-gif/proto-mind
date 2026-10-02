@@ -4,6 +4,41 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Every Settings Tab in One Style — Native 0.75.2
+
+After the Connections tab, the operator asked for the other tabs to be tidied
+the same way. Models, Voice, Appearance, Conversation style, Data and backups,
+and Advanced now share its building blocks (`SettingsRows.swift`): a row with a
+title, a short explanation and its controls on the right; a state badge; a ⋯
+menu for secondary actions; and section footers instead of paragraphs between
+controls. Actions in Settings render as buttons, not as plain text.
+
+- **Models:** the chat, its source and that source's choices form one section,
+  with its explanation below. Claude and API chats show their connection as in
+  Connections, with the account and state, and open its page. Ollama has a state
+  badge beside its check. ChatGPT accounts keep sign-in visible and move the
+  check, limits, rename, use-in-this-chat and sign-out actions into ⋯.
+- **Voice:** the OpenAI key is a visible field with Save and a link to the keys
+  page; a saved key shows as a row whose ⋯ menu replaces or deletes it. The
+  voice and command models are listed as values above the price note.
+- **Appearance:** each transparency slider is one line with its percentage and
+  no tick marks; cube mode, when off, is a row with a Turn on button.
+- **Conversation style:** Brother shows its state as a badge. With Claude or an
+  API model the check button explained nothing; a note now says Brother works
+  with ChatGPT and Ollama. Memory hints are rows with icons.
+- **Data and backups:** the full copy, chat copies and the data folder are rows
+  with their buttons; the folder path is shown directly. The footer now says
+  that the Codex and Claude Code profiles keep full messages and tool output,
+  including screenshots.
+- **Advanced:** the Mac access state and the Codex session are rows with their
+  actions. The limits note no longer says the screen always goes to OpenAI: it
+  goes to the chat's model, OpenAI for ChatGPT and Anthropic for Claude.
+- PM Remote's Save stays disabled until the Mac address changes.
+
+Verification on 2026-10-02: **2104 Native checks** passed, including the Settings
+layout at three widths for every tab. The gallery shows every tab in RU light and
+dark and in English, and Models for Claude, ChatGPT, Ollama and API chats.
+
 ## Core Update After Native 0.75.1 — Folder Identity Survives Reboots
 
 PM recorded a selected folder as its path, the volume's device number and the
