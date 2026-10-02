@@ -4,6 +4,39 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Core Update After Native 0.75.1 — Folder Identity Survives Reboots
+
+PM recorded a selected folder as its path, the volume's device number and the
+folder's inode, and compared saved records with the current folder as a whole.
+An APFS volume's device number is assigned when the volume is mounted, and on
+the operator's Mac it changed with reboots: 16777228 on 2026-09-16, 16777229 on
+2026-09-28 and 16777233 after the macOS 27.0.1 update on 2026-09-30. Each change
+silently cut off what was saved for a folder:
+
+- the Claude session interrupted by a usage limit was not resumed after the
+  update, although the limit message said the next message would continue it;
+  the next turn started a new session from the local conversation;
+- all ten saved Codex sessions (proto_mind, addons, Работа, Proto-Mind Demo) would
+  have refused to continue with "Saved Codex session belongs to another
+  workspace" until each was reset by hand;
+- the one project note (Proto-Mind Demo) was no longer listed or recalled.
+
+Saved identities now compare by path and inode (`native_workspace_key`): Claude
+and Codex session bindings, project notes and their archive events, project
+recall, work-session continuations, learning history and memory suggestions. The
+records keep their format and the device number. A renamed or recreated folder
+is still a different folder.
+
+The core-memory project scope is now a hash of the path and inode. Scoped
+decisions and facts saved before this update keep their old scope and are no
+longer recalled for their folder; the operator's memory held no scoped records
+(all 12 are global), so nothing was hidden. On this Mac the fix brings back the
+ten Codex sessions and the project note.
+
+Python only; a new conversation bridge picks it up, and running ones after a PM
+restart. Verification on 2026-10-02: **2445 Python tests** passed; the new tests
+for Claude, Codex, project notes and the memory scope fail with the previous code.
+
 ## Connections Settings by Purpose — Native 0.75.1
 
 The operator found Settings → Connections unfinished: seven services stacked in
