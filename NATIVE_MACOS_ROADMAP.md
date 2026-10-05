@@ -4,6 +4,34 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Passkey Hint in the Built-in Browser — Native 0.75.3
+
+The operator tried to claim Anthropic's cloud-session credit in PM's side browser
+and stopped at Google's "confirm with a passkey" page: Continue did nothing. WebKit
+lets an embedded browser use passkeys and security keys only for its own associated
+domains; any other site needs Apple's web-browser public-key-credential entitlement,
+which a locally signed PM cannot carry. The request could never succeed there, and
+nothing said so.
+
+- A small script in the page's world reports when the page asks for a passkey or
+  security key (`navigator.credentials.get` or `create` with `publicKey`). Passkey
+  autofill (`mediation: "conditional"`) and password requests are not reported.
+- The tab then shows "<site> asks for a passkey" with a short explanation and an
+  **Open in <default browser>** button. It opens the page where the sign-in began,
+  the last page opened from the address field or a link, because a sign-in page
+  copied mid-flow would lose the first site's state. A reload keeps that page.
+- The hint closes with ✕, after opening the browser, or when the tab leaves the site
+  that asked. The script sends no page data; the site's name comes from WebKit.
+
+The credit itself was claimed in Safari: Claude Code on the web shows "$100 of
+$100 left" for cloud sessions until November 5.
+
+Verification on 2026-10-05: **2109 Native checks** passed. The five new checks run
+real WebKit on local HTML: the page's requests are watched, autofill and password
+requests show nothing, a passkey request names its site and keeps the starting
+page, a reload keeps it, and leaving the site clears the hint. The gallery shows
+the hint over a sign-in page.
+
 ## Every Settings Tab in One Style — Native 0.75.2
 
 After the Connections tab, the operator asked for the other tabs to be tidied
