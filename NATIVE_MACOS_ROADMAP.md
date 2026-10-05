@@ -4,6 +4,22 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Link Pointer Fix — Native 0.75.5
+
+In 0.75.4 the pointer over a link still turned into the text cursor. A pointer
+style on selectable text does not override the text's own pointer, and the
+offscreen gallery could not show the pointer at all. The link areas now take
+over instead: the text renderer still records each link run's rectangle, and a
+clear area placed exactly over it shows the pointing hand and opens the link on
+click; the text around it stays selectable with its text cursor. A `.help`
+tooltip on those areas turned the pointer back into the arrow, so they have none.
+
+The checks binary gained `--link-pointer-window`, which shows a real reply with a
+link for ten seconds while AppKit's event loop runs, so the pointer can be checked
+with `screencapture -C`. Verified that way on 2026-10-06: the pointing hand over
+the link, the text cursor over the text, and a click opens the link. **2112 Native
+checks** passed.
+
 ## Chat Polish — Native 0.75.4
 
 The operator listed small things to improve while using PM:
