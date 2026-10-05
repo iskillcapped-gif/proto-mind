@@ -129,6 +129,18 @@ extension NativeChecks {
         }
         try await galleryRender(SidebarView(model: app, libraryExpanded: .constant(true), openSettings: {}), size: NSSize(width: 230, height: 760), dark: true,
                                 to: file("sidebar-library-dark"))
+        // The built-in browser when a site asks for a passkey (reserved .example hosts, local HTML).
+        let passkeyTab = NativeBrowserTab()
+        passkeyTab.webView.frame = NSRect(x: 0, y: 0, width: 560, height: 480)
+        passkeyTab.navigate("https://claim.example/code")
+        passkeyTab.webView.loadHTMLString("<html><body style='font: 15px -apple-system; padding: 40px; color: #222'><h2>Подтвердите личность с помощью ключа доступа</h2><p>Используйте отпечаток пальца или блокировку экрана.</p></body></html>",
+                                          baseURL: URL(string: "https://accounts.example/")!)
+        var waited = 0
+        while passkeyTab.webView.isLoading || passkeyTab.webView.url?.host != "accounts.example", waited < 500 { try await Task.sleep(for: .milliseconds(20)); waited += 1 }
+        _ = try? await passkeyTab.webView.callAsyncJavaScript("navigator.credentials.get({ publicKey: { challenge: new Uint8Array(16) } }).catch(() => {}); return true", contentWorld: .page)
+        while passkeyTab.passkeyRequest == nil, waited < 1000 { try await Task.sleep(for: .milliseconds(20)); waited += 1 }
+        try await galleryRender(BrowserView(browser: passkeyTab, app: app), size: NSSize(width: 560, height: 480), dark: true, to: file("browser-passkey-dark"))
+        passkeyTab.close()
         let (log, receipt) = galleryWork()
         for dark in [true, false] {
             try await galleryRender(WorkTimelineView(log: log, agentReceipt: receipt, live: true, startedAt: Date().addingTimeInterval(-95)).padding(24),

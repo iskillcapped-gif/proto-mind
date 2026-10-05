@@ -39,6 +39,17 @@ final class NativeBrowserTab: NSObject, ObservableObject, WKNavigationDelegate, 
     @Published private(set) var canGoBack = false
     @Published private(set) var canGoForward = false
     @Published var error: String?
+    /// A page asked for a passkey or security key. WebKit grants an embedded browser these only
+    /// for its own associated domains (any other site needs a browser entitlement from Apple), so
+    /// such a request fails here; the tab offers to continue in the default browser instead.
+    struct PasskeyRequest: Equatable {
+        let host: String
+        /// The page the operator opened before the sign-in began; opening it elsewhere restarts it.
+        let start: URL?
+    }
+    @Published private(set) var passkeyRequest: PasskeyRequest?
+    /// The last page opened from the address field or a link into this tab; redirects keep it.
+    private(set) var startURL: URL?
     var openTab: ((URL) -> Void)?
     private var observations: [NSKeyValueObservation] = []
 
@@ -55,8 +66,13 @@ final class NativeBrowserTab: NSObject, ObservableObject, WKNavigationDelegate, 
         }
         configuration.mediaTypesRequiringUserActionForPlayback = .all
         configuration.preferences.javaScriptCanOpenWindowsAutomatically = false
+        let passkeys = PasskeyRequestRelay()
+        configuration.userContentController.addUserScript(WKUserScript(source: PasskeyRequestRelay.script, injectionTime: .atDocumentStart,
+                                                                       forMainFrameOnly: false, in: .page))
+        configuration.userContentController.add(passkeys, contentWorld: .page, name: PasskeyRequestRelay.name)
         webView = WKWebView(frame: .zero, configuration: configuration)
         super.init()
+        passkeys.tab = self
         webView.navigationDelegate = self; webView.uiDelegate = self
         webView.allowsBackForwardNavigationGestures = true
         observations = [
@@ -83,10 +99,12 @@ final class NativeBrowserTab: NSObject, ObservableObject, WKNavigationDelegate, 
         }
     }
 
-    func navigate(_ value: String) {
+    /// `start: false` for a reload, which must not move where a sign-in began.
+    func navigate(_ value: String, start: Bool = true) {
         do {
             let url = try NativeBrowserURL.parse(value)
             error = nil; address = url.absoluteString
+            if start { startURL = url }
             webView.load(URLRequest(url: url))
         } catch { self.error = error.localizedDescription }
     }
@@ -94,8 +112,23 @@ final class NativeBrowserTab: NSObject, ObservableObject, WKNavigationDelegate, 
     func close() {
         closed = true; navigationRevision += 1
         webView.stopLoading()
-        observations = []; openTab = nil
+        observations = []; openTab = nil; passkeyRequest = nil
         webView.navigationDelegate = nil; webView.uiDelegate = nil
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: PasskeyRequestRelay.name, contentWorld: .page)
+    }
+
+    fileprivate func passkeyRequested(by frame: WKFrameInfo) {
+        guard !closed else { return }
+        let origin = frame.securityOrigin.host
+        guard let host = origin.isEmpty ? webView.url?.host : origin, !host.isEmpty else { return }
+        passkeyRequest = PasskeyRequest(host: host, start: startURL ?? webView.url)
+    }
+
+    func dismissPasskeyRequest() { passkeyRequest = nil }
+
+    func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+        // The sign-in moved on to another site, so the hint no longer applies.
+        if let request = passkeyRequest, webView.url?.host != request.host { passkeyRequest = nil }
     }
 
     func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
@@ -169,6 +202,36 @@ final class NativeBrowserTab: NSObject, ObservableObject, WKNavigationDelegate, 
     }
 }
 
+/// Tells the tab when a page asks for a passkey. The script runs in the page's world, so it reports
+/// a request only; the tab takes the host from WebKit's frame info, never from page data.
+@MainActor
+private final class PasskeyRequestRelay: NSObject, WKScriptMessageHandler {
+    static let name = "pmPasskeyRequest"
+    /// Conditional requests only offer passkeys as autofill, so they are not reported.
+    static let script = """
+        (() => {
+          const credentials = navigator.credentials;
+          const relay = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.\(name);
+          if (!credentials || !relay) return;
+          for (const method of ["get", "create"]) {
+            const original = credentials[method];
+            if (typeof original !== "function") continue;
+            credentials[method] = function (options) {
+              if (options && options.publicKey && options.mediation !== "conditional") {
+                try { relay.postMessage(method); } catch (_) {}
+              }
+              return original.apply(this, arguments);
+            };
+          }
+        })();
+        """
+    weak var tab: NativeBrowserTab?
+
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        tab?.passkeyRequested(by: message.frameInfo)
+    }
+}
+
 private struct NativeWebSurface: NSViewRepresentable {
     @Environment(\.isEnabled) private var enabled
     let browser: NativeBrowserTab
@@ -199,7 +262,7 @@ struct BrowserView: View {
                     .disabled(!browser.canGoForward).help(L10n.text("Вперёд")).accessibilityLabel(L10n.text("Вперёд"))
                 Button {
                     if browser.loading { browser.webView.stopLoading() }
-                    else if let url = browser.currentURL { browser.navigate(url.absoluteString) }
+                    else if let url = browser.currentURL { browser.navigate(url.absoluteString, start: false) }
                     else { browser.navigate(browser.address) }
                 } label: { Image(systemName: browser.loading ? "xmark" : "arrow.clockwise") }
                     .help(browser.loading ? L10n.text("Остановить загрузку") : L10n.text("Обновить страницу"))
@@ -237,6 +300,7 @@ struct BrowserView: View {
                     Button { browser.error = nil } label: { Image(systemName: "xmark") }
                 }.padding(12).foregroundStyle(.orange)
             }
+            if let request = browser.passkeyRequest { PasskeyRequestBanner(browser: browser, request: request) }
             if browser.currentURL == nil && !browser.loading {
                 VStack(spacing: 14) {
                     Image(systemName: "globe").font(.system(size: 34, weight: .light))
@@ -256,5 +320,40 @@ struct BrowserView: View {
                 await Task.yield()
                 if !Task.isCancelled && enabled && browser.currentURL == nil && (chrome?.visible ?? true) { addressFocused = true }
             }
+    }
+}
+
+/// Shown when a page asks for a passkey, which only a full browser such as Safari can provide.
+private struct PasskeyRequestBanner: View {
+    let browser: NativeBrowserTab
+    let request: NativeBrowserTab.PasskeyRequest
+
+    /// The operator's default browser, by name, for the button.
+    private var browserName: String {
+        guard let application = NSWorkspace.shared.urlForApplication(toOpen: URL(string: "https://example.com")!) else { return "Safari" }
+        let name = FileManager.default.displayName(atPath: application.path)
+        return name.hasSuffix(".app") ? String(name.dropLast(4)) : name
+    }
+
+    var body: some View {
+        let destination = request.start ?? browser.currentURL
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "person.badge.key.fill").font(.system(size: 17)).foregroundStyle(NativeTheme.accent).accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(L10n.pick("\(request.host) просит ключ доступа", "\(request.host) asks for a passkey")).font(.callout.weight(.semibold))
+                Text(L10n.pick("Во встроенном браузере ключи доступа не работают: macOS разрешает их только браузерам вроде Safari. Продолжите вход там или выберите на сайте другой способ входа.",
+                               "Passkeys don't work in the built-in browser: macOS allows them only in browsers such as Safari. Continue there, or choose another way to sign in on the site."))
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 8)
+            if let destination, NativeBrowserURL.isWebURL(destination) {
+                Button(L10n.pick("Открыть в ", "Open in ") + browserName) {
+                    NSWorkspace.shared.open(destination)
+                    browser.dismissPasskeyRequest()
+                }.buttonStyle(.borderedProminent).help(destination.absoluteString)
+            }
+            Button { browser.dismissPasskeyRequest() } label: { Image(systemName: "xmark") }
+                .buttonStyle(.borderless).help(L10n.text("Закрыть")).accessibilityLabel(L10n.text("Закрыть"))
+        }.padding(12).background(NativeTheme.accent.opacity(0.08))
     }
 }
