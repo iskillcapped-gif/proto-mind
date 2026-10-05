@@ -4,6 +4,32 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Chat Polish — Native 0.75.4
+
+The operator listed small things to improve while using PM:
+
+- **Links** in replies are the system link blue and stay underlined. Selectable
+  SwiftUI text keeps the text pointer over a link, so on macOS 15 and later a
+  paragraph with links draws through a text renderer that records where its link
+  runs are, and hovering one shows the link pointer (`LinkAwareProse`). Paragraphs
+  without links render as before.
+- **Reply actions** (copy, open beside, ⋯) are 24 pt buttons 2 pt apart with
+  12 pt icons, instead of 28 pt buttons 17 pt apart.
+- **Your messages** get a Copy button under the bubble, shown while the message
+  is hovered, as in other chat apps. It copies the text as shown.
+- **The menu row** shows the five-hour window's remaining share and the time until
+  it renews, for example "5 ч 42% ⏳ 2:05" (hours and minutes, rounded up). The
+  limits popover adds "Renews in 2 h 5 min" under each window, and the row's help
+  and VoiceOver value mention the reset. Codex and Claude both report reset times.
+- **The composer's "1. " indent** could not be reproduced: a plain text view and
+  PM's own composer, given real key events for "1. test" on the first and on a
+  second line, kept the text at the left margin. It awaits a screenshot.
+
+Verification on 2026-10-05: **2112 Native checks** passed, including the link
+color, the timer's rounding and its disappearance at the reset, and the reset
+time in Russian and English. The gallery shows the blue link and the smaller reply
+buttons; the link pointer and the hover Copy button need a real pointer.
+
 ## Passkey Hint in the Built-in Browser — Native 0.75.3
 
 The operator tried to claim Anthropic's cloud-session credit in PM's side browser
