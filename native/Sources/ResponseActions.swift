@@ -62,6 +62,8 @@ final class ResponseExportModel: ObservableObject {
 }
 
 struct ResponseCopyButton: View {
+    var title = L10n.text("Копировать ответ")
+    var size: CGFloat = 24
     let copy: () -> Void
     @State private var acknowledgement: UUID?
 
@@ -71,10 +73,10 @@ struct ResponseCopyButton: View {
             acknowledgement = UUID()
         } label: {
             Image(systemName: acknowledgement == nil ? "doc.on.doc" : "checkmark")
-                .frame(width: 28, height: 28)
+                .frame(width: size, height: size)
         }
-        .help(acknowledgement == nil ? L10n.text("Копировать ответ") : L10n.pick("Скопировано", "Copied"))
-        .accessibilityLabel(L10n.text("Копировать ответ"))
+        .help(acknowledgement == nil ? title : L10n.pick("Скопировано", "Copied"))
+        .accessibilityLabel(title)
         .accessibilityValue(acknowledgement == nil ? "" : L10n.pick("Скопировано", "Copied"))
         .task(id: acknowledgement) {
             guard acknowledgement != nil else { return }

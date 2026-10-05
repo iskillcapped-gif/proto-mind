@@ -112,6 +112,7 @@ struct MarkdownBlock: Equatable {
                 result[run.range].link = nil
             } else if run.link != nil {
                 result[run.range].underlineStyle = Text.LineStyle(pattern: .solid)
+                result[run.range].foregroundColor = NativeTheme.link
             }
         }
         return result
@@ -149,8 +150,14 @@ struct MessageMarkdownView: View, Equatable {
     }
 
     private func prose(_ text: String) -> some View {
-        Text(MarkdownBlock.inline(text, allowFileLinks: openLink != nil))
-            .font(NativeTheme.responseFont).lineSpacing(NativeTheme.responseLineSpacing)
+        let attributed = MarkdownBlock.inline(text, allowFileLinks: openLink != nil)
+        return Group {
+            if #available(macOS 15, *), attributed.runs.contains(where: { $0.link != nil }) {
+                LinkAwareProse(text: attributed)
+            } else {
+                Text(attributed).font(NativeTheme.responseFont).lineSpacing(NativeTheme.responseLineSpacing)
+            }
+        }
             .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -191,5 +198,57 @@ struct MessageMarkdownView: View, Equatable {
                     }.background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 10))
                         .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.primary.opacity(0.08)))
                 }
+    }
+}
+
+/// Prose with links. Selectable SwiftUI text keeps its text pointer over a link, so a text
+/// renderer records where the link runs are drawn and hovering one shows the link pointer.
+@available(macOS 15, *)
+private struct LinkAwareProse: View {
+    let text: AttributedString
+    @State private var geometry = LinkRunGeometry()
+    @State private var overLink = false
+
+    var body: some View {
+        Self.marked(text).font(NativeTheme.responseFont).lineSpacing(NativeTheme.responseLineSpacing)
+            .textRenderer(LinkRunRecorder(geometry: geometry))
+            .onContinuousHover { phase in
+                let next: Bool
+                switch phase {
+                case .active(let point): next = geometry.contains(point)
+                case .ended: next = false
+                }
+                if next != overLink { overLink = next }
+            }
+            .pointerStyle(overLink ? .link : nil)
+    }
+
+    /// The same runs, with each link marked so the renderer can find it.
+    private static func marked(_ value: AttributedString) -> Text {
+        value.runs.reduce(Text(verbatim: "")) { text, run in
+            let piece = Text(AttributedString(value[run.range]))
+            return text + (run.link != nil ? piece.customAttribute(LinkRun()) : piece)
+        }
+    }
+}
+
+private struct LinkRun: TextAttribute {}
+
+/// Where the link runs were last drawn, in the text's own coordinates; drawing never publishes state.
+private final class LinkRunGeometry {
+    var rects: [CGRect] = []
+    func contains(_ point: CGPoint) -> Bool { rects.contains { $0.insetBy(dx: -1, dy: -2).contains(point) } }
+}
+
+@available(macOS 15, *)
+private struct LinkRunRecorder: TextRenderer {
+    let geometry: LinkRunGeometry
+    func draw(layout: Text.Layout, in context: inout GraphicsContext) {
+        var rects: [CGRect] = []
+        for line in layout {
+            for run in line where run[LinkRun.self] != nil { rects.append(run.typographicBounds.rect) }
+            context.draw(line)
+        }
+        geometry.rects = rects
     }
 }

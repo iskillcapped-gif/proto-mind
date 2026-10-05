@@ -552,12 +552,15 @@ struct MessageView: View {
     @State private var showRaw = false
     @State private var showLegacyActions = false
     @State private var showBrowserReference = false
+    @State private var hovered = false
     @StateObject private var responseExport = ResponseExportModel()
 
     var body: some View {
         if message.role == "user" {
+            let shown = AppModel.delegatedTaskOrigin(message.text)?.body ?? BrowserReferencePresentation(message.text)?.instruction ?? message.text
             HStack(alignment: .top) {
                 Spacer(minLength: 65)
+                VStack(alignment: .trailing, spacing: 2) {
                 VStack(alignment: .leading, spacing: 10) {
                     let origin = AppModel.delegatedTaskOrigin(message.text)
                     if let origin {
@@ -579,8 +582,13 @@ struct MessageView: View {
                 }
                 .padding(.horizontal, 18).padding(.vertical, 13)
                 .background(NativeTheme.bubble, in: RoundedRectangle(cornerRadius: 20))
+                // Shown while the message is hovered, as other chat apps do; it keeps its place.
+                ResponseCopyButton(title: L10n.pick("Копировать сообщение", "Copy message")) { model.copy(shown) }
+                    .buttonStyle(.nativeHover(minSize: 24, cornerRadius: 6)).font(.system(size: 12)).foregroundStyle(.secondary)
+                    .opacity(hovered ? 1 : 0)
+                }
                 .frame(maxWidth: 650, alignment: .trailing)
-            }
+            }.onHover { if hovered != $0 { hovered = $0 } }
         } else {
             VStack(alignment: .leading, spacing: 18) {
                 if let work = message.workLog, work["schema"].text == "proto_mind.native_work_log.v1" {
@@ -610,7 +618,7 @@ struct MessageView: View {
                 attachments
                 if conversationID == nil || conversationID == model.selectedID, let (report, text) = model.memorySuggestions(for: message) { MemorySuggestionCard(app: model, report: report, text: text) }
                 if let receipt = message.agentRun { CompletedFileChangesView(receipt: receipt, openLink: { openLink($0) }).equatable() }
-                HStack(spacing: 17) {
+                HStack(spacing: 2) {
                     ResponseCopyButton { model.copy(message.text) }
                     if message.role == "assistant", let sourceID = conversationID ?? model.selectedID {
                         Button {
@@ -646,13 +654,13 @@ struct MessageView: View {
                                 }
                             }
                         } label: {
-                            Image(systemName: "ellipsis").foregroundColor(.secondary).frame(width: 28, height: 28)
+                            Image(systemName: "ellipsis").foregroundColor(.secondary).frame(width: 24, height: 24)
                         }
                             .menuStyle(.borderlessButton).menuIndicator(.hidden).tint(.secondary).fixedSize().nativeHoverSurface()
                             .help(L10n.pick("Действия с ответом", "Response actions"))
                             .accessibilityLabel(L10n.pick("Действия с ответом", "Response actions"))
                     }
-                }.buttonStyle(.nativeHover).font(.system(size: 13)).foregroundStyle(.secondary).padding(.top, 2)
+                }.buttonStyle(.nativeHover(minSize: 24, cornerRadius: 6)).font(.system(size: 12)).foregroundStyle(.secondary).padding(.top, 2)
                     .background(ResponseReadMarker(app: model, conversationID: conversationID ?? model.selectedID, messageID: message.id))
                 if showRaw { Text(message.raw).font(.system(size: 11, design: .monospaced)).textSelection(.enabled) }
             }.frame(maxWidth: .infinity, alignment: .leading).responseExportFeedback(responseExport)

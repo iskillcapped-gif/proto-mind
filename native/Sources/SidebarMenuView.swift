@@ -17,8 +17,14 @@ struct SidebarMenuView: View {
         self.openSettings = openSettings; self.columnWidth = columnWidth
     }
     private var windows: [SidebarUsageWindow] {
-        if isClaude { return (claude.snapshot?.compactWindows ?? []).map { SidebarUsageWindow(id: $0.id, title: $0.periodTitle, label: $0.remainingLabel, remaining: $0.remainingPercent) } }
-        return SidebarQuotaSummary.windows(usage.displaySnapshot).map { SidebarUsageWindow(id: $0.id, title: $0.title, label: $0.remainingLabel, remaining: $0.remaining) }
+        if isClaude { return (claude.snapshot?.compactWindows ?? []).map { SidebarUsageWindow(id: $0.id, title: $0.periodTitle, label: $0.remainingLabel, remaining: $0.remainingPercent, minutes: $0.windowMinutes, resetsAt: $0.resetsAt) } }
+        return SidebarQuotaSummary.windows(usage.displaySnapshot).map { SidebarUsageWindow(id: $0.id, title: $0.title, label: $0.remainingLabel, remaining: $0.remaining, minutes: $0.windowMinutes, resetsAt: $0.resetsAt) }
+    }
+    /// The five-hour window, shown in the closed menu row with the time until it resets.
+    private func fiveHour(at date: Date) -> (window: SidebarUsageWindow, timer: String)? {
+        guard let window = windows.first(where: { $0.minutes == 300 }), let reset = window.resetsAt,
+              let timer = QuotaResetTime.compact(until: reset, now: date) else { return nil }
+        return (window, timer)
     }
 
     private var canRefresh: Bool {
@@ -34,7 +40,13 @@ struct SidebarMenuView: View {
                     VStack(alignment: .leading, spacing: 0) {
                         Text(L10n.text("Меню")).font(.system(size: 12))
                         HStack(spacing: 4) {
-                            Text(open ? L10n.text("Настройки и лимиты") : compactLabel).lineLimit(1).minimumScaleFactor(0.85)
+                            if !open, let (window, timer) = fiveHour(at: context.date) {
+                                Text("\(window.title) \(window.label)").lineLimit(1)
+                                Image(systemName: "hourglass").font(.system(size: 8))
+                                Text(timer).lineLimit(1)
+                            } else {
+                                Text(open ? L10n.text("Настройки и лимиты") : compactLabel).lineLimit(1).minimumScaleFactor(0.85)
+                            }
                             if !open, stale(at: context.date), !windows.isEmpty {
                                 Image(systemName: "clock").font(.system(size: 8))
                             }
@@ -44,8 +56,8 @@ struct SidebarMenuView: View {
                     Image(systemName: "chevron.up").font(.system(size: 8)).foregroundStyle(.secondary)
                 }.padding(.horizontal, 8).padding(.vertical, 4).contentShape(Rectangle())
             }.buttonStyle(.nativeHover).accessibilityLabel(L10n.text("Меню"))
-                .accessibilityValue("\(compactLabel)\(stale(at: context.date) ? L10n.pick(", требуется обновление", ", refresh needed") : "")")
-                .help(L10n.pick("Настройки и лимиты Codex / Claude. Показан остаток.", "Settings and Codex / Claude limits. Shows remaining quota."))
+                .accessibilityValue("\(compactLabel)\(resetNote(at: context.date))\(stale(at: context.date) ? L10n.pick(", требуется обновление", ", refresh needed") : "")")
+                .help(L10n.pick("Настройки и лимиты Codex / Claude. Показан остаток", "Settings and Codex / Claude limits. Shows remaining quota") + resetNote(at: context.date) + ".")
         }
         .composerPopover(isPresented: $open, width: columnWidth, confinedToColumn: true, columnWidth: columnWidth) {
             menuContent
@@ -87,6 +99,13 @@ struct SidebarMenuView: View {
         return "Codex · " + L10n.text("Осталось ") + windows.map { "\($0.title) \($0.remainingLabel)" }.joined(separator: " · ")
     }
 
+    /// ", новый 5-часовой лимит через 2 ч 5 мин" when the reset time is known.
+    private func resetNote(at date: Date) -> String {
+        guard let reset = windows.first(where: { $0.minutes == 300 })?.resetsAt,
+              let spoken = QuotaResetTime.spoken(until: reset, now: date) else { return "" }
+        return L10n.pick(", новый пятичасовой лимит через ", ", the five-hour limit renews in ") + spoken
+    }
+
     private func stale(at date: Date) -> Bool {
         isClaude ? claude.error != nil || claude.snapshot?.limitsAreStale(at: date) != false
             : usage.summaryError != nil || usage.displaySnapshot?.limitsAreStale(at: date) != false
@@ -121,6 +140,10 @@ struct SidebarMenuView: View {
                                                 .frame(width: geometry.size.width * remaining / 100)
                                         }
                                 }.frame(height: 4)
+                            }
+                            if let reset = window.resetsAt, let spoken = QuotaResetTime.spoken(until: reset, now: Date()) {
+                                Text(L10n.pick("Обновится через ", "Renews in ") + spoken)
+                                    .font(.system(size: 10)).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
                             }
                         }.accessibilityElement(children: .combine)
                     }
@@ -162,4 +185,30 @@ private struct SidebarUsageWindow: Identifiable {
     let title: String
     let label: String
     let remaining: Double?
+    var minutes: Int? = nil
+    var resetsAt: Double? = nil
+}
+
+/// Time left until a quota window renews.
+enum QuotaResetTime {
+    /// Hours and minutes, rounded up, e.g. "2:05"; nil once the reset has passed.
+    static func compact(until reset: Double, now: Date) -> String? {
+        let seconds = reset - now.timeIntervalSince1970
+        guard seconds.isFinite, seconds > 0 else { return nil }
+        let minutes = Int((seconds / 60).rounded(.up))
+        return String(format: "%d:%02d", minutes / 60, minutes % 60)
+    }
+
+    /// In words with at most two units, e.g. "2 ч 5 мин" or "3 дн. 4 ч", in the interface language.
+    static func spoken(until reset: Double, now: Date) -> String? {
+        let seconds = reset - now.timeIntervalSince1970
+        guard seconds.isFinite, seconds > 0 else { return nil }
+        let formatter = DateComponentsFormatter()
+        var calendar = Calendar(identifier: .gregorian); calendar.locale = L10n.locale
+        formatter.calendar = calendar
+        formatter.unitsStyle = .abbreviated
+        formatter.allowedUnits = [.day, .hour, .minute]
+        formatter.maximumUnitCount = 2
+        return formatter.string(from: max(60, (seconds / 60).rounded(.up) * 60))
+    }
 }

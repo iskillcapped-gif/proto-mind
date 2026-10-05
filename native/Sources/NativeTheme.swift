@@ -31,6 +31,8 @@ enum NativeTheme {
             ? NSColor(white: 0.86, alpha: 1) : NSColor(white: 0.15, alpha: 1)
     })
     static let codeFont = Font.system(size: codeSize, design: .monospaced)
+    /// Links in replies: the system link blue, lighter in dark mode.
+    static let link = Color(nsColor: .linkColor)
 }
 
 struct SidebarMaterial: View {
