@@ -31,6 +31,7 @@ struct NativeChecks {
         if let gallery = LaunchConfiguration.argument("--ui-gallery") {
             try await interfaceGallery(directory: URL(fileURLWithPath: gallery, isDirectory: true), root: root); return
         }
+        if CommandLine.arguments.contains("--link-pointer-window") { try await linkPointerWindow(); return }
         if let messages = LaunchConfiguration.argument("--perf-bench") {
             try await transcriptPerformance(root: root, messages: Int(messages) ?? 80); return
         }

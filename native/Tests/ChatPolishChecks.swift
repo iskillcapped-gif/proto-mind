@@ -26,3 +26,27 @@ extension NativeChecks {
                   "The reset time reads in the interface language with at most two units")
     }
 }
+
+extension NativeChecks {
+    /// `--link-pointer-window`: a real reply with a link in a window at the screen's right edge for
+    /// ten seconds, to check the pointer by hand or with `screencapture -C`. Nothing is opened.
+    @MainActor static func linkPointerWindow() async throws {
+        let app = NSApplication.shared
+        app.setActivationPolicy(.regular)
+        let reply = MessageMarkdownView(text: "Read the [setup guide](https://example.com/guide) before you start.", copy: { _ in },
+                                        openLink: { print("OPENED", $0.absoluteString); fflush(stdout) })
+        let screen = NSScreen.screens[0].frame
+        let window = NSWindow(contentRect: NSRect(x: screen.maxX - 520, y: screen.midY, width: 500, height: 160),
+                              styleMask: [.titled], backing: .buffered, defer: false)
+        window.title = "PM link pointer"
+        window.contentView = NSHostingView(rootView: reply.padding(24).frame(width: 500, height: 160, alignment: .topLeading))
+        window.makeKeyAndOrderFront(nil)
+        // Pointer updates need AppKit's event loop, which the async checks do not otherwise run.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
+            window.close(); app.stop(nil)
+            if let wake = NSEvent.otherEvent(with: .applicationDefined, location: .zero, modifierFlags: [], timestamp: 0,
+                                             windowNumber: 0, context: nil, subtype: 0, data1: 0, data2: 0) { app.postEvent(wake, atStart: false) }
+        }
+        app.run()
+    }
+}

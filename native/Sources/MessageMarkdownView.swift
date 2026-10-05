@@ -155,10 +155,10 @@ struct MessageMarkdownView: View, Equatable {
             if #available(macOS 15, *), attributed.runs.contains(where: { $0.link != nil }) {
                 LinkAwareProse(text: attributed)
             } else {
-                Text(attributed).font(NativeTheme.responseFont).lineSpacing(NativeTheme.responseLineSpacing)
+                Text(attributed).font(NativeTheme.responseFont).lineSpacing(NativeTheme.responseLineSpacing).textSelection(.enabled)
             }
         }
-            .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+            .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -201,54 +201,71 @@ struct MessageMarkdownView: View, Equatable {
     }
 }
 
-/// Prose with links. Selectable SwiftUI text keeps its text pointer over a link, so a text
-/// renderer records where the link runs are drawn and hovering one shows the link pointer.
+/// Prose with links. Selectable SwiftUI text keeps its own pointer over a link and a pointer
+/// style on the text does not override it, so a text renderer records where each link run is
+/// drawn and a clear area above it shows the link pointer and opens the link on click. Keep
+/// `.help` off these areas: its tooltip region turns the pointer back into the arrow.
 @available(macOS 15, *)
 private struct LinkAwareProse: View {
     let text: AttributedString
+    @Environment(\.openURL) private var openURL
     @State private var geometry = LinkRunGeometry()
-    @State private var overLink = false
+    @State private var links: [LinkRunGeometry.Link] = []
 
     var body: some View {
         Self.marked(text).font(NativeTheme.responseFont).lineSpacing(NativeTheme.responseLineSpacing)
             .textRenderer(LinkRunRecorder(geometry: geometry))
-            .onContinuousHover { phase in
-                let next: Bool
-                switch phase {
-                case .active(let point): next = geometry.contains(point)
-                case .ended: next = false
+            // Selection must wrap only the text: around the link areas it keeps its own pointer.
+            .textSelection(.enabled)
+            .overlay(alignment: .topLeading) {
+                ForEach(links) { link in
+                    Color.clear.contentShape(Rectangle())
+                        .frame(width: link.rect.width, height: link.rect.height)
+                        .offset(x: link.rect.minX, y: link.rect.minY)
+                        .pointerStyle(.link)
+                        .onTapGesture { openURL(link.url) }
+                        .accessibilityHidden(true)
                 }
-                if next != overLink { overLink = next }
             }
-            .pointerStyle(overLink ? .link : nil)
+            .onAppear { geometry.changed = { links = $0 }; links = geometry.links }
     }
 
     /// The same runs, with each link marked so the renderer can find it.
     private static func marked(_ value: AttributedString) -> Text {
         value.runs.reduce(Text(verbatim: "")) { text, run in
             let piece = Text(AttributedString(value[run.range]))
-            return text + (run.link != nil ? piece.customAttribute(LinkRun()) : piece)
+            return text + (run.link.map { piece.customAttribute(LinkRun(url: $0)) } ?? piece)
         }
     }
 }
 
-private struct LinkRun: TextAttribute {}
+private struct LinkRun: TextAttribute { let url: URL }
 
-/// Where the link runs were last drawn, in the text's own coordinates; drawing never publishes state.
-private final class LinkRunGeometry {
-    var rects: [CGRect] = []
-    func contains(_ point: CGPoint) -> Bool { rects.contains { $0.insetBy(dx: -1, dy: -2).contains(point) } }
+/// Where the link runs were last drawn, in the text's own coordinates. Drawing publishes a change
+/// on the next turn and only when the rects differ, so it settles after one more pass.
+private final class LinkRunGeometry: @unchecked Sendable {
+    struct Link: Identifiable, Equatable { let id: Int; let rect: CGRect; let url: URL }
+    private(set) var links: [Link] = []
+    var changed: (([Link]) -> Void)?
+
+    func record(_ next: [Link]) {
+        guard next != links else { return }
+        links = next
+        DispatchQueue.main.async { [weak self] in self?.changed?(next) }
+    }
 }
 
 @available(macOS 15, *)
 private struct LinkRunRecorder: TextRenderer {
     let geometry: LinkRunGeometry
     func draw(layout: Text.Layout, in context: inout GraphicsContext) {
-        var rects: [CGRect] = []
+        var found: [LinkRunGeometry.Link] = []
         for line in layout {
-            for run in line where run[LinkRun.self] != nil { rects.append(run.typographicBounds.rect) }
+            for run in line {
+                if let link = run[LinkRun.self] { found.append(.init(id: found.count, rect: run.typographicBounds.rect, url: link.url)) }
+            }
             context.draw(line)
         }
-        geometry.rects = rects
+        geometry.record(found)
     }
 }
