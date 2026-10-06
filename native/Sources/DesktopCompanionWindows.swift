@@ -14,6 +14,9 @@ final class DesktopCompanion: ObservableObject, Identifiable {
     @Published fileprivate(set) var expanded = false
     @Published fileprivate(set) var transparency = DesktopGlassAppearance.chatDefault
     @Published fileprivate(set) var dockingSuggested = false
+    /// The window size this surface takes when expanded; the small window shows its content laid
+    /// out at this size and scaled down, as a miniature.
+    @Published fileprivate(set) var expandedSize: NSSize?
     fileprivate(set) var window: DesktopCompanionPanel?
     fileprivate var delegate: DesktopCompanionDelegate?
     fileprivate var width: CGFloat = DesktopCompanionGeometry.defaultWidth
@@ -319,8 +322,11 @@ final class DesktopCompanionWindows: ObservableObject {
             window.level = desktop.enabled ? .floating : workspace.level
             window.collectionBehavior = desktop.enabled ? DesktopWindowPolicy.floating : [.fullScreenAuxiliary]
             let target: NSRect
+            let expandedSize: NSSize
             if item.docked {
-                target = item.expanded ? row.expanded(content: desktop.regularContentFrame) : row.panels[item.id]!
+                let expanded = row.expanded(content: desktop.regularContentFrame)
+                target = item.expanded ? expanded : row.panels[item.id]!
+                expandedSize = expanded.size
                 window.minSize = NSSize(width: min(DesktopCompanionGeometry.minimum.width, target.width),
                                         height: min(DesktopCompanionGeometry.minimumStackHeight, target.height))
             }
@@ -330,7 +336,9 @@ final class DesktopCompanionWindows: ObservableObject {
                 let saved = item.expanded ? item.expandedFrame : item.compactFrame
                 let frame = saved ?? (item.expanded ? DesktopCompanionGeometry.enlarged(fallback, screen: bounds) : fallback)
                 target = DesktopGeometry.fit(frame, within: screen(for: frame))
+                expandedSize = (item.expandedFrame ?? DesktopCompanionGeometry.enlarged(target, screen: screen(for: target))).size
             }
+            if item.expandedSize != expandedSize { item.expandedSize = expandedSize }
             if !item.dragging && window.frame != target { window.setFrame(target, display: true) }
             item.appliedSize = window.frame.size
             if independent || !desktop.enabled { window.animator().alphaValue = 1 }

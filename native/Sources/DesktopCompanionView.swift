@@ -8,6 +8,9 @@ struct DesktopCompanionView: View {
     @ObservedObject private var chrome: WorkspacePanelChrome
     @ObservedObject private var presentations: WorkspacePresentations
     @Environment(\.accessibilityVoiceOverEnabled) private var voiceOver
+    /// The small window previews its content as laid out in the expanded one. A page opened inside
+    /// it and VoiceOver keep the content usable at its own size.
+    private var miniature: Bool { !surface.expanded && presentations.pages.isEmpty && !voiceOver }
 
     init(app: AppModel, owner: DesktopCompanionWindows, surface: DesktopCompanion) {
         self.app = app; self.owner = owner; self.surface = surface
@@ -35,9 +38,16 @@ struct DesktopCompanionView: View {
             }.frame(height: 34).foregroundStyle(.secondary).buttonStyle(.nativeHover)
                 .padding(.leading, surface.id == .second ? 32 : 16).padding(.trailing, 8).padding(.top, 4)
                 .workspacePanelHeader()
-            WorkspacePresentationHost(presentations: presentations, backTitle: L10n.text("К окну")) {
-                WorkspacePanelView(model: app, panel: surface.panel, position: surface.id.position,
-                    controls: WorkspacePanelControls(title: surface.id.title, activate: { owner.pinPreview() }))
+            CompanionMiniature(active: miniature,
+                               reference: surface.expandedSize.map { CGSize(width: $0.width, height: $0.height - Self.headerHeight) },
+                               expand: { owner.toggleExpansion(surface.id) }) {
+                WorkspacePresentationHost(presentations: presentations, backTitle: L10n.text("К окну")) {
+                    WorkspacePanelView(model: app, panel: surface.panel, position: surface.id.position,
+                        controls: WorkspacePanelControls(title: surface.id.title, activate: { owner.pinPreview() }))
+                }
+                // The miniature is the page alone: hovering shows the window's own header row,
+                // not the tab and browser bars inside a preview that cannot be used.
+                .environment(\.workspaceChromeVisible, miniature ? false : surface.expanded || chrome.visible || voiceOver || !presentations.pages.isEmpty)
             }
         }
         .background(DesktopGlassBackground(transparency: surface.transparency, tint: NativeTheme.canvas))
@@ -68,11 +78,58 @@ struct DesktopCompanionView: View {
         .environment(\.workspacePresentations, presentations)
         .environment(\.locale, L10n.locale)
         .environment(\.workspaceChromeVisible, surface.expanded || chrome.visible || voiceOver || !presentations.pages.isEmpty)
+        .onChange(of: miniature) { _, small in
+            // Typing must not continue into a field that is now a tiny, inert preview.
+            if small, let window = surface.window, let responder = window.firstResponder as? NSView,
+               responder !== window.contentView { window.makeFirstResponder(nil) }
+        }
         .onExitCommand {
             if !presentations.pages.isEmpty { presentations.dismissTop() }
             else if surface.expanded { owner.toggleExpansion(surface.id) }
             else { owner.toggle(surface.id) }
         }
+    }
+}
+
+extension DesktopCompanionView {
+    /// The header row above the content: 34 pt plus its 4 pt top padding.
+    static let headerHeight: CGFloat = 38
+}
+
+/// In the small window, the content as it looks in the expanded one, scaled down to fit and not
+/// interactive; a click expands the window. Expanded, it is laid out and used as usual. The same
+/// view stays in place either way, so tabs, sessions and scroll positions are kept.
+struct CompanionMiniature<Content: View>: View {
+    let active: Bool
+    let reference: CGSize?
+    let expand: () -> Void
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        GeometryReader { proxy in
+            let size = proxy.size
+            let layout = active ? Self.layout(for: size, reference: reference) : size
+            let scale = layout.width > 0 && layout.height > 0 ? min(1, size.width / layout.width, size.height / layout.height) : 1
+            content
+                .frame(width: layout.width, height: layout.height)
+                .scaleEffect(scale, anchor: .topLeading)
+                .frame(width: size.width, height: size.height, alignment: .topLeading)
+                .clipped()
+                .allowsHitTesting(!active)
+                .overlay {
+                    if active {
+                        Color.clear.contentShape(Rectangle()).onTapGesture(perform: expand)
+                            .accessibilityElement().accessibilityLabel(L10n.text("Развернуть окно")).accessibilityAddTraits(.isButton)
+                    }
+                }
+        }
+    }
+
+    /// The expanded layout when it is larger than the small window; otherwise the window itself.
+    static func layout(for size: CGSize, reference: CGSize?) -> CGSize {
+        guard let reference, reference.width > size.width || reference.height > size.height,
+              reference.width > 0, reference.height > 0 else { return size }
+        return CGSize(width: max(reference.width, size.width), height: max(reference.height, size.height * reference.width / max(size.width, 1)))
     }
 }
 

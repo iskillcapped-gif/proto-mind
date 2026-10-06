@@ -24,6 +24,9 @@ extension NativeChecks {
         }
         L10n.language = .russian
         try await galleryRender(WorkspaceView(model: app), size: NSSize(width: 960, height: 640), dark: false, to: file("workspace-small"))
+        // A small cube companion previews its content as laid out in the expanded window.
+        try await galleryRender(CompanionMiniature(active: true, reference: CGSize(width: 1120, height: 700), expand: {}) { WorkspaceView(model: app) },
+                                size: NSSize(width: 380, height: 330), dark: true, to: file("companion-miniature-dark"))
         // The sidebar at the cube's width, and the card a chat row shows beside it on hover.
         try await galleryRender(SidebarView(model: app, libraryExpanded: .constant(false), openSettings: {}), size: NSSize(width: 230, height: 760), dark: true,
                                 to: file("sidebar-narrow-dark"))

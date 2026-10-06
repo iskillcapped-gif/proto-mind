@@ -42,68 +42,68 @@ extension NativeChecks {
             second.window?.contentView?.layoutSubtreeIfNeeded()
         }
         try await settle()
-        let firstHeight = first.window!.contentView!.bounds.height
-        let secondHeight = second.window!.contentView!.bounds.height
-        try check(abs(browser.webView.bounds.height - firstHeight) < 2
-                  && abs(terminal.view.bounds.height - secondHeight) < 2,
-                  "Unhovered compact browser and terminal occupy their entire window (web \(browser.webView.bounds.height)/\(firstHeight), terminal \(terminal.view.bounds.height)/\(secondHeight))")
+        let firstWidth = first.window!.contentView!.bounds.width
+        let secondWidth = second.window!.contentView!.bounds.width
+        // A small companion previews its page as laid out in the expanded window, scaled to fit.
+        func miniature(_ view: NSView, in surface: DesktopCompanion) -> Bool {
+            guard let reference = surface.expandedSize, let content = surface.window?.contentView else { return false }
+            return view.bounds.width > content.bounds.width * 1.5 && abs(view.bounds.width - reference.width) < 2
+        }
+        try check(miniature(browser.webView, in: first) && miniature(terminal.view, in: second),
+                  "Small companions show their page and terminal laid out at the expanded size as a miniature (web \(browser.webView.bounds.width) in \(firstWidth), terminal \(terminal.view.bounds.width) in \(secondWidth))")
         owner.updateHover(.first, inside: true)
         try await settle()
-        let browserControlsHeight = browser.webView.bounds.height
-        try check(firstHeight - browserControlsHeight > 100 && abs(terminal.view.bounds.height - secondHeight) < 2,
-                  "Hover restores all three browser bars while the other companion stays clear")
+        try check(first.chrome.visible && miniature(browser.webView, in: first) && miniature(terminal.view, in: second),
+                  "Hover shows the window header and keeps the miniature without bars")
         owner.updateHover(.second, inside: true)
         try await settle()
-        try check(secondHeight - terminal.view.bounds.height > 90,
-                  "The lower companion restores its window, tab and terminal bars together")
+        try check(second.chrome.visible && miniature(terminal.view, in: second), "The lower miniature keeps its terminal unchanged on hover")
         let editing = UUID(), dragging = UUID()
         first.chrome.hold(editing, while: true); first.chrome.hold(dragging, while: true)
         owner.updateHover(.first, inside: false)
         first.chrome.hold(editing, while: false)
         try await settle()
-        try check(browser.webView.bounds.height == browserControlsHeight,
-                  "Overlapping editing and dragging holds cannot hide controls until both interactions finish")
+        try check(first.chrome.visible, "Overlapping editing and dragging holds cannot hide the header until both interactions finish")
         first.chrome.hold(dragging, while: false)
         owner.updateHover(.second, inside: false)
         try await settle()
-        try check(abs(browser.webView.bounds.height - firstHeight) < 2 && abs(terminal.view.bounds.height - secondHeight) < 2,
-                  "Leaving both windows reclaims every toolbar row")
+        try check(!first.chrome.visible && !second.chrome.visible && miniature(browser.webView, in: first) && miniature(terminal.view, in: second),
+                  "Leaving both windows hides their headers")
         owner.updateHover(.first, inside: true)
         owner.updateHover(.first, inside: false)
         owner.updateHover(.first, inside: true)
         try await settle()
-        try check(first.chrome.visible && browser.webView.bounds.height == browserControlsHeight,
-                  "Rapid re-entry cancels an obsolete header hide")
+        try check(first.chrome.visible, "Rapid re-entry cancels an obsolete header hide")
         owner.updateHover(.first, inside: false)
         try await settle()
         owner.toggleExpansion(.first)
         try await settle()
-        try check(first.expanded && first.window!.contentView!.bounds.height - browser.webView.bounds.height > 100,
-                  "Expanded companions keep their full controls without hover")
+        try check(first.expanded && first.window!.contentView!.bounds.height - browser.webView.bounds.height > 100
+                  && abs(browser.webView.bounds.width - first.window!.contentView!.bounds.width) < 2,
+                  "An expanded companion is used at its own size, with its full controls")
         owner.toggleExpansion(.first)
         owner.detach(.first)
         try await settle()
-        try check(!first.docked && abs(browser.webView.bounds.height - first.window!.contentView!.bounds.height) < 2,
-                  "Detached compact windows follow the same content-only behavior")
+        try check(!first.docked && miniature(browser.webView, in: first), "A detached small window is a miniature too")
         let token = try await browser.webView.evaluateJavaScript("window.chromeToken") as? String
         try check(token == "retained" && browser.webView === originalWebView && terminal.view === originalTerminal
                   && terminal.view.process.shellPid == pid && terminal.running
                   && first.panel.selectedID == browserID && second.panel.selectedID == terminalID,
-                  "Hover, expansion and detachment preserve the loaded page, selected tabs and exact PTY process")
+                  "Hover, expansion, miniature and detachment preserve the loaded page, selected tabs and exact PTY process")
         terminal.view.process.send(data: Array("after hover\n".utf8)[...])
         for _ in 0..<100 {
             if !terminal.running { break }
             try await Task.sleep(for: .milliseconds(20))
         }
         try check(String(data: terminal.view.getTerminal().getBufferAsData(), encoding: .utf8)?.contains("GOT:after hover") == true,
-                  "The retained terminal still accepts input after hiding its controls")
+                  "The retained terminal still accepts input after its miniature")
         first.chrome.hold(editing, while: true)
         desktop.collapse(animated: false)
         try check(!first.chrome.visible && !second.chrome.visible, "Folding clears temporary hover and editing holds")
         desktop.expand(animated: false)
         try await settle()
-        try check(abs(browser.webView.bounds.height - first.window!.contentView!.bounds.height) < 2,
-                  "Reopening cannot inherit a stuck toolbar from the preceding presentation")
+        try check(!first.chrome.visible && miniature(browser.webView, in: first),
+                  "Reopening cannot inherit a stuck header from the preceding presentation")
 
         let normalBrowser = NativeBrowserTab()
         normalBrowser.webView.loadHTMLString("<title>Normal fixture</title>", baseURL: URL(string: "https://normal.example.invalid/"))
