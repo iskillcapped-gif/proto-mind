@@ -27,7 +27,7 @@ struct DesktopCompanionView: View {
                 Button { owner.toggleExpansion(surface.id) } label: {
                     Image(systemName: surface.expanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
                         .frame(width: 26, height: 28)
-                }.help(surface.expanded ? L10n.text("Вернуть миниатюру") : L10n.text("Развернуть окно"))
+                }.help((surface.expanded ? L10n.text("Вернуть миниатюру") : L10n.text("Развернуть окно")) + (surface.id == .first ? " (⌘1)" : " (⌘2)"))
                     .accessibilityLabel((surface.expanded ? L10n.text("Миниатюра · ") : L10n.text("Развернуть окно · ")) + surface.id.title)
                 Button { owner.restoreBase(surface.id) } label: {
                     Image(systemName: "arrow.uturn.backward").frame(width: 26, height: 28)

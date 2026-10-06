@@ -81,9 +81,13 @@ private struct DesktopWindowCommands: View {
     var body: some View {
         Button(L10n.text("Переключить парящий режим")) { desktop.toggleMode() }
             .keyboardShortcut("j", modifiers: [.command, .option])
-        Button(L10n.text("Боковое окно 1")) { desktop.companions.toggle(.first) }
+        Button(L10n.pick("Показать или скрыть окно 1", "Show or hide window 1")) { desktop.companions.toggle(.first) }
             .keyboardShortcut("1", modifiers: [.command, .option])
-        Button(L10n.text("Боковое окно 2")) { desktop.companions.toggle(.second) }
+        Button(L10n.pick("Показать или скрыть окно 2", "Show or hide window 2")) { desktop.companions.toggle(.second) }
             .keyboardShortcut("2", modifiers: [.command, .option])
+        Button(L10n.pick("Развернуть или свернуть окно 1", "Expand or shrink window 1")) { desktop.companions.toggleExpansionFromKeyboard(.first) }
+            .keyboardShortcut("1", modifiers: .command)
+        Button(L10n.pick("Развернуть или свернуть окно 2", "Expand or shrink window 2")) { desktop.companions.toggleExpansionFromKeyboard(.second) }
+            .keyboardShortcut("2", modifiers: .command)
     }
 }

@@ -183,6 +183,12 @@ final class DesktopCompanionWindows: ObservableObject {
         if presentsWindows { item.window?.makeKeyAndOrderFront(nil) }
     }
 
+    /// ⌘1 / ⌘2: a hidden window opens expanded; an open one switches between expanded and its miniature.
+    func toggleExpansionFromKeyboard(_ id: DesktopCompanionID) {
+        if surface(id).visible { desktop?.revealWorkspace() } else { toggle(id) }
+        toggleExpansion(id)
+    }
+
     func collapseDockedExpansion() {
         for item in surfaces where item.docked && item.expanded {
             item.expanded = false; item.panel.expanded = false

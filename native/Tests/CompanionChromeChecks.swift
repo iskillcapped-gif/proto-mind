@@ -104,6 +104,14 @@ extension NativeChecks {
         try await settle()
         try check(!first.chrome.visible && miniature(browser.webView, in: first),
                   "Reopening cannot inherit a stuck header from the preceding presentation")
+        owner.toggle(.second)
+        owner.toggleExpansionFromKeyboard(.second)
+        try check(second.visible && second.expanded, "⌘2 opens a hidden window expanded")
+        owner.toggleExpansionFromKeyboard(.second)
+        try check(second.visible && !second.expanded, "⌘2 again returns the window to its miniature")
+        owner.toggleExpansionFromKeyboard(.first)
+        try check(first.expanded && !second.expanded, "⌘1 expands only its own window")
+        owner.toggleExpansionFromKeyboard(.first)
 
         let normalBrowser = NativeBrowserTab()
         normalBrowser.webView.loadHTMLString("<title>Normal fixture</title>", baseURL: URL(string: "https://normal.example.invalid/"))
