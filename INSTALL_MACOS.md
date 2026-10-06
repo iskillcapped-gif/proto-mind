@@ -62,7 +62,7 @@ no account, API key or pre-generated answer.
   the conversation. API/local routes do not inherit those screen tools.
 - **Claude:** uses the unmodified Claude Code sign-in and the account's available
   models and usage limits. PM supports one Claude login; multiple ChatGPT
-  accounts remain independent. See [Claude setup](https://github.com/iskillcapped-gif/proto-mind/blob/v0.75.0-beta/CLAUDE_CONNECTION.md).
+  accounts remain independent. See [Claude setup](https://github.com/iskillcapped-gif/proto-mind/blob/v0.75.7-beta/CLAUDE_CONNECTION.md).
 - **Connected tools:** add your own MCP connections in Settings → Connections.
   Enabled services can perform actions on your behalf in authorized tasks.
 - **Saved attachments:** Library → Images / Files keeps copies of sent pictures,
@@ -71,7 +71,7 @@ no account, API key or pre-generated answer.
 - **iPhone preview:** the optional PM Remote connection starts off. The separate
   iOS project needs Xcode installation and private Tailscale pairing; no iPhone
   app is included in this DMG or published on the App Store. Physical-phone
-  verification is still pending. See [PM Remote setup](https://github.com/iskillcapped-gif/proto-mind/blob/v0.75.0-beta/ios/README.md).
+  verification is still pending. See [PM Remote setup](https://github.com/iskillcapped-gif/proto-mind/blob/v0.75.7-beta/ios/README.md).
 - **GitHub:** connect your own account in Settings → Connections. GitHub CLI
   (`gh`) is currently a separate prerequisite; follow the connection screen.
 - **Local models:** install and run Ollama separately, then select it in
