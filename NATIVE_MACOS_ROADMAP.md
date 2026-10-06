@@ -4,6 +4,23 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Window Shortcuts — Native 0.75.7
+
+The operator asked for ⌘1 and ⌘2 to expand and shrink the two side windows.
+Neither was taken: PM had ⌥⌘1 and ⌥⌘2 (show or hide a side window), and this
+Mac's system shortcuts and custom menu keys assign nothing to the 1 and 2 keys.
+
+- **⌘1 / ⌘2** expand window 1 or 2, and pressed again return it to its
+  miniature. A hidden window opens expanded; in cube mode the workspace is
+  revealed first. ⌥⌘1 / ⌥⌘2 still show or hide a window.
+- The Proto-Mind menu names both pairs, and the expand button's help shows the
+  shortcut. Like any menu shortcut they work while PM is the active app; a web
+  page in a panel that handles ⌘1 itself keeps it.
+
+Verification on 2026-10-06: **2115 Native checks** passed, including a hidden
+window opening expanded, the second press returning it to its miniature, and ⌘1
+expanding only its own window.
+
 ## Companion Miniatures — Native 0.75.6
 
 The operator asked for the two side windows of cube mode to show a miniature of
