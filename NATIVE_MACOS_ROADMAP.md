@@ -4,6 +4,34 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Companion Miniatures — Native 0.75.6
+
+The operator asked for the two side windows of cube mode to show a miniature of
+the whole page while they are small, and to work normally once expanded. A small
+companion window used to show its content at full size, cropped to the window.
+
+- While small, the window lays its content out at the size it has when expanded
+  (beside a docked column, the area from the sidebar to the column's edge; for a
+  detached window, its saved expanded frame) and scales it down to fill the
+  window. A taller small window gets a correspondingly taller layout, so the
+  miniature fills it. Web pages, terminals and chats scale together; SwiftUI's
+  scale applies to the embedded AppKit views as well.
+- The miniature cannot be used: it ignores the pointer, a click expands the
+  window, and keyboard focus inside it is released. Hovering still shows the
+  window's own header with expand, return and hide; the tab and browser bars
+  inside the preview stay hidden.
+- Expanded, the same views are laid out at their real size, so tabs, the loaded
+  page, terminal sessions and scroll positions are kept across both states. A
+  page opened inside the small window, such as Settings, and VoiceOver keep the
+  content at its own size and usable.
+
+Verification on 2026-10-06: **2112 Native checks** passed. The companion checks
+now cover the miniature: a small window's page and terminal are laid out at the
+expanded width, hover shows only the window header, a detached small window is a
+miniature too, the expanded window is used at its own size, and the page, tabs
+and terminal process survive every change. The gallery shows a workspace as a
+miniature in a 380×330 window.
+
 ## Link Pointer Fix — Native 0.75.5
 
 In 0.75.4 the pointer over a link still turned into the text cursor. A pointer
