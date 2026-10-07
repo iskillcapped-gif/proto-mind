@@ -72,6 +72,12 @@ struct ChatMessage: Codable, Identifiable, Equatable {
 
 struct Conversation: Codable, Identifiable, Equatable {
     var displayTitle: String { title == "Новый диалог" ? L10n.text("Новый диалог") : title }
+    /// A chat nobody has used yet: no messages, nothing typed or attached, the default title.
+    var isUntouched: Bool {
+        messages.isEmpty && draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && pendingFiles.isEmpty
+            && pendingImages.isEmpty && pendingPDFs.isEmpty && pendingCriteria.isEmpty && draftContinuation == nil
+            && title == "Новый диалог"
+    }
     var id = UUID()
     var title = "Новый диалог"
     var createdAt = Date()

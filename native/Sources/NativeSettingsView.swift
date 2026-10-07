@@ -150,6 +150,7 @@ struct NativeSettingsView: View {
                             SettingsFooter(L10n.pick("Язык меняется сразу во всех окнах. Ваши сообщения и файлы остаются как есть.", "The language changes immediately in every window. Your messages and files stay as they are."))
                         }
                         DesktopAppearanceSettings(desktop: model.desktop, panels: model.workspacePanels, companions: model.desktop.companions)
+                        ReplyNotificationSettings(notifications: model.replyNotifications)
                     case .persona:
                         personaSettings
                     case .services:
@@ -501,6 +502,20 @@ struct DesktopAppearanceSettings: View {
                 .labelsHidden().accessibilityValue(L10n.format("\(Int((value.wrappedValue * 100).rounded())) процентов"))
             Text("\(Int((value.wrappedValue * 100).rounded()))%")
                 .monospacedDigit().foregroundStyle(.secondary).frame(width: 40, alignment: .trailing)
+        }
+    }
+}
+
+struct ReplyNotificationSettings: View {
+    @ObservedObject var notifications: ReplyNotifications
+
+    var body: some View {
+        Section {
+            Toggle(L10n.pick("Сообщать, когда ответ готов", "Notify me when a reply is ready"),
+                   isOn: Binding(get: { notifications.enabled }, set: notifications.setEnabled))
+        } header: { Text(L10n.pick("Уведомления", "Notifications")) } footer: {
+            SettingsFooter(L10n.pick("Если PM в фоне, кубик свёрнут или открыт другой чат, macOS покажет начало ответа. Клик откроет этот чат. Разрешение macOS спросит один раз.",
+                                     "When PM is in the background, the cube is folded or another chat is open, macOS shows the start of the reply. A click opens that chat. macOS asks for permission once."))
         }
     }
 }

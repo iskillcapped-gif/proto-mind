@@ -605,6 +605,10 @@ struct MessageView: View {
                     Text(message.text).font(message.isError ? NativeTheme.responseFont : NativeTheme.codeFont).textSelection(.enabled)
                         .lineSpacing(message.isError ? NativeTheme.responseLineSpacing : 0)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                    if let id = conversationID ?? model.selectedID, model.limitInterruption(in: id)?.id == message.id {
+                        LimitContinuationRow(app: model, continuations: model.limitContinuations, account: model.claudeAccount,
+                                             conversationID: id, messageID: message.id)
+                    }
                 } else {
                     MessageMarkdownView(text: message.text, copy: model.copy, openLink: { openLink($0) }).equatable()
                         .frame(maxWidth: .infinity, alignment: .leading)

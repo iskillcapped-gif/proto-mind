@@ -5,6 +5,19 @@ import Foundation
 extension AppModel {
     func newConversation() {
         guard canNavigateConversations else { return }
+        if let current = selected, current.isUntouched, !current.archived, current.workspacePath == nil, current.workspaceParentID == nil,
+           current.autoSkillsEnabled, current.autoProjectRecallEnabled, current.memorySuggestionsEnabled,
+           !current.apiWorkspaceToolsEnabled, !fullAccessEnabled {
+            // The open chat is still new, empty and on default settings: keep it instead of adding another.
+            conversationRouting.activate(nil)
+            presentations.dismissAll()
+            transcriptDestination = nil
+            showArchived = false
+            conversationSearch = ""
+            section = .chat
+            restoreComposer()
+            return
+        }
         conversationRouting.activate(nil)
         presentations.dismissAll()
         invalidateContextPreview()

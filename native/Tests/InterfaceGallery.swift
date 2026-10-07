@@ -24,6 +24,14 @@ extension NativeChecks {
         }
         L10n.language = .russian
         try await galleryRender(WorkspaceView(model: app), size: NSSize(width: 960, height: 640), dark: false, to: file("workspace-small"))
+        // A Claude turn stopped by the usage limit offers to continue after the reset.
+        var limited = Conversation(); limited.provider = "claude"; limited.title = "Длинная задача"
+        let limitError = ChatMessage(role: "report", text: AppModel.claudeLimitPrefixes[0] + ". После обновления (время — в разделе «Лимиты») следующее сообщение продолжит эту же сессию; автоматического повтора не было.", isError: true)
+        limited.messages = [ChatMessage(role: "user", text: "Сделай большую задачу"), limitError]
+        app.conversations.append(limited)
+        try await galleryRender(MessageView(message: limitError, model: app, conversationID: limited.id).padding(24), size: NSSize(width: 820, height: 200), dark: true,
+                                to: file("message-limit-continue-dark"))
+        app.conversations.removeAll { $0.id == limited.id }
         // A small cube companion previews its content as laid out in the expanded window.
         try await galleryRender(CompanionMiniature(active: true, reference: CGSize(width: 1120, height: 700), expand: {}) { WorkspaceView(model: app) },
                                 size: NSSize(width: 380, height: 330), dark: true, to: file("companion-miniature-dark"))

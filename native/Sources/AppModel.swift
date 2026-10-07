@@ -67,6 +67,8 @@ final class AppModel: ObservableObject {
     let liveVoice: LiveVoiceModel
     let dictation: DictationModel
     let responseAttention: ResponseAttention
+    let replyNotifications: ReplyNotifications
+    let limitContinuations = LimitContinuations()
     private var attentionObservation: AnyCancellable?
     let sidebarProjectOrder: SidebarProjectOrder
     let desktop: DesktopPresentation
@@ -275,6 +277,7 @@ final class AppModel: ObservableObject {
         liveVoice = LiveVoiceModel(stateDirectory: configuration.stateDirectory)
         dictation = DictationModel(stateDirectory: configuration.stateDirectory, defaults: uiDefaults, speech: dictationSpeech)
         responseAttention = ResponseAttention(stateDirectory: configuration.stateDirectory, defaults: uiDefaults)
+        replyNotifications = ReplyNotifications(stateDirectory: configuration.stateDirectory, defaults: uiDefaults)
         let library = AttachmentLibraryModel(stateDirectory: configuration.stateDirectory)
         attachmentLibrary = library
         AttachmentThumbnails.library = library.folder
@@ -340,7 +343,9 @@ final class AppModel: ObservableObject {
     var visibleConversations: [Conversation] {
         let query = conversationSearch.trimmingCharacters(in: .whitespacesAndNewlines)
         return listedConversations.filter { chat in
-            chat.archived == showArchived && (query.isEmpty || chat.title.localizedCaseInsensitiveContains(query)
+            // An unused "New chat" is listed only while it is open; it reappears once it is used.
+            chat.archived == showArchived && (chat.id == selectedID || !chat.isUntouched)
+                && (query.isEmpty || chat.title.localizedCaseInsensitiveContains(query)
                 || chat.messages.contains { $0.searchableText.localizedCaseInsensitiveContains(query) })
         }.sorted { $0.updatedAt == $1.updatedAt ? $0.id.uuidString < $1.id.uuidString : $0.updatedAt > $1.updatedAt }
     }
@@ -730,6 +735,7 @@ final class AppModel: ObservableObject {
     func start() async {
         guard !started else { return }; started = true
         appUpdate.start()
+        replyNotifications.start(app: self)
         do {
             try PrivateStateAccess.requireAvailable(client.configuration.stateDirectory)
             try PrivateStateAccess.requireAvailable(client.configuration.projectRoot.appendingPathComponent("proto_mind/data"))
@@ -1459,6 +1465,7 @@ final class AppModel: ObservableObject {
         conversations[index].messages.append(message)
         conversations[index].updatedAt = Date()
         responseAttention.record(message, conversationID: id)
+        replyNotifications.replyArrived(message, in: conversations[index])
     }
 
     func report(_ error: Error) { self.error = error.localizedDescription; status = "Нужна проверка" }
