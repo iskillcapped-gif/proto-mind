@@ -4,6 +4,43 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Notifications, Continuing After a Limit and Unused Chats — Native 0.75.8
+
+The operator asked me to choose the next improvements. These three follow how
+he uses PM: long Claude tasks while he is away, five-hour limits, and a sidebar
+where 7 of 16 chats were unused "New chat" entries left by earlier ⌘N presses.
+
+- **Reply notifications** (`ReplyNotifications`). When a reply or an error
+  arrives while PM is in the background, the cube is folded or another chat is
+  open, macOS shows the chat's title and the reply's first line of prose (code
+  blocks, tables and Markdown marks left out, at most 160 characters). A click
+  activates PM, reveals the workspace and opens the chat at that reply. Settings
+  → Appearance → Notifications turns them off; macOS asks for permission once.
+  Only the app bundle posts them, never the checks or the gallery.
+- **Continue after the limit** (`LimitContinuations`). While a Claude chat ends
+  with the usage-limit error, the error shows **Continue after the reset ·
+  21:40**, from the latest reset among the exhausted windows, or **Continue**
+  when none is exhausted. A click schedules one ordinary "Continue where you left
+  off." through the same path as voice and Telegram, a minute after the reset and
+  after the account confirms the limit has renewed (rechecked every five
+  minutes, up to an hour). It is skipped if the chat moved on or is running, can
+  be cancelled, and lives while PM runs; after a restart the button returns.
+- **Unused chats.** A chat with no messages, nothing typed or attached and the
+  default title is listed only while it is open, so the unused "New chat"
+  entries left the sidebar; nothing was deleted, and a chat reappears as soon
+  as it is used. ⌘N on such a chat without a project folder keeps it instead of
+  adding another one, like the panels' PM launchers already did. A chat whose
+  settings were changed (recall, skills, suggestions, tools, Mac access, folder)
+  is left as it is, and ⌘N opens a fresh one.
+
+Verification on 2026-10-08: **2125 Native checks** passed, ten of them new: the
+notification text, the reset chosen from exhausted windows, scheduling only on
+request and cancelling it, no offer once the chat moved on, ⌘N keeping an
+unused chat but not a customized one, and unused chats leaving the list while
+being kept. The gallery shows the error with its Continue button and the new
+Notifications section. A real notification needs the app bundle and the
+operator's permission, so it was not shown in the checks.
+
 ## Window Shortcuts — Native 0.75.7
 
 The operator asked for ⌘1 and ⌘2 to expand and shrink the two side windows.
