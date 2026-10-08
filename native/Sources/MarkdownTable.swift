@@ -65,6 +65,7 @@ struct MarkdownTable: Equatable {
 struct MarkdownTableView: View {
     let table: MarkdownTable
     let allowFileLinks: Bool
+    var highlight = ""
 
     private func alignment(_ index: Int) -> Alignment {
         switch table.alignments[index] {
@@ -87,7 +88,7 @@ struct MarkdownTableView: View {
                 ForEach(Array(rows.enumerated()), id: \.offset) { row, cells in
                     HStack(alignment: .top, spacing: 0) {
                         ForEach(Array(cells.enumerated()), id: \.offset) { column, cell in
-                            Text(MarkdownBlock.inline(cell, allowFileLinks: allowFileLinks))
+                            Text(MarkdownBlock.inline(cell, allowFileLinks: allowFileLinks, highlight: highlight))
                                 .font(row == 0 ? NativeTheme.responseFont.weight(.semibold) : NativeTheme.responseFont)
                                 .lineSpacing(4).textSelection(.enabled)
                                 .frame(width: widths[column], alignment: alignment(column))

@@ -53,6 +53,10 @@ struct ProtoMindApp: App {
                 Button(L10n.text("Новый чат")) { model.newConversation() }
                     .keyboardShortcut("n").disabled(!model.canNavigateConversations)
             }
+            CommandGroup(after: .pasteboard) {
+                Divider()
+                ChatFindCommands(app: model, find: model.chatFind)
+            }
             CommandMenu("Proto-Mind") {
                 DesktopWindowCommands(desktop: model.desktop)
                 Divider()

@@ -13,7 +13,7 @@ import sys
 import time
 from uuid import UUID, uuid4
 from proto_mind.native_claude_protocol import (MAX_UPDATE_LINE, UsageMeter, WorkspaceReplies, WorkspaceReplyError, error_code,
-                                              failure_code, tool_finished, tool_row)
+                                              failure_code, limit_reset, tool_finished, tool_row)
 from proto_mind.native_claude_transcripts import pin_resume_point
 
 
@@ -37,7 +37,7 @@ def tool_content(reply):
 async def run(payload):
     from claude_agent_sdk import (ClaudeSDKClient, ClaudeAgentOptions, SdkMcpTool, create_sdk_mcp_server,
                                   AssistantMessage, UserMessage, StreamEvent, ResultMessage, SystemMessage,
-                                  TextBlock, ToolUseBlock, ToolResultBlock)
+                                  RateLimitEvent, TextBlock, ToolUseBlock, ToolResultBlock)
     replies = WorkspaceReplies(emit)
     reader = asyncio.StreamReader(limit=MAX_UPDATE_LINE + 1)
     pipe, _ = await asyncio.get_running_loop().connect_read_pipe(lambda: asyncio.StreamReaderProtocol(reader), sys.stdin.buffer)
@@ -99,7 +99,7 @@ async def run(payload):
 
     async def receive():
         text, streamed, activity, failure, outcome, waiting, leaf = "", False, {}, None, None, False, None
-        compaction = None
+        compaction = limit = None
         async with ClaudeSDKClient(options=options) as client:
             async def messages():
                 yield {"type": "user", "message": {"role": "user", "content": content}}
@@ -156,11 +156,15 @@ async def run(payload):
                         row, started = activity.pop(block.tool_use_id)
                         emit({"event": "activity", "item": tool_finished(row, getattr(block, "content", None), block.is_error,
                                                                         (time.monotonic() - started) * 1000, structured)})
+                elif isinstance(message, RateLimitEvent):
+                    # Claude Code reports each limit change; a rejection carries the renewal time.
+                    limit = limit_reset(message.rate_limit_info)
                 elif isinstance(message, ResultMessage):
                     outcome = {"event": "result", "success": not message.is_error and message.subtype == "success"
                                and getattr(message, "terminal_reason", None) not in {"aborted_streaming", "aborted_tools"},
                                "text": message.result or text, "session_id": getattr(message, "session_id", None),
                                "error_code": error_code(message, failure), "usage": meter.summary(), "leaf": leaf}
+                    if limit is not None and outcome["error_code"] == "rate_limit": outcome["limit_resets_at"] = limit
                     if live["pending"] and outcome["success"]:
                         # This answer stays visible as progress; the update's turn answers last.
                         if outcome["text"]: emit({"event": "commentary", "id": str(uuid4()), "text": outcome["text"]})

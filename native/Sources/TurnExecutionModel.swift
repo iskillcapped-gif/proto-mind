@@ -278,7 +278,8 @@ extension AppModel {
             let caution = grant == nil && !apiWorkspaceToolsAllowed(conversation) ? "" : L10n.text("\nДействия могли уже изменить файлы. Проверьте журнал и результат перед повтором; автоматического отката нет.")
             append(ChatMessage(role: "report", text: error.localizedDescription + caution, isError: true,
                                agentRun: state.agentReceipt.isNull ? nil : state.agentReceipt,
-                               workLog: state.workLog.isNull ? nil : state.workLog, autoSkills: state.autoSkillsReport?.value), to: conversationID)
+                               workLog: state.workLog.isNull ? nil : state.workLog, autoSkills: state.autoSkillsReport?.value,
+                               limitResetsAt: (error as? ClaudeLimitError)?.resetsAt), to: conversationID)
             if grant != nil { discardAgentGrants(for: conversationID, forgetSelection: false) }
             if useDraft, let current = conversations.firstIndex(where: { $0.id == conversationID }),
                conversations[current].pendingFiles.isEmpty, conversations[current].pendingImages.isEmpty,

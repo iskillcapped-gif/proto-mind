@@ -291,6 +291,12 @@ struct ChatView: View {
     @ObservedObject var model: AppModel
     var conversationID: UUID? = nil
     var panel: WorkspacePanelModel? = nil
+    @ObservedObject private var find: ChatFindModel
+
+    init(model: AppModel, conversationID: UUID? = nil, panel: WorkspacePanelModel? = nil) {
+        self.model = model; self.conversationID = conversationID; self.panel = panel
+        find = model.chatFind
+    }
     @Environment(\.workspacePresentations) private var presentations
     private var id: UUID? { conversationID ?? model.selectedID }
     private var conversation: Conversation? { model.conversations.first { $0.id == id } }
@@ -323,6 +329,12 @@ struct ChatView: View {
         renderedMessages.startIndex
     }
 
+    /// While finding in this chat, the matching messages show the query highlighted.
+    private var findHighlights: (query: String, matches: Set<UUID>)? {
+        guard panel == nil, let id, find.conversationID == id, !find.applied.isEmpty else { return nil }
+        return (find.applied, Set(find.matches))
+    }
+
     var body: some View {
         GeometryReader { container in
             let inset: CGFloat = container.size.width < 600 ? 16 : (desktopGlass ? 24 : NativeTheme.conversationInset)
@@ -351,9 +363,11 @@ struct ChatView: View {
                                     .buttonStyle(.nativeHover)
                                     .help(L10n.text("История хранится полностью; загружается только следующая часть интерфейса"))
                                 }
+                                let highlights = findHighlights
                                 ForEach(renderedMessages) { message in
                                     VStack(alignment: .leading, spacing: 16) {
-                                        MessageView(message: message, model: model, conversationID: id, targetPanel: panel)
+                                        MessageView(message: message, model: model, conversationID: id, targetPanel: panel,
+                                                    highlight: highlights?.matches.contains(message.id) == true ? highlights?.query ?? "" : "")
                                         if let updates = message.taskUpdates, !updates.isEmpty {
                                             TaskUpdatesView(updates: updates, active: state?.sourceMessageID == message.id,
                                                             copy: model.copy) { image in
@@ -362,9 +376,12 @@ struct ChatView: View {
                                             }
                                         }
                                     }.id(message.id)
-                                        .background(destination?.conversationID == id
-                                            && destination?.messageID == message.id ? NativeTheme.selection : .clear,
-                                            in: RoundedRectangle(cornerRadius: 10))
+                                        // The mark reaches past the message so its text does not touch the edge.
+                                        .background {
+                                            RoundedRectangle(cornerRadius: 12)
+                                                .fill(destination?.conversationID == id && destination?.messageID == message.id ? NativeTheme.selection : .clear)
+                                                .padding(.horizontal, -12).padding(.vertical, -8)
+                                        }
                                 }
                                 if renderedMessages.endIndex < messages.count {
                                     Button(L10n.text("Показать следующие сообщения")) { loadLater(using: proxy) }
@@ -396,6 +413,7 @@ struct ChatView: View {
                             renderedMessageLimit = TranscriptRenderingPolicy.initialMessageLimit
                             historyWindow = nil
                             followOutput = true
+                            if panel == nil, find.visible { find.close() }
                             navigate(using: proxy)
                         }
                         .onChange(of: destination) { _, _ in navigate(using: proxy) }
@@ -403,6 +421,7 @@ struct ChatView: View {
                             if value != nil { historyWindow = nil; followOutput = true; scrollToLatest(proxy) }
                         }
                         .onChange(of: messages.count) { oldCount, newCount in
+                            if panel == nil, find.conversationID == id { find.search(jump: false) }
                             renderedMessageLimit = TranscriptRenderingPolicy.adjustedLimit(
                                 oldCount: oldCount,
                                 newCount: newCount,
@@ -413,6 +432,12 @@ struct ChatView: View {
                         }
                         .onChange(of: messages.last?.taskUpdates) { _, _ in if followOutput { scrollToLatest(proxy) } }
                         .onChange(of: state?.running) { _, _ in if followOutput { scrollToLatest(proxy) } }
+                        .overlay(alignment: .top) {
+                            if panel == nil, let id, find.conversationID == id {
+                                ChatFindBar(find: find).frame(maxWidth: 560).padding(.horizontal, inset).padding(.top, 8)
+                                    .transition(.opacity)
+                            }
+                        }
                         .overlay(alignment: .bottom) {
                             if !nearBottom || historyWindow != nil {
                                 Button {
@@ -548,6 +573,8 @@ struct MessageView: View {
     @ObservedObject var model: AppModel
     var conversationID: UUID? = nil
     var targetPanel: WorkspacePanelModel? = nil
+    /// The words being found in the chat, highlighted in this message.
+    var highlight = ""
     @Environment(\.workspacePresentations) private var presentations
     @State private var showRaw = false
     @State private var showLegacyActions = false
@@ -570,7 +597,7 @@ struct MessageView: View {
                             .help(L10n.text("Это сообщение отправила модель другой задачи через инструменты PM, а не вы."))
                     }
                     if !(message.imageContext ?? []).isEmpty { imageThumbnails }
-                    Text(origin?.body ?? BrowserReferencePresentation(message.text)?.instruction ?? message.text).font(NativeTheme.messageFont).lineSpacing(6).textSelection(.enabled)
+                    marked(origin?.body ?? BrowserReferencePresentation(message.text)?.instruction ?? message.text).font(NativeTheme.messageFont).lineSpacing(6).textSelection(.enabled)
                         .help(message.createdAt.formatted(date: .omitted, time: .shortened))
                     if let page = BrowserReferencePresentation(message.text) {
                         DisclosureGroup(L10n.pick("Материал из браузера", "Browser reference"), isExpanded: $showBrowserReference) {
@@ -602,15 +629,15 @@ struct MessageView: View {
                     Label(message.isError ? L10n.text("Нужна проверка") : L10n.text("Локальное ядро"), systemImage: message.isError ? "exclamationmark.circle" : "command")
                         .font(.system(size: 12)).foregroundStyle(message.isError ? Color.orange : .secondary)
                     // A failed turn explains itself in prose; command reports stay monospaced.
-                    Text(message.text).font(message.isError ? NativeTheme.responseFont : NativeTheme.codeFont).textSelection(.enabled)
+                    marked(message.text).font(message.isError ? NativeTheme.responseFont : NativeTheme.codeFont).textSelection(.enabled)
                         .lineSpacing(message.isError ? NativeTheme.responseLineSpacing : 0)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     if let id = conversationID ?? model.selectedID, model.limitInterruption(in: id)?.id == message.id {
                         LimitContinuationRow(app: model, continuations: model.limitContinuations, account: model.claudeAccount,
-                                             conversationID: id, messageID: message.id)
+                                             conversationID: id, message: message)
                     }
                 } else {
-                    MessageMarkdownView(text: message.text, copy: model.copy, openLink: { openLink($0) }).equatable()
+                    MessageMarkdownView(text: message.text, copy: model.copy, openLink: { openLink($0) }, highlight: highlight).equatable()
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 if message.agentRun?["computer_use_cleanup"]["status"].text == "unconfirmed" {
@@ -669,6 +696,10 @@ struct MessageView: View {
                 if showRaw { Text(message.raw).font(.system(size: 11, design: .monospaced)).textSelection(.enabled) }
             }.frame(maxWidth: .infinity, alignment: .leading).responseExportFeedback(responseExport)
         }
+    }
+
+    private func marked(_ text: String) -> Text {
+        highlight.isEmpty ? Text(text) : Text(ChatFindModel.highlighted(AttributedString(text), highlight))
     }
 
     private func openLink(_ url: URL) {

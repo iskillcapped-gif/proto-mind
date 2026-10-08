@@ -13,6 +13,7 @@ class UserMessage(SimpleNamespace): pass
 class StreamEvent(SimpleNamespace): pass
 class ResultMessage(SimpleNamespace): pass
 class SystemMessage(SimpleNamespace): pass
+class RateLimitEvent(SimpleNamespace): pass
 class TextBlock(SimpleNamespace): pass
 class ToolUseBlock(SimpleNamespace): pass
 class ToolResultBlock(SimpleNamespace): pass
@@ -197,6 +198,12 @@ class ClaudeSDKClient:
         if mode == 'hang': await asyncio.Event().wait()
         if mode == 'malformed': raise RuntimeError('SECRET THAT MUST NEVER REACH PM')
         if mode in {'rate_limit', 'authentication_failed'}:
+            if mode == 'rate_limit':
+                # Like Claude Code: the rejection and its renewal time arrive before the error message.
+                renewal = Path(os.environ['CLAUDE_CONFIG_DIR'], 'limit-resets-at')
+                if renewal.exists():
+                    yield RateLimitEvent(rate_limit_info=SimpleNamespace(status='rejected', resets_at=json.loads(renewal.read_text()),
+                                                                         rate_limit_type='five_hour'), uuid=str(uuid4()), session_id='s')
             yield AssistantMessage(content=[], error=mode)
             yield ResultMessage(is_error=True, subtype='success', result=None,
                                 api_error_status=429 if mode=='rate_limit' else 401)

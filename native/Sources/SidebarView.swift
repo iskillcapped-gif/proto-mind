@@ -42,10 +42,10 @@ struct SidebarView: View {
                     Spacer()
                     AppUpdateButton(app: model, monitor: model.appUpdate)
                     Button { searchVisible.toggle(); searchFocused = searchVisible } label: { Image(systemName: "magnifyingglass") }
-                        .foregroundStyle(.secondary).help(L10n.text("Поиск диалогов · ⌘F")).accessibilityLabel(L10n.text("Поиск диалогов"))
+                        .foregroundStyle(.secondary).help(L10n.pick("Поиск диалогов · ⇧⌘F", "Search conversations · ⇧⌘F")).accessibilityLabel(L10n.text("Поиск диалогов"))
                 }.padding(.leading, 19).padding(.trailing, 14).padding(.top, 15).padding(.bottom, 10)
                     .background {
-                        Button("") { searchVisible = true; searchFocused = true }.keyboardShortcut("f").hidden().accessibilityHidden(true)
+                        Button("") { searchVisible = true; searchFocused = true }.keyboardShortcut("f", modifiers: [.command, .shift]).hidden().accessibilityHidden(true)
                     }
                 Button { model.newSidebarConversation() } label: {
                     HStack {

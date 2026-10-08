@@ -323,6 +323,34 @@ class ClaudeTests(unittest.TestCase):
         self.assertIn('лимит', errors[1])
         self.assertNotIn('SECRET', ' '.join(errors))
 
+    def test_usage_limit_error_carries_the_announced_renewal(self):
+        import io
+        from proto_mind import native_bridge
+        from proto_mind.native_claude import ClaudeLimitReached
+        renewal = int(time.time()) + 3600
+        (self.state / 'claude-profile/limit-resets-at').write_text(json.dumps(renewal))
+        with self.assertRaises(ClaudeLimitReached) as error:
+            self.transport().answer('rate_limit', 'instructions', [], 'go', lambda _: None)
+        self.assertEqual(error.exception.resets_at, renewal)
+        self.assertIn('лимит', str(error.exception))
+
+        class Limited:
+            workspace_tools = None
+            def dispatch(self, *_): raise ClaudeLimitReached(renewal)
+            def disconnect(self): pass
+            def close(self): pass
+        destination = io.StringIO()
+        native_bridge.serve(Limited(), io.StringIO(json.dumps({'id': 'r', 'method': 'process', 'params': {}}) + '\n'), destination)
+        row = json.loads(destination.getvalue().splitlines()[0])
+        self.assertEqual(row['error'], {'message': str(error.exception), 'resets_at': renewal})
+
+        # A time outside the weekly window is not trusted: the plain limit error remains.
+        (self.state / 'claude-profile/limit-resets-at').write_text(json.dumps(renewal + 30 * 86400))
+        with self.assertRaises(RuntimeError) as error:
+            self.transport().answer('rate_limit', 'instructions', [], 'go', lambda _: None)
+        self.assertNotIsInstance(error.exception, ClaudeLimitReached)
+        self.assertIn('лимит', str(error.exception))
+
     def test_new_workers_resume_exact_saved_session_without_repeating_history(self):
         from proto_mind.native_claude_sessions import ClaudeSessionPlan
         conversation = str(uuid4())

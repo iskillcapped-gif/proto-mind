@@ -148,7 +148,10 @@ final class BridgeClient: ObservableObject {
                 if message["id"].text == turnRequestID { turnOutstanding = false; turnRequestID = nil }
                 guard let continuation = pending.removeValue(forKey: message["id"].text) else { continue }
                 if !message["error"].isNull {
-                    continuation.resume(throwing: NativeError.message(L10n.text(message["error"]["message"].text)))
+                    let text = L10n.text(message["error"]["message"].text)
+                    if case .number(let resets) = message["error"]["resets_at"], resets.isFinite, resets > 0 {
+                        continuation.resume(throwing: ClaudeLimitError(message: text, resetsAt: Date(timeIntervalSince1970: resets)))
+                    } else { continuation.resume(throwing: NativeError.message(text)) }
                 } else { continuation.resume(returning: message["result"]) }
             } catch { failAll(L10n.text("Неверный ответ локального протокола. Автоматический повтор отключён.")) }
         }

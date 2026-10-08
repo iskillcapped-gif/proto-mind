@@ -162,7 +162,7 @@ class NativeMemoryStore(MemoryStore):
 
 
 from proto_mind.native_api import APITransport, NativeAPIReasoner, validate_connection
-from proto_mind.native_claude import ClaudeTransport, NativeClaudeReasoner, usage_notice as claude_usage_notice, status as claude_status, authentication_command as claude_auth_command
+from proto_mind.native_claude import ClaudeLimitReached, ClaudeTransport, NativeClaudeReasoner, usage_notice as claude_usage_notice, status as claude_status, authentication_command as claude_auth_command
 from proto_mind.native_claude_contract import validate_effort as claude_effort
 from proto_mind.native_claude_metadata import ClaudeMetadataReader
 
@@ -1618,7 +1618,10 @@ def serve(backend: NativeBackend, source, destination) -> None:
         except Exception as exc:
             # Never copy protocol payloads, prompts, credentials, or tracebacks into the UI.
             safe = str(exc) if isinstance(exc, (ValueError, RuntimeError)) else "Native bridge operation failed. No automatic retry."
-            emit({"id": request_id, "error": {"message": safe[:600]}})
+            error = {"message": safe[:600]}
+            # A usage limit carries its renewal time, so PM can offer to continue then.
+            if isinstance(exc, ClaudeLimitReached): error["resets_at"] = exc.resets_at
+            emit({"id": request_id, "error": error})
 
     with (ThreadPoolExecutor(max_workers=1, thread_name_prefix="proto-native") as executor,
           ThreadPoolExecutor(max_workers=1, thread_name_prefix="proto-limits") as limits_executor,

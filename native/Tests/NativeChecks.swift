@@ -172,6 +172,7 @@ struct NativeChecks {
             try await browserPasskeyHint()
             try chatPolish()
             try workflowConveniences(root: root)
+            try chatFindContracts(root: root)
             try workspacePanelContracts(root: root)
             try interfaceLanguage(root: root)
             try await workspacePanelsContracts(root: root)
@@ -321,6 +322,7 @@ struct NativeChecks {
         try await browserPasskeyHint()
         try chatPolish()
         try workflowConveniences(root: root)
+        try chatFindContracts(root: root)
         try workspacePanelContracts(root: root)
         try interfaceLanguage(root: root)
         try hoverFeedback()
@@ -328,6 +330,7 @@ struct NativeChecks {
         try markdown()
 
         if let fixture = LaunchConfiguration.argument("--fixture"), let python = LaunchConfiguration.argument("--python") {
+            try await limitRenewalFromBridge(python: URL(fileURLWithPath: python), root: root)
             try await privateBackupIntegration(fixture: URL(fileURLWithPath: fixture), python: URL(fileURLWithPath: python), root: root)
             try await historyPersistence(fixture: URL(fileURLWithPath: fixture), python: URL(fileURLWithPath: python), root: root)
             try await integration(fixture: URL(fileURLWithPath: fixture), python: URL(fileURLWithPath: python), root: root)

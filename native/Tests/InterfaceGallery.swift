@@ -24,6 +24,15 @@ extension NativeChecks {
         }
         L10n.language = .russian
         try await galleryRender(WorkspaceView(model: app), size: NSSize(width: 960, height: 640), dark: false, to: file("workspace-small"))
+        // ⌘F: the find bar over the chat, the newest match current and the words highlighted.
+        app.chatFind.open(selected, app: app)
+        app.chatFind.query = "SidebarView"
+        app.chatFind.search(jump: true)
+        for dark in [true, false] {
+            try await galleryRender(WorkspaceView(model: app), size: NSSize(width: 1320, height: 860), dark: dark, to: file("chat-find-\(dark ? "dark" : "light")"))
+        }
+        app.chatFind.close()
+        app.transcriptDestination = nil
         // A Claude turn stopped by the usage limit offers to continue after the reset.
         var limited = Conversation(); limited.provider = "claude"; limited.title = "Длинная задача"
         let limitError = ChatMessage(role: "report", text: AppModel.claudeLimitPrefixes[0] + ". После обновления (время — в разделе «Лимиты») следующее сообщение продолжит эту же сессию; автоматического повтора не было.", isError: true)

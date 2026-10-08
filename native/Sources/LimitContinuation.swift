@@ -1,33 +1,50 @@
 import SwiftUI
 
+/// A usage-limit error from the bridge, with the renewal time Claude Code announced.
+struct ClaudeLimitError: LocalizedError {
+    let message: String
+    let resetsAt: Date
+    var errorDescription: String? { message }
+}
+
 /// After a Claude turn stops at the usage limit, the operator can ask PM to continue on its own once
 /// the limit renews. Nothing is scheduled without that click, and what is sent then is an ordinary
 /// request in the same chat, so the session continues with its interruption notice. A schedule
 /// lives while PM runs; after a restart the button appears again.
 @MainActor
 final class LimitContinuations: ObservableObject {
+    /// One click covers this many sends: a limit can still hold right after its announced renewal.
+    static let attempts = 3
     @Published private(set) var scheduled: [UUID: Date] = [:]
     private var tasks: [UUID: Task<Void, Never>] = [:]
 
-    func schedule(_ conversationID: UUID, at date: Date, after messageID: UUID, app: AppModel) {
+    func schedule(_ conversationID: UUID, at date: Date, after messageID: UUID, app: AppModel, attempt: Int = 1) {
         cancel(conversationID)
         scheduled[conversationID] = date
         tasks[conversationID] = Task { @MainActor [weak self, weak app] in
-            // A minute past the renewal, then confirm with the account before sending.
-            let delay = date > .now ? date.timeIntervalSinceNow + 60 : 0
-            if delay > 0 { try? await Task.sleep(for: .seconds(delay)) }
+            var date = date
+            // A minute past the renewal; the account may still show an exhausted window that renews later.
             for _ in 0..<12 {
+                if date > .now { try? await Task.sleep(for: .seconds(date.timeIntervalSinceNow + 60)) }
                 guard !Task.isCancelled, let app else { return }
                 await app.claudeAccount.refresh(app: app, minimumInterval: 0)
-                if AppModel.limitReset(app.claudeAccount.snapshot?.windows ?? []) == nil { break }
-                try? await Task.sleep(for: .seconds(300))
+                guard !Task.isCancelled, let later = AppModel.limitReset(app.claudeAccount.snapshot?.windows ?? []) else { break }
+                date = later; self?.scheduled[conversationID] = later
             }
             guard !Task.isCancelled, let self, let app else { return }
             self.scheduled.removeValue(forKey: conversationID); self.tasks.removeValue(forKey: conversationID)
             // The operator may have continued already; then there is nothing to do.
             guard app.limitInterruption(in: conversationID)?.id == messageID, !app.isRunning(conversationID) else { return }
-            do { _ = try await app.sendExternalTaskMessage(L10n.pick("Продолжай с того места, где остановился.", "Continue where you left off."), id: conversationID) }
-            catch { app.error = error.localizedDescription }
+            do {
+                _ = try await app.sendExternalTaskMessage(L10n.pick("Продолжай с того места, где остановился.", "Continue where you left off."),
+                                                          id: conversationID, finished: { [weak self, weak app] _ in
+                    // Stopped by the limit again: wait for the renewal it announced this time.
+                    guard let self, let app, attempt < Self.attempts, self.tasks[conversationID] == nil,
+                          let again = app.limitInterruption(in: conversationID), again.id != messageID else { return }
+                    self.schedule(conversationID, at: app.limitReset(after: again) ?? .now.addingTimeInterval(1800),
+                                  after: again.id, app: app, attempt: attempt + 1)
+                })
+            } catch { app.error = error.localizedDescription }
         }
     }
 
@@ -56,6 +73,13 @@ extension AppModel {
             .compactMap { $0.resetsAt.map { Date(timeIntervalSince1970: $0) } }
             .filter { $0 > now }.max()
     }
+
+    /// When the limit behind this error renews: the time Claude Code announced with it, or a
+    /// later exhausted window from the account. Nil once both have passed.
+    func limitReset(after message: ChatMessage, now: Date = .now) -> Date? {
+        [message.limitResetsAt, Self.limitReset(claudeAccount.snapshot?.windows ?? [], now: now)]
+            .compactMap { $0 }.filter { $0 > now }.max()
+    }
 }
 
 /// Under a usage-limit error: continue after the reset, or the scheduled time with a way to cancel.
@@ -64,7 +88,7 @@ struct LimitContinuationRow: View {
     @ObservedObject var continuations: LimitContinuations
     @ObservedObject var account: ClaudeAccountModel
     let conversationID: UUID
-    let messageID: UUID
+    let message: ChatMessage
 
     var body: some View {
         HStack(spacing: 10) {
@@ -73,9 +97,9 @@ struct LimitContinuationRow: View {
                     .foregroundStyle(.secondary)
                 Button(L10n.text("Отмена")) { continuations.cancel(conversationID) }
             } else {
-                let reset = AppModel.limitReset(account.snapshot?.windows ?? [])
+                let reset = app.limitReset(after: message)
                 Button {
-                    continuations.schedule(conversationID, at: reset ?? .now, after: messageID, app: app)
+                    continuations.schedule(conversationID, at: reset ?? .now, after: message.id, app: app)
                 } label: {
                     Label(reset.map { L10n.pick("Продолжить после сброса · ", "Continue after the reset · ") + Self.time($0) }
                           ?? L10n.pick("Продолжить", "Continue"), systemImage: "arrow.clockwise")

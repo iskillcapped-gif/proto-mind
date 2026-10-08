@@ -24,6 +24,7 @@ from proto_mind.native_progress import WorkLog, timestamp
 from proto_mind.native_workspace_tools import COMPUTER_TOOLS, TOOLS
 from proto_mind.native_claude_contract import turn_context_message, validate_effort
 from proto_mind.native_claude_sessions import INTERRUPTED_NOTICE, invalidate_login, text_hash
+from proto_mind.native_claude_protocol import reset_timestamp
 
 MAX_LINE = 1_048_576
 MODEL = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/\[\]-]{0,159}\Z")
@@ -289,6 +290,8 @@ class ClaudeTransport:
                     answer = event.get("text")
                     if event.get("success") is not True or not isinstance(answer, str) or not answer.strip() or len(answer) > 250_000:
                         self._abandon_unusable_session(progressed, event.get("error_code"))
+                        if event.get("error_code") == "rate_limit" and reset_timestamp(event.get("limit_resets_at")) is not None:
+                            raise ClaudeLimitReached(event["limit_resets_at"])
                         raise RuntimeError(claude_error(event.get("error_code")))
                     self.usage = event.get("usage") if usage_notice(event.get("usage")) else None
                     undelivered = event.get("undelivered_updates")
@@ -360,6 +363,14 @@ def usage_notice(usage):
             f"{size(usage['context_max'])} tokens. Every request re-reads the context: tokens read from cache "
             f"{size(usage['cache_read_input_tokens'])}, written to cache {size(usage['cache_creation_input_tokens'])}, "
             f"uncached input {size(usage['input_tokens'])}, output {size(usage['output_tokens'])}{thinking}.")
+
+
+class ClaudeLimitReached(RuntimeError):
+    """The usage limit stopped the turn; ``resets_at`` is when Claude Code said it renews."""
+
+    def __init__(self, resets_at):
+        super().__init__(claude_error("rate_limit"))
+        self.resets_at = resets_at
 
 
 def claude_error(code):

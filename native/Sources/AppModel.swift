@@ -69,6 +69,7 @@ final class AppModel: ObservableObject {
     let responseAttention: ResponseAttention
     let replyNotifications: ReplyNotifications
     let limitContinuations = LimitContinuations()
+    let chatFind = ChatFindModel()
     private var attentionObservation: AnyCancellable?
     let sidebarProjectOrder: SidebarProjectOrder
     let desktop: DesktopPresentation

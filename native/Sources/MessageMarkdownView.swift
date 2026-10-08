@@ -95,7 +95,7 @@ struct MarkdownBlock: Equatable {
                 String(tail.dropFirst(marker.count + gap)))
     }
 
-    static func inline(_ source: String, allowFileLinks: Bool = false, font: Font = NativeTheme.responseFont) -> AttributedString {
+    static func inline(_ source: String, allowFileLinks: Bool = false, font: Font = NativeTheme.responseFont, highlight: String = "") -> AttributedString {
         var result = (try? AttributedString(markdown: source, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(source)
         for run in Array(result.runs) {
             let intent = run.inlinePresentationIntent ?? []
@@ -115,7 +115,7 @@ struct MarkdownBlock: Equatable {
                 result[run.range].foregroundColor = NativeTheme.link
             }
         }
-        return result
+        return ChatFindModel.highlighted(result, highlight)
     }
 }
 
@@ -123,11 +123,15 @@ struct MessageMarkdownView: View, Equatable {
     let text: String
     let copy: (String) -> Void
     var openLink: ((URL) -> Void)? = nil
+    /// Words being found in the chat, highlighted where they occur.
+    var highlight = ""
 
     /// A message's actions stay the same while it is shown. Comparing only what is drawn
     /// lets `.equatable()` skip unchanged messages whenever anything else in the app updates;
     /// otherwise every message re-parsed its Markdown on each live update of a running task.
-    static func == (lhs: Self, rhs: Self) -> Bool { lhs.text == rhs.text && (lhs.openLink == nil) == (rhs.openLink == nil) }
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.text == rhs.text && (lhs.openLink == nil) == (rhs.openLink == nil) && lhs.highlight == rhs.highlight
+    }
 
     var body: some View {
         let blocks = MarkdownBlock.parse(text)
@@ -150,7 +154,7 @@ struct MessageMarkdownView: View, Equatable {
     }
 
     private func prose(_ text: String) -> some View {
-        let attributed = MarkdownBlock.inline(text, allowFileLinks: openLink != nil)
+        let attributed = MarkdownBlock.inline(text, allowFileLinks: openLink != nil, highlight: highlight)
         return Group {
             if #available(macOS 15, *), attributed.runs.contains(where: { $0.link != nil }) {
                 LinkAwareProse(text: attributed)
@@ -168,7 +172,7 @@ struct MessageMarkdownView: View, Equatable {
                     prose(block.content)
                 case .heading(let level):
                     let headingFont = Font.system(size: level == 1 ? 19 : level == 2 ? 17 : 15, weight: .semibold)
-                    Text(MarkdownBlock.inline(block.content, allowFileLinks: openLink != nil, font: headingFont))
+                    Text(MarkdownBlock.inline(block.content, allowFileLinks: openLink != nil, font: headingFont, highlight: highlight))
                         .font(headingFont)
                         .lineSpacing(3).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -183,7 +187,7 @@ struct MessageMarkdownView: View, Equatable {
                 case .rule:
                     Divider().padding(.vertical, 4)
                 case .table(let table):
-                    MarkdownTableView(table: table, allowFileLinks: openLink != nil)
+                    MarkdownTableView(table: table, allowFileLinks: openLink != nil, highlight: highlight)
                 case .code(let language):
                     VStack(alignment: .leading, spacing: 0) {
                         HStack {
@@ -193,7 +197,7 @@ struct MessageMarkdownView: View, Equatable {
                         }.font(.system(size: 10)).foregroundStyle(.secondary).padding(11)
                         Divider()
                         ScrollView(.horizontal) {
-                            Text(block.content).font(NativeTheme.codeFont).padding(13).textSelection(.enabled)
+                            Text(ChatFindModel.highlighted(AttributedString(block.content), highlight)).font(NativeTheme.codeFont).padding(13).textSelection(.enabled)
                         }
                     }.background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 10))
                         .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.primary.opacity(0.08)))

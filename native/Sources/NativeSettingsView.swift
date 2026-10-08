@@ -2,13 +2,14 @@ import AppKit
 import SwiftUI
 
 enum NativeSettingsSection: String, CaseIterable, Identifiable {
-    case models, voice, appearance, persona, services, data, advanced
+    case models, voice, appearance, keyboard, persona, services, data, advanced
     var id: String { rawValue }
     var title: String {
         switch self {
         case .models: return L10n.text("Модели")
         case .voice: return L10n.text("Голос")
         case .appearance: return L10n.text("Оформление")
+        case .keyboard: return L10n.pick("Клавиши", "Keyboard")
         case .persona: return L10n.text("Общение")
         case .services: return L10n.text("Подключения")
         case .data: return L10n.text("Данные и копии")
@@ -20,6 +21,7 @@ enum NativeSettingsSection: String, CaseIterable, Identifiable {
         case .models: return "slider.horizontal.3"
         case .voice: return "waveform"
         case .appearance: return "paintpalette"
+        case .keyboard: return "keyboard"
         case .persona: return "bubble.left.and.bubble.right"
         case .services: return "point.3.connected.trianglepath.dotted"
         case .data: return "externaldrive"
@@ -31,6 +33,7 @@ enum NativeSettingsSection: String, CaseIterable, Identifiable {
         case .models: return L10n.text("Выберите, с какой моделью продолжить этот диалог.")
         case .voice: return L10n.text("Диктовка сообщений и голосовой разговор.")
         case .appearance: return L10n.text("Язык, панели и прозрачность рабочего пространства.")
+        case .keyboard: return L10n.pick("Сочетания клавиш для чата, поиска и окон.", "Keyboard shortcuts for chat, find and windows.")
         case .persona: return L10n.text("Характер общения и использование памяти.")
         case .services: return L10n.text("Сервисы, которыми вы пользуетесь в работе.")
         case .data: return L10n.text("Ваши диалоги и способы их восстановить.")
@@ -151,6 +154,8 @@ struct NativeSettingsView: View {
                         }
                         DesktopAppearanceSettings(desktop: model.desktop, panels: model.workspacePanels, companions: model.desktop.companions)
                         ReplyNotificationSettings(notifications: model.replyNotifications)
+                    case .keyboard:
+                        KeyboardShortcutsSettings()
                     case .persona:
                         personaSettings
                     case .services:

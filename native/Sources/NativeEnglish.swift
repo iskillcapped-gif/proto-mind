@@ -24,7 +24,6 @@ extension L10n {
         "Можно начать и с локальной моделью Ollama — выберите её в настройках после закрытия этого окна.": "You can also use a local Ollama model. Choose it in Settings after closing this screen.",
         "Настрою позже": "Set up later",
         "Начать работу": "Get started",
-        "Поиск диалогов · ⌘F": "Search conversations · ⌘F",
         "Поиск диалогов": "Search conversations",
         "Новый диалог": "New conversation",
         "Новый чат": "New chat",

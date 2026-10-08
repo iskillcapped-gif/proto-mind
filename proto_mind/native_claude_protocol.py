@@ -2,7 +2,9 @@
 import asyncio
 from collections import deque
 import json
+import math
 import re
+import time
 from uuid import uuid4
 
 ERROR_CODES = {"authentication_failed", "billing_error", "rate_limit", "invalid_request", "server_error"}
@@ -22,6 +24,17 @@ def failure_code(error):
     """The category of an exception that ended the worker, without its text."""
     if isinstance(error, WorkspaceReplyError): return "workspace_connection"
     return "resume_point" if resume_point_missing(error) else "unknown"
+
+
+def reset_timestamp(value, now=None):
+    """A limit renewal time in Unix seconds: in the future, within a weekly window."""
+    now = time.time() if now is None else now
+    return value if type(value) in (int, float) and math.isfinite(value) and now - 60 < value < now + 8 * 86400 else None
+
+
+def limit_reset(info, now=None):
+    """When the limit Claude Code just hit renews, from its rate-limit event; None while requests are allowed."""
+    return reset_timestamp(getattr(info, "resets_at", None), now) if getattr(info, "status", None) == "rejected" else None
 
 
 def error_code(message, previous=None):

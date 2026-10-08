@@ -66,6 +66,8 @@ struct ChatMessage: Codable, Identifiable, Equatable {
     var memorySuggestionSourceID: UUID? = nil
     var turnReference: JSONValue? = nil
     var taskUpdates: [TaskUpdate]? = nil
+    /// When the usage limit that stopped this turn renews, as Claude Code announced it.
+    var limitResetsAt: Date? = nil
 
     var searchableText: String { ([text] + (taskUpdates ?? []).map(\.text)).joined(separator: "\n\n") }
 }

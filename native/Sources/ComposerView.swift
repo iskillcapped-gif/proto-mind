@@ -227,7 +227,7 @@ struct ComposerView: View {
             Button { stop() } label: {
                 Image(systemName: "stop.fill").font(.system(size: 12)).foregroundStyle(NativeTheme.canvas)
                     .frame(width: 32, height: 32).background(Color.primary, in: Circle())
-            }.buttonStyle(.nativeHover).keyboardShortcut(desktopGlass || !sourceIsMain ? nil : KeyboardShortcut.cancelAction)
+            }.buttonStyle(.nativeHover).modifier(StopShortcut(find: model.chatFind, enabled: !desktopGlass && sourceIsMain))
                 .help(L10n.text("Запросить остановку Codex. Локальные операции завершаются без прерывания; выполненные действия не откатываются."))
                 .accessibilityLabel(L10n.text("Запросить остановку"))
         } else {
@@ -296,4 +296,12 @@ struct ComposerAccessMenu: View {
                 }.padding(6)
             }
     }
+}
+
+/// Esc stops the running task from anywhere in the main window, except while the find bar is
+/// open: there Esc closes the bar.
+private struct StopShortcut: ViewModifier {
+    @ObservedObject var find: ChatFindModel
+    let enabled: Bool
+    func body(content: Content) -> some View { content.keyboardShortcut(enabled && !find.visible ? KeyboardShortcut.cancelAction : nil) }
 }

@@ -64,5 +64,39 @@ extension NativeChecks {
             app.conversations[index].messages.append(ChatMessage(role: "user", text: "Продолжай"))
         }
         try check(app.limitInterruption(in: fresh) == nil, "Once the chat moved on, the limit error no longer offers to continue")
+
+        let announced = ChatMessage(role: "report", text: AppModel.claudeLimitPrefixes[0], isError: true, limitResetsAt: now.addingTimeInterval(3600))
+        try check(app.limitReset(after: announced, now: now) == now.addingTimeInterval(3600)
+                  && app.limitReset(after: announced, now: now.addingTimeInterval(7200)) == nil,
+                  "Continuing waits for the renewal Claude Code announced with the error, and not once it has passed")
+        let stored = try JSONDecoder().decode(ChatMessage.self, from: JSONEncoder().encode(announced))
+        let older = try JSONDecoder().decode(ChatMessage.self, from: Data(#"{"id":"\#(UUID().uuidString)","role":"report","text":"x","raw":"","evidence":null,"notices":[],"createdAt":0,"isError":true}"#.utf8))
+        try check(stored.limitResetsAt == announced.limitResetsAt && older.limitResetsAt == nil,
+                  "The announced renewal is saved with the error; earlier errors load without it")
+    }
+
+    /// The bridge's usage-limit error keeps the renewal time, so the chat can offer to continue then.
+    @MainActor static func limitRenewalFromBridge(python: URL, root: URL) async throws {
+        let code = root.appendingPathComponent("limit-bridge/code"), package = code.appendingPathComponent("proto_mind")
+        try FileManager.default.createDirectory(at: package, withIntermediateDirectories: true)
+        try Data().write(to: package.appendingPathComponent("__init__.py"))
+        try Data().write(to: package.appendingPathComponent("main.py"))
+        try Data("""
+        import json, sys
+        for line in sys.stdin:
+            request = json.loads(line)
+            print(json.dumps({"id": request["id"], "error": {"message": "Claude: достигнут лимит.", "resets_at": 2000000000}}), flush=True)
+        """.utf8).write(to: package.appendingPathComponent("native_bridge.py"))
+        let bridge = BridgeClient(configuration: LaunchConfiguration(projectRoot: root.appendingPathComponent("limit-bridge/core"), python: python,
+                                                                    stateDirectory: root.appendingPathComponent("limit-bridge/state"), sourceRoot: code))
+        defer { bridge.shutdown() }
+        do {
+            _ = try await bridge.request("process")
+            try check(false, "A usage-limit reply must fail the request")
+        } catch let error as ClaudeLimitError {
+            try check(error.resetsAt == Date(timeIntervalSince1970: 2_000_000_000)
+                      && AppModel.claudeLimitPrefixes.contains(where: error.localizedDescription.hasPrefix),
+                      "A usage-limit error from the bridge keeps its text and the announced renewal")
+        }
     }
 }
