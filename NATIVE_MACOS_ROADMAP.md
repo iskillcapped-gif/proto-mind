@@ -4,6 +4,47 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Find in Chat, Keyboard Shortcuts and Continuing on Time — Native 0.75.9
+
+The operator asked for the two ideas left for later: finding words in the open
+chat and one page with every shortcut. The night before, the first continuation
+after a five-hour limit had been sent too early, so that is fixed too.
+
+- **Find in chat** (`ChatFindModel`, `ChatFindBar`). ⌘F (Edit → Find in Chat…)
+  opens a bar over the open chat. Messages containing the query, regardless of
+  case and diacritics («еще» finds «ещё»), are found newest first: the bar shows
+  «1 of 12», the transcript scrolls to the match and marks it, and the words are
+  highlighted in every matching message, in Markdown, code and tables alike.
+  Return, ↑ or ⌘G go to an earlier match; ⇧Return, ↓ or ⇧⌘G to a later one. Esc
+  or Done closes the bar and keeps the query for the next ⌘F; Esc in the bar no
+  longer reaches the running task's Stop. Only matching messages redraw with the
+  highlight, so the rest of a long chat stays skipped. A message reached through
+  find, search or a notification is marked with a little room around its text.
+  Searching conversations in the sidebar moved from ⌘F to ⇧⌘F.
+- **Keyboard** (Settings → Keyboard, `KeyboardShortcutsSettings`): every PM
+  shortcut in one place, grouped as Chat, Find, Windows and panels, and
+  Settings and viewing.
+- **Continuing on time.** On 2026-10-08 Claude Code reported «resets 5:40am» for
+  the session limit, yet PM sent «Continue» at 05:20 and met the limit again
+  four seconds later: the error carried no time, and PM had only the account's
+  usage windows to go by. Claude Code's stream announces a rejected limit with
+  its renewal (`RateLimitEvent`, status `rejected`). The worker now keeps that
+  time, the bridge returns it with the limit error, and the error message stores
+  it (`ChatMessage.limitResetsAt`). The button reads **Continue after the reset ·
+  05:40** from it, or from a later exhausted window the account reports, and the
+  continuation waits until a minute past it. If the continuation meets the limit
+  again, PM waits for the newly announced renewal, at most three sends for one
+  click (30 minutes when no time is known). A time more than eight days ahead
+  is not trusted.
+
+Verification on 2026-10-08: **2144 Native checks** and all Python tests
+passed. New checks cover find order, wrapping, diacritics, new messages joining
+the matches, highlighting in plain text and Markdown, keeping the query, the
+Keyboard page, the renewal time from the stream through the worker and the
+bridge (an implausible time is dropped), the error keeping it across saving,
+and older errors loading without it. The gallery shows the find bar with
+highlighted matches and the Keyboard page in both languages.
+
 ## Notifications, Continuing After a Limit and Unused Chats — Native 0.75.8
 
 The operator asked me to choose the next improvements. These three follow how

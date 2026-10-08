@@ -1,6 +1,6 @@
 # Claude in Proto-Mind
 
-Current integration: **0.75.8 (138)**. This integration runs Anthropic's
+Current integration: **0.75.9 (139)**. This integration runs Anthropic's
 official **Claude Agent SDK 0.2.159 / Claude Code 2.1.281**. PM is an independent
 application, not an Anthropic product. No account is included.
 
@@ -103,6 +103,15 @@ the full page also shows used percentage and reset times. Only returned periods
 are shown, with a visible unavailable/stale state after a failure. Missing
 percentages never mean zero use or 100% remaining. Claude's `get_usage` control
 response uses percentages, unlike the fractional stream RateLimitEvent.
+
+When a turn stops at the usage limit, the stream's `RateLimitEvent` with status
+`rejected` names the renewal time. The worker keeps it (up to eight days ahead),
+the bridge returns it with the limit error, and the chat's error keeps it.
+The operator's **Continue after the reset** waits until a minute past that time,
+or past a later exhausted window the account reports (0.75.9). This is the one
+continuation PM sends without a new message, and only after that click; if it
+meets the limit again, PM waits for the next announced renewal, at most three
+sends per click.
 
 A short-lived metadata worker runs the unmodified CLI without a model query or
 tools. It reads initialization data and the pinned CLI's `get_usage` control

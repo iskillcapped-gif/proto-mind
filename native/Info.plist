@@ -10,8 +10,8 @@
   <key>CFBundleDisplayName</key><string>Proto-Mind Native</string>
   <key>CFBundleExecutable</key><string>ProtoMindNative</string>
   <key>CFBundleIdentifier</key><string>local.proto-mind.native</string>
-  <key>CFBundleVersion</key><string>138</string>
-  <key>CFBundleShortVersionString</key><string>0.75.8</string>
+  <key>CFBundleVersion</key><string>139</string>
+  <key>CFBundleShortVersionString</key><string>0.75.9</string>
   <key>CFBundleDevelopmentRegion</key><string>en</string>
   <key>CFBundleLocalizations</key><array><string>en</string><string>ru</string></array>
   <key>CFBundlePackageType</key><string>APPL</string>
