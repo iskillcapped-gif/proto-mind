@@ -22,6 +22,8 @@ The current native workspace is **Native 0.75.9 / PM Remote Preview**, built wit
 
 **Claude continuity (0.74.2):** a resumed Claude session receives current memory and Observer labels on every turn, and an interrupted session continues on the next message. A failed or stopped request stays visible to every model, marked incomplete. Long pastes no longer become automatic memories, and isolated worktree tasks share their project's memory. [Release details](NATIVE_MACOS_ROADMAP.md#claude-continuity-and-memory-bounds--native-0742).
 
+**Runtime refresh (2026-10-12):** Claude chats run on Claude Code 2.1.294 (Agent SDK 0.2.165) and Codex chats on Codex CLI 0.162.1, both checked with PM's adapters; the previous versions are kept for rollback. [Details](NATIVE_MACOS_ROADMAP.md#runtime-refresh-claude-code-21294-and-codex-cli-01621-2026-10-12).
+
 **Find in chat and shortcuts (0.75.9):** ⌘F finds words in the open chat and highlights them; Settings → Keyboard lists every shortcut; continuing after a limit waits for the renewal Claude Code announced. [Release details](NATIVE_MACOS_ROADMAP.md#find-in-chat-keyboard-shortcuts-and-continuing-on-time--native-0759).
 
 **Notifications and continuing (0.75.8):** macOS tells you when a reply is ready while PM is out of sight; after a usage limit, one click lets PM continue on its own once the limit renews; unused new chats no longer pile up in the sidebar. [Release details](NATIVE_MACOS_ROADMAP.md#notifications-continuing-after-a-limit-and-unused-chats--native-0758).

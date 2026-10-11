@@ -19,8 +19,8 @@ are recorded in `distribution-manifest.json` next to this directory.
 
 ## Document libraries (0.72.0)
 
-Claude integration (0.73.0) includes the official Claude Agent SDK 0.2.159 and
-unmodified Claude Code 2.1.281. Their wheel metadata and license files remain
+Claude integration (0.73.0) includes the official Claude Agent SDK 0.2.165 and
+unmodified Claude Code 2.1.294. Their wheel metadata and license files remain
 under `../core/claude_packages/`; `claude-requirements.txt` records all dependency
 versions and accepted hashes. The Claude Code executable retains Anthropic's
 signature. Claude Code is subject to Anthropic's terms:

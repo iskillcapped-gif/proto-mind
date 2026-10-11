@@ -4,6 +4,40 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Runtime Refresh: Claude Code 2.1.294 and Codex CLI 0.162.1 (2026-10-12)
+
+The operator asked to update the CLIs that PM's Claude and Codex chats run on.
+PM's code did not change; Native stays 0.75.9 (139).
+
+- **Claude.** `requirements-claude.txt` now pins the official Claude Agent SDK
+  **0.2.165** (macOS arm64 wheel, hash-checked), which bundles Claude Code
+  **2.1.294** instead of 0.2.159 / 2.1.281. The SDK changes since 0.2.159 are
+  bundled-CLI updates and a fix for follow-up turns after background subagents;
+  its dependencies are unchanged. The runtime was first built beside the
+  current one and checked with PM's own code: the metadata reader saw the
+  connected account, its model catalog and both limit windows; one tiny real
+  turn (Haiku, no saved session) went through PM's worker, called PM's
+  `pm_list_tasks` through the SDK MCP server (answered by a stub) and replied
+  «OK», with usage counted. Only then did it replace `dist/claude-runtime-3.11`;
+  the previous runtime stays in `dist/claude-runtime-3.11-sdk-0.2.159.previous`.
+  Claude Code 2.1.292 negotiates a newer MCP protocol with local servers; the
+  real turn shows PM's in-process server still works.
+- **Codex.** The global npm `@openai/codex` (`/opt/homebrew/bin/codex`) is now
+  **0.162.1** instead of 0.153.4. Release notes since 0.153.4 remove no
+  app-server method PM uses (`thread/rollback`, removed in 0.156.0, is not
+  used). Before and after the global install, PM's adapter in a disposable
+  profile started the app-server with `--strict-config` and every PM setting,
+  and confirmed the read-only chat policy and the Full Mac policy with PM's 26
+  dynamic tools. No account was read and no model turn was sent with Codex;
+  PM's own Model menu and limits confirm the account after PM's restart. The
+  previous package is kept in
+  `backups/codex_cli_0.153.4_before_upgrade_2026-10-12.tar.gz` (package only,
+  no profile). The portable build still pins Codex 0.153.4 in
+  `runtime-lock.json`; update it with a full portable packaging check.
+
+Rollback is explicit: move the previous Claude runtime back, or reinstall
+Codex 0.153.4, then restart PM.
+
 ## Find in Chat, Keyboard Shortcuts and Continuing on Time — Native 0.75.9
 
 The operator asked for the two ideas left for later: finding words in the open
