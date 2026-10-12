@@ -14,13 +14,15 @@ For current development guidance, see [`AGENTS.md`](AGENTS.md). The [current pri
 
 ## Native macOS Direction
 
-The current native workspace is **Native 0.75.9 / PM Remote Preview**, built with SwiftUI/AppKit over the existing Python cognitive core. Models can work with PM projects, conversations, browser pages, documents and explicitly connected services. This development line is separate from the earlier submitted Build Week baseline and published download.
+The current native workspace is **Native 0.75.10 / PM Remote Preview**, built with SwiftUI/AppKit over the existing Python cognitive core. Models can work with PM projects, conversations, browser pages, documents and explicitly connected services. This development line is separate from the earlier submitted Build Week baseline and published download.
 
 **PM Remote for iPhone (development):** a native iOS client and optional Mac connection for selected projects/chats, reading replies, sending tasks and live updates, exact-turn Stop and new chats. It uses private HTTPS with local pairing approval, preserves Mac drafts and never automatically retries an uncertain command. [Build, setup and verification boundaries](ios/README.md). iOS installation is a separate step from building the Mac app.
 
 **Claude Code:** sign in through **Settings → Connections → Claude**, then select Claude in any chat. The official SDK/CLI supports the user's own Claude Code subscription or explicit API login. Claude shares PM's editor, memory and journal; tools require the conversation's Mac access. Each conversation resumes its exact saved Claude session, including tool history. New sessions bootstrap from up to 300,000 characters of local conversation with explicit omissions; the former 12 × 2,000 limit no longer applies to Claude. While Claude works, a message typed in the chat reaches it as an update, as with Codex. [Setup and current limits](CLAUDE_CONNECTION.md).
 
 **Claude continuity (0.74.2):** a resumed Claude session receives current memory and Observer labels on every turn, and an interrupted session continues on the next message. A failed or stopped request stays visible to every model, marked incomplete. Long pastes no longer become automatic memories, and isolated worktree tasks share their project's memory. [Release details](NATIVE_MACOS_ROADMAP.md#claude-continuity-and-memory-bounds--native-0742).
+
+**Codex replies with automatic skills (0.75.10):** Codex chats no longer lose their reply to «The automatic skill-selection report failed validation». [Release details](NATIVE_MACOS_ROADMAP.md#codex-replies-with-automatic-skills--native-07510).
 
 **Runtime refresh (2026-10-12):** Claude chats run on Claude Code 2.1.294 (Agent SDK 0.2.165) and Codex chats on Codex CLI 0.162.1, both checked with PM's adapters; the previous versions are kept for rollback. [Details](NATIVE_MACOS_ROADMAP.md#runtime-refresh-claude-code-21294-and-codex-cli-01621-2026-10-12).
 

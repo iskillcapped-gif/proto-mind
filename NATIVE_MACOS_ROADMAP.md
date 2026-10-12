@@ -4,6 +4,30 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Codex Replies with Automatic Skills — Native 0.75.10
+
+After the runtime refresh the operator sent a short test in a Codex chat (6 Astra,
+Full Mac) and got «The automatic skill-selection report failed validation»
+instead of the reply. The Codex update was not the cause. Since 2026-09-25
+(`a7081db`) Native asks the core for the local keyword match of procedures
+(`local_skill_selection`) on every Codex turn with automatic skills, which every
+new chat has. The core then reports `local_selected` or `local_no_match`, but
+the turn's final check still accepted only the states of the separate model
+selector, so Native discarded the finished reply as invalid. Codex chats were
+used little after that date, and the Codex integration checks ran with automatic
+skills off, so nothing caught it.
+
+- The final check accepts `local_selected` and `local_no_match` as completed
+  selections; every other report rule is unchanged.
+- A new check (`autoSkillsCodexTurn`, also `native-checks
+  --auto-skills-turn-only`) runs a Codex turn on the fixture service with
+  automatic skills on and verified skill sources, as in the operator's profile.
+  With the old rule it reproduces the operator's error exactly; with the fix the
+  reply is kept with its `local_selected` report.
+
+Verification on 2026-10-12: **2146 Native checks** passed. Python was not
+changed.
+
 ## Runtime Refresh: Claude Code 2.1.294 and Codex CLI 0.162.1 (2026-10-12)
 
 The operator asked to update the CLIs that PM's Claude and Codex chats run on.
