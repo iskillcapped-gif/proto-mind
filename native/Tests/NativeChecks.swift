@@ -54,6 +54,13 @@ struct NativeChecks {
             print("Native workspace tools checks: \(passed) OK")
             return
         }
+        if CommandLine.arguments.contains("--auto-skills-turn-only"), let fixture = LaunchConfiguration.argument("--fixture"),
+           let python = LaunchConfiguration.argument("--python"), let service = LaunchConfiguration.argument("--steering-service") {
+            try await autoSkillsCodexTurn(fixture: URL(fileURLWithPath: fixture), service: URL(fileURLWithPath: service),
+                                          python: URL(fileURLWithPath: python), root: root)
+            print("Native auto-skills turn checks: \(passed) OK")
+            return
+        }
         if CommandLine.arguments.contains("--portable-only") {
             print("Native portable checks: \(passed) OK")
             return
@@ -337,6 +344,8 @@ struct NativeChecks {
             if let service = LaunchConfiguration.argument("--steering-service") {
                 try await taskUpdatesIntegration(fixture: URL(fileURLWithPath: fixture), service: URL(fileURLWithPath: service),
                                                  python: URL(fileURLWithPath: python), root: root)
+                try await autoSkillsCodexTurn(fixture: URL(fileURLWithPath: fixture), service: URL(fileURLWithPath: service),
+                                              python: URL(fileURLWithPath: python), root: root)
                 try await multipleCodexAccounts(fixture: URL(fileURLWithPath: fixture), service: URL(fileURLWithPath: service),
                                                python: URL(fileURLWithPath: python), root: root)
                 try await parallelTasks(fixture: URL(fileURLWithPath: fixture), service: URL(fileURLWithPath: service),

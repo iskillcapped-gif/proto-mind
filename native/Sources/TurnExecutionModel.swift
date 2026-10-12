@@ -208,7 +208,9 @@ extension AppModel {
             guard result["knowledge_context"]["skill_task"] == (skillTask?.reference ?? .null) else { throw skillTaskError() }
             if automaticSkills {
                 let report = try NativeAutoSkillsReport(result["auto_skills"], run: result["work_session"])
-                guard ["selected", "no_match", "empty", "unavailable"].contains(report.state),
+                // Native asks the core for the local keyword match (`local_skill_selection`), so its
+                // local states are a completed selection too.
+                guard ["selected", "no_match", "local_selected", "local_no_match", "empty", "unavailable"].contains(report.state),
                       report.matches(conversation: conversationID, text: text, workspace: conversation.workspacePath,
                                      mode: grant == nil ? "chat" : "full_access") else { throw NativeAutoSkillsReport.error() }
                 state.autoSkillsReport = report

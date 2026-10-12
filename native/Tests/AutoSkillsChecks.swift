@@ -95,4 +95,41 @@ extension NativeChecks {
         try check(try Data(contentsOf: skillsURL) == skillsBefore,
                   "Automatic controls and ordinary Mock Send never modify procedural skills")
     }
+
+    /// A Codex turn with automatic skills on, as every new chat has them. Native asks the core for the
+    /// local keyword match; the answer must be kept with that report, not discarded as invalid.
+    @MainActor static func autoSkillsCodexTurn(fixture: URL, service: URL, python: URL, root: URL) async throws {
+        let project = root.appendingPathComponent("auto-skills-turn-project")
+        let state = root.appendingPathComponent("auto-skills-turn-state")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try FileManager.default.copyItem(at: fixture, to: project)
+        try FileManager.default.copyItem(at: service, to: project.appendingPathComponent("proto_mind/steering_fixture.py"))
+        let bridge = project.appendingPathComponent("proto_mind/native_bridge.py")
+        var code = try String(contentsOf: bridge, encoding: .utf8)
+        code = code.replacingOccurrences(of: "class NativeBackend:", with: "from proto_mind.steering_fixture import FixtureSubscription\n\nclass NativeBackend:")
+            .replacingOccurrences(of: "subscription_factory=CodexSubscription", with: "subscription_factory=FixtureSubscription")
+        try code.write(to: bridge, atomically: true, encoding: .utf8)
+        let app = AppModel(configuration: LaunchConfiguration(projectRoot: project, python: python, stateDirectory: state))
+        defer { app.shutdown() }
+        await app.start()
+        app.setProvider("codex"); app.cloudConsent = true
+        try check(app.selected?.autoSkillsEnabled == true, "A new Codex chat has automatic skills on")
+        // Verified skill sources, as in the operator's profile: the core's stores and Context Injection explicitly off.
+        // Then the catalog holds the bundled procedures and the core runs the local match. Earlier checks may
+        // have left other stores in the shared fixture, so this copy gets its own.
+        let data = project.appendingPathComponent("proto_mind/data")
+        try FileManager.default.createDirectory(at: data, withIntermediateDirectories: true)
+        for (name, content) in [("context_injection.json", "{\"enabled\":false}\n"), ("skills.jsonl", ""), ("persistent_memory.json", "[]\n")] {
+            try Data(content.utf8).write(to: data.appendingPathComponent(name))
+        }
+        // The fixture's turn ends at once with this marker.
+        try FileManager.default.createDirectory(at: state, withIntermediateDirectories: true)
+        try Data().write(to: state.appendingPathComponent("finish-steering"))
+        await app.submit("Почини ошибку в сборке")
+        let last = app.messages.last
+        let seen = "\(last?.role ?? "-") · error \(last?.isError ?? false) · \(last?.autoSkills?["state"].text ?? "no report") · \(String((last?.text ?? "").prefix(160)))"
+        try check(last?.role == "assistant" && last?.isError == false
+                  && last?.autoSkills?["state"].text == "local_selected",
+                  "A Codex turn with automatic skills keeps its answer and the local match report (\(seen))")
+    }
 }
