@@ -14,7 +14,7 @@ For current development guidance, see [`AGENTS.md`](AGENTS.md). The [current pri
 
 ## Native macOS Direction
 
-The current native workspace is **Native 0.75.10 / PM Remote Preview**, built with SwiftUI/AppKit over the existing Python cognitive core. Models can work with PM projects, conversations, browser pages, documents and explicitly connected services. This development line is separate from the earlier submitted Build Week baseline and published download.
+The current native workspace is **Native 0.75.11 / PM Remote Preview**, built with SwiftUI/AppKit over the existing Python cognitive core. Models can work with PM projects, conversations, browser pages, documents and explicitly connected services. This development line is separate from the earlier submitted Build Week baseline. The portable beta packages the same application source.
 
 **PM Remote for iPhone (development):** a native iOS client and optional Mac connection for selected projects/chats, reading replies, sending tasks and live updates, exact-turn Stop and new chats. It uses private HTTPS with local pairing approval, preserves Mac drafts and never automatically retries an uncertain command. [Build, setup and verification boundaries](ios/README.md). iOS installation is a separate step from building the Mac app.
 
@@ -24,7 +24,7 @@ The current native workspace is **Native 0.75.10 / PM Remote Preview**, built wi
 
 **Codex replies with automatic skills (0.75.10):** Codex chats no longer lose their reply to «The automatic skill-selection report failed validation». [Release details](NATIVE_MACOS_ROADMAP.md#codex-replies-with-automatic-skills--native-07510).
 
-**Runtime refresh (2026-10-12):** Claude chats run on Claude Code 2.1.294 (Agent SDK 0.2.165) and Codex chats on Codex CLI 0.162.1, both checked with PM's adapters; the previous versions are kept for rollback. [Details](NATIVE_MACOS_ROADMAP.md#runtime-refresh-claude-code-21294-and-codex-cli-01621-2026-10-12).
+**Portable runtime refresh (0.75.11):** the installer pins Codex CLI 0.169.0, Claude Code 2.1.294 (Agent SDK 0.2.165) and Python 3.12.14. It also includes the notification, find-in-chat and automatic-skill fixes developed since the previous public beta. [Details](NATIVE_MACOS_ROADMAP.md#portable-runtime-refresh--native-07511).
 
 **Find in chat and shortcuts (0.75.9):** ⌘F finds words in the open chat and highlights them; Settings → Keyboard lists every shortcut; continuing after a limit waits for the renewal Claude Code announced. [Release details](NATIVE_MACOS_ROADMAP.md#find-in-chat-keyboard-shortcuts-and-continuing-on-time--native-0759).
 

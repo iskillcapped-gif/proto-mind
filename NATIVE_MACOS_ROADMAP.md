@@ -4,6 +4,28 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Portable Runtime Refresh — Native 0.75.11
+
+The public beta now packages the local improvements from 0.75.8–0.75.10:
+reply notifications, optional continuation after Claude's announced limit reset,
+find in chat, the Keyboard settings page, and the Codex automatic-skill reply
+fix. The release pins Codex CLI **0.169.0**, Claude Code **2.1.294** (Agent SDK
+**0.2.165**) and Python **3.12.14**. The global developer Codex CLI was also
+updated from 0.162.1 to 0.169.0 on 2026-11-16.
+
+Codex's official full Apple Silicon archive is hash-pinned and includes its
+execution server, code-mode host and voice resources. Upstream voice dependency
+notices and source manifests are retained; the obsolete patched-zsh notice is
+removed because the new package no longer contains zsh. PM's existing voice
+connection and access settings are unchanged. This is a separately built
+portable app; operator accounts, dialogs and memory are not packaged.
+
+Source verification on 2026-11-16: **2446 Python tests** plus compile checks
+and **2146 Native checks** passed. Optional pytest was unavailable and skipped.
+Package-specific checks and the published DMG checksum are recorded in the
+GitHub release notes after packaging; Apple notarization and validation on a
+second physical Mac remain pending.
+
 ## Codex Replies with Automatic Skills — Native 0.75.10
 
 After the runtime refresh the operator sent a short test in a Codex chat (6 Astra,

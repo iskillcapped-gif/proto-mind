@@ -10,12 +10,17 @@ are recorded in `distribution-manifest.json` next to this directory.
 - CPython 3.12.14, assembled by Astral's python-build-standalone (20260901).
   Python and its native dependency licenses are preserved here as `Python-LICENSE*`.
   Python's own `LICENSE.txt` and pip's vendor licenses also remain in the runtime.
-- OpenAI Codex 0.153.4, official Apple Silicon package. Apache 2.0 license and
+- OpenAI Codex 0.169.0, official Apple Silicon package. Apache 2.0 license and
   upstream NOTICE are included as `Codex-LICENSE.txt` and `Codex-NOTICE.txt`.
-  The package includes its code-mode host, ripgrep and zsh runtime resources.
-  The upstream zsh license, ripgrep 15.2.0 notices and PCRE2 10.45 license are
-  included separately. zsh is OpenAI's patched build of commit
-  `77045ef899e53b9598bebc5a41db93a548a40ca6`; Proto-Mind adds no further patch.
+  The package includes its code-mode host, execution server, ripgrep and native
+  voice resources. Ripgrep 15.2.0 notices and its PCRE2 10.45 license are included
+  separately. The voice runtime's original notices, dependency licenses, source
+  URLs and hashes remain under `../runtime/codex/codex-resources/voice/`
+  (`NOTICE.md`, `licenses/`, `sources.json` and `manifest.json`). These include
+  dynamically linked GStreamer/GLib under LGPL 2.1 and their native dependencies;
+  the upstream manifest describes the original bytes before app signing.
+  Codex no longer bundles a patched zsh. PM's existing voice integration is
+  independent of these Codex resources.
 
 ## Document libraries (0.72.0)
 

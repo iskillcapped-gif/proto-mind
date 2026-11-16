@@ -214,7 +214,7 @@ def package(root: Path, binaries: Path, output: Path, cache: Path, identity: str
         shutil.copy2(root / "native/Distribution/SwiftTerm-LICENSE.txt", licenses / "SwiftTerm-LICENSE.txt")
         shutil.copy2(archives["codex_license"], licenses / "Codex-LICENSE.txt")
         shutil.copy2(archives["codex_notice"], licenses / "Codex-NOTICE.txt")
-        for name in ("zsh_license", "ripgrep_license", "ripgrep_mit", "ripgrep_unlicense", "pcre2_license"):
+        for name in ("ripgrep_license", "ripgrep_mit", "ripgrep_unlicense", "pcre2_license"):
             shutil.copy2(archives[name], licenses / (name + ".txt"))
         # The stripped Python runtime omits dependency notices. Preserve these from
         # the matching full distribution, without shipping its build tree.

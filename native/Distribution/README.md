@@ -10,7 +10,7 @@ developer data paths and running developer app remain independent.
 On an Apple Silicon development Mac with Command Line Tools and Python 3.11+:
 
 ```sh
-bash scripts/build_portable_app.sh --output dist/portable-0.75.7
+bash scripts/build_portable_app.sh --output dist/portable-0.75.11
 ```
 
 Choose a new output directory each time; the builder refuses to overwrite a
@@ -61,7 +61,7 @@ bash scripts/test_native.sh --portable-only
 python3 -m unittest proto_mind.tests.test_native_portable
 bash scripts/run_tests.sh
 bash scripts/test_native.sh
-python3 scripts/verify_portable_app.py 'dist/portable-0.75.7/Proto-Mind.app' --account-probe
+python3 scripts/verify_portable_app.py 'dist/portable-0.75.11/Proto-Mind.app' --account-probe
 ```
 
 Also move a packaged app to a path containing spaces and exercise first launch,
@@ -97,4 +97,4 @@ this repository.
 References: [Apple Developer ID](https://developer.apple.com/developer-id/),
 [notarization workflow](https://developer.apple.com/documentation/security/customizing-the-notarization-workflow),
 [Python standalone distributions](https://github.com/astral-sh/python-build-standalone),
-[Codex release](https://github.com/openai/codex/releases/tag/rust-v0.153.4).
+[Codex release](https://github.com/openai/codex/releases/tag/rust-v0.169.0).
