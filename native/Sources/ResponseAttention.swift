@@ -46,6 +46,35 @@ final class ResponseAttention: ObservableObject {
 }
 
 extension AppModel {
+    struct PendingTaskQuestion: Identifiable {
+        let conversationID: UUID
+        let title: String
+        let question: WorkspaceAgentQuestion
+        var id: UUID { question.id }
+    }
+
+    var pendingTaskQuestions: [PendingTaskQuestion] {
+        let running = executions.values.filter { $0.running && !$0.workspaceQuestions.isEmpty }
+        guard !running.isEmpty else { return [] }
+        return running.compactMap { state -> (Conversation, ConversationExecution)? in
+            guard let chat = conversations.first(where: { $0.id == state.conversationID && !$0.archived }) else { return nil }
+            return (chat, state)
+        }.sorted { $0.0.updatedAt > $1.0.updatedAt }.flatMap { chat, state in
+            state.workspaceQuestions.filter { $0.requestID == state.requestID && $0.answer == nil }
+                .map { PendingTaskQuestion(conversationID: chat.id, title: chat.displayTitle, question: $0) }
+        }
+    }
+
+    func openPendingQuestion(_ item: PendingTaskQuestion) {
+        guard canNavigateConversations, pendingTaskQuestions.contains(where: { $0.id == item.id && $0.conversationID == item.conversationID }),
+              presentations.dismissAll() else { return }
+        conversationRouting.activate(nil)
+        returnToConversation(item.conversationID)
+        workspacePanels.upper.expanded = false; workspacePanels.lower.expanded = false
+        presentations.reveal()
+        questionDestination = item.id
+    }
+
     var unreadConversations: [Conversation] {
         listedConversations.filter { responseAttention.entry(for: $0) != nil }
             .sorted { $0.updatedAt > $1.updatedAt }
@@ -66,6 +95,36 @@ struct ResponseAttentionMark: View {
             else { Circle().fill(.teal).frame(width: 7, height: 7) }
         }.font(.system(size: 11)).frame(width: 14, height: 16)
             .help(entry.label).accessibilityLabel(entry.label)
+    }
+}
+
+struct CoreQuestionBadge: View {
+    @ObservedObject var app: AppModel
+    var body: some View {
+        let questions = app.pendingTaskQuestions
+        if let first = questions.first {
+            Group {
+                if questions.count == 1 {
+                    Button { app.openPendingQuestion(first) } label: { mark }.buttonStyle(.plain)
+                        .accessibilityHint(first.question.text)
+                } else {
+                    Menu {
+                        ForEach(questions) { item in
+                            Button(item.title + " · " + item.question.text) { app.openPendingQuestion(item) }
+                        }
+                    } label: { mark }
+                    .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+                }
+            }.disabled(!app.canNavigateConversations)
+                .accessibilityLabel(L10n.pick("Вопросы от задач", "Questions from tasks"))
+                .accessibilityValue(String(questions.count))
+                .help(questions.count == 1 ? first.question.text : L10n.pick("Задачи ждут ответа", "Tasks are waiting for a reply"))
+        }
+    }
+    private var mark: some View {
+        Image(systemName: "questionmark.circle.fill").font(.system(size: 20, weight: .semibold))
+            .symbolRenderingMode(.palette).foregroundStyle(.white, Color.indigo)
+            .frame(width: 28, height: 28).contentShape(Rectangle())
     }
 }
 

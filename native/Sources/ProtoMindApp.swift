@@ -46,6 +46,9 @@ struct ProtoMindApp: App {
         .windowStyle(.hiddenTitleBar)
         .windowToolbarStyle(.unifiedCompact)
         .commands {
+            CommandGroup(after: .appInfo) {
+                Button(L10n.pick("Проверить обновления…", "Check for Updates…")) { model.openAppUpdates() }
+            }
             CommandGroup(replacing: .appSettings) {
                 Button(L10n.text("Настройки…")) { model.openSettings() }.keyboardShortcut(",")
             }
@@ -55,7 +58,7 @@ struct ProtoMindApp: App {
             }
             CommandGroup(after: .pasteboard) {
                 Divider()
-                ChatFindCommands(app: model, find: model.chatFind)
+                ChatFindCommands(app: model, routing: model.conversationRouting)
             }
             CommandMenu("Proto-Mind") {
                 DesktopWindowCommands(desktop: model.desktop)

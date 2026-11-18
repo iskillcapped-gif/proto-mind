@@ -65,34 +65,6 @@ extension AppModel {
         }
     }
 
-    func openPanelFile(_ url: URL, conversationID: UUID, panel: WorkspacePanelModel) {
-        guard let conversation = conversations.first(where: { $0.id == conversationID }), let root = conversation.workspacePath,
-              url.isFileURL || url.scheme == nil else { panel.error = L10n.text("Для файла нужна папка исходного диалога."); return }
-        Task {
-            do {
-                let local = url.isFileURL || url.path.hasPrefix("/") ? URL(fileURLWithPath: url.path) : URL(fileURLWithPath: root).appendingPathComponent(url.path)
-                let path = try NativeAttachmentDrop.relativePath(local, workspace: root)
-                // Reading an artifact must not queue behind the task that created it.
-                let kind = local.pathExtension.lowercased()
-                if kind == "pdf" {
-                    let value = try await serviceClient.request("pdf_preview", ["path": .string(local.path), "pages": .array([.number(1)])])
-                    guard conversations.contains(where: { $0.id == conversationID && $0.workspacePath == root }) else { return }
-                    panel.open(.pdf(try NativePDFPreview(value, conversationID: conversationID, workspace: root, canAttach: false)))
-                    return
-                }
-                if ["docx", "xlsx", "pptx"].contains(kind) {
-                    let value = try await serviceClient.request("document_read", ["workspace_root": .string(root), "path": .string(path)])
-                    guard conversations.contains(where: { $0.id == conversationID && $0.workspacePath == root }) else { return }
-                    panel.open(.document(WorkspaceDocumentPreview(conversationID: conversationID, url: local, sha256: value["sha256"].text)))
-                    return
-                }
-                let file = try await serviceClient.request("workspace_read", ["workspace_root": .string(root), "path": .string(path)])
-                guard conversations.contains(where: { $0.id == conversationID && $0.workspacePath == root }) else { return }
-                guard file["read_only"].flag, file["path"].text == path else { throw NativeError.message(L10n.text("Ответ относится к другому файлу.")) }
-                panel.open(.text(WorkspaceTextPreview(conversationID: conversationID, root: root, value: file)))
-            } catch { panel.error = error.localizedDescription }
-        }
-    }
 }
 
 extension AppModel {

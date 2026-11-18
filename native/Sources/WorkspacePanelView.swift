@@ -116,7 +116,6 @@ struct WorkspacePanelView: View {
         model.conversationRouting.activate(panel)
         if let controls { controls.activate() } else { model.workspacePanels.active = position }
     }
-    private var directory: URL { model.selected?.workspacePath.map { URL(fileURLWithPath: $0) } ?? FileManager.default.homeDirectoryForCurrentUser }
 
     private var welcome: some View {
         ViewThatFits {
@@ -126,14 +125,14 @@ struct WorkspacePanelView: View {
                 HStack(spacing: 8) {
                     launcher(L10n.text("Диалог PM"), icon: "bubble.left.and.bubble.right") { model.newPanelConversation(in: panel) }
                     launcher(L10n.text("Браузер"), icon: "globe") { panel.openBrowser() }
-                    launcher(L10n.text("Терминал"), icon: "terminal") { panel.openTerminal(directory: directory) }
+                    launcher(L10n.text("Терминал"), icon: "terminal") { panel.openTerminal(in: model) }
                 }.padding(.top, 5)
             }.padding(24)
             VStack(spacing: 10) {
                 launcher(L10n.text("Диалог PM"), icon: "bubble.left.and.bubble.right") { model.newPanelConversation(in: panel) }
                 HStack {
                     launcher(L10n.text("Браузер"), icon: "globe") { panel.openBrowser() }
-                    launcher(L10n.text("Терминал"), icon: "terminal") { panel.openTerminal(directory: directory) }
+                    launcher(L10n.text("Терминал"), icon: "terminal") { panel.openTerminal(in: model) }
                 }
             }.padding(16)
         }.frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -172,10 +171,12 @@ struct WorkspacePanelView: View {
     }
     private func chooseCLI() {
         activate()
+        let directory = panel.workingDirectory(in: model)
+        let conversationID = panel.sourceConversationID ?? model.selectedID
         let picker = NSOpenPanel()
         picker.canChooseDirectories = false; picker.allowsMultipleSelection = false; picker.prompt = L10n.text("Запустить CLI")
         model.presentFilePicker(picker, in: panel.presentations) { result in
-            if result == .OK, let url = picker.url { panel.openTerminal(directory: directory, executable: url.path, arguments: []) }
+            if result == .OK, let url = picker.url { panel.openTerminal(directory: directory, executable: url.path, arguments: [], conversationID: conversationID) }
         }
     }
 }
@@ -203,8 +204,7 @@ private struct WorkspaceAnswerView: View {
             Divider().workspacePanelHeader()
             ScrollView {
                 MessageMarkdownView(text: answer.text, copy: model.copy, openLink: { url in
-                    if NativeBrowserURL.isWebURL(url) { panel.openBrowser(url) }
-                    else { model.openPanelFile(url, conversationID: answer.conversationID, panel: panel) }
+                    model.openWorkspaceLink(url, in: panel, conversationID: answer.conversationID)
                 }).padding(24).frame(maxWidth: .infinity, alignment: .leading)
                 Color.clear.frame(height: 16)
                     .background(ResponseReadMarker(app: model, conversationID: answer.conversationID, messageID: answer.messageID))
@@ -228,7 +228,7 @@ private struct WorkspaceTextView: View {
     let file: WorkspaceTextPreview
     @State private var showSource = false
     private var markdown: Bool { ["md", "markdown"].contains(file.url.pathExtension.lowercased()) }
-    private var canAttach: Bool { model.canEditMessageAttachments && model.selectedID == file.conversationID && model.selected?.workspacePath == file.root && model.selected?.archived != true }
+    private var canAttach: Bool { model.canAttachWorkspaceText(file) }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -238,9 +238,9 @@ private struct WorkspaceTextView: View {
                 if markdown {
                     Button(showSource ? L10n.text("Просмотр") : L10n.text("Исходник")) { showSource.toggle() }.font(.caption)
                 }
-                Button { Task { await model.openWorkspaceEntry(.object(["path": .string(file.path), "directory": .bool(false)]), in: panel) } } label: {
+                Button { model.openWorkspaceTextLink(file.url, from: file, in: panel) } label: {
                     Image(systemName: "arrow.clockwise")
-                }.disabled(!canAttach || model.loadingWorkspace).help(L10n.text("Обновить файл")).accessibilityLabel(L10n.text("Обновить файл"))
+                }.disabled(model.operationBusy).help(L10n.text("Обновить файл")).accessibilityLabel(L10n.text("Обновить файл"))
                 Button { model.attachWorkspaceText(file, in: panel) } label: { Image(systemName: "paperclip") }
                     .disabled(!canAttach).help(L10n.text("Прикрепить к сообщению")).accessibilityLabel(L10n.text("Прикрепить файл к сообщению"))
                 documentMenu(file.url, text: true)
@@ -249,11 +249,7 @@ private struct WorkspaceTextView: View {
             if markdown && !showSource {
                 ScrollView {
                     MessageMarkdownView(text: file.value["preview"].text, copy: model.copy, openLink: {
-                        if NativeBrowserURL.isWebURL($0) { panel.openBrowser($0) }
-                        else {
-                            let target = $0.isFileURL || $0.path.hasPrefix("/") ? $0 : file.url.deletingLastPathComponent().appendingPathComponent($0.path)
-                            model.openPanelFile(target, conversationID: file.conversationID, panel: panel)
-                        }
+                        model.openWorkspaceTextLink($0, from: file, in: panel)
                     }).padding(24).frame(maxWidth: .infinity, alignment: .leading)
                 }
             } else {
@@ -288,7 +284,7 @@ private struct WorkspaceImageView: View {
                     Button {
                         do { try model.attachImage(preview) } catch { panel.error = error.localizedDescription }
                     } label: { Image(systemName: "paperclip") }
-                        .disabled(!model.canEditMessageAttachments || model.selectedID != preview.conversationID || model.selected?.archived == true)
+                        .disabled(!model.canAttachImage(preview))
                         .help(L10n.text("Прикрепить к сообщению")).accessibilityLabel(L10n.text("Прикрепить изображение к сообщению"))
                 }
                 documentMenu(URL(fileURLWithPath: preview.source.path))

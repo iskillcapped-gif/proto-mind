@@ -83,9 +83,16 @@ extension NativeChecks {
         try Data().write(to: package.appendingPathComponent("main.py"))
         try Data("""
         import json, sys
+        from pathlib import Path
         for line in sys.stdin:
             request = json.loads(line)
-            print(json.dumps({"id": request["id"], "error": {"message": "Claude: достигнут лимит.", "resets_at": 2000000000}}), flush=True)
+            reply = {"id": request["id"], "result": {}}
+            if request["method"] == "process":
+                params = request.get("params", {})
+                if "workspace_root" in params:
+                    Path(__file__).with_name("sent.json").write_text(json.dumps(params["workspace_root"]))
+                reply = {"id": request["id"], "error": {"message": "Claude: достигнут лимит.", "resets_at": 2000000000}}
+            print(json.dumps(reply), flush=True)
         """.utf8).write(to: package.appendingPathComponent("native_bridge.py"))
         let bridge = BridgeClient(configuration: LaunchConfiguration(projectRoot: root.appendingPathComponent("limit-bridge/core"), python: python,
                                                                     stateDirectory: root.appendingPathComponent("limit-bridge/state"), sourceRoot: code))
@@ -98,5 +105,40 @@ extension NativeChecks {
                       && AppModel.claudeLimitPrefixes.contains(where: error.localizedDescription.hasPrefix),
                       "A usage-limit error from the bridge keeps its text and the announced renewal")
         }
+
+        // Suspend a real scheduling attempt at its quota read; substitute only local quota metadata and the stdio worker.
+        var waiting: CheckedContinuation<JSONValue, Never>?
+        let account = ClaudeAccountModel { _ in await withCheckedContinuation { waiting = $0 } }
+        let app = AppModel(configuration: bridge.configuration, claudeAccount: account)
+        defer { waiting?.resume(returning: .null); app.shutdown() }
+        let id = app.selectedID!, index = app.conversations.firstIndex { $0.id == id }!
+        let a = root.appendingPathComponent("mock-project-A").path, b = root.appendingPathComponent("mock-project-B").path
+        let limit = ChatMessage(role: "report", text: AppModel.claudeLimitPrefixes[0], isError: true, limitOrigin: ClaudeLimitOrigin(workspace: a))
+        app.cloudConsent = true; app.conversations[index].provider = "claude"
+        app.setConversationWorkspace(a, at: index); app.conversations[index].messages = [limit]
+        let sent = package.appendingPathComponent("sent.json")
+        func waitFor(_ ready: () -> Bool) async throws {
+            for _ in 0..<400 {
+                if ready() { return }
+                try await Task.sleep(for: .milliseconds(10))
+            }
+            throw NativeError.message("Timed out in the synthetic continuation check")
+        }
+        app.limitContinuations.schedule(id, at: .now, after: limit.id, app: app)
+        try await waitFor { waiting != nil }
+        app.setConversationWorkspace(b, at: index); app.setConversationWorkspace(a, at: index)
+        waiting?.resume(returning: .null); waiting = nil
+        try await waitFor { !account.refreshing }
+        try check(!FileManager.default.fileExists(atPath: sent.path) && app.conversations[index].messages == [limit],
+                  "Changing A to B and back during the quota read invalidates the original send")
+        app.limitContinuations.schedule(id, at: .now, after: limit.id, app: app, attempt: LimitContinuations.attempts)
+        try await waitFor { waiting != nil }
+        var other = Conversation(); other.workspacePath = b; other.provider = "mock"; other.draft = "unsent in B"
+        app.conversations.append(other); app.select(other.id)
+        waiting?.resume(returning: .null); waiting = nil
+        try await waitFor { FileManager.default.fileExists(atPath: sent.path) && !app.isRunning(id) }
+        try check(try JSONDecoder().decode(String.self, from: Data(contentsOf: sent)) == a
+                  && app.selectedID == other.id && app.composer == "unsent in B",
+                  "A newly authorized continuation reaches the bridge in A while the operator is writing in B")
     }
 }

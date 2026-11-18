@@ -227,7 +227,7 @@ struct ComposerView: View {
             Button { stop() } label: {
                 Image(systemName: "stop.fill").font(.system(size: 12)).foregroundStyle(NativeTheme.canvas)
                     .frame(width: 32, height: 32).background(Color.primary, in: Circle())
-            }.buttonStyle(.nativeHover).modifier(StopShortcut(find: model.chatFind, enabled: !desktopGlass && sourceIsMain))
+            }.buttonStyle(.nativeHover).modifier(StopShortcut(find: model.chatFind, routing: model.conversationRouting, enabled: !desktopGlass && sourceIsMain))
                 .help(L10n.text("Запросить остановку Codex. Локальные операции завершаются без прерывания; выполненные действия не откатываются."))
                 .accessibilityLabel(L10n.text("Запросить остановку"))
         } else {
@@ -302,6 +302,7 @@ struct ComposerAccessMenu: View {
 /// open: there Esc closes the bar.
 private struct StopShortcut: ViewModifier {
     @ObservedObject var find: ChatFindModel
+    @ObservedObject var routing: ConversationRouting
     let enabled: Bool
-    func body(content: Content) -> some View { content.keyboardShortcut(enabled && !find.visible ? KeyboardShortcut.cancelAction : nil) }
+    func body(content: Content) -> some View { content.keyboardShortcut(enabled && routing.destination == nil && !find.visible ? KeyboardShortcut.cancelAction : nil) }
 }

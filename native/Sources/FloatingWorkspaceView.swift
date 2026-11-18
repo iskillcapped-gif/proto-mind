@@ -141,6 +141,7 @@ struct DesktopCoreView: View {
                 }
             }.frame(width: 80, height: 78)
                 .overlay(DesktopCoreHandle(desktop: desktop))
+                .overlay(alignment: .topLeading) { CoreQuestionBadge(app: app).offset(x: -2, y: -2) }
                 .overlay(alignment: .topTrailing) { CoreResponseBadge(app: app).offset(x: 3, y: -2) }
             HStack(spacing: 1) {
                 Button { desktop.openVoice() } label: {

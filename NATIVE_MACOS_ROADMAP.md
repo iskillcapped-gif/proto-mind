@@ -4,6 +4,15 @@ Decision date: 2026-08-31. This is post-contest work for the operator's personal
 
 For the current priority map, see [Current Direction](PROTO_MIND_EVOLUTION_ROADMAP.md). This file preserves release contracts and historical evidence; a limitation or proposal in an older section is scoped to that release.
 
+## Working Across Projects — Native 0.75.12
+
+- Claude’s continuation timer binds to the interrupted chat, its report and the project folder, including a chat without a folder. Changing projects cancels the timer. Returning to the original project requires another click.
+- Main and side chats open project text, Markdown, images, PDFs and Office documents through the same reader. Search and match navigation stay in the active chat. The terminal and CLI picker start in the selected tab’s project.
+- A question mark on the cube opens the exact question from a running task. When several questions are waiting, the menu lists them by chat.
+- The macOS application menu and sidebar update control can check published GitHub releases, including betas. The release page and available installer open on request. A locally installed replacement still has its own restart action.
+
+Verification on 2026-11-18 covered 2,446 Python tests and 2,174 Native checks. In a disposable profile, the installed signed app opened its update page from the macOS menu and displayed local build 0.75.12 (142) alongside GitHub release v0.75.11-beta.
+
 ## Portable Runtime Refresh — Native 0.75.11
 
 The public beta now packages the local improvements from 0.75.8–0.75.10:

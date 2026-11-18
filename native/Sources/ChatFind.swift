@@ -15,13 +15,14 @@ final class ChatFindModel: ObservableObject {
     @Published private(set) var current = 0
     @Published private(set) var focusRequest = 0
     private weak var app: AppModel?
+    private weak var panel: WorkspacePanelModel?
     private var pending: Task<Void, Never>?
 
     var visible: Bool { conversationID != nil }
     var currentMatch: UUID? { matches.indices.contains(current) ? matches[current] : nil }
 
-    func open(_ id: UUID, app: AppModel) {
-        self.app = app
+    func open(_ id: UUID, app: AppModel, in panel: WorkspacePanelModel? = nil) {
+        self.app = app; self.panel = panel
         if conversationID != id { conversationID = id; search(jump: !query.isEmpty) }
         focusRequest += 1
     }
@@ -66,7 +67,9 @@ final class ChatFindModel: ObservableObject {
 
     private func jump() {
         guard let app, let id = conversationID, let match = currentMatch else { return }
-        app.transcriptDestination = TranscriptDestination(conversationID: id, messageID: match)
+        let destination = TranscriptDestination(conversationID: id, messageID: match)
+        if let panel { panel.transcriptDestination = destination }
+        else { app.transcriptDestination = destination }
     }
 
     nonisolated static func contains(_ text: String, _ query: String) -> Bool {
@@ -89,9 +92,22 @@ final class ChatFindModel: ObservableObject {
 }
 
 extension AppModel {
+    var activeChatFind: ChatFindModel? {
+        if let panel = conversationRouting.destination {
+            guard case .conversation = panel.selected?.content, (panel.presentations ?? presentations).pages.isEmpty else { return nil }
+            return panel.chatFind
+        }
+        return presentations.pages.isEmpty ? chatFind : nil
+    }
+
     /// ⌘F: the find bar over the open chat, revealing the chat first.
     func openChatFind() {
-        guard let id = selectedID, presentations.pages.isEmpty else { return }
+        guard let find = activeChatFind else { return }
+        if let panel = conversationRouting.destination, case .conversation(let id) = panel.selected?.content {
+            find.open(id, app: self, in: panel)
+            return
+        }
+        guard let id = selectedID else { return }
         if desktop.enabled && !desktop.expanded { desktop.revealWorkspace() }
         if section != .chat && section != .workspace { section = .chat }
         chatFind.open(id, app: self)
@@ -153,14 +169,42 @@ struct ChatFindBar: View {
 /// Edit menu: find in the open chat and step through the matches.
 struct ChatFindCommands: View {
     let app: AppModel
+    @ObservedObject var routing: ConversationRouting
+
+    var body: some View {
+        if let panel = routing.panel { PanelFindCommands(app: app, panel: panel) }
+        else { FindMenuItems(app: app, find: app.chatFind) }
+    }
+}
+
+private struct PanelFindCommands: View {
+    let app: AppModel
+    @ObservedObject var panel: WorkspacePanelModel
+
+    var body: some View {
+        if app.conversationRouting.destination === panel {
+            FindMenuItems(app: app, find: panel.chatFind).disabled(!isChat)
+        } else {
+            FindMenuItems(app: app, find: app.chatFind)
+        }
+    }
+
+    private var isChat: Bool {
+        if case .conversation = panel.selected?.content { return true }
+        return false
+    }
+}
+
+private struct FindMenuItems: View {
+    let app: AppModel
     @ObservedObject var find: ChatFindModel
 
     var body: some View {
         Button(L10n.pick("Найти в чате…", "Find in Chat…")) { app.openChatFind() }
             .keyboardShortcut("f")
-        Button(L10n.pick("Найти раньше", "Find Earlier")) { find.next() }
+        Button(L10n.pick("Найти раньше", "Find Earlier")) { app.activeChatFind?.next() }
             .keyboardShortcut("g").disabled(find.matches.isEmpty)
-        Button(L10n.pick("Найти позже", "Find Later")) { find.previous() }
+        Button(L10n.pick("Найти позже", "Find Later")) { app.activeChatFind?.previous() }
             .keyboardShortcut("g", modifiers: [.command, .shift]).disabled(find.matches.isEmpty)
     }
 }

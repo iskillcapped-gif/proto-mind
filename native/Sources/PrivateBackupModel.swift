@@ -152,6 +152,7 @@ final class PrivateBackupModel: ObservableObject {
     }
 
     private func finish(app: AppModel) {
+        app.limitContinuations.cancelAll()
         app.privateBackupRestartRequired = true
         app.draftSave?.cancel()
         app.agentGrants.removeAll(); app.pendingAgentAccess = nil

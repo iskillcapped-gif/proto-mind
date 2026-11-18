@@ -6,6 +6,7 @@ struct WorkspaceTextPreview {
     let conversationID: UUID
     let root: String
     let value: JSONValue
+    var requiresSelectedConversation = true
     var path: String { value["path"].text }
     var url: URL { URL(fileURLWithPath: root).appendingPathComponent(path) }
 }
@@ -71,10 +72,18 @@ struct WorkspacePanelTab: Identifiable {
 @MainActor
 final class WorkspacePanelModel: ObservableObject {
     static let maximumTabs = 12
-    @Published var visible = false
+    @Published var visible = false { didSet { if !visible { fileOpenID = nil } } }
     @Published var expanded = false
     @Published private(set) var tabs: [WorkspacePanelTab] = []
-    @Published var selectedID: UUID?
+    let chatFind = ChatFindModel()
+    var fileOpenID: UUID?
+    @Published var selectedID: UUID? {
+        didSet {
+            guard selectedID != oldValue else { return }
+            fileOpenID = nil
+            if chatFind.visible { chatFind.close() }
+        }
+    }
     @Published var error: String?
     @Published var transcriptDestination: TranscriptDestination?
     @Published var filesSelected = false
@@ -82,7 +91,7 @@ final class WorkspacePanelModel: ObservableObject {
     var onConversationClosed: ((UUID) -> Void)?
     var selected: WorkspacePanelTab? { tabs.first { $0.id == selectedID } }
 
-    func showFiles() { visible = true; selectedID = nil; filesSelected = true; error = nil }
+    func showFiles() { fileOpenID = nil; visible = true; selectedID = nil; filesSelected = true; error = nil }
 
     @discardableResult
     func open(_ content: WorkspacePanelTab.Content) -> UUID? {
@@ -127,6 +136,7 @@ final class WorkspacePanelModel: ObservableObject {
     }
 
     func closeAll() {
+        fileOpenID = nil
         for tab in tabs {
             if case .browser(let browser) = tab.content { browser.close() }
             if case .terminal(let terminal) = tab.content { terminal.close() }
@@ -165,66 +175,42 @@ extension AppModel {
         Task { await refreshWorkspace() }
     }
 
-    func openWorkspaceLink(_ url: URL, relativeTo directory: URL? = nil, in targetPanel: WorkspacePanelModel? = nil) {
-        let panel = targetPanel ?? workspacePanel
-        if NativeBrowserURL.isWebURL(url) { panel.openBrowser(url); return }
-        guard url.isFileURL || url.scheme == nil, let root = selected?.workspacePath else {
-            panel.visible = true; panel.error = L10n.text("Для просмотра файла выберите папку проекта.")
-            return
-        }
-        let file: URL
-        if url.isFileURL || url.path.hasPrefix("/") { file = URL(fileURLWithPath: url.path) }
-        else { file = (directory ?? URL(fileURLWithPath: root)).appendingPathComponent(url.path) }
-        do {
-            let path = try NativeAttachmentDrop.relativePath(file, workspace: root)
-            Task { await openWorkspaceEntry(.object(["path": .string(path), "directory": .bool(false)]), in: panel) }
-        } catch { panel.visible = true; panel.error = error.localizedDescription }
-    }
-
-    func chooseWorkspaceDocument(in targetPanel: WorkspacePanelModel? = nil) {
-        let panel = targetPanel ?? workspacePanel
-        guard canEditMessageAttachments, let conversationID = selectedID else { return }
-        let picker = NSOpenPanel()
-        picker.canChooseDirectories = false; picker.allowsMultipleSelection = false; picker.resolvesAliases = false
-        picker.prompt = L10n.text("Открыть")
-        picker.message = L10n.text("Текстовые файлы проекта, PNG, JPEG или PDF. Просмотр не прикрепляет файл к сообщению.")
-        picker.directoryURL = selected?.workspacePath.map { URL(fileURLWithPath: $0) }
-        let completion: (NSApplication.ModalResponse) -> Void = { [weak self] response in
-            guard response == .OK, let url = picker.url, let self, self.selectedID == conversationID else { return }
-            Task {
-                switch url.pathExtension.lowercased() {
-                case "png", "jpg", "jpeg": await self.previewImage(url.path, inWorkspacePanel: true, targetPanel: panel)
-                case "pdf": await self.previewPDF(url.path, inWorkspacePanel: true, targetPanel: panel)
-                default: self.openWorkspaceLink(url, in: panel)
-                }
-            }
-        }
-        presentFilePicker(picker, in: panel.presentations, completion: completion)
+    func canAttachWorkspaceText(_ file: WorkspaceTextPreview) -> Bool {
+        (!file.requiresSelectedConversation || selectedID == file.conversationID)
+            && canEditAttachments(for: file.conversationID)
+            && conversations.contains { $0.id == file.conversationID && $0.workspacePath == file.root && !$0.archived }
     }
 
     func attachWorkspaceText(_ file: WorkspaceTextPreview, in targetPanel: WorkspacePanelModel? = nil) {
         let panel = targetPanel ?? workspacePanel
-        guard selectedID == file.conversationID, selected?.workspacePath == file.root,
-              selected?.archived != true, !busy else {
-            panel.error = L10n.text("Вернитесь в исходный диалог и папку, чтобы прикрепить этот файл.")
-            return
+        guard canAttachWorkspaceText(file), let index = conversations.firstIndex(where: { $0.id == file.conversationID }) else {
+            panel.error = L10n.text("Вернитесь в исходный диалог и папку, чтобы прикрепить этот файл."); return
         }
-        filePreview = file.value
-        workspaceError = nil
-        attachPreview()
-        panel.error = workspaceError
+        do {
+            let metadata = try NativeDroppedFile(file.value, path: file.path).metadata
+            let previous = conversations[index].pendingFiles
+            var next = previous.filter { $0["path"].text != file.path }
+            guard next.count < 3 else { throw NativeError.message(L10n.text("Можно прикрепить до трёх текстовых файлов.")) }
+            if let position = previous.firstIndex(where: { $0["path"].text == file.path }) { next.insert(metadata, at: position) }
+            else { next.append(metadata) }
+            conversations[index].pendingFiles = next
+            do { try saveHistory() } catch { conversations[index].pendingFiles = previous; throw error }
+            if selectedID == file.conversationID { section = .chat }
+            panel.error = nil
+        } catch { panel.error = error.localizedDescription }
     }
 
     func refreshWorkspacePDF(_ preview: NativePDFPreview, page: Int, tabID: UUID, in targetPanel: WorkspacePanelModel? = nil) async {
         let panel = targetPanel ?? workspacePanel
-        guard canEditMessageAttachments, !loadingPDFPreview, let conversation = selected,
-              conversation.id == preview.conversationID, conversation.workspacePath == preview.workspace,
+        guard !loadingPDFPreview, let conversation = conversations.first(where: { $0.id == preview.conversationID }),
+              (!preview.requiresSelectedConversation || selectedID == conversation.id), conversation.workspacePath == preview.workspace,
               (1...preview.source.value["page_count"].integer).contains(page) else { return }
         loadingPDFPreview = true
         defer { loadingPDFPreview = false }
         do {
             let next = try await readPDFPreview(preview.source.path, pages: [page], conversation: conversation,
-                                                canAttach: preview.canAttach, expectedSHA: preview.source.sha256)
+                                                canAttach: preview.canAttach, expectedSHA: preview.source.sha256,
+                                                requiresSelectedConversation: preview.requiresSelectedConversation)
             try panel.replacePDF(tabID, expected: preview, with: next)
         } catch { panel.error = error.localizedDescription }
     }

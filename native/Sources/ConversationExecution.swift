@@ -118,6 +118,7 @@ extension AppModel {
     }
 
     func shutdown() {
+        limitContinuations.cancelAll()
         appUpdate.stop()
         closeClaudeAuthentication()
         telegram.stop()

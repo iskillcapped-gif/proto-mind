@@ -196,6 +196,7 @@ extension AppModel {
         if conversations[index].apiConnectionID != connection.id || conversations[index].provider != "api" {
             conversations[index].apiWorkspaceToolsEnabled = false; conversations[index].apiWorkspaceGeneration = nil
         }
+        limitContinuations.cancel(conversations[index].id)
         conversations[index].provider = "api"
         conversations[index].apiConnectionID = connection.id
         conversations[index].model = connection.model

@@ -11,7 +11,6 @@ struct WorkspacePanelMenu: View {
     @State private var page: Page = .root
 
     private enum Page { case root, conversations, messengers, cli }
-    private var directory: URL { model.selected?.workspacePath.map { URL(fileURLWithPath: $0) } ?? FileManager.default.homeDirectoryForCurrentUser }
     private var title: String {
         switch page {
         case .root: return L10n.text("Добавить вкладку")
@@ -32,11 +31,11 @@ struct WorkspacePanelMenu: View {
                 branch(L10n.text("Открыть диалог"), icon: "clock", to: .conversations)
                 row(L10n.text("Браузер / веб-приложение"), "globe") { panel.openBrowser() }
                 branch(L10n.pick("Мессенджеры", "Messengers"), icon: "message", to: .messengers)
-                row(L10n.text("Терминал"), "terminal") { panel.openTerminal(directory: directory) }
+                row(L10n.text("Терминал"), "terminal") { panel.openTerminal(in: model) }
                 branch(L10n.text("Другой CLI"), icon: "chevron.left.forwardslash.chevron.right", to: .cli)
                 Divider().padding(.vertical, 4)
                 row(L10n.text("Открыть файл…"), "doc") { model.chooseWorkspaceDocument(in: panel) }
-                    .disabled(!model.canEditMessageAttachments)
+                    .disabled(model.operationBusy)
                 row(L10n.text("Файлы основного проекта"), "folder") { model.showProjectFiles(in: panel) }
             case .conversations:
                 let chats = Array(model.listedConversations.filter { !$0.archived }.prefix(60))
@@ -52,7 +51,7 @@ struct WorkspacePanelMenu: View {
                 }
             case .cli:
                 row("Claude Code", "terminal") {
-                    if let path = TerminalLaunch.executable("claude") { panel.openTerminal(directory: directory, executable: path, arguments: []) }
+                    if let path = TerminalLaunch.executable("claude") { panel.openTerminal(in: model, executable: path, arguments: []) }
                     else { panel.error = L10n.text("Claude Code не установлен. Установите CLI и войдите в свой аккаунт; затем откройте его здесь.") }
                 }
                 row(L10n.text("Выбрать исполняемый файл…"), "folder") { chooseCLI() }

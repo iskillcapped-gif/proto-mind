@@ -82,6 +82,7 @@ extension AppModel {
         if let provider, provider != conversations[index].provider {
             guard ["codex", "ollama", "mock", "claude"].contains(provider) else { return }
             discardAgentGrants(for: id)
+            limitContinuations.cancel(id)
             conversations[index].provider = provider
             conversations[index].apiConnectionID = nil
             conversations[index].apiWorkspaceToolsEnabled = false; conversations[index].apiWorkspaceGeneration = nil
@@ -128,7 +129,7 @@ extension AppModel {
                           self.conversations[index].workspacePath == original.workspacePath,
                           self.conversations[index].provider == original.provider else { return }
                     self.discardAgentGrants(for: conversationID)
-                    self.conversations[index].workspacePath = result["root"].text
+                    self.setConversationWorkspace(result["root"].text, at: index)
                     self.conversations[index].pendingFiles = []
                     self.projectNoteSelections[conversationID] = nil; self.preparedSkillTasks[conversationID] = nil
                     self.persist()

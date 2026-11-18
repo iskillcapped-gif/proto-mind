@@ -7,6 +7,11 @@ struct ClaudeLimitError: LocalizedError {
     var errorDescription: String? { message }
 }
 
+/// The wrapper distinguishes a folderless turn from a report saved by an older build.
+struct ClaudeLimitOrigin: Codable, Equatable {
+    let workspace: String?
+}
+
 /// After a Claude turn stops at the usage limit, the operator can ask PM to continue on its own once
 /// the limit renews. Nothing is scheduled without that click, and what is sent then is an ordinary
 /// request in the same chat, so the session continues with its interruption notice. A schedule
@@ -18,43 +23,81 @@ final class LimitContinuations: ObservableObject {
     @Published private(set) var scheduled: [UUID: Date] = [:]
     private var tasks: [UUID: Task<Void, Never>] = [:]
 
+    private var tickets: [UUID: UUID] = [:]
+
     func schedule(_ conversationID: UUID, at date: Date, after messageID: UUID, app: AppModel, attempt: Int = 1) {
+        guard let chat = app.conversations.first(where: { $0.id == conversationID }),
+              app.limitInterruption(in: conversationID)?.id == messageID, !app.isRunning(conversationID) else { return }
         cancel(conversationID)
+        let ticket = UUID(), workspace = chat.workspacePath
+        tickets[conversationID] = ticket
         scheduled[conversationID] = date
+        let authorized = { [weak self, weak app] in
+            self?.tickets[conversationID] == ticket
+                && app?.conversations.contains(where: { $0.id == conversationID && $0.workspacePath == workspace }) == true
+                && app?.limitInterruption(in: conversationID)?.id == messageID
+        }
         tasks[conversationID] = Task { @MainActor [weak self, weak app] in
-            var date = date
-            // A minute past the renewal; the account may still show an exhausted window that renews later.
-            for _ in 0..<12 {
-                if date > .now { try? await Task.sleep(for: .seconds(date.timeIntervalSinceNow + 60)) }
-                guard !Task.isCancelled, let app else { return }
-                await app.claudeAccount.refresh(app: app, minimumInterval: 0)
-                guard !Task.isCancelled, let later = AppModel.limitReset(app.claudeAccount.snapshot?.windows ?? []) else { break }
-                date = later; self?.scheduled[conversationID] = later
+            var next = date
+            var handedOff = false
+            defer {
+                if self?.tickets[conversationID] == ticket {
+                    if !handedOff { self?.tickets.removeValue(forKey: conversationID) }
+                    self?.tasks.removeValue(forKey: conversationID)
+                    self?.scheduled.removeValue(forKey: conversationID)
+                }
             }
-            guard !Task.isCancelled, let self, let app else { return }
-            self.scheduled.removeValue(forKey: conversationID); self.tasks.removeValue(forKey: conversationID)
-            // The operator may have continued already; then there is nothing to do.
-            guard app.limitInterruption(in: conversationID)?.id == messageID, !app.isRunning(conversationID) else { return }
+            while true {
+                if next > .now { try? await Task.sleep(for: .seconds(next.timeIntervalSinceNow + 60)) }
+                guard authorized(), let app else { return }
+                await app.claudeAccount.refresh(app: app, minimumInterval: 0)
+                guard authorized() else { return }
+                guard let later = AppModel.limitReset(app.claudeAccount.snapshot?.windows ?? []) else { break }
+                next = later
+                self?.scheduled[conversationID] = later
+            }
+            guard authorized(), let app, !app.isRunning(conversationID) else { return }
             do {
                 _ = try await app.sendExternalTaskMessage(L10n.pick("Продолжай с того места, где остановился.", "Continue where you left off."),
-                                                          id: conversationID, finished: { [weak self, weak app] _ in
-                    // Stopped by the limit again: wait for the renewal it announced this time.
-                    guard let self, let app, attempt < Self.attempts, self.tasks[conversationID] == nil,
-                          let again = app.limitInterruption(in: conversationID), again.id != messageID else { return }
+                                                          id: conversationID, authorized: authorized, finished: { [weak self, weak app] _ in
+                    guard let self, self.tickets[conversationID] == ticket else { return }
+                    self.tickets.removeValue(forKey: conversationID)
+                    guard let app, attempt < Self.attempts, let again = app.limitInterruption(in: conversationID),
+                          again.id != messageID, app.conversations.contains(where: { $0.id == conversationID && $0.workspacePath == workspace }) else { return }
                     self.schedule(conversationID, at: app.limitReset(after: again) ?? .now.addingTimeInterval(1800),
                                   after: again.id, app: app, attempt: attempt + 1)
                 })
-            } catch { app.error = error.localizedDescription }
+                handedOff = true
+            } catch {
+                if authorized() { app.error = error.localizedDescription }
+            }
         }
     }
 
     func cancel(_ conversationID: UUID) {
+        tickets.removeValue(forKey: conversationID)
         tasks.removeValue(forKey: conversationID)?.cancel()
         scheduled.removeValue(forKey: conversationID)
+    }
+
+    func cancelAll() {
+        for id in Array(tickets.keys) { cancel(id) }
     }
 }
 
 extension AppModel {
+    /// Stamp legacy reports before rebinding so that reopening them cannot continue into a different folder.
+    func setConversationWorkspace(_ path: String?, at index: Int) {
+        let chat = conversations[index]
+        guard chat.workspacePath != path else { return }
+        limitContinuations.cancel(chat.id)
+        if let last = chat.messages.indices.last, chat.messages[last].limitOrigin == nil,
+           Self.claudeLimitPrefixes.contains(where: chat.messages[last].text.hasPrefix), chat.messages[last].isError {
+            conversations[index].messages[last].limitOrigin = ClaudeLimitOrigin(workspace: chat.workspacePath)
+        }
+        conversations[index].workspacePath = path
+    }
+
     /// The bridge reports the usage limit in the interface language.
     static let claudeLimitPrefixes = ["Claude: достигнут лимит", "Claude: usage limit reached"]
 
@@ -63,6 +106,7 @@ extension AppModel {
         guard let chat = conversations.first(where: { $0.id == conversationID }), chat.provider == "claude", !chat.archived,
               let last = chat.messages.last, last.role == "report", last.isError,
               Self.claudeLimitPrefixes.contains(where: last.text.hasPrefix) else { return nil }
+        if let origin = last.limitOrigin, origin.workspace != chat.workspacePath { return nil }
         return last
     }
 

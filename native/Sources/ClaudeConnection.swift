@@ -23,6 +23,7 @@ extension AppModel {
     func authenticateClaude(_ operation: String) async {
         guard ["login", "logout"].contains(operation), !claudeTasksRunning, !operationBusy,
               !claudeAuthenticating, !claudeAccount.refreshing else { return }
+        limitContinuations.cancelAll()
         claudeAccount.clear()
         claudeAuthenticating = true
         claudeAccountError = nil

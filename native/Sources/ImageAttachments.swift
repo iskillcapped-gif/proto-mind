@@ -56,8 +56,9 @@ struct NativeImagePreview: Identifiable {
     let canAttach: Bool
     // Main-chat previews expire on navigation; explicitly bound panel previews retain their owner.
     let requiresSelectedConversation: Bool
+    let workspace: String?
 
-    init(_ value: JSONValue, conversationID: UUID, canAttach: Bool, requiresSelectedConversation: Bool = true) throws {
+    init(_ value: JSONValue, conversationID: UUID, canAttach: Bool, requiresSelectedConversation: Bool = true, workspace: String? = nil) throws {
         guard value["schema"].text == "proto_mind.native_image_preview.v1",
               value["read_only"] == .bool(true), value["no_execution"] == .bool(true) else {
             throw NativeError.message(L10n.text("Предпросмотр изображения не прошёл проверку."))
@@ -82,6 +83,7 @@ struct NativeImagePreview: Identifiable {
             throw NativeError.message(L10n.text("Изображение не декодируется или его SHA-256/размер изменился. Ничего не отправлено."))
         }
         self.source = source
+        self.workspace = workspace
         self.thumbnail = NSImage(cgImage: thumbnail, size: .zero)
         self.bytes = bytes
         let turned = (5...8).contains(properties[kCGImagePropertyOrientation] as? Int ?? 1)

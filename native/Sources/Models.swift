@@ -68,6 +68,7 @@ struct ChatMessage: Codable, Identifiable, Equatable {
     var taskUpdates: [TaskUpdate]? = nil
     /// When the usage limit that stopped this turn renews, as Claude Code announced it.
     var limitResetsAt: Date? = nil
+    var limitOrigin: ClaudeLimitOrigin? = nil
 
     var searchableText: String { ([text] + (taskUpdates ?? []).map(\.text)).joined(separator: "\n\n") }
 }

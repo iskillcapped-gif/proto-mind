@@ -21,12 +21,12 @@ struct ProjectWorkspaceView: View {
                 Spacer()
                 if model.loadingWorkspace { ProgressView().controlSize(.small) }
                 Button { Task { await model.refreshWorkspace(model.workspaceListing["directory"].text) } } label: { Image(systemName: "arrow.clockwise") }
-                    .disabled(!model.canEditMessageAttachments || model.loadingWorkspace || model.selected?.workspacePath == nil).help(L10n.text("Обновить файлы")).accessibilityLabel(L10n.text("Обновить файлы"))
+                    .disabled(model.operationBusy || model.loadingWorkspace || model.selected?.workspacePath == nil).help(L10n.text("Обновить файлы")).accessibilityLabel(L10n.text("Обновить файлы"))
                 Menu {
                     Button(L10n.text("Открыть файл…")) { model.chooseWorkspaceDocument(in: panel) }
                     Button(L10n.text("Выбрать папку…")) { model.chooseWorkspace(in: panel?.presentations) }.disabled(model.busy)
                 } label: { Image(systemName: "ellipsis") }
-                    .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().disabled(!model.canEditMessageAttachments)
+                    .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().disabled(model.operationBusy)
                     .accessibilityLabel(L10n.text("Действия с файлами"))
             }.padding(16).workspacePanelHeader()
             Divider().workspacePanelHeader()
@@ -40,7 +40,7 @@ struct ProjectWorkspaceView: View {
                     Text(L10n.text("Выберите папку, чтобы читать документы и код.\nФайлы попадут в запрос только после прикрепления."))
                         .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
                     Button(L10n.text("Выбрать папку…")) { model.chooseWorkspace(in: panel?.presentations) }.buttonStyle(.bordered).disabled(model.busy)
-                    Button(L10n.text("Открыть изображение или PDF…")) { model.chooseWorkspaceDocument(in: panel) }.disabled(!model.canEditMessageAttachments)
+                    Button(L10n.text("Открыть изображение или PDF…")) { model.chooseWorkspaceDocument(in: panel) }.disabled(model.operationBusy)
                 }.padding(24).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 HStack(spacing: 9) {
@@ -48,7 +48,7 @@ struct ProjectWorkspaceView: View {
                         let parent = (model.workspaceListing["directory"].text as NSString).deletingLastPathComponent
                         Task { await model.refreshWorkspace(parent) }
                     } label: { Image(systemName: "chevron.left") }
-                        .disabled(["", "."].contains(model.workspaceListing["directory"].text) || !model.canEditMessageAttachments || model.loadingWorkspace)
+                        .disabled(["", "."].contains(model.workspaceListing["directory"].text) || model.operationBusy || model.loadingWorkspace)
                         .accessibilityLabel(L10n.text("Родительская папка"))
                     TextField(L10n.text("Найти в этой папке"), text: $search).textFieldStyle(.roundedBorder)
                         .focused($searchFocused).workspaceChromeField($searchFocused)
@@ -69,7 +69,7 @@ struct ProjectWorkspaceView: View {
                                     Spacer(minLength: 4)
                                     if entry["directory"].flag { Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.secondary) }
                                 }.font(.system(size: 13)).padding(10).contentShape(Rectangle())
-                            }.buttonStyle(.nativeHover).disabled(model.loadingWorkspace || !model.canEditMessageAttachments).help(entry["path"].text)
+                            }.buttonStyle(.nativeHover).disabled(model.loadingWorkspace || model.operationBusy).help(entry["path"].text)
                         }
                         if entries.isEmpty && !model.loadingWorkspace {
                             Text(search.isEmpty ? L10n.text("В этой папке нет доступных файлов.") : L10n.text("Ничего не найдено."))

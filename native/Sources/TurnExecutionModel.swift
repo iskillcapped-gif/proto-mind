@@ -281,7 +281,9 @@ extension AppModel {
             append(ChatMessage(role: "report", text: error.localizedDescription + caution, isError: true,
                                agentRun: state.agentReceipt.isNull ? nil : state.agentReceipt,
                                workLog: state.workLog.isNull ? nil : state.workLog, autoSkills: state.autoSkillsReport?.value,
-                               limitResetsAt: (error as? ClaudeLimitError)?.resetsAt), to: conversationID)
+                               limitResetsAt: (error as? ClaudeLimitError)?.resetsAt,
+                               limitOrigin: conversation.provider == "claude" && Self.claudeLimitPrefixes.contains(where: error.localizedDescription.hasPrefix)
+                                   ? ClaudeLimitOrigin(workspace: conversation.workspacePath) : nil), to: conversationID)
             if grant != nil { discardAgentGrants(for: conversationID, forgetSelection: false) }
             if useDraft, let current = conversations.firstIndex(where: { $0.id == conversationID }),
                conversations[current].pendingFiles.isEmpty, conversations[current].pendingImages.isEmpty,

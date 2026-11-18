@@ -58,6 +58,31 @@ extension NativeChecks {
         try check(find.matches.count == 4 && app.transcriptDestination?.messageID == find.matches.first, "⌘F again finds the kept query at once")
         find.close()
 
+        var side = Conversation()
+        side.messages = [ChatMessage(role: "user", text: "side match"), ChatMessage(role: "assistant", text: "another side match")]
+        app.conversations.append(side)
+        let panel = app.workspacePanels.upper
+        panel.open(.conversation(side.id))
+        app.conversationRouting.activate(panel)
+        let original = app.transcriptDestination
+        app.openChatFind()
+        panel.chatFind.query = "side"; panel.chatFind.search(jump: true); app.activeChatFind?.next()
+        try check(panel.chatFind.conversationID == side.id && panel.transcriptDestination?.messageID == side.messages.first?.id
+                    && app.transcriptDestination == original && !find.visible && app.selectedID == chat.id,
+                  "Find and next scroll only the active panel's chat, leaving the main editor and destination alone")
+        panel.open(.conversation(chat.id))
+        app.openChatFind()
+        panel.chatFind.query = "конфиг"; panel.chatFind.search(jump: true); panel.chatFind.previous()
+        try check(panel.chatFind.currentMatch == ids[0] && app.transcriptDestination == original && !find.visible,
+                  "The same chat shown twice has independent match navigation")
+        panel.showFiles()
+        app.openChatFind()
+        try check(app.activeChatFind == nil && !panel.chatFind.visible && !find.visible && app.transcriptDestination == original,
+                  "Find on a non-chat panel never redirects the shortcut into the other window")
+
+        panel.visible = false
+        try check(app.activeChatFind === find, "Hiding the last active panel routes find shortcuts back to the main conversation")
+
         try check(NativeSettingsSection.allCases.contains(.keyboard) && NativeSettingsSection.keyboard.symbol == "keyboard",
                   "Settings has a page with the keyboard shortcuts")
     }

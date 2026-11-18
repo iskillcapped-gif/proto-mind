@@ -27,7 +27,7 @@ TEXT_EXTENSIONS = frozenset({
     ".sh", ".bash", ".zsh", ".xml", ".plist", ".ini", ".cfg", ".csv",
 })
 TEXT_NAMES = frozenset({"readme", "license", "makefile", "dockerfile", ".gitignore", ".gitattributes"})
-PREVIEW_EXTENSIONS = TEXT_EXTENSIONS | {".png", ".jpg", ".jpeg", ".pdf"}
+PREVIEW_EXTENSIONS = TEXT_EXTENSIONS | {".png", ".jpg", ".jpeg", ".pdf", ".docx", ".xlsx", ".pptx"}
 SKIP_NAMES = frozenset({
     "node_modules", "venv", "__pycache__", "dist", "build", "backups",
     "auth.json", "credentials.json", "credentials", "secrets.json", "secrets.yaml",

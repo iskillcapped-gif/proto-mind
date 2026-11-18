@@ -436,7 +436,9 @@ extension AppModel {
 struct WorkspaceAgentQuestionsView: View {
     @ObservedObject var model: AppModel
     @ObservedObject var state: ConversationExecution
+    var isMain = true
     @State private var answers: [UUID: String] = [:]
+    @FocusState private var focusedQuestion: UUID?
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             ForEach(state.workspaceQuestions.filter { $0.answer == nil }) { question in
@@ -448,11 +450,20 @@ struct WorkspaceAgentQuestionsView: View {
                     }
                     HStack {
                         TextField(L10n.pick("Ваш ответ", "Your answer"), text: Binding(get: { answers[question.id] ?? "" }, set: { answers[question.id] = String($0.prefix(4000)) }))
+                            .focused($focusedQuestion, equals: question.id)
                         Button(L10n.pick("Ответить", "Reply")) { reply(question, answers[question.id] ?? "") }
                             .disabled((answers[question.id] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
                 }.padding(12).background(NativeTheme.composer, in: RoundedRectangle(cornerRadius: 12))
             }
+        }
+        .task(id: model.questionDestination) {
+            guard isMain, model.selectedID == state.conversationID, let id = model.questionDestination,
+                  state.workspaceQuestions.contains(where: { $0.id == id && $0.answer == nil }) else { return }
+            await Task.yield()
+            guard !Task.isCancelled, model.questionDestination == id, model.selectedID == state.conversationID else { return }
+            focusedQuestion = id
+            model.questionDestination = nil
         }
     }
     @ViewBuilder private func options(_ question: WorkspaceAgentQuestion) -> some View {

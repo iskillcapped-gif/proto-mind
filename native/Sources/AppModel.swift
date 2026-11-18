@@ -69,6 +69,7 @@ final class AppModel: ObservableObject {
     let responseAttention: ResponseAttention
     let replyNotifications: ReplyNotifications
     let limitContinuations = LimitContinuations()
+    @Published var questionDestination: UUID?
     let chatFind = ChatFindModel()
     private var attentionObservation: AnyCancellable?
     let sidebarProjectOrder: SidebarProjectOrder
@@ -86,6 +87,7 @@ final class AppModel: ObservableObject {
     @Published var showLiveVoice = false {
         didSet { if oldValue != showLiveVoice { desktop.setVoiceVisible(showLiveVoice, app: self) } }
     }
+    @Published var showAppUpdates = false
     @Published var showCodexUsage = false
     @Published var showCodexAccounts = false
     var codexAccountsConversationID: UUID?
@@ -789,14 +791,15 @@ final class AppModel: ObservableObject {
     }
 
     func bindWorkspace(_ path: String) async {
-        guard !busy, !loadingWorkspace, let id = selectedID else { return }
+        guard !busy, !loadingWorkspace, let original = selected, !original.archived else { return }
+        let id = original.id
         loadingWorkspace = true; workspaceError = nil
         defer { loadingWorkspace = false }
         do {
             let value = try await client.request("workspace_status", ["workspace_root": .string(path)])
-            guard let index = conversations.firstIndex(where: { $0.id == id }) else { return }
+            guard !operationBusy, !isRunning(id), let index = conversations.firstIndex(where: { $0.id == id && $0.workspacePath == original.workspacePath && !$0.archived }) else { return }
             invalidateSessionSpinePilot()
-            conversations[index].workspacePath = value["root"].text
+            setConversationWorkspace(value["root"].text, at: index)
             projectNoteSelections[id] = nil; projectMemory = nil; memorySuggestion = nil; invalidateContextPreview()
             preparedSkillTasks[id] = nil; skillTask = nil
             closeLearningReview()
@@ -817,63 +820,28 @@ final class AppModel: ObservableObject {
     }
 
     func refreshWorkspace(_ path: String = "") async {
-        guard canEditMessageAttachments, !loadingWorkspace, let root = selected?.workspacePath, let id = selectedID else { return }
+        guard !operationBusy, !loadingWorkspace, let root = selected?.workspacePath, let id = selectedID else { return }
         loadingWorkspace = true; workspaceError = nil
         defer { loadingWorkspace = false }
         do {
-            let status = try await client.request("workspace_status", ["workspace_root": .string(root)])
-            let listing = try await client.request("workspace_list", ["workspace_root": .string(root), "path": .string(path)])
-            if selectedID == id { workspaceStatus = status; workspaceListing = listing; filePreview = .null }
-        } catch { workspaceError = error.localizedDescription }
+            let status = try await serviceClient.request("workspace_status", ["workspace_root": .string(root)])
+            let listing = try await serviceClient.request("workspace_list", ["workspace_root": .string(root), "path": .string(path)])
+            if selectedID == id, selected?.workspacePath == root { workspaceStatus = status; workspaceListing = listing; filePreview = .null }
+        } catch { if selectedID == id, selected?.workspacePath == root { workspaceError = error.localizedDescription } }
     }
 
     func openWorkspaceEntry(_ entry: JSONValue, in targetPanel: WorkspacePanelModel? = nil) async {
         let panel = targetPanel ?? workspacePanel
         if entry["directory"].flag { await refreshWorkspace(entry["path"].text); return }
-        guard canEditMessageAttachments, !loadingWorkspace, let root = selected?.workspacePath, let id = selectedID else { return }
-        let suffix = URL(fileURLWithPath: entry["path"].text).pathExtension.lowercased()
-        if ["png", "jpg", "jpeg", "pdf"].contains(suffix) {
-            do {
-                let url = try NativeAttachmentDrop.localURL(URL(fileURLWithPath: root).appendingPathComponent(entry["path"].text))
-                _ = try NativeAttachmentDrop.relativePath(url, workspace: root)
-                if suffix == "pdf" { await previewPDF(url.path, inWorkspacePanel: true, targetPanel: panel) }
-                else { await previewImage(url.path, inWorkspacePanel: true, targetPanel: panel) }
-            } catch {
-                workspaceError = error.localizedDescription
-                panel.visible = true; panel.error = error.localizedDescription
-            }
-            return
-        }
-        loadingWorkspace = true; workspaceError = nil
-        defer { loadingWorkspace = false }
-        do {
-            let preview = try await client.request("workspace_read", ["workspace_root": .string(root), "path": entry["path"]])
-            guard selectedID == id, selected?.workspacePath == root else { return }
-            guard preview["read_only"].flag, preview["path"] == entry["path"] else {
-                throw NativeError.message(L10n.text("Просмотр относится к другому файлу."))
-            }
-            filePreview = preview
-            panel.open(.text(WorkspaceTextPreview(conversationID: id, root: root, value: preview)))
-        } catch {
-            guard selectedID == id, selected?.workspacePath == root else { return }
-            workspaceError = error.localizedDescription
-            panel.visible = true; panel.error = error.localizedDescription
-        }
+        guard let chat = selected else { return }
+        await openWorkspaceFile(URL(fileURLWithPath: chat.workspacePath ?? "/").appendingPathComponent(entry["path"].text),
+                                from: chat, in: panel, requiresSelection: true)
     }
 
     func attachPreview() {
-        guard canEditMessageAttachments, !filePreview.isNull, let index = conversations.firstIndex(where: { $0.id == selectedID }) else { return }
-        let path = filePreview["path"].text
-        let existing = conversations[index].pendingFiles.firstIndex { $0["path"].text == path }
-        guard existing != nil || conversations[index].pendingFiles.count < 3 else {
-            workspaceError = L10n.text("К одному сообщению можно выбрать до трёх файлов."); return
-        }
-        let count = min(6000, filePreview["characters"].integer)
-        let item: JSONValue = .object(["path": .string(path), "sha256": filePreview["sha256"],
-                                       "included_chars": .number(Double(count)), "truncated": .bool(filePreview["characters"].integer > count)])
-        if let existing { conversations[index].pendingFiles[existing] = item }
-        else { conversations[index].pendingFiles.append(item) }
-        persist(); section = .chat
+        guard let chat = selected, let root = chat.workspacePath, !filePreview.isNull else { return }
+        attachWorkspaceText(WorkspaceTextPreview(conversationID: chat.id, root: root, value: filePreview))
+        workspaceError = workspacePanel.error
     }
 
     func removePendingFile(_ path: String) {
@@ -973,9 +941,14 @@ final class AppModel: ObservableObject {
         } catch { reportAttachmentError(error, in: destination) }
     }
 
+    func canAttachImage(_ preview: NativeImagePreview) -> Bool {
+        preview.canAttach && (!preview.requiresSelectedConversation || selectedID == preview.conversationID)
+            && canEditAttachments(for: preview.conversationID)
+            && (preview.workspace == nil || conversations.contains { $0.id == preview.conversationID && $0.workspacePath == preview.workspace })
+    }
+
     func attachImage(_ preview: NativeImagePreview) throws {
-        guard preview.canAttach, (!preview.requiresSelectedConversation || selectedID == preview.conversationID), canEditAttachments(for: preview.conversationID),
-              let index = conversations.firstIndex(where: { $0.id == preview.conversationID }) else {
+        guard canAttachImage(preview), let index = conversations.firstIndex(where: { $0.id == preview.conversationID }) else {
             throw NativeError.message(L10n.text("Диалог изменился или занят. Изображение не прикреплено."))
         }
         var next = conversations[index].pendingImages.filter { $0["path"].text != preview.source.path }

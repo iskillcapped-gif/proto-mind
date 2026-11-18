@@ -7,6 +7,7 @@ import SwiftTerm
 final class WorkspaceTerminal: NSObject, ObservableObject, @preconcurrency LocalProcessTerminalViewDelegate {
     let view: LocalProcessTerminalView
     let directory: URL
+    let conversationID: UUID?
     @Published private var processTitle: String?
     var title: String { processTitle ?? L10n.text("Терминал") }
     @Published private(set) var running = false
@@ -14,8 +15,8 @@ final class WorkspaceTerminal: NSObject, ObservableObject, @preconcurrency Local
     private var started = false
     var onExit: ((Int32?) -> Void)?
 
-    init(directory: URL) {
-        self.directory = directory
+    init(directory: URL, conversationID: UUID? = nil) {
+        self.directory = directory; self.conversationID = conversationID
         view = LocalProcessTerminalView(frame: CGRect(x: 0, y: 0, width: 640, height: 320))
         super.init()
         view.processDelegate = self
@@ -94,10 +95,15 @@ struct WorkspaceTerminalView: View {
 }
 
 extension WorkspacePanelModel {
-    func openTerminal(directory: URL, executable: String = "/bin/zsh", arguments: [String] = ["-l"]) {
+    func openTerminal(in app: AppModel, executable: String = "/bin/zsh", arguments: [String] = ["-l"]) {
+        openTerminal(directory: workingDirectory(in: app), executable: executable, arguments: arguments,
+                     conversationID: sourceConversationID ?? app.selectedID)
+    }
+
+    func openTerminal(directory: URL, executable: String = "/bin/zsh", arguments: [String] = ["-l"], conversationID: UUID? = nil) {
         guard tabs.count < Self.maximumTabs else { error = L10n.text("Закройте одну из вкладок перед открытием терминала."); return }
         guard FileManager.default.isExecutableFile(atPath: executable) else { error = L10n.format("CLI не найден: \(executable)"); return }
-        let terminal = WorkspaceTerminal(directory: directory)
+        let terminal = WorkspaceTerminal(directory: directory, conversationID: conversationID)
         guard open(.terminal(terminal)) != nil else { return }
         terminal.start(executable: executable, arguments: arguments)
     }

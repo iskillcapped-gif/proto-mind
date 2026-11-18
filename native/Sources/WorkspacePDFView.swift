@@ -17,7 +17,7 @@ struct RenderedPDFPage {
               value["png_base64"].text.utf8.count <= 6_990_508,
               let bytes = Data(base64Encoded: value["png_base64"].text), bytes.count <= 5 * 1024 * 1024,
               SHA256.hash(data: bytes).map({ String(format: "%02x", $0) }).joined() == value["png_sha256"].text else { throw invalid() }
-        let preview = try NativePDFPreview(value["preview"], conversationID: source.conversationID, workspace: source.workspace, canAttach: source.canAttach)
+        let preview = try NativePDFPreview(value["preview"], conversationID: source.conversationID, workspace: source.workspace, canAttach: source.canAttach, requiresSelectedConversation: source.requiresSelectedConversation)
         guard preview.source.path == source.source.path, preview.source.value["sha256"] == source.source.value["sha256"],
               preview.source.value["size_bytes"] == source.source.value["size_bytes"],
               preview.source.value["page_count"] == source.source.value["page_count"], preview.source.pages == [page],
@@ -74,7 +74,7 @@ struct WorkspacePDFView: View {
     }
 
     private var total: Int { preview.source.value["page_count"].integer }
-    private var currentConversation: Bool { model.selectedID == preview.conversationID && model.selected?.workspacePath == preview.workspace }
+    private var currentConversation: Bool { (!preview.requiresSelectedConversation || model.selectedID == preview.conversationID) && model.conversations.contains { $0.id == preview.conversationID && $0.workspacePath == preview.workspace && !$0.archived } }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -86,7 +86,7 @@ struct WorkspacePDFView: View {
                         guard let selected = reader.rendered?.preview else { return }
                         do { try model.attachPDF(selected) } catch { panel.error = error.localizedDescription }
                     } label: { Image(systemName: "paperclip") }
-                        .disabled(!model.canEditMessageAttachments || !currentConversation || reader.rendered?.preview.hasText != true || model.selected?.archived == true)
+                        .disabled(!model.canEditAttachments(for: preview.conversationID) || !currentConversation || reader.rendered?.preview.hasText != true)
                         .help(L10n.pick("Прикрепить текст этой страницы", "Attach this page’s text"))
                         .accessibilityLabel(L10n.pick("Прикрепить текст этой страницы", "Attach this page’s text"))
                 }

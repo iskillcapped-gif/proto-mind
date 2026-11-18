@@ -31,6 +31,9 @@ struct WorkspaceView: View {
         .disclosureGroupStyle(NativeDisclosureStyle())
         .onChange(of: model.section) { _, next in if next.libraryCollection != nil || next.attachmentLibrary { libraryExpanded = true } }
         .workspaceSheet(item: $model.exitPrompt) { WorkspaceExitView(app: model, prompt: $0) }
+        .workspaceSheet(isPresented: $model.showAppUpdates, routingKey: "appUpdates") {
+            AppReleasesView(app: model, monitor: model.appUpdate)
+        }
         .workspaceSheet(isPresented: $model.showSettings, routingKey: "settings") { NativeSettingsView(model: model) }
         .workspaceSheet(isPresented: $model.showFirstLaunch, onDismiss: {
             FirstLaunch.dismiss(model.serviceClient.configuration)
@@ -295,7 +298,7 @@ struct ChatView: View {
 
     init(model: AppModel, conversationID: UUID? = nil, panel: WorkspacePanelModel? = nil) {
         self.model = model; self.conversationID = conversationID; self.panel = panel
-        find = model.chatFind
+        find = panel?.chatFind ?? model.chatFind
     }
     @Environment(\.workspacePresentations) private var presentations
     private var id: UUID? { conversationID ?? model.selectedID }
@@ -307,10 +310,7 @@ struct ChatView: View {
         nonmutating set { if let panel { panel.transcriptDestination = newValue } else { model.transcriptDestination = newValue } }
     }
     private func openLink(_ url: URL) {
-        if let panel, let id {
-            if NativeBrowserURL.isWebURL(url) { panel.openBrowser(url) }
-            else { model.openPanelFile(url, conversationID: id, panel: panel) }
-        } else { model.openWorkspaceLink(url) }
+        model.openWorkspaceLink(url, in: panel, conversationID: conversationID)
     }
     @State private var nearBottom = true
     @State private var followOutput = true
@@ -331,7 +331,7 @@ struct ChatView: View {
 
     /// While finding in this chat, the matching messages show the query highlighted.
     private var findHighlights: (query: String, matches: Set<UUID>)? {
-        guard panel == nil, let id, find.conversationID == id, !find.applied.isEmpty else { return nil }
+        guard let id, find.conversationID == id, !find.applied.isEmpty else { return nil }
         return (find.applied, Set(find.matches))
     }
 
@@ -421,7 +421,7 @@ struct ChatView: View {
                             if value != nil { historyWindow = nil; followOutput = true; scrollToLatest(proxy) }
                         }
                         .onChange(of: messages.count) { oldCount, newCount in
-                            if panel == nil, find.conversationID == id { find.search(jump: false) }
+                            if find.conversationID == id { find.search(jump: false) }
                             renderedMessageLimit = TranscriptRenderingPolicy.adjustedLimit(
                                 oldCount: oldCount,
                                 newCount: newCount,
@@ -433,7 +433,7 @@ struct ChatView: View {
                         .onChange(of: messages.last?.taskUpdates) { _, _ in if followOutput { scrollToLatest(proxy) } }
                         .onChange(of: state?.running) { _, _ in if followOutput { scrollToLatest(proxy) } }
                         .overlay(alignment: .top) {
-                            if panel == nil, let id, find.conversationID == id {
+                            if let id, find.conversationID == id {
                                 ChatFindBar(find: find).frame(maxWidth: 560).padding(.horizontal, inset).padding(.top, 8)
                                     .transition(.opacity)
                             }
@@ -453,7 +453,7 @@ struct ChatView: View {
                 }
             }
             if let state, state.workspaceQuestions.contains(where: { $0.answer == nil }) {
-                WorkspaceAgentQuestionsView(model: model, state: state).padding(.horizontal, inset)
+                WorkspaceAgentQuestionsView(model: model, state: state, isMain: panel == nil).padding(.horizontal, inset)
             }
             if let id = conversationID ?? model.selectedID, let next = model.conversations.first(where: { $0.id == id })?.workspaceContinuation, state?.running != true {
                 HStack {
@@ -703,10 +703,7 @@ struct MessageView: View {
     }
 
     private func openLink(_ url: URL) {
-        if let targetPanel, let conversationID {
-            if NativeBrowserURL.isWebURL(url) { targetPanel.openBrowser(url) }
-            else { model.openPanelFile(url, conversationID: conversationID, panel: targetPanel) }
-        } else { model.openWorkspaceLink(url) }
+        model.openWorkspaceLink(url, in: targetPanel, conversationID: targetPanel == nil ? nil : conversationID)
     }
 
     /// Attached images as pictures, like other chat apps show them; a click opens the local preview.

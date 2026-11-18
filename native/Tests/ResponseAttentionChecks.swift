@@ -49,6 +49,25 @@ extension NativeChecks {
         app.execution(for: first).running = true
         try check(app.anyTaskRunning && app.unreadConversations.count == 2,
                   "A new running task can coexist with unread results; spinner and count have different meanings")
+        let task = app.execution(for: first)
+        task.requestID = "active-request"
+        let question = WorkspaceAgentQuestion(requestID: "active-request", text: "Which project?", options: ["A", "B"])
+        let another = WorkspaceAgentQuestion(requestID: "active-request", text: "Which language?", options: [])
+        task.workspaceQuestions = [WorkspaceAgentQuestion(requestID: "past-request", text: "Earlier?", options: []),
+                                   WorkspaceAgentQuestion(requestID: "active-request", text: "Answered?", options: [], answer: "Yes"),
+                                   question, another]
+        let waiting = app.pendingTaskQuestions
+        try check(waiting.map(\.id) == [question.id, another.id],
+                  "The cube lists unanswered questions from the current live turn only")
+        app.openPendingQuestion(waiting[1])
+        try check(app.selectedID == first && app.questionDestination == another.id && app.unreadConversations.count == 2
+                  && app.conversations.first(where: { $0.id == second })?.draft == "Keep this draft",
+                  "The question action reveals the exact field and preserves other drafts and unread results")
+        task.clearTurn()
+        app.select(second); app.questionDestination = nil
+        app.openPendingQuestion(waiting[0])
+        try check(app.selectedID == second && app.pendingTaskQuestions.isEmpty && app.questionDestination == nil,
+                  "A completed turn clears the question badge and a stale click cannot redirect the workspace")
         preferences.record(answer, conversationID: first)
         let blockedRoot = root.appendingPathComponent("attention-restore-pending")
         let pending = blockedRoot.appendingPathComponent("proto_mind/data/.private-restore.json")

@@ -15,6 +15,7 @@ final class AppUpdateMonitor: ObservableObject {
 
     /// The build on disk when it differs from the one this process started with.
     @Published private(set) var installed: Build?
+    @Published var published = PublishedState.idle
     let running: Build?
     private let bundle: URL
     private var timer: Timer?
@@ -83,12 +84,13 @@ struct AppUpdateButton: View {
 
     var body: some View {
         Button {
+            if !monitor.available { app.openAppUpdates(); return }
             if app.runningTaskCount > 0 { confirming = true } else { app.restartForUpdate() }
         } label: {
             Image(systemName: "arrow.triangle.2.circlepath").font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(monitor.available ? Color.blue : Color.secondary.opacity(0.45))
         }
-        .buttonStyle(.plain).disabled(!monitor.available)
+        .buttonStyle(.plain)
         .help(help).accessibilityLabel(help)
         .alert(L10n.text("Перезапустить Proto-Mind?"), isPresented: $confirming) {
             Button(L10n.text("Перезапустить"), role: .destructive) { app.restartForUpdate() }
@@ -99,7 +101,7 @@ struct AppUpdateButton: View {
     }
 
     private var help: String {
-        guard let installed = monitor.installed else { return L10n.text("Обновлений нет") }
+        guard let installed = monitor.installed else { return L10n.pick("Проверить обновления…", "Check for Updates…") }
         return L10n.format("Установлена версия \(installed.version) (\(installed.number)). Нажмите, чтобы перезапустить Proto-Mind.")
     }
 }

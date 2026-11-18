@@ -114,6 +114,7 @@ extension AppModel {
         discardAgentGrants(for: selectedID)
         invalidateSessionSpinePilot()
         pendingPersonaActivation = nil
+        limitContinuations.cancel(conversations[index].id)
         conversations[index].provider = value
         conversations[index].apiWorkspaceToolsEnabled = false; conversations[index].apiWorkspaceGeneration = nil
         conversations[index].model = ""
@@ -267,6 +268,7 @@ extension AppModel {
 
     func archiveConversation(_ id: UUID, archived: Bool) {
         guard !operationBusy, !isRunning(id), let index = conversations.firstIndex(where: { $0.id == id }) else { return }
+        if archived { limitContinuations.cancel(id) }
         conversations[index].archived = archived
         if archived && selectedID == id {
             if let next = conversations.first(where: { !$0.archived }) { select(next.id) }
