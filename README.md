@@ -14,7 +14,7 @@ For current development guidance, see [`AGENTS.md`](AGENTS.md). The [current pri
 
 ## Native macOS Direction
 
-The current native workspace is **Native 0.75.12 / PM Remote Preview**, built with SwiftUI/AppKit over the existing Python cognitive core. Models can work with PM projects, conversations, browser pages, documents and explicitly connected services. This development line is separate from the earlier submitted Build Week baseline. The published portable beta is 0.75.11.
+The current native workspace is **Native 0.75.12 / PM Remote Preview**, built with SwiftUI/AppKit over the existing Python cognitive core. Models can work with PM projects, conversations, browser pages, documents and explicitly connected services. This development line is separate from the earlier submitted Build Week baseline. [Download the 0.75.12 portable beta for Apple Silicon](https://github.com/iskillcapped-gif/proto-mind/releases/tag/v0.75.12-beta).
 
 **PM Remote for iPhone (development):** a native iOS client and optional Mac connection for selected projects/chats, reading replies, sending tasks and live updates, exact-turn Stop and new chats. It uses private HTTPS with local pairing approval, preserves Mac drafts and never automatically retries an uncertain command. [Build, setup and verification boundaries](ios/README.md). iOS installation is a separate step from building the Mac app.
 
